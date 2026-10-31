@@ -1,0 +1,54 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <IsSourceProject>$(MSBuildProjectDirectory.StartsWith('$(MSBuildThisFileDirectory)src'))</IsSourceProject>
+    <IsUnitOrIntegrationTestProject>false</IsUnitOrIntegrationTestProject>
+    <IsUnitOrIntegrationTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit')) Or $(MSBuildProjectName.EndsWith('.Tests.Integration'))">true</IsUnitOrIntegrationTestProject>
+    <IsTestExecutable>$(IsUnitOrIntegrationTestProject)</IsTestExecutable>
+    <IsTestExecutable Condition="$(MSBuildProjectName.EndsWith('.Tests.Performance'))">true</IsTestExecutable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IsSourceProject)' == 'true'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <IsPackable>true</IsPackable>
+    <Authors>Tamás Bilik</Authors>
+    <RepositoryUrl>https://github.com/biliktamas79/MsgHatch</RepositoryUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IsSourceProject)' != 'true'">
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IsTestExecutable)' == 'true'">
+    <OutputType>Exe</OutputType>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IsUnitOrIntegrationTestProject)' == 'true'">
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="NSubstitute.Analyzers.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

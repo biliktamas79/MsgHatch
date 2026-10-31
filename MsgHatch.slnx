@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
+  </Folder>
+</Solution>
