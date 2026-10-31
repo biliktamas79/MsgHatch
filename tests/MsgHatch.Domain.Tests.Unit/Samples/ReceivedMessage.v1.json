@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "delivery": {
+    "id": "0b6c1f7e-2a44-4d8e-9a3b-61c0f5e2d7a9",
+    "status": "Pending",
+    "tryCount": 0,
+    "maxTryCount": 8,
+    "createdAtUtc": "2030-01-01T00:00:00Z",
+    "lastTryAtUtc": null,
+    "nextTryAtUtc": "2030-01-01T00:00:00Z",
+    "leaseUntilUtc": null,
+    "expiresAtUtc": null,
+    "lastError": null
+  },
+  "tenant": "t1",
+  "type": "TestEvent",
+  "contentVersion": 2,
+  "flags": "Test",
+  "traceParent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "event": { "text": "Order 1001" }
+}

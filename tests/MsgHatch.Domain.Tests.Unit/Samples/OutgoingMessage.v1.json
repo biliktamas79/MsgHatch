@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "delivery": {
+    "id": "7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31",
+    "status": "Pending",
+    "tryCount": 1,
+    "maxTryCount": 8,
+    "createdAtUtc": "2030-01-01T00:00:00Z",
+    "lastTryAtUtc": "2030-01-01T00:00:01Z",
+    "nextTryAtUtc": "2030-01-01T00:00:06Z",
+    "leaseUntilUtc": null,
+    "expiresAtUtc": null,
+    "lastError": "RateLimited: Maximum sending rate exceeded."
+  },
+  "sourceMessageId": "0b6c1f7e-2a44-4d8e-9a3b-61c0f5e2d7a9",
+  "tenant": null,
+  "type": "TestEvent",
+  "channel": "Test",
+  "target": { "kind": "User", "id": "1" },
+  "contentType": "Test:TestEnvelope",
+  "contentVersion": 1,
+  "flags": "None",
+  "traceParent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "trace": { "$type": "Trace:Test@1", "reason": "TestRouter" },
+  "envelope": { "text": "Order 1001 is shipped" },
+  "tries": [
+    {
+      "tryNumber": 1,
+      "startedAtUtc": "2030-01-01T00:00:00Z",
+      "finishedAtUtc": "2030-01-01T00:00:01Z",
+      "outcome": "TransientError",
+      "providerMessageId": null,
+      "errorCode": 429,
+      "errorName": "RateLimited",
+      "errorMessage": "Maximum sending rate exceeded."
+    }
+  ]
+}
