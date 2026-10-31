@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MsgHatch.Domain/MsgHatch.Domain.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
   </Folder>

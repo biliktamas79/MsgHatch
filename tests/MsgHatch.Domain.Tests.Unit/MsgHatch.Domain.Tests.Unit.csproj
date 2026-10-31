@@ -1,3 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Domain\MsgHatch.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
