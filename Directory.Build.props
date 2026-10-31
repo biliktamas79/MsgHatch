@@ -24,6 +24,10 @@
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 
+  <ItemGroup Condition="'$(IsSourceProject)' == 'true'">
+    <Compile Include="$(MSBuildThisFileDirectory)src/GeneratedCodeSuppressions.cs" Link="GeneratedCodeSuppressions.cs" />
+  </ItemGroup>
+
   <PropertyGroup Condition="'$(IsSourceProject)' != 'true'">
     <IsPackable>false</IsPackable>
   </PropertyGroup>
