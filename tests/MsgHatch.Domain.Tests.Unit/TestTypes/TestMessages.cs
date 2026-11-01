@@ -22,10 +22,11 @@ public static class TestMessages
         RouteTrace? trace = null,
         string targetId = "u1",
         int contentVersion = 1,
-        DeliveryState? delivery = null) =>
+        DeliveryState? delivery = null,
+        ChannelId? channel = null) =>
         new(
             SchemaVersion: 1, delivery ?? ADeliveryState(id), SourceMessageId: Guid.NewGuid(), tenant,
-            new MessageType("TestEvent"), new ChannelId("Test"), new DeliveryTarget(DeliveryTargetKind.User, targetId),
+            new MessageType("TestEvent"), channel ?? new ChannelId("Test"), new DeliveryTarget(DeliveryTargetKind.User, targetId),
             "Test:TestEnvelope", contentVersion, flags, TraceParent: null, trace, envelope ?? new TestEnvelope("text"));
 
     public static ReceivedMessage<TEvent> AReceivedMessage<TEvent>(

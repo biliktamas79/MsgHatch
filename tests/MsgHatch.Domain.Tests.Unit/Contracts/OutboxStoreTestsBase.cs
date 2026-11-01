@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Time.Testing;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -43,15 +45,30 @@ public abstract partial class OutboxStoreTestsBase<TStore> : IAsyncLifetime
         return TestData.ResetAsync(Ct);
     }
 
+    protected DateTime Now => Time.GetUtcNow().UtcDateTime;
+
     protected IOutboxStore TenantStore(TenantKey key) => _tenantStore(Store, key);
 
     protected OutgoingMessage<TestEnvelope> AMessage(
-        TenantKey key = default, string text = "text", MessageFlags flags = MessageFlags.None, Guid? id = null) =>
+        TenantKey key = default,
+        string text = "text",
+        MessageFlags flags = MessageFlags.None,
+        Guid? id = null,
+        ChannelId? channel = null,
+        DateTime? nextTryAtUtc = null) =>
         TestMessages.AnOutgoingMessage(
-            new TestEnvelope(text), tenant: key.Tenant, flags: flags,
-            delivery: TestMessages.ADeliveryState(id) with
-            {
-                CreatedAtUtc = Time.GetUtcNow().UtcDateTime,
-                NextTryAtUtc = Time.GetUtcNow().UtcDateTime,
-            });
+            new TestEnvelope(text), tenant: key.Tenant, flags: flags, channel: channel ?? TestChannel.Id,
+            delivery: TestMessages.ADeliveryState(id) with { CreatedAtUtc = Now, NextTryAtUtc = nextTryAtUtc ?? Now });
+
+    protected async Task<OutgoingMessage<TestEnvelope>> AddAsync(OutgoingMessage<TestEnvelope> message)
+    {
+        await TenantStore(TenantKey.For(message.Tenant)).AddAsync([message], Ct);
+        return message;
+    }
+
+    protected Task<ErrorOr<ClaimResult<OutgoingMessage>>> ClaimAsync(int maxCount = 10, ChannelId? channel = null) =>
+        Store.ClaimDueAsync(channel ?? TestChannel.Id, maxCount, Now, TimeSpan.FromSeconds(30), Ct).AsTask();
+
+    protected async Task<OutgoingMessage> StoredAsync(Guid id) =>
+        (await TestData.GetStoredAsync(Ct)).Single(message => message.Delivery.Id == id);
 }

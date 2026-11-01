@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
 
 namespace MsgHatch.Domain.Outbox;
 
@@ -29,4 +30,54 @@ internal static partial class Log
         Message = "Outbox DeleteTestDataAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void DeleteTestDataFailed(
         ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1304, Level = LogLevel.Debug,
+        Message = "Outbox ClaimDueAsync claimed {Count} messages of {Channel} with the down reason {DownReason} in {ElapsedMs} ms")]
+    public static partial void ClaimSucceeded(
+        ILogger logger, int count, string channel, ChannelDownReason? downReason, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1305,
+        Message = "Outbox ClaimDueAsync of {Channel} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void ClaimFailed(
+        ILogger logger, LogLevel level, string channel, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1306, Level = LogLevel.Debug,
+        Message = "Outbox RecordTryAsync recorded try {TryNumber} with the outcome {Outcome} of outgoing message {OutgoingMessageId} on {Channel} of tenant {Tenant} with flags {MessageFlags} in {ElapsedMs} ms")]
+    public static partial void RecordTrySucceeded(
+        ILogger logger, int tryNumber, PublishOutcome outcome, Guid outgoingMessageId, string channel, string? tenant,
+        MessageFlags messageFlags, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1307,
+        Message = "Outbox RecordTryAsync of try {TryNumber} with the outcome {Outcome} of outgoing message {OutgoingMessageId} on {Channel} of tenant {Tenant} with flags {MessageFlags} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void RecordTryFailed(
+        ILogger logger, LogLevel level, int tryNumber, PublishOutcome outcome, Guid outgoingMessageId, string channel,
+        string? tenant, MessageFlags messageFlags, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1308, Level = LogLevel.Debug,
+        Message = "Outbox GetDownChannelsAsync gave {Count} down channels in {ElapsedMs} ms")]
+    public static partial void GetDownChannelsSucceeded(ILogger logger, int count, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1309,
+        Message = "Outbox GetDownChannelsAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void GetDownChannelsFailed(
+        ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1310, Level = LogLevel.Debug,
+        Message = "Outbox {Operation} of {Channel} with the reason {Reason} gave {Changed} in {ElapsedMs} ms")]
+    public static partial void ChannelStateChangeSucceeded(
+        ILogger logger, string operation, string channel, ChannelDownReason? reason, bool changed, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1311,
+        Message = "Outbox {Operation} of {Channel} with the reason {Reason} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void ChannelStateChangeFailed(
+        ILogger logger, LogLevel level, string operation, string channel, ChannelDownReason? reason, double elapsedMs,
+        int errorCode, string errorName, string? errorMessage);
 }

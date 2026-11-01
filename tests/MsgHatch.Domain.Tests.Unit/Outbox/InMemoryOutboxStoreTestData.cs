@@ -11,4 +11,7 @@ public sealed class InMemoryOutboxStoreTestData(InMemoryOutboxStore store) : IOu
 
     public ValueTask<IReadOnlyList<OutgoingMessage>> GetStoredAsync(CancellationToken ct) =>
         ValueTask.FromResult(store.GetMessages());
+
+    public ValueTask<IReadOnlyList<PublishTry>> GetTriesAsync(Guid outgoingMessageId, CancellationToken ct) =>
+        ValueTask.FromResult(store.GetTries(outgoingMessageId));
 }

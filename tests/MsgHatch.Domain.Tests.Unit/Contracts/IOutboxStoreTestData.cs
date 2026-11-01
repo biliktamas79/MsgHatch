@@ -8,4 +8,6 @@ public interface IOutboxStoreTestData
     ValueTask ResetAsync(CancellationToken ct);
 
     ValueTask<IReadOnlyList<OutgoingMessage>> GetStoredAsync(CancellationToken ct);
+
+    ValueTask<IReadOnlyList<PublishTry>> GetTriesAsync(Guid outgoingMessageId, CancellationToken ct);
 }
