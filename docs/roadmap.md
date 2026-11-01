@@ -46,22 +46,24 @@ Goal: `main` contains the plan, the README, and the agent guidance.
 
 Goal: an event goes in through `ProcessAsync`, its router gives the routes, the composers build the envelopes, and the outgoing messages are in the in-memory outbox (D122). No database, no dispatcher, and no channel package. The tests use a test router, and a test channel with the envelope `TestEnvelope(string Text)` and its composer.
 
-1. Add `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `BannedSymbols.txt`, and `MsgHatch.slnx` (section 5.2). Add `tests/MsgHatch.Domain.Tests.Unit` (section 5.5).
+1. Add `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `BannedSymbols.txt`, `nuget.config`, and `MsgHatch.slnx` (section 5.2). Add `tests/MsgHatch.Domain.Tests.Unit` (section 5.5). Add `coverage.ps1`, `coverage.runsettings`, and `dotnet-tools.json` with ReportGenerator (D70).
 2. Add `src/MsgHatch.Domain` with `Failures/ErrorType.cs`, `Failures/Error.cs`, `Failures/ErrorOr.cs`, and `Failures/Errors.cs` (section 4.4).
 3. Add `Identity/MessageType.cs`, `ChannelId.cs`, `UserId.cs`, `CompanyId.cs`, `TenantId.cs`, and `TenantKey.cs`, with the name validation of section 4.4 (D114, D126). Add the internal time helper `Time/TimeProviderExtensions.cs` (section 4.14).
-4. Add the routing types of section 4.4 in `Routing/`: `DeliveryTargetKind`, `DeliveryTarget`, `ChannelSettings`, `ChannelFeatures`, `ChannelDescriptor` with `ChannelDescriptor<TSettings>`, `RouteTrace`, `MessageRoute`, and `MessageTypeDescriptor`. Add `IMessageRouter` and `IChannelSettingsValidator` (section 4.6), and `RouteGrouping` with `ByChannel` and `ByLanguageAndScope`.
-5. Add `IMessageRegistry` and the internal in-memory reader that the registrations fill, with no logging wrapper (D117). The writer comes in phase 16.
-6. Add `Delivery/MessageFlags.cs`, `MessageContext.cs`, `DeliveryStatus.cs` with `Pending`, `Done`, and `Failed`, `DeliveryState.cs`, `ReceivedMessage.cs`, `ReceivedMessageOfT.cs`, `OutgoingMessage.cs` with `Content`, and `OutgoingMessageOfT.cs` (section 4.4). The publish tries come in phase 2.
+4. Add the routing types of section 4.4 in `Routing/`: `DeliveryTargetKind`, `DeliveryTarget`, `ChannelSettings`, `ChannelFeatures`, `ChannelDescriptor` with `ChannelDescriptor<TSettings>`, `RouteTrace`, `MessageRoute`, and `MessageTypeDescriptor`. Add `IChannelSettingsValidator` (section 4.6), and `RouteGrouping` with `ByChannel` and `ByLanguageAndScope`.
+5. Add `IMessageRegistry` (D117). Item 9 adds the internal in-memory reader, because only the registrations fill it. The writer comes in phase 16.
+6. Add `Delivery/MessageFlags.cs`, `MessageContext.cs`, `DeliveryStatus.cs` with `Pending`, `Done`, and `Failed`, `DeliveryState.cs`, `ReceivedMessage.cs`, `ReceivedMessageOfT.cs`, `OutgoingMessage.cs` with `Content`, and `OutgoingMessageOfT.cs` (section 4.4). The publish tries come in phase 2. Add `Routing/IMessageRouter.cs` (section 4.6), because `RouteAsync` takes a `ReceivedMessage<TEvent>`.
 7. Add `Identity/DeterministicId.cs` (section 4.8), and `Delivery/RetryOptions.cs` with `RetryOptionsValidator`. Phase 1 uses `MaxTryCount` and `Expiry` for the outgoing messages. Phase 2 uses the delays.
-8. Add `Persistence/IContentTypeRegistry.cs`, `ContentTypeEntry.cs`, the internal `ContentTypeRegistry`, and `MsgHatchJson`, with the discriminator of a route trace (section 4.5).
+8. Add `Persistence/IContentTypeRegistry.cs`, `ContentTypeEntry.cs`, and `MsgHatchJson`, with the discriminator of a route trace (section 4.5). Item 9 adds the internal `ContentTypeRegistry`, because only the registrations fill it.
 9. Add `DependencyInjection/MsgHatchOptions.cs` with `MsgHatchOptionsValidator`, `ServiceCollectionExtensions.cs` with `AddMsgHatch`, and `MsgHatchBuilder` with `Services`, `AddChannelType`, `AddTraceType`, `UseRouter`, and `AddMessage`. Add `MessageBuilder<TEvent>` with `Services`, `WithRouter`, `WithUpgrade`, and `AsChannel`, and `ChannelBuilder<TEnvelope>` with `WithUpgrade` and `WithRetry` (section 4.7):
    - Add the internal registration of a tenant service with `KeyedService.AnyKey`, its wrappers, and the unkeyed registration for `TenantKey.None` (D126). Each later tenant service uses it.
    - Add the internal `IMessageHandler`, `MessageRegistration<TEvent>`, `IChannelRegistration<TEvent>`, and `ChannelRegistration<TEvent, TEnvelope>` (section 4.3).
-   - The registrations fill the content type registry and the registry reader, and register the named `RetryOptions` of each channel registration (D87). `MsgHatchBuilder` records each selection of an implementation (D62).
-10. Add `Outbox/IOutboxStore.cs` with `AddAsync`, and `Outbox/IOutboxDispatchStore.cs` with `DeleteTestDataAsync` (section 4.6). Add `OutboxStoreLoggingWrapper`, `OutboxDispatchStoreLoggingWrapper`, `UseOutboxStore` and `UseOutboxDispatchStore` with their factory overloads, `InMemoryOutboxStore` with its two parts (section 4.5), and `UseInMemoryStores` (D119, D127). Add the contract base class `OutboxStoreTestsBase<TStore>` with `IOutboxStoreTestData` in `tests/MsgHatch.Domain.Tests.Unit/Contracts/`, and its subclass `InMemoryOutboxStoreUnitTests`. Phases 2 and 15 add the other members.
-11. Add `Pipeline/IEnvelopeComposer.cs`, `IPayloadLoader.cs`, `NotificationResult.cs` with no `Skipped`, which phase 16 adds, `RouteResult.cs`, and `INotificationService.cs` with `ProcessAsync` and `PreviewAsync` (section 4.6). Add `MessageRouterLoggingWrapper<TEvent>`, `PayloadLoaderLoggingWrapper<TEvent, TPayload>`, and `NotificationServiceLoggingWrapper`. Add the internal `NotificationPipeline` with steps 2 to 6 of section 4.8, with no dispatch signal and no registry check, and `NotificationService`. Phase 2 adds the signal of step 6 and `AcceptAsync`. Phase 16 adds the registry checks of steps 2 and 3.
+   - Add `Pipeline/IEnvelopeComposer.cs` (section 4.6), because `AsChannel` takes the composer.
+   - Add the internal `ContentTypeRegistry`, and the internal in-memory registry reader with no logging wrapper (D117). The registrations fill them, and register the named `RetryOptions` of each channel registration (D87). `MsgHatchBuilder` records each selection of an implementation (D62).
+   - Add `src/GeneratedCodeSuppressions.cs` (D32), because the binding generator of `MsgHatchOptions` reads the banned indexer.
+10. Add `Outbox/IOutboxStore.cs` with `AddAsync`, and `Outbox/IOutboxDispatchStore.cs` with `DeleteTestDataAsync` (section 4.6). Add `OutboxStoreLoggingWrapper`, `OutboxDispatchStoreLoggingWrapper`, `UseOutboxStore` and `UseOutboxDispatchStore` with their factory overloads, `InMemoryOutboxStore` with its two parts and `GetMessages` (section 4.5), and `UseInMemoryStores` (D119, D127). Add the `Log` class of the outbox area (section 4.16). Add the contract base class `OutboxStoreTestsBase<TStore>` with `IOutboxStoreTestData` in `tests/MsgHatch.Domain.Tests.Unit/Contracts/`, and its subclass `InMemoryOutboxStoreUnitTests`. Phases 2 and 15 add the other members.
+11. Add `Pipeline/IPayloadLoader.cs` with `MessageBuilder<TEvent>.UsePayloadLoader`, `NotificationResult.cs` with no `Skipped`, which phase 16 adds, `RouteResult.cs`, and `INotificationService.cs` with `ProcessAsync` and `PreviewAsync` (section 4.6). Add `MessageRouterLoggingWrapper<TEvent>`, `PayloadLoaderLoggingWrapper<TEvent, TPayload>`, `NotificationServiceLoggingWrapper`, and the `Log` class of the pipeline area (section 4.16). Add the internal `NotificationPipeline` with steps 2 to 6 of section 4.8, with no dispatch signal and no registry check, and `NotificationService`. Phase 2 adds the signal of step 6 and `AcceptAsync`. Phase 16 adds the registry checks of steps 2 and 3.
 12. Add the test messages and the preview (sections 4.8 and 4.18).
-13. Add the `Log` classes of the pipeline and outbox areas (section 4.16). Add the startup validation of section 4.7 for the role of an event consumer: the outbox stores, D62, a router for each message type, unique content types, unique message type names, and the options.
+13. Add the startup validation of section 4.7 for the role of an event consumer: the outbox stores, D62, a router for each message type, unique content types, unique message type names, and the options.
 14. Add `Telemetry/MsgHatchTelemetry.cs`, the internal `ActivitySource`, and the internal `MsgHatchMetrics` with the instruments `msghatch.messages.received`, `msghatch.messages.stored`, `msghatch.routes.failed`, and `msghatch.process.duration` (section 4.21). `AddMsgHatch` calls `AddMetrics`. The pipeline starts the `process` span, records the measurements, and gives each outgoing message its `TraceParent` (D131, D132).
 
 Tests:
@@ -96,7 +98,7 @@ Tests:
   - The wrapper of a tenant service logs the tenant of its key.
   - No log record contains the channel address in the envelope of a test message.
 - The standard logging wrapper tests for the outbox store, outbox dispatch store, router, payload loader, and notification service wrappers. With `EnableLogging` false, no logging wrapper is registered.
-- The use cases of `OutboxStoreTestsBase` for `AddAsync` and `DeleteTestDataAsync` (section 5.5), run by `InMemoryOutboxStoreUnitTests`. They include the tenant rules: the tenant store of one key does not see the messages of another key, and a message of another tenant gives `Errors.ValidationFailed`.
+- The use cases of `OutboxStoreTestsBase` for `AddAsync` and `DeleteTestDataAsync` (section 5.5), run by `InMemoryOutboxStoreUnitTests`. They include the tenant rules: the tenant store of each key stores its messages with its own tenant, and a message of another tenant gives `Errors.ValidationFailed`. The tenant store has no read member in phase 1, so phase 15 adds the rule that the tenant store of one key does not see the messages of another key.
 - Pipeline tests, with substitutes through the factory overloads, and all times from a `FakeTimeProvider` that starts at `2030-01-01T00:00:00Z`:
   - `ProcessAsync` calls the router of the message type one time with the received message. It calls each composer one time, with all routes of its channel, in the order of the router.
   - With a tenant in the context, the pipeline uses the router, the composers, and the outbox tenant store of `TenantKey.For(tenant)`. With no tenant, it uses those of `TenantKey.None` (D126).
@@ -129,8 +131,8 @@ Tests:
 Commits:
 1. "Add .NET 10 build infrastructure and solution"
 2. "Add error values"
-3. "Add message, channel, user, company, and tenant identities, and the tenant key"
-4. "Add the routing contract, route grouping, and the in-memory message registry"
+3. "Add message, channel, user, company, and tenant ids, and the tenant key"
+4. "Add the routing contract, route grouping, and the registry contract"
 5. "Add delivery state and message envelopes"
 6. "Add deterministic outgoing message ids and retry options"
 7. "Add the content type registry and MsgHatchJson"
@@ -140,6 +142,8 @@ Commits:
 11. "Add test messages and previews"
 12. "Add startup validation"
 13. "Add pipeline telemetry"
+
+The review of phase 1 added 10 commits before the tag `phase-1`: more tests, the coverage report (D70), the generic channel descriptor (D77), the check of unique message type names, the type check of `UseRouter`, and smaller fixes.
 
 Done when: the build has no errors and no warnings, all tests pass, and the end-to-end test finds the messages in the in-memory outbox.
 
@@ -597,7 +601,7 @@ Goal: the API and the HTTP endpoints for a UI of the traffic, the history, and t
 7. In the example app, map the two route groups, each with its own authorization policy.
 
 Tests:
-- The management use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` (section 5.5) run on the in-memory, file, and SQLite stores.
+- The management use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` (section 5.5) run on the in-memory, file, and SQLite stores. They include the tenant rule that the tenant store of one key does not see the messages of another key.
 - A `Cancelled` message is never claimed again, and `RecordTryAsync` keeps its status rules.
 - `PurgeAsync` of each dispatch store deletes only the finished messages that finished before the given time, of all tenants, at most `maxCount`, and never a pending message (D128).
 - Delivery manager tests, with substitutes for the stores and the dispatch signal, and the test channel:

@@ -180,7 +180,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D29 | Inbox history | Recommended | Not now. The inbox keeps only the summary fields of its delivery state. | A `ProcessTry` history for the inbox now. |
 | D30 | Discriminators | Recommended | The content type registry gives stable discriminators of the form `{ContentType}@{Version}`. A C# rename does not change a stored record. | CLR type names. |
 | D31 | Time source | Confirmed | All times come from an injected `TimeProvider`. Tests use `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing` (section 4.14). | `DateTime.UtcNow`. |
-| D32 | Clock guard | Recommended | `Microsoft.CodeAnalysis.BannedApiAnalyzers` bans the direct clock APIs and the `IConfiguration` indexer (D63) in all projects, so a direct clock read or an indexer read does not compile. | Code review only. |
+| D32 | Clock guard | Recommended | `Microsoft.CodeAnalysis.BannedApiAnalyzers` bans the direct clock APIs and the `IConfiguration` indexer (D63) in all projects, so a direct clock read or an indexer read does not compile. The version is 3.3.4, because the analyzer check of phase 1 found that the versions 4.14.0 to 5.6.0 do not report a banned indexer. `src/GeneratedCodeSuppressions.cs` turns off `RS0030` only in the namespace of the configuration binding generator (D65), because its generated code reads the indexer. | Code review only. |
 | D33 | Retry jitter | Recommended | The jitter derives from the message id and the try number, not from `Random`. A test can then predict the exact next try time. | `Random.Shared`. |
 | D34 | Logging wrappers | Confirmed | Each service interface can have a logging wrapper that logs to `ILogger<T>` (section 4.15). | Logging inside each implementation. |
 | D35 | Wrapper wiring | Recommended | The registration methods add the wrappers. `MsgHatchOptions.EnableLogging`, true by default, adds or removes all logging wrappers. No decorator package is necessary. | Scrutor `Decorate`. |
@@ -200,7 +200,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D49 | Options class names | Recommended | The suffix `Options`, the .NET convention for `IOptions<T>`. | The suffix `Config`. |
 | D50 | Folder layout | Recommended | Feature folders. The folder path is the namespace. A folder never has the name of a type in it, because the namespace then hides the type. So the error types are in the folder `Failures`, not `Errors`. | Folders by kind of type, for example one folder for all interfaces. |
 | D51 | Warnings | Recommended | `TreatWarningsAsErrors` in the `src` projects. | Warnings that do not stop the build. |
-| D52 | xUnit version | Recommended | xUnit v3 (`xunit.v3`). | xUnit v2. |
+| D52 | xUnit version | Recommended | xUnit v3 (`xunit.v3`). The test projects set `IsTestingPlatformApplication` to `false`, so that `dotnet test` runs them through VSTest and `xunit.runner.visualstudio`. With the .NET 10 SDK, `dotnet test` in VSTest mode does not run a Microsoft Testing Platform application. | xUnit v2. The new `dotnet test` mode for Microsoft Testing Platform. |
 | D53 | Subscription management | Confirmed | The C# API `ISubscriptionManager` of `MsgHatch.Subscriptions`. It lists the channels with their features, the message types with their effective subscriptions, and the subscriptions, each with optional filters for the message type, the company, and the user. It creates, reads, updates, and deletes subscriptions of all three levels (section 4.17). | none |
 | D54 | HTTP endpoints | Recommended | The package `MsgHatch.Subscriptions.AspNetCore` maps the subscription management API to minimal API endpoints. The consumer adds the authorization. | The consumer writes its own endpoints. |
 | D55 | SQLite stores | Confirmed | The package `MsgHatch.Data.Sqlite` ships `SqliteInboxStore` and `SqliteOutboxStore`, a relational alternative when no SQL Server or MongoDB is available (section 4.5). | none |
@@ -218,7 +218,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D67 | Contract base classes | Confirmed | The use-case tests of each domain interface are in one abstract generic base class `{Interface}TestsBase<T>`. Each implementation gets the full coverage with one subclass that only builds the implementation (section 5.5). | Separate tests for each implementation. |
 | D68 | Test access | Recommended | Tests reach the code only through its public API and the DI setup methods. No `InternalsVisibleTo`. A type that needs its own test is public for a reason of its own, or it is tested through the public type that uses it. | `InternalsVisibleTo` for the test projects. |
 | D69 | Test data | Recommended | Factory methods with valid defaults and named parameters, in each test project. No test data library. | Bogus, with a fixed seed. |
-| D70 | Coverage | Recommended | `coverlet.collector` in each unit and integration test project. Coverage is a diagnostic, never a target. | No coverage data. |
+| D70 | Coverage | Recommended | `coverlet.collector` in each unit and integration test project. `coverage.ps1` writes an HTML report with ReportGenerator, a local tool in `dotnet-tools.json`, and fails when the line coverage of the production code is less than 90 %. An uncovered line is a behavior with no test, not a number to raise. | No coverage data. Coverage as a diagnostic with no lower limit. |
 | D71 | Level of the SQLite tests | Confirmed | The tests of the SQLite stores, also in the example app, are unit tests. SQLite runs in process, and its only dependency is a database file in a temporary folder, which a unit test may use. This is a deliberate exception to the rule that a database test is an integration test. | Integration tests for SQLite. |
 | D72 | Subscription levels | Confirmed | Each message type has three owner levels: default, company, and user. The overridable subscriptions merge for each channel: for one user and one channel, the most specific level with a subscription or an opt-out for that channel applies. An opt-out for all channels covers each channel of its level. Each level can have several channels, each with its own settings. | The most specific level with a subscription replaces the levels above it, with all its channels. |
 | D73 | User and company ids | Confirmed | `UserId`, `CompanyId`, and `TenantId` (D114) hold strings. `From<T>` maps any `ISpanFormattable` id, for example `int`, `long`, or `Guid`, with the invariant culture, and `TryAs<T>` maps it back (section 4.4). | A generic id type parameter in each API. |
@@ -433,7 +433,7 @@ public readonly record struct TenantKey
 }
 ```
 
-A message type name, a content type name, and a channel name contain only letters, digits, and `_`, and start with a letter. The registration rejects other names.
+A message type name, a content type name, and a channel name contain only ASCII letters, ASCII digits, and `_`, and start with an ASCII letter. The registration rejects other names.
 
 User ids, company ids, and tenant ids (D73, D114):
 - A `UserId`, a `CompanyId`, or a `TenantId` holds a string, so that each consumer keeps its own id type, for example `int`, `long`, `Guid`, or a string.
@@ -916,7 +916,7 @@ The inbox uses the same patterns, with no tries (D29).
 
 The outbox dispatch store also keeps the down state of each channel (D106). A SQL store has one row for each down channel, a NoSQL store one document, and the file store one file `{channel}/down.json`. Each change of a down state is one atomic operation, and each claim of a channel reads the down state of that channel in the same operation.
 
-In-memory stores (D119). `InMemoryInboxStore` and `InMemoryOutboxStore` in `MsgHatch.Domain` keep the messages, the tries, and the down states in dictionaries, with one lock for each store. They follow each rule of section 4.6 and pass the contract base classes, so they are also the reference for the other stores. `UseInMemoryStores()` selects them. They have the comment `ponytail: not durable and for one process, use a storage package for production`.
+In-memory stores (D119). `InMemoryInboxStore` and `InMemoryOutboxStore` in `MsgHatch.Domain` keep the messages, the tries, and the down states in dictionaries, with one lock for each store. They follow each rule of section 4.6 and pass the contract base classes, so they are also the reference for the other stores. `UseInMemoryStores()` selects them. They have the comment `ponytail: not durable and for one process, use a storage package for production`. `InMemoryOutboxStore.GetMessages()` gives a copy of the stored messages of all tenants, in the order of their insert, for example for a test.
 
 Store parts (D127, D130). Each library store class has the two parts of one storage:
 - The class implements the dispatch store, `IInboxDispatchStore` or `IOutboxDispatchStore`, for all tenants. Its setup method registers it as a thread-safe singleton.
@@ -1434,7 +1434,7 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 | `AddMsgHatch(Action<MsgHatchOptions>?)` | Registers the core services: the in-memory `IMessageRegistry` from the registrations (D117), `InProcessDispatchSignal` as the `IDispatchSignal`, `IDeliveryManager` as a tenant service with its logging wrapper, and `TimeProvider.System` with `TryAddSingleton`. Returns `MsgHatchBuilder`. |
 | `AddChannelType<TSettings>(ChannelDescriptor<TSettings>, int settingsVersion, JsonTypeInfo<TSettings> settingsJson, IChannelSettingsValidator)` | Registers a channel: its descriptor, the content type `Settings:{Channel}` of its settings type with the version, and the settings validator. A second call for the same channel id changes nothing. The first `As<Channel>` registration of a channel package calls it (D77, H5). |
 | `AddTraceType<TTrace>(string name, int version, JsonTypeInfo<TTrace>)` | Registers a route trace type with the content type `Trace:{name}` and the version. `TTrace` derives from `RouteTrace`. The router packages call it (D98). |
-| `UseRouter(Type routerType)` | Selects an open generic router, for example `typeof(SubscriptionRouter<>)`, for each message type with no router of its own (D99). The router packages call it. |
+| `UseRouter(Type routerType)` | Selects an open generic router, for example `typeof(SubscriptionRouter<>)`, for each message type with no router of its own (D99). The router packages call it. The type has one type parameter `T` and implements `IMessageRouter<T>` for it. Another type gives an `ArgumentException`. The startup validation reports a message type that breaks the constraint of `T`. |
 | `UseInMemoryStores()` | Selects `InMemoryInboxStore` and `InMemoryOutboxStore`, with their two parts and their logging wrappers, for a host with no database (D119). From phase 16, it also registers `InMemoryRegistrySettingsStore`. |
 | `UseStorageForEachTenant<TTenantSource>(Func<IServiceProvider, TenantKey, IInboxStore> inbox, Func<IServiceProvider, TenantKey, IInboxDispatchStore> inboxDispatch, Func<IServiceProvider, TenantKey, IOutboxStore> outbox, Func<IServiceProvider, TenantKey, IOutboxDispatchStore> outboxDispatch)` | Registers the consumer's tenant source with its logging wrapper. Registers the tenant stores of each key from the functions, each with its logging wrapper and an internal wrapper that clears the next due time of its tenant in the dispatch composite after a successful `AddAsync` or `RetryAsync`. Registers `TenantInboxDispatchStore` and `TenantOutboxDispatchStore`, with their logging wrappers, as the dispatch stores (D125). The storage packages call it. |
 | `UseStoredRegistry()` | Selects `StoredRegistry` as `IMessageRegistry` and `IRegistryWriter`, on the registered `IRegistrySettingsStore` (D118, section 4.20). |
@@ -1445,12 +1445,13 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 | `ConfigureInboxDispatch(Action<DispatchOptions>)`, `ConfigureOutboxDispatch(Action<DispatchOptions>)` | Change the dispatch options. |
 | `AddMessage<TEvent>(name, version, JsonTypeInfo<TEvent>, configure)` | Registers one message type. `configure` receives a `MessageBuilder<TEvent>`. |
 | `MessageBuilder<TEvent>.WithRouter<TRouter>()` | Selects the router of this message type. It wins over the open generic router of `UseRouter` (D99). |
+| `MessageBuilder<TEvent>.UsePayloadLoader<TPayload, TLoader>()` | Registers the payload loader of one payload type of this message type as a tenant service, with its logging wrapper. The channel packages call it for the loader `TLoader` of each channel registration. |
 | `MessageBuilder<TEvent>.WithUpgrade<TOld>(version, JsonTypeInfo<TOld>, Func<TOld, TEvent>)` | Registers an old event version (section 4.13). |
 | `ConfigureTestDelivery(ChannelId, Action<TestDeliveryOptions>)` | Changes the test delivery of one channel (D83). The options also bind from `MsgHatch:TestDelivery:{Channel}`. |
 | `ConfigureChannelDown(ChannelId, Action<ChannelDownOptions>)` | Changes the error threshold and the check interval of one channel (D86). The options also bind from `MsgHatch:ChannelDown:{Channel}`. |
 | `MessageBuilder<TEvent>.AsChannel<TEnvelope, TComposer>(channel, name, version, JsonTypeInfo<TEnvelope>, retry, configure)` | The generic channel registration. The channel packages call it, after `AddChannelType`. `TComposer` is the `IEnvelopeComposer<TEvent, TEnvelope>` of the channel, a tenant service (D96). `retry` gives the default `RetryOptions` values of the channel, for example 3 tries and an expiry of 5 minutes for SignalR. `configure` receives a `ChannelBuilder<TEnvelope>` with `WithUpgrade<TOldEnvelope>` and `WithRetry(Action<RetryOptions>)` (D87). |
 
-`UseRouter` and `WithRouter` register the router as a tenant service. `IMessageRouter<TEvent>` of a key resolves to the open generic `MessageRouterLoggingWrapper<>` around the router of that key. In the DI container, the closed registration of one message type wins over the open generic registration. Phase 1 tests this for a key and for no key.
+`AddMessage` registers `IMessageRouter<TEvent>` of its message type as a tenant service, with the logging wrapper `MessageRouterLoggingWrapper<TEvent>`. For each key, the registration creates the router of `WithRouter`. A message type with no `WithRouter` gets the open generic router type of `UseRouter`, closed for `TEvent`. So `WithRouter` wins over `UseRouter`, and the DI container has no open generic router registration. Phase 1 tests this for a key and for no key.
 
 Setup methods of `MsgHatch.Subscriptions` and its packages (D97):
 
@@ -1496,7 +1497,7 @@ Setup methods of the other implementation packages (D60):
 
 A transport registration makes the host a publisher of its channel. The outbox dispatcher of a host sends exactly the channels whose transport the host registered (D101).
 
-Message channel registrations of the channel packages. Each one calls `AddChannelType` for its channel, registers the library composer of its channel and the loader `TLoader` as tenant services with their logging wrappers, and then calls `AsChannel`:
+Message channel registrations of the channel packages. Each one calls `AddChannelType` for its channel, registers the loader `TLoader` with `UsePayloadLoader`, and then calls `AsChannel` with the library composer of its channel. `AsChannel` registers the composer as a tenant service:
 
 | Method | Package | Effect |
 |---|---|---|
@@ -2335,6 +2336,10 @@ Checked facts (2026-10-31). These external facts carry the design of this sectio
 ├── Directory.Build.props
 ├── Directory.Packages.props
 ├── BannedSymbols.txt
+├── nuget.config
+├── dotnet-tools.json
+├── coverage.ps1
+├── coverage.runsettings
 ├── MsgHatch.slnx
 ├── docs/
 │   ├── design.md
@@ -2342,6 +2347,7 @@ Checked facts (2026-10-31). These external facts carry the design of this sectio
 │   ├── subscription-domain.md
 │   └── stores.md                                       (phase 13)
 ├── src/
+│   ├── GeneratedCodeSuppressions.cs                    (phase 1)
 │   ├── MsgHatch.Domain/                                (phase 1)
 │   ├── MsgHatch.SourceGeneration/                      (phase 3)
 │   ├── MsgHatch.Email/                                 (phase 3)
@@ -2409,17 +2415,25 @@ Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `
 - `TargetFramework` `net10.0`. `MsgHatch.SourceGeneration` sets `netstandard2.0` in its own project file.
 - `LangVersion` `latest`, `Nullable` `enable`, `ImplicitUsings` `enable`.
 - `AnalysisLevel` `latest-recommended`.
+- `EnforceCodeStyleInBuild` `true`, so that the rules of `.editorconfig` stop the build.
 - A `PackageReference` to `Microsoft.CodeAnalysis.BannedApiAnalyzers` with `PrivateAssets="all"`, and `<AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />` (D32 and D63).
 - For the projects under `src/`:
   - `TreatWarningsAsErrors` `true` (D51).
   - `GenerateDocumentationFile` `true`.
   - `EnableConfigurationBindingGenerator` `true` (D65).
+  - A compile link to `src/GeneratedCodeSuppressions.cs` (D32).
   - `IsPackable` `true`.
   - The package metadata: `Authors` `Tamás Bilik`, `RepositoryUrl` `https://github.com/biliktamas79/MsgHatch`, and `PackageLicenseExpression` `Apache-2.0`.
-- For each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance`: `OutputType` `Exe`. The unit and integration test projects also get the test packages of section 5.5.
+- For each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance`:
+  - `OutputType` `Exe`, and `IsTestingPlatformApplication` `false` (D52).
+  - `NoWarn` for `CA1707`, because the test names have underscores.
+  - `NoWarn` for `CA2012`, because the setup of a substitute calls a method that returns a `ValueTask` and does not await it.
+- The unit and integration test projects also get the test packages of section 5.5, and `RunSettingsFilePath` `coverage.runsettings` (D70).
 - For all other projects, `IsPackable` `false`.
 
-`Directory.Packages.props` sets `ManagePackageVersionsCentrally` `true` (D48). It lists one `PackageVersion` for each package in section 4.2, with the latest stable version at the start of phase 1. A later phase adds the packages of its projects. A package version changes only in its own commit.
+`Directory.Packages.props` sets `ManagePackageVersionsCentrally` `true` (D48). It lists one `PackageVersion` for each package in section 4.2, with the latest stable version at the start of phase 1. The one exception is `Microsoft.CodeAnalysis.BannedApiAnalyzers` 3.3.4 (D32). A later phase adds the packages of its projects. A package version changes only in its own commit.
+
+`nuget.config` clears the package sources and adds only nuget.org. So each machine restores from the same source, and a machine with more sources gives no warning `NU1507`.
 
 `BannedSymbols.txt`:
 
@@ -2520,7 +2534,7 @@ The tests follow the `core:automated-tests` skill of the Transcend agent tooling
 
 Packages:
 - `Directory.Build.props` gives each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance` the property `OutputType` `Exe`. It gives each unit and integration test project references to `xunit.v3`, `Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, `NSubstitute`, `NSubstitute.Analyzers.CSharp`, `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.Extensions.Diagnostics.Testing`, and `coverlet.collector` (D70).
-- `MsgHatch.SourceGeneration.Tests.Unit` also references `Microsoft.CodeAnalysis.CSharp`. `ExampleApp.Tests.Unit` also references `OpenTelemetry.Exporter.InMemory`. The EF Core integration test projects also reference `Testcontainers.MsSql`, and the MongoDB integration test projects `Testcontainers.MongoDb`. `MsgHatch.AspNetCore.Tests.Unit` and `MsgHatch.Subscriptions.AspNetCore.Tests.Unit` also reference `Microsoft.AspNetCore.TestHost`. The performance projects reference `BenchmarkDotNet`.
+- `MsgHatch.Domain.Tests.Unit` also references `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`, for the DI container and the in-memory configuration of its tests. `MsgHatch.SourceGeneration.Tests.Unit` also references `Microsoft.CodeAnalysis.CSharp`. `ExampleApp.Tests.Unit` also references `OpenTelemetry.Exporter.InMemory`. The EF Core integration test projects also reference `Testcontainers.MsSql`, and the MongoDB integration test projects `Testcontainers.MongoDb`. `MsgHatch.AspNetCore.Tests.Unit` and `MsgHatch.Subscriptions.AspNetCore.Tests.Unit` also reference `Microsoft.AspNetCore.TestHost`. The performance projects reference `BenchmarkDotNet`.
 - Each test project references the production project under test. A project with subclasses of a contract base class also references the test project that holds the base class.
 - Before a phase adds a package, it reads the license of the pinned version from the package metadata. Only MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, and ISC are allowed. A dual license is allowed when one of its licenses is allowed. No license is taken from memory.
 - Assertions use the `Assert` class of xUnit. Fakes of the clock and the logger come from the Microsoft testing packages: `FakeTimeProvider` and `FakeLogger`. All other doubles are NSubstitute substitutes (D14).
