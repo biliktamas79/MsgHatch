@@ -300,6 +300,26 @@ public sealed partial class NotificationServiceUnitTests
         Assert.Empty(_doubles.Stored);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task ProcessAsync_ComposerWithAnotherEnvelopeCountThanRoutes_FailsTheEventWithValidationFailedAndStoresNothing(int envelopeCount)
+    {
+        // Arrange
+        _doubles.Routes = [ARoute("u1"), ARoute("u2")];
+        _doubles.Composer(TenantKey.None).ComposeAsync(default!, default, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ErrorOr<TestEnvelope>>>.ForValue(
+                [.. Enumerable.Repeat<ErrorOr<TestEnvelope>>(new TestEnvelope("envelope"), envelopeCount)]))); // not one envelope for each route
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var result = await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal(Errors.ValidationFailed, result.Error?.Type);
+        Assert.Empty(_doubles.Stored);
+    }
+
     [Fact]
     public async Task ProcessAsync_RouterThatThrows_ReturnsTheExceptionError()
     {
