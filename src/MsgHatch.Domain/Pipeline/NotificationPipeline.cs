@@ -6,6 +6,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
+using MsgHatch.Domain.Telemetry;
 using MsgHatch.Domain.Time;
 
 namespace MsgHatch.Domain.Pipeline;
@@ -15,7 +16,8 @@ namespace MsgHatch.Domain.Pipeline;
 /// and store them. Each step resolves its tenant services with the tenant key of the event (D126).
 /// </summary>
 internal sealed class NotificationPipeline(
-    IServiceProvider services, IMessageRegistry registry, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time)
+    IServiceProvider services, IMessageRegistry registry, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time,
+    MsgHatchMetrics metrics)
 {
     public async ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
         TEvent domainEvent, MessageContext context, CancellationToken ct)
@@ -26,17 +28,68 @@ internal sealed class NotificationPipeline(
             return new Error(Errors.NotFound, $"The event type {typeof(TEvent).Name} is not registered.");
         }
 
+        var started = time.GetTimestamp();
+        using var span = ProcessSpan.Start(registration.Type, context);
+        metrics.RecordReceived(registration.Type, context.Flags);
+        var result = ErrorOr<NotificationResult>.ForError(new Error(Errors.Exception));
+        try
+        {
+            result = await ProcessInSpanAsync(registration, domainEvent, context, span, ct);
+            return result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            result = new Error(Errors.OperationCancelled);
+            throw;
+        }
+        finally
+        {
+            span.Finish(result);
+            metrics.RecordProcessed(registration.Type, context.Flags, result.Error, time.GetElapsedTime(started));
+        }
+    }
+
+    private async ValueTask<ErrorOr<NotificationResult>> ProcessInSpanAsync<TEvent>(
+        MessageRegistration<TEvent> registration, TEvent domainEvent, MessageContext context, ProcessSpan span,
+        CancellationToken ct)
+    {
         var key = TenantKey.For(context.Tenant);
         var nowUtc = time.GetUtcNowDateTime();
-        var received = registration.ReceiveInMemory(domainEvent, context, nowUtc, traceParent: null);
+        var received = registration.ReceiveInMemory(domainEvent, context, nowUtc, span.CallerTraceParent);
         var routes = await RouteAsync(registration, received, key, ct);
         if (routes.IsError)
         {
             return routes.Error;
         }
 
-        var outcomes = await ComposeAsync(registration, received, routes.Value, key, new OutgoingDefaults(nowUtc, null, retryOptions), ct);
-        return outcomes.IsError ? outcomes.Error : await StoreAsync(key, outcomes.Value, ct);
+        var outcomes = await ComposeAsync(
+            registration, received, routes.Value, key, new OutgoingDefaults(nowUtc, span.TraceParent, retryOptions), ct);
+        if (outcomes.IsError)
+        {
+            return outcomes.Error;
+        }
+
+        RecordFailedRoutes(registration.Type, routes.Value, outcomes.Value);
+        return await StoreAsync(key, outcomes.Value, ct);
+    }
+
+    private void RecordFailedRoutes(MessageType type, IReadOnlyList<MessageRoute> routes, ErrorOr<OutgoingMessage>[] outcomes)
+    {
+        for (var position = 0; position < outcomes.Length; position++)
+        {
+            if (outcomes[position].IsError)
+            {
+                metrics.RecordRouteFailed(type, routes[position].Channel, outcomes[position].Error!);
+            }
+        }
+    }
+
+    private void RecordStored(IReadOnlyList<OutgoingMessage> messages)
+    {
+        foreach (var message in messages)
+        {
+            metrics.RecordStored(message.Type, message.Channel, message.Flags);
+        }
     }
 
     public async ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
@@ -152,6 +205,8 @@ internal sealed class NotificationPipeline(
             {
                 return error;
             }
+
+            RecordStored(messages);
         }
 
         return new NotificationResult(messages.Length, errors.Length, errors);
