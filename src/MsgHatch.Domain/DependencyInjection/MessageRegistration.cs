@@ -44,6 +44,20 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
                 NextTryAtUtc: nowUtc, LeaseUntilUtc: null, ExpiresAtUtc: null, LastError: null),
             context.Tenant, Type, Version, context.Flags, traceParent, domainEvent);
 
+    public string? RouterFailure(IServiceProvider scopedServices)
+    {
+        try
+        {
+            return scopedServices.GetKeyedService<IMessageRouter<TEvent>>(TenantKey.None) is null
+                ? $"The message type {Type.Name} has no router. Select one with WithRouter or UseRouter."
+                : null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            return $"The router of the message type {Type.Name} does not resolve: {exception.Message}";
+        }
+    }
+
     public IMessageRouter<TEvent>? CreateRouter(IServiceProvider tenantServices, TenantKey key, Type? openRouterType)
     {
         if (RouterFactory is not null)

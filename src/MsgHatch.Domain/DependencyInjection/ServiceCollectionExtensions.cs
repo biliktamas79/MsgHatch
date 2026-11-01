@@ -31,6 +31,8 @@ public static class ServiceCollectionExtensions
 
         options.ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchOptions>, MsgHatchOptionsValidator>());
+        services.AddOptions<MsgHatchSetupCheck>().ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchSetupCheck>, MsgHatchSetupValidator>());
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IMessageRegistry>(_ =>
             new InMemoryMessageRegistry(setup.Channels, setup.Messages.Select(static message => message.Descriptor)));

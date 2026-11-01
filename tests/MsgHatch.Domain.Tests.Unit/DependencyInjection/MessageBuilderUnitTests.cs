@@ -161,6 +161,7 @@ public sealed class MessageBuilderUnitTests
         var services = TestHost.CreateServices(configuration: configuration);
         services.AddMsgHatch()
             .AddTestChannel()
+            .UseInMemoryStores()
             .UseRouter(typeof(TestOpenRouter<>))
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
                 .AsChannel(
