@@ -166,6 +166,7 @@ Tests. All times come from a `FakeTimeProvider`. The stores are the in-memory st
 - A transient error on the last allowed try and a permanent error both call `RecordTryAsync` with no next try time.
 - A message with an expiry of 5 minutes is sent while the fake time does not move. After the fake time moves 6 minutes, the same message gets an `Expired` try and no send.
 - A cancelled token stops the run, and `RecordTryAsync` receives no call. A failed `RecordTryAsync` is repeated one time with the same try. A store that throws gives `Errors.Exception`, and the dispatcher continues with the next item.
+- A cancelled token during `ProcessPendingAsync` calls neither `CompleteAsync` nor `FailAsync`, so the `TryCount` of the received message does not change. A later claim gets the message again when its lease ends.
 - The dispatcher gives the fake time to `ClaimDueAsync` as `nowUtc`. The inbox processor creates a new DI scope for each received message. The outbox dispatcher creates no DI scope (D130).
 - Dispatch loop tests. They wait for an observable call, for example a `TaskCompletionSource` that a substitute completes, and never use `Thread.Sleep`:
   - With `EnablePolling` true and an empty store, the next claim comes only after the fake time moves 1 second. After more empty claims, the delay doubles to a maximum of 30 seconds.

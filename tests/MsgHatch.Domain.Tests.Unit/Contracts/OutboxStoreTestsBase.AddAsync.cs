@@ -61,6 +61,23 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task AddAsync_HostStopsTheFirstAddThenTheSameBatchAgain_StoresEachMessageOneTime()
+    {
+        // Arrange
+        OutgoingMessage[] messages = [AMessage(T1, text: "first"), AMessage(T1, text: "second")];
+        using var stop = new CancellationTokenSource();
+        await stop.CancelAsync();
+        _ = await TenantStore(T1).AddAsync(messages, stop.Token); // the host stops during the write: all, part, or none of the batch is stored
+
+        // Act
+        var error = await TenantStore(T1).AddAsync(messages, Ct);
+
+        // Assert
+        Assert.Null(error);
+        Assert.Equal(messages, await TestData.GetStoredAsync(Ct));
+    }
+
+    [Fact]
     public async Task AddAsync_IdThatIsAlreadyStored_KeepsTheStoredMessage()
     {
         // Arrange
