@@ -111,7 +111,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | Placeholder engine | The first template engine. It reads text templates from a template store, and replaces each `{{PropertyName}}` with a payload property (D45). |
 | Template | The text of one email for one message type, language, and scope, in the template store of a tenant or in the shared template store (D123). It has the parts `subject`, `html`, and the optional `text`. |
 | Placeholder | `{{PropertyName}}` in a template part. It refers to a property of the template payload. |
-| Channel envelope | The content of an outgoing message for its channel: `EmailMessage` for email, the payload itself for SignalR, and `BrokerEnvelope<TPayload>` for the broker (D17). It has no delivery state. |
+| Channel envelope | The content of an outgoing message for its channel: `EmailMessage` for email, `SignalREnvelope<TPayload>` for SignalR, and `BrokerEnvelope<TPayload>` for the broker (D17). Each channel has its own envelope type (D135). It has no delivery state. |
 | Delivery state | The retry summary of one inbox or outbox item: `TryCount`, `MaxTryCount`, `LastTryAtUtc`, `LastError`, and the other fields in section 4.4. |
 | Lease | The time until which one dispatcher owns a claimed item. A claim sets `LeaseUntilUtc` and `NextTryAtUtc` to the end of the lease, so no other claim takes the item before that time (D103). |
 | Received message | `ReceivedMessage<TEvent>`, the inbox envelope. It contains a delivery state, the tenant, the message type, the content version, the flags, the trace context, and the domain event. |
@@ -165,7 +165,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D14 | Tests | Confirmed | xUnit with NSubstitute substitutes. | xUnit with hand-written fakes. |
 | D15 | Message type | Recommended | Each message type has its own domain event record type. The registration gives it a stable name. | One record type with a `MessageType` property. |
 | D16 | Scope of an event | Recommended | For the subscription router, the consumer registers with `WithScope` a typed function that gives the notification scope, for example `e => NotificationScope.ForUsers(e.CustomerIds)` or `e => NotificationScope.ForCompany(CompanyId.From(e.CompanyId))`. The domain event stays a plain record with no MsgHatch type. | The event implements a MsgHatch interface, or the caller gives the scope to `AcceptAsync`. |
-| D17 | Content of an outgoing message | Confirmed | The envelope keeps only what `OutgoingMessage` does not already have. Email keeps the rendered `EmailMessage`, a library type, with no copy of the payload, because the rendered email is the complete record of what the recipient got. SignalR keeps the payload itself. The broker keeps `BrokerEnvelope<TPayload>` with the payload and the headers. The target and the method name come from `OutgoingMessage` (D113). | The rendered email and the payload together. It doubles the size of each email row, and puts a consumer type with its versioning risk into each email row. |
+| D17 | Content of an outgoing message | Confirmed | The envelope keeps only what `OutgoingMessage` does not already have. Email keeps the rendered `EmailMessage`, a library type, with no copy of the payload, because the rendered email is the complete record of what the recipient got. SignalR keeps `SignalREnvelope<TPayload>` with the payload. The broker keeps `BrokerEnvelope<TPayload>` with the payload and the headers. The target and the method name come from `OutgoingMessage` (D113). | The rendered email and the payload together. It doubles the size of each email row, and puts a consumer type with its versioning risk into each email row. |
 | D18 | Placeholder binding | Recommended | A Roslyn source generator writes a placeholder writer for each payload type. It writes each property with no boxing and no reflection. | Reflection one time for each payload type, with compiled delegates. It does not support Native AOT. |
 | D19 | Envelope levels | Confirmed | The channel envelope and the outgoing message are separate types. `ReceivedMessage<TEvent>` and `OutgoingMessage<TEnvelope>` contain the same `DeliveryState`. | One envelope type for each channel that also contains the delivery state. |
 | D20 | Message id | Recommended | The caller gives the message id to `AcceptAsync` and `ProcessAsync`, for example the broker message id. A plain record has no id. | The registration reads an id property of the event. |
@@ -283,6 +283,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D132 | Trace context of a message | Confirmed | Each received and outgoing message keeps the W3C `traceparent` of the span that made it. The `process` span of the inbox processor and each `send` span start a new trace, with a span link to this context, as the messaging semantic conventions describe for a send with a separate creation context. So a retry hours later does not stretch the trace of the event (section 4.21). | A parent and child relation. One trace then shows the event and each send, but a trace can last for hours of retries. |
 | D133 | Tenant in telemetry | Confirmed | The spans have the tenant as the attribute `msghatch.tenant`. The metrics have no tenant tag, so many tenants do not multiply the time series, and no tenant id goes to the metrics backend. The OpenTelemetry .NET SDK keeps at most 2,000 tag combinations for each metric by default, and merges the rest into one overflow series. An opt-in option can come later with no breaking change (section 4.21). | A tenant tag on each metric, always or with an option. |
 | D134 | Broker library | Confirmed | `MsgHatch.Broker` holds the broker channel and the contract `IBrokerClient`. Each broker library has its own client package, in the same way as email has `IEmailClient`. The first client is `MsgHatch.Broker.Wolverine`, because Wolverine has the MIT license and many transports. MassTransit 9 and later need a commercial license, and the support of MassTransit 8 ends on 2026-12-31, so a MassTransit client is a later phase (section 6). A direct client of one broker SDK is the second form of a client. The outbox, the retries, the down state, and the history of MsgHatch already exist, so a bus framework adds little to one publish. The first direct client is `MsgHatch.Broker.AmazonSns`, in the later phases. | One `MsgHatch.MassTransit` package with the channel and the transport together. A second broker library then needs a second copy of the channel. Or a framework with its own outbox, for example Brighter or CAP, which duplicates the MsgHatch outbox (section 7). |
+| D135 | Envelope and loader of each channel | Confirmed | Each channel has its own envelope type. An envelope that carries the payload is generic over the payload type, for example `SignalREnvelope<TPayload>` and `BrokerEnvelope<TPayload>`. The email envelope `EmailMessage` carries no payload. So two channel registrations of one message type never share a composer `IEnvelopeComposer<TEvent, TEnvelope>`, also when they have the same payload type. Two channels of one message type with the same payload type use the same payload loader `IPayloadLoader<TEvent, TPayload>`. In one DI scope, their composers get the same loader instance, and each composer calls it with the routes of its own channel. The startup validation enforces the rule: a message type has at most one registration for each channel, its channel registrations have different envelope types, and each of its payload types has one loader type. | The payload itself as the envelope of SignalR, and a startup check that rejects two channel registrations with one envelope type. Or one composer registration for each channel registration, which needs a second DI key next to the tenant key. |
 
 The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3).
 
@@ -788,6 +789,17 @@ public static class SignalRChannel
 
 public sealed record SignalRChannelSettings(string? Language = null) : ChannelSettings;
 
+public interface ISignalREnvelope
+{
+    object Payload { get; }
+}
+
+public sealed record SignalREnvelope<TPayload>(TPayload Payload) : ISignalREnvelope
+    where TPayload : class
+{
+    object ISignalREnvelope.Payload => Payload;
+}
+
 public static class BrokerChannel
 {
     public static readonly ChannelId Id = new("Broker");
@@ -811,7 +823,7 @@ public sealed record BrokerEnvelope<TPayload>(TPayload Payload, IReadOnlyDiction
 }
 ```
 
-The channel envelope of SignalR is the payload itself. The SignalR transport sends it with the message type name as the method name, to the target of `OutgoingMessage.Target`. The broker transport gives `IBrokerEnvelope.Payload` and the headers to `IBrokerClient`, which publishes the payload with its run-time type (D134). So no envelope copies the target or the method (D17).
+The SignalR transport sends `ISignalREnvelope.Payload` with the message type name as the method name, to the target of `OutgoingMessage.Target`. The broker transport gives `IBrokerEnvelope.Payload` and the headers to `IBrokerClient`, which publishes the payload with its run-time type (D134). So no envelope copies the target or the method (D17).
 
 Channel features (D77):
 
@@ -1445,7 +1457,7 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 | `ConfigureInboxDispatch(Action<DispatchOptions>)`, `ConfigureOutboxDispatch(Action<DispatchOptions>)` | Change the dispatch options. |
 | `AddMessage<TEvent>(name, version, JsonTypeInfo<TEvent>, configure)` | Registers one message type. `configure` receives a `MessageBuilder<TEvent>`. |
 | `MessageBuilder<TEvent>.WithRouter<TRouter>()` | Selects the router of this message type. It wins over the open generic router of `UseRouter` (D99). |
-| `MessageBuilder<TEvent>.UsePayloadLoader<TPayload, TLoader>()` | Registers the payload loader of one payload type of this message type as a tenant service, with its logging wrapper. The channel packages call it for the loader `TLoader` of each channel registration. |
+| `MessageBuilder<TEvent>.UsePayloadLoader<TPayload, TLoader>()` | Registers the payload loader of one payload type of this message type as a tenant service, with its logging wrapper. The channel packages call it for the loader `TLoader` of each channel registration. A second call with the same loader type adds nothing. A call with another loader type for the same payload type fails the startup validation (D135). |
 | `MessageBuilder<TEvent>.WithUpgrade<TOld>(version, JsonTypeInfo<TOld>, Func<TOld, TEvent>)` | Registers an old event version (section 4.13). |
 | `ConfigureTestDelivery(ChannelId, Action<TestDeliveryOptions>)` | Changes the test delivery of one channel (D83). The options also bind from `MsgHatch:TestDelivery:{Channel}`. |
 | `ConfigureChannelDown(ChannelId, Action<ChannelDownOptions>)` | Changes the error threshold and the check interval of one channel (D86). The options also bind from `MsgHatch:ChannelDown:{Channel}`. |
@@ -1503,7 +1515,7 @@ Message channel registrations of the channel packages. Each one calls `AddChanne
 |---|---|---|
 | `MessageBuilder<TEvent>.AsEmail<TPayload, TLoader>(name, configure?)` | Email | Registers email with `EmailComposer<TEvent, TPayload>` and the placeholder engine. Requires `TPayload : IPlaceholderPayload<TPayload>`. The channel envelope is the library type `EmailMessage`, so the registration needs no version and no JSON type information (D17). |
 | `MessageBuilder<TEvent>.AsEmail<TPayload, TLoader, TEngine>(name, configure?)` | Email | Registers email with another engine. |
-| `MessageBuilder<TEvent>.AsSignalR<TPayload, TLoader>(name, version, JsonTypeInfo<TPayload>, configure?)` | SignalR | Registers a SignalR message. The channel envelope is the payload. |
+| `MessageBuilder<TEvent>.AsSignalR<TPayload, TLoader>(name, version, JsonTypeInfo<SignalREnvelope<TPayload>>, configure?)` | SignalR | Registers a SignalR message. The channel envelope is `SignalREnvelope<TPayload>`. |
 | `MessageBuilder<TEvent>.AsBroker<TPayload, TLoader>(name, version, JsonTypeInfo<BrokerEnvelope<TPayload>>, configure?)` | Broker | Registers a broker message. The channel envelope is `BrokerEnvelope<TPayload>`. |
 
 `MsgHatchBuilder` records each selection of an implementation. If two setup methods select an implementation for the same interface, for example `UseFileStores` and `UseSqliteStores`, the startup validation fails, and its message names both methods (D62).
@@ -1531,6 +1543,8 @@ Startup validation, with `ValidateOnStart`:
 - With `UseWolverineBroker`, the host registered Wolverine, so that `IMessageBus` resolves.
 - Each content type and version is unique.
 - Each message type name is unique. Two registrations with one name and two versions have two different content types, so the check above does not find them.
+- Each message type has at most one registration for each channel, and its channel registrations have different envelope types (D135).
+- Each payload type of a message type has one loader type (D135).
 - Each registered options class passes its attributes and its `IValidatableObject` rules (D64). For example, a missing `AmazonSesOptions.SenderEmail` or a `LeaseSafetyMargin` that is not less than `Lease` stops the start.
 
 A host runs this validation when it starts. Without a host, the consumer calls `IStartupValidator.Validate()`.
@@ -1549,7 +1563,7 @@ Processing of one domain event:
 4. **Compose.** `RouteGrouping.ByChannel` splits the routes by channel. For each channel registration of `TEvent`, the pipeline calls `IEnvelopeComposer<TEvent, TEnvelope>.ComposeAsync` one time, with all routes of that channel (D96). The library composers do these steps:
    - Each library composer first calls `IPayloadLoader<TEvent, TPayload>.LoadAsync` one time, with all routes of its channel. A loader error is the outer error of the composer.
    - The email composer groups the routes by language and template scope with `RouteGrouping.ByLanguageAndScope`. It calls `IEmailTemplateEngine.PrepareAsync` one time for each group, and `IEmailTemplate.RenderAsync` for each route, with the culture of the language. It takes `To` from the address, and fails a route with no address with `Errors.ValidationFailed`. The format `PlainText` sends only the text part.
-   - The SignalR composer gives the payload as the envelope. The transport takes the target from the outgoing message, and the method name is the message type name.
+   - The SignalR composer puts the payload into a `SignalREnvelope<TPayload>`. The transport takes the target from the outgoing message, and the method name is the message type name.
    - The broker composer puts the payload as it is, and the headers of the channel settings, into a `BrokerEnvelope<TPayload>`.
 5. **Outgoing messages.** The pipeline builds an `OutgoingMessage<TEnvelope>` for each envelope:
    - `DeterministicId` derives the id from the message id, the tenant, the delivery target, and the channel id.
@@ -1754,7 +1768,7 @@ Exceptions stay at the edges:
 
 | Persisted type | Owner | Version field |
 |---|---|---|
-| `ReceivedMessage`, `OutgoingMessage`, `DeliveryState`, `PublishTry`, `EmailMessage`, and `BrokerEnvelope<TPayload>` | Library | `SchemaVersion` of the received or outgoing message |
+| `ReceivedMessage`, `OutgoingMessage`, `DeliveryState`, `PublishTry`, `EmailMessage`, `SignalREnvelope<TPayload>`, and `BrokerEnvelope<TPayload>` | Library | `SchemaVersion` of the received or outgoing message |
 | `ChannelDown`, `ChannelEntry`, and `MessageTypeEntry` | Library | The schema version of the store, for example `MsgHatchSchema` in SQLite |
 | `Subscription` | `MsgHatch.Subscriptions` | The schema version of the subscription store, for example `MsgHatchSubscriptionSchema` in SQLite |
 | Domain events | Consumer | `ContentVersion` of the received message |

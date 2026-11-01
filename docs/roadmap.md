@@ -159,6 +159,7 @@ Goal: the outbox dispatcher sends the messages of the outbox through any transpo
 6. Add `Dispatch/ChannelDownOptions.cs` with `ChannelDownOptionsValidator`, `ConfigureChannelDown`, and the down state of the channels in the outbox loops (section 4.9, D86, D106).
 7. Add `TestDeliveryOptions` with its validator, `ConfigureTestDelivery`, and the test delivery of section 4.8. Add `MsgHatchOptions.Roles` with `MsgHatchRoles`, and the startup validation of the roles (D105).
 8. Add the `send` span, the `process` span of the inbox processor with its link, the `TraceParent` of `AcceptAsync`, and the instruments `msghatch.publish.tries`, `msghatch.messages.failed`, `msghatch.send.duration`, `msghatch.delivery.delay`, `msghatch.queue.length`, and `msghatch.channel.down` (section 4.21).
+9. Add the startup checks of D135 to the startup validation (section 4.7): at most one registration for each channel of a message type, different envelope types for the channel registrations of a message type, and one loader type for each payload type of a message type. A second `UsePayloadLoader` with the same loader type adds nothing.
 
 Tests. All times come from a `FakeTimeProvider`. The stores are the in-memory stores, or substitutes through the factory overloads where a test checks the calls:
 - The use cases of `OutboxStoreTestsBase` for the claim, the tries, and the down state, and the use cases of `InboxStoreTestsBase` (section 5.5), run on the in-memory stores.
@@ -188,6 +189,11 @@ Tests. All times come from a `FakeTimeProvider`. The stores are the in-memory st
   - With a transport for only the first test channel, the dispatcher claims only the first channel. A second transport for the same channel fails the startup validation (D129).
   - The role `Consumer` with no transport passes the startup validation, and the role `Publisher` with no transport fails it with an `OptionsValidationException`. The role `Publisher` with a message type that has no router passes it, and the role `Consumer` fails it.
   - Two DI containers share one in-memory outbox store instance through the factory overloads. The first has the role `Consumer` and no transport. The second has the role `Publisher`, the test transport, and polling. An event that the first container processes reaches the transport of the second. The two containers share no signal, so this test proves the poll path between processes.
+- Startup checks of D135, as rows of one data-driven test. Each row fails the startup validation with an `OptionsValidationException`:
+  - A second registration of one message type on the same channel.
+  - Two channel registrations of one message type with the same envelope type.
+  - Two loader types for one payload type of one message type.
+- Two channel registrations of one message type with one payload type and one loader type pass the startup validation. In one DI scope, their composers get the same loader instance (D135).
 - Down state tests (D86, D106), with `ErrorThreshold` 3, `CheckInterval` 30 seconds, and two test channels. A substitute outbox dispatch store records the calls:
   - Three transient errors in a row on the first test channel call `SetChannelDownAsync` one time, with the reason `Errors`, the error code of the last try, and a next check time 30 seconds later. Two transient errors and then a success give no call.
   - A permanent error sets the count to 0. A `Suppressed` try and an `Expired` try do not change it.
@@ -221,6 +227,7 @@ Commits:
 6. "Add the shared down state of a channel"
 7. "Add test delivery and host roles"
 8. "Add dispatch telemetry"
+9. "Check the channel registrations and the payload loaders at startup"
 
 Done when: the build has no errors and no warnings, all tests pass, and the test with two DI containers sends an event through the test transport.
 
@@ -297,9 +304,9 @@ Done when: the build has no errors and no warnings, and all tests pass.
 
 Goal: real-time UI updates, composed by the event consumer and sent by the SignalR publisher.
 
-1. Add `src/MsgHatch.SignalR` with `SignalRChannel`, `SignalRChannelSettings`, `SignalRChannelSettingsValidator`, the SignalR composer, `SignalRTransport<THub> : ITransport where THub : Hub`, `UseSignalR<THub>`, and `MessageBuilder<TEvent>.AsSignalR<TPayload, TLoader>`. The first `AsSignalR` registers the channel with `AddChannelType`. The settings validator accepts each settings value, because the subscription manager checks the language (section 4.17). Add `tests/MsgHatch.SignalR.Tests.Unit` with `SignalRTransportUnitTests`, a subclass of `TransportTestsBase`.
-2. The composer calls the payload loader of its registration, and gives each payload as the envelope (D17).
-3. The transport sends `OutgoingMessage.Content` with the message type name as the method name:
+1. Add `src/MsgHatch.SignalR` with `SignalRChannel`, `SignalRChannelSettings`, `SignalRChannelSettingsValidator`, `ISignalREnvelope`, `SignalREnvelope<TPayload>` (D135), the SignalR composer, `SignalRTransport<THub> : ITransport where THub : Hub`, `UseSignalR<THub>`, and `MessageBuilder<TEvent>.AsSignalR<TPayload, TLoader>`. The first `AsSignalR` registers the channel with `AddChannelType`. The settings validator accepts each settings value, because the subscription manager checks the language (section 4.17). Add `tests/MsgHatch.SignalR.Tests.Unit` with `SignalRTransportUnitTests`, a subclass of `TransportTestsBase`.
+2. The composer calls the payload loader of its registration, and puts each payload into a `SignalREnvelope<TPayload>` (D17, D135).
+3. The transport sends `ISignalREnvelope.Payload` of `OutgoingMessage.Content` with the message type name as the method name:
    - For a user target, to `Clients.User(SignalRUsers.ForUser(tenant, user))`, with the tenant of the outgoing message. The text is the user id with no tenant, and `{TenantId}:{UserId}` with a tenant. The host's `IUserIdProvider` must give the same text for each connection (D114).
    - For a company target, to `Clients.Group(SignalRGroups.ForCompany(tenant, company))`. The group name is `msghatch:company:{CompanyId}` with no tenant, and `msghatch:{TenantId}:company:{CompanyId}` with a tenant. The host's hub adds each connection to the group of the company of its user, for example in `OnConnectedAsync`.
    - The transport returns a receipt with no provider id. SignalR has no delivery guarantee, so "sent" means that SignalR accepted the message.
