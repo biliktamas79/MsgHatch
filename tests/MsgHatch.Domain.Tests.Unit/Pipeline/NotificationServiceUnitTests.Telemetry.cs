@@ -104,6 +104,21 @@ public sealed partial class NotificationServiceUnitTests
     }
 
     [Fact]
+    public async Task ProcessAsync_CurrentActivityWithTheHierarchicalIdFormat_GivesNoTraceParentToTheOutgoingMessages()
+    {
+        // Arrange
+        _doubles.Routes = [ARoute("u1"), ARoute("u2")];
+        await using var provider = _doubles.Build(_time);
+        using var parent = new Activity("test").SetIdFormat(ActivityIdFormat.Hierarchical).Start(); // not a W3C traceparent
+
+        // Act
+        await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal([null, null], _doubles.Stored.Select(static m => m.TraceParent));
+    }
+
+    [Fact]
     public async Task ProcessAsync_FailedEvent_GivesTheSpanStatusErrorAndTheErrorTypeAndNoErrorMessage()
     {
         // Arrange
@@ -144,6 +159,30 @@ public sealed partial class NotificationServiceUnitTests
         var measurement = Assert.Single(duration.GetMeasurementSnapshot());
         Assert.Equal((ActivityStatusCode.Error, (object?)"Exception"), (span.Status, span.GetTagItem("error.type")));
         Assert.Equal(["error.type=Exception", "msghatch.message_type=TestEvent", "msghatch.test=False"], TagsOf(measurement.Tags));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CancelledTokenThatTheRouterObserves_GivesTheErrorTypeOperationCancelledToTheSpanAndTheDuration()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException(cancellation.Token));
+        await using var provider = _doubles.Build(_time);
+        using var duration = new MetricCollector<double>(
+            provider.GetRequiredService<IMeterFactory>(), MsgHatchTelemetry.MeterName, "msghatch.process.duration");
+        var spans = new ConcurrentQueue<Activity>();
+        using var listener = ListenTo([MsgHatchTelemetry.SourceName, _testSource.Name], spans);
+        using var parent = _testSource.StartActivity("test")!;
+
+        // Act
+        await ProcessAsync(provider, AContext(), cancellation.Token);
+
+        // Assert
+        var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
+        var measurement = Assert.Single(duration.GetMeasurementSnapshot());
+        Assert.Equal((object?)"OperationCancelled", span.GetTagItem("error.type"));
+        Assert.Equal(["error.type=OperationCancelled", "msghatch.message_type=TestEvent", "msghatch.test=False"], TagsOf(measurement.Tags));
     }
 
     [Fact]

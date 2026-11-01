@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
@@ -112,6 +113,39 @@ public sealed class MsgHatchBuilderUnitTests
 
         // Assert
         Assert.IsAssignableFrom<ArgumentException>(exception);
+    }
+
+    [Fact]
+    public async Task UseOutboxStore_StoreType_CreatesTheStoreWithTheRequestedKey()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false).UseOutboxStore<KeyCapturingOutboxStore>();
+        await using var provider = services.Build();
+        var key = TenantKey.For(new TenantId("t1"));
+
+        // Act
+        var store = provider.GetRequiredKeyedService<IOutboxStore>(key);
+
+        // Assert
+        Assert.Equal(key, Assert.IsType<KeyCapturingOutboxStore>(store).Key);
+    }
+
+    [Fact]
+    public async Task UseOutboxDispatchStore_StoreType_CreatesOneStoreOfThatType()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false).UseOutboxDispatchStore<TestOutboxDispatchStore>();
+        await using var provider = services.Build();
+        var first = provider.GetRequiredService<IOutboxDispatchStore>();
+
+        // Act
+        var second = provider.GetRequiredService<IOutboxDispatchStore>();
+
+        // Assert
+        Assert.IsType<TestOutboxDispatchStore>(first);
+        Assert.Same(first, second);
     }
 
     [Theory]

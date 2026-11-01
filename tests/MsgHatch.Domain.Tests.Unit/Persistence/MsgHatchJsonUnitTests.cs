@@ -22,6 +22,15 @@ public sealed class MsgHatchJsonUnitTests
         { "contentType", "Test:Unknown" },
     };
 
+    public static TheoryData<string, string> UnreadableValueRows => new()
+    {
+        { "contentVersion", "0" },
+        { "schemaVersion", "0" },
+        { "envelope", "null" },
+        { "trace.$type", "null" },
+        { "trace.$type", "\"TestEvent@2\"" },
+    };
+
     public static TheoryData<string, int> NewerOutgoingVersionRows => new()
     {
         { "contentVersion", 2 },
@@ -166,6 +175,105 @@ public sealed class MsgHatchJsonUnitTests
         Assert.Equal(Errors.SerializationFailed, read.Error?.Type);
     }
 
+    [Theory]
+    [MemberData(nameof(UnreadableValueRows))]
+    public void DeserializeOutgoing_ValueThatTheCodeCannotRead_ReturnsSerializationFailed(string path, string jsonValue)
+    {
+        // Arrange
+        var json = WithValue(_json.Serialize(TestMessages.AnOutgoingMessage(trace: new TestTrace("x"))).Value, path, JsonNode.Parse(jsonValue));
+
+        // Act
+        var read = _json.DeserializeOutgoing(json);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, read.Error?.Type);
+    }
+
+    [Fact]
+    public void Serialize_ReceivedMessageOfAnUnregisteredMessageType_ReturnsSerializationFailed()
+    {
+        // Arrange
+        var message = TestMessages.AReceivedMessage(new TestEvent("x")) with { Type = new MessageType("Unregistered") }; // no content type of this name
+
+        // Act
+        var result = _json.Serialize(message);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, result.Error?.Type);
+    }
+
+    [Fact]
+    public void Serialize_OutgoingMessageOfAnUnregisteredContentType_ReturnsSerializationFailed()
+    {
+        // Arrange
+        var message = TestMessages.AnOutgoingMessage() with { ContentType = "Test:Unknown" }; // no content type of this name
+
+        // Act
+        var result = _json.Serialize(message);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, result.Error?.Type);
+    }
+
+    [Fact]
+    public void Serialize_OutgoingMessageWhoseEnvelopeDerivesFromTheRegisteredType_ReturnsSerializationFailed()
+    {
+        // Arrange
+        var registered = new ContentTypeEntry(
+            "Test:BaseEnvelope", 1, "Test:BaseEnvelope@1", typeof(OutgoingMessage<BaseTestEnvelope>), TestJsonContext.Default.BaseTestEnvelope);
+        var json = new MsgHatchJson(TestContentTypes.ARegistryOf(registered));
+        var message = AnOutgoingMessageOf(new DerivedTestEnvelope("text", "extra"), registered.ContentType); // registered for the base type only
+
+        // Act
+        var result = json.Serialize(message);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, result.Error?.Type);
+    }
+
+    [Fact]
+    public void Serialize_RegistryEntryWithTheJsonTypeOfAnotherType_ReturnsSerializationFailed()
+    {
+        // Arrange
+        var json = new MsgHatchJson(TestContentTypes.ARegistryOf(
+            TestContentTypes.TestEventV2 with { ContentJsonTypeInfo = TestJsonContext.Default.OtherTestEvent })); // not the JSON type of TestEvent
+        var message = TestMessages.AReceivedMessage(new TestEvent("x"));
+
+        // Act
+        var result = json.Serialize(message);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, result.Error?.Type);
+    }
+
+    [Fact]
+    public void DeserializeReceived_RegistryEntryOfATypeThatIsNotAReceivedMessage_ReturnsSerializationFailed()
+    {
+        // Arrange
+        var utf8Json = _json.Serialize(TestMessages.AReceivedMessage(new TestEvent("x"))).Value;
+        var json = new MsgHatchJson(TestContentTypes.ARegistryOf(
+            TestContentTypes.TestEventV2 with { ClrType = typeof(TestEvent) })); // not a ReceivedMessage<TEvent>
+
+        // Act
+        var read = json.DeserializeReceived(utf8Json);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, read.Error?.Type);
+    }
+
+    [Fact]
+    public void DeserializeReceived_TextThatIsNotJson_ReturnsSerializationFailed()
+    {
+        // Arrange
+        var json = "{ not json"u8.ToArray();
+
+        // Act
+        var read = _json.DeserializeReceived(json);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, read.Error?.Type);
+    }
+
     [Fact]
     public void Serialize_UnregisteredTraceType_ReturnsSerializationFailed()
     {
@@ -285,7 +393,14 @@ public sealed class MsgHatchJsonUnitTests
             LeaseUntilUtc: TestMessages.CreatedAtUtc.AddSeconds(60), ExpiresAtUtc: TestMessages.CreatedAtUtc.AddDays(1),
             LastError: _specialText);
 
-    private static byte[] WithValue(byte[] json, string path, JsonNode value)
+    private static OutgoingMessage<TEnvelope> AnOutgoingMessageOf<TEnvelope>(TEnvelope envelope, string contentType)
+        where TEnvelope : class =>
+        new(
+            SchemaVersion: 1, TestMessages.ADeliveryState(), SourceMessageId: Guid.NewGuid(), Tenant: null,
+            new MessageType("TestEvent"), new ChannelId("Test"), new DeliveryTarget(DeliveryTargetKind.User, "u1"),
+            contentType, ContentVersion: 1, MessageFlags.None, TraceParent: null, Trace: null, envelope);
+
+    private static byte[] WithValue(byte[] json, string path, JsonNode? value)
     {
         var root = JsonNode.Parse(json)!;
         var names = path.Split('.');

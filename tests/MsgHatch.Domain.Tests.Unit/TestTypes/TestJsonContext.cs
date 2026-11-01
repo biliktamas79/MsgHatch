@@ -11,4 +11,5 @@ namespace MsgHatch.Domain.Tests.Unit.TestTypes;
 [JsonSerializable(typeof(TestChannelSettings))]
 [JsonSerializable(typeof(OtherTestEnvelope))]
 [JsonSerializable(typeof(OtherTestChannelSettings))]
+[JsonSerializable(typeof(BaseTestEnvelope))]
 public sealed partial class TestJsonContext : JsonSerializerContext;

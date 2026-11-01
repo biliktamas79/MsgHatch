@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 
@@ -184,6 +185,20 @@ public sealed class UserIdCompanyIdTenantIdUnitTests
         Assert.True(equal);
     }
 
+    [Theory]
+    [MemberData(nameof(ForEachKindRows))]
+    public void From_IdWhoseTextHasMoreThan64Characters_GivesTheWholeInvariantText(IdKind kind)
+    {
+        // Arrange
+        var id = BigInteger.Pow(10, 70); // 71 digits, more than the format buffer of 64 characters
+
+        // Act
+        var text = _ops[kind].FromBigInteger(id);
+
+        // Assert
+        Assert.Equal("1" + new string('0', 70), text);
+    }
+
     public static TheoryData<IdKind> ForEachKindRows => [IdKind.User, IdKind.Company, IdKind.Tenant];
 
     private sealed record IdOps(
@@ -195,7 +210,8 @@ public sealed class UserIdCompanyIdTenantIdUnitTests
         Func<string?, ErrorOr<string>> Create,
         Action<string?> Construct,
         Func<string, string, bool> TextsGiveEqualIds,
-        Func<int, string, bool> FromIntEqualsText);
+        Func<int, string, bool> FromIntEqualsText,
+        Func<BigInteger, string> FromBigInteger);
 
     private static readonly Dictionary<IdKind, IdOps> _ops = new()
     {
@@ -208,7 +224,8 @@ public sealed class UserIdCompanyIdTenantIdUnitTests
             static text => UserId.Create(text).ThenIfSuccess(static id => ErrorOr<string>.ForValue(id.Value)),
             static text => _ = new UserId(text!),
             static (a, b) => new UserId(a) == new UserId(b),
-            static (id, text) => UserId.From(id) == new UserId(text)),
+            static (id, text) => UserId.From(id) == new UserId(text),
+            static id => UserId.From(id).Value),
         [IdKind.Company] = new(
             static id => CompanyId.From(id).Value,
             static id => CompanyId.From(id).Value,
@@ -218,7 +235,8 @@ public sealed class UserIdCompanyIdTenantIdUnitTests
             static text => CompanyId.Create(text).ThenIfSuccess(static id => ErrorOr<string>.ForValue(id.Value)),
             static text => _ = new CompanyId(text!),
             static (a, b) => new CompanyId(a) == new CompanyId(b),
-            static (id, text) => CompanyId.From(id) == new CompanyId(text)),
+            static (id, text) => CompanyId.From(id) == new CompanyId(text),
+            static id => CompanyId.From(id).Value),
         [IdKind.Tenant] = new(
             static id => TenantId.From(id).Value,
             static id => TenantId.From(id).Value,
@@ -228,7 +246,8 @@ public sealed class UserIdCompanyIdTenantIdUnitTests
             static text => TenantId.Create(text).ThenIfSuccess(static id => ErrorOr<string>.ForValue(id.Value)),
             static text => _ = new TenantId(text!),
             static (a, b) => new TenantId(a) == new TenantId(b),
-            static (id, text) => TenantId.From(id) == new TenantId(text)),
+            static (id, text) => TenantId.From(id) == new TenantId(text),
+            static id => TenantId.From(id).Value),
     };
 
     private static T WithCurrentCulture<T>(string culture, Func<T> action)

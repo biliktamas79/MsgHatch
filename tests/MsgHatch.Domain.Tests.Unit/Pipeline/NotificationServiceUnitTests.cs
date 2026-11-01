@@ -23,12 +23,13 @@ public sealed partial class NotificationServiceUnitTests
         new(id ?? Guid.NewGuid(), tenant, flags);
 
     private static async Task<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
-        IServiceProvider provider, TEvent domainEvent, MessageContext context)
+        IServiceProvider provider, TEvent domainEvent, MessageContext context, CancellationToken? ct = null)
     {
         await using var scope = provider.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<INotificationService>().ProcessAsync(domainEvent, context, Ct);
+        return await scope.ServiceProvider.GetRequiredService<INotificationService>().ProcessAsync(domainEvent, context, ct ?? Ct);
     }
 
-    private static Task<ErrorOr<NotificationResult>> ProcessAsync(IServiceProvider provider, MessageContext context) =>
-        ProcessAsync(provider, new TestEvent("text"), context);
+    private static Task<ErrorOr<NotificationResult>> ProcessAsync(
+        IServiceProvider provider, MessageContext context, CancellationToken? ct = null) =>
+        ProcessAsync(provider, new TestEvent("text"), context, ct);
 }

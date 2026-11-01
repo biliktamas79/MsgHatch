@@ -4,7 +4,7 @@ using NSubstitute;
 
 namespace MsgHatch.Domain.Tests.Unit.TestTypes;
 
-/// <summary>The content type entries of the test types, and a registry substitute with them.</summary>
+/// <summary>The content type entries of the test types, and registry substitutes with them.</summary>
 public static class TestContentTypes
 {
     public static readonly ContentTypeEntry TestEventV2 = new(
@@ -20,9 +20,10 @@ public static class TestContentTypes
     public static readonly ContentTypeEntry TestTraceV1 = new(
         "Trace:Test", 1, "Trace:Test@1", typeof(TestTrace), TestJsonContext.Default.TestTrace);
 
-    public static IContentTypeRegistry ARegistry()
+    public static IContentTypeRegistry ARegistry() => ARegistryOf(TestEventV2, TestEventV1, TestEnvelopeV1, TestTraceV1);
+
+    public static IContentTypeRegistry ARegistryOf(params ContentTypeEntry[] entries)
     {
-        ContentTypeEntry[] entries = [TestEventV2, TestEventV1, TestEnvelopeV1, TestTraceV1];
         var registry = Substitute.For<IContentTypeRegistry>();
         registry.Entries.Returns(entries);
         registry.TryFind(Arg.Any<string>(), Arg.Any<int>(), out Arg.Any<ContentTypeEntry>()!)

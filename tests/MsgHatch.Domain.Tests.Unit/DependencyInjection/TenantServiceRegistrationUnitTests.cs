@@ -49,6 +49,19 @@ public sealed class TenantServiceRegistrationUnitTests
     }
 
     [Fact]
+    public async Task TenantService_KeyThatIsNotATenantKey_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        await using var provider = BuildWithOutboxStoreForEachKey();
+
+        // Act
+        var exception = Record.Exception(() => provider.GetKeyedService<IOutboxStore>("t1")); // a text, not a TenantKey
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
+    }
+
+    [Fact]
     public async Task ScopedTenantService_TwoResolutionsWithTheSameKeyInOneScope_GiveTheSameInstance()
     {
         // Arrange

@@ -76,6 +76,36 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
     }
 
     [Fact]
+    public async Task AddAsync_CancelledError_LogsInformationWithItsEventId()
+    {
+        // Arrange
+        await using var provider = BuildWith(AStore(new Error(Errors.OperationCancelled)));
+        var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+
+        // Act
+        await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((LogLevel.Information, 1301), (record.Level, record.Id.Id));
+    }
+
+    [Fact]
+    public async Task AddAsync_EmptyList_LogsADebugRecordWithACountOfZero()
+    {
+        // Arrange
+        await using var provider = BuildWith(AStore(error: null));
+        var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+
+        // Act
+        await store.AddAsync([], TestContext.Current.CancellationToken);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((LogLevel.Debug, "0"), (record.Level, record.GetStructuredStateValue("Count")));
+    }
+
+    [Fact]
     public async Task AddAsync_Success_LogsADebugRecordWithItsEventId()
     {
         // Arrange

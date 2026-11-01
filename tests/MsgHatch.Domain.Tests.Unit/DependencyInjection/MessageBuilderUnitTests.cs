@@ -84,6 +84,26 @@ public sealed class MessageBuilderUnitTests
     }
 
     [Fact]
+    public async Task UsePayloadLoader_LoaderType_CreatesTheLoaderWithTheRequestedKey()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false)
+            .UseRouter(typeof(TestOpenRouter<>))
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .UsePayloadLoader<TestEnvelope, KeyCapturingPayloadLoader>());
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+        var key = TenantKey.For(new TenantId("t1"));
+
+        // Act
+        var loader = scope.ServiceProvider.GetRequiredKeyedService<IPayloadLoader<TestEvent, TestEnvelope>>(key);
+
+        // Assert
+        Assert.Equal(key, Assert.IsType<KeyCapturingPayloadLoader>(loader).Key);
+    }
+
+    [Fact]
     public async Task AsChannel_ValueInTheSectionOfTheContentType_ChangesOnlyThatValue()
     {
         // Arrange

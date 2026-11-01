@@ -1,4 +1,7 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
@@ -17,6 +20,7 @@ public sealed partial class NotificationServiceUnitTests
         { "UnregisteredChannel", 404 },
         { "ChannelWithNoRegistrationOfTheMessageType", 404 },
         { "OtherSettingsType", 400 },
+        { "NullSettings", 400 },
         { "SecondRouteForTheSameTargetAndChannel", 409 },
     };
 
@@ -25,6 +29,7 @@ public sealed partial class NotificationServiceUnitTests
         ["UnregisteredChannel"] = ARoute("u9", channel: new ChannelId("Unregistered")),
         ["ChannelWithNoRegistrationOfTheMessageType"] = ARoute("u9", channel: TestChannel.ThirdId),
         ["OtherSettingsType"] = ARoute("u9", settings: new OtherTestChannelSettings()),
+        ["NullSettings"] = ARoute("u9") with { Settings = null! },
         ["SecondRouteForTheSameTargetAndChannel"] = ARoute("u1", address: "second@example.com"),
     };
 
@@ -300,6 +305,85 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         Assert.Same(error, result.Error);
         Assert.Empty(_doubles.Stored);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ComposerWithANullEnvelopeForOneRoute_FailsOnlyThatMessageWithValidationFailed()
+    {
+        // Arrange
+        _doubles.Routes = [ARoute("u1"), ARoute("u2")];
+        _doubles.Composer(TenantKey.None).ComposeAsync(default!, default, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ErrorOr<TestEnvelope>>>.ForValue(
+                [new TestEnvelope("first"), ErrorOr<TestEnvelope>.ForValue(null!)]))); // no envelope for the second route
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var result = await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal([Errors.ValidationFailed], result.Value.Errors.Select(static e => e.Type));
+        Assert.Equal(["u1"], _doubles.Stored.Select(static m => m.Target.Id));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CancelledTokenThatTheRouterObserves_ReturnsOperationCancelled()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException(cancellation.Token));
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var result = await ProcessAsync(provider, AContext(), cancellation.Token);
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RouterThatThrowsOperationCanceledExceptionWithNoCancelledToken_ReturnsTheExceptionError()
+    {
+        // Arrange
+        _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException()); // the token of the call is not cancelled
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var result = await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal(Errors.Exception, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MessageTypeWithNoRouter_ReturnsNotFound()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(_time);
+        services.AddMsgHatch().AddTestChannel().UseInMemoryStores()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m // no router
+                .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()));
+        await using var provider = services.Build();
+
+        // Act
+        var result = await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal(Errors.NotFound, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_HostWithNoLoggers_StoresTheMessages()
+    {
+        // Arrange
+        _doubles.Routes = [ARoute("u1"), ARoute("u2")];
+        await using var provider = _doubles.Build(_time, more: static builder => builder.Services.RemoveAll(typeof(ILogger<>))); // the host registers no loggers
+
+        // Act
+        var result = await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal(2, result.Value.Stored);
     }
 
     [Theory]

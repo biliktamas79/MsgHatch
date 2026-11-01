@@ -28,6 +28,22 @@ public sealed partial class NotificationServiceUnitTests
     }
 
     [Fact]
+    public async Task PreviewAsync_OuterComposerError_ReturnsThatError()
+    {
+        // Arrange
+        var error = new Error(Errors.Unavailable);
+        _doubles.Composer(TenantKey.None).ComposeAsync(default!, default, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<ErrorOr<TestEnvelope>>>>(error));
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var results = await PreviewAsync(provider, AContext(), [ARoute("u1")]);
+
+        // Assert
+        Assert.Same(error, results.Error);
+    }
+
+    [Fact]
     public async Task PreviewAsync_Routes_StoresNothingCallsNoRouterAndReturnsOneResultForEachRouteInOrder()
     {
         // Arrange

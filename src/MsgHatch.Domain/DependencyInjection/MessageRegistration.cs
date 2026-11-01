@@ -22,10 +22,6 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
 
     public Func<IServiceProvider, TenantKey, IMessageRouter<TEvent>>? RouterFactory { get; set; }
 
-    public IReadOnlyList<IChannelRegistration<TEvent>> Channels => _channels;
-
-    public IReadOnlyDictionary<int, Func<object, TEvent>> Upgrades => _upgrades;
-
     public MessageTypeDescriptor Descriptor =>
         new(Type, typeof(TEvent), [.. _channels.Select(static channel => channel.Channel).Distinct()]);
 
