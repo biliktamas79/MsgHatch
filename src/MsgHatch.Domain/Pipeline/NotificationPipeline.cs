@@ -31,7 +31,7 @@ internal sealed class NotificationPipeline(
         var started = time.GetTimestamp();
         using var span = ProcessSpan.Start(registration.Type, context);
         metrics.RecordReceived(registration.Type, context.Flags);
-        var result = ErrorOr<NotificationResult>.ForError(new Error(Errors.Exception));
+        ErrorOr<NotificationResult> result = default;
         try
         {
             result = await ProcessInSpanAsync(registration, domainEvent, context, span, ct);
@@ -40,6 +40,11 @@ internal sealed class NotificationPipeline(
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             result = new Error(Errors.OperationCancelled);
+            throw;
+        }
+        catch (Exception)
+        {
+            result = new Error(Errors.Exception);
             throw;
         }
         finally

@@ -10,6 +10,7 @@ using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Telemetry;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using static MsgHatch.Domain.Tests.Unit.TestTypes.TestRoutes;
 
 namespace MsgHatch.Domain.Tests.Unit.Pipeline;
@@ -121,6 +122,28 @@ public sealed partial class NotificationServiceUnitTests
         Assert.Equal(
             (ActivityStatusCode.Error, (string?)null, (object?)"Unavailable"),
             (span.Status, span.StatusDescription, span.GetTagItem("error.type")));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RouterThatThrows_GivesTheErrorTypeExceptionToTheSpanAndTheDuration()
+    {
+        // Arrange
+        _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new InvalidOperationException("defect"));
+        await using var provider = _doubles.Build(_time);
+        using var duration = new MetricCollector<double>(
+            provider.GetRequiredService<IMeterFactory>(), MsgHatchTelemetry.MeterName, "msghatch.process.duration");
+        var spans = new ConcurrentQueue<Activity>();
+        using var listener = ListenTo([MsgHatchTelemetry.SourceName, _testSource.Name], spans);
+        using var parent = _testSource.StartActivity("test")!;
+
+        // Act
+        await ProcessAsync(provider, AContext());
+
+        // Assert
+        var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
+        var measurement = Assert.Single(duration.GetMeasurementSnapshot());
+        Assert.Equal((ActivityStatusCode.Error, (object?)"Exception"), (span.Status, span.GetTagItem("error.type")));
+        Assert.Equal(["error.type=Exception", "msghatch.message_type=TestEvent", "msghatch.test=False"], TagsOf(measurement.Tags));
     }
 
     [Fact]
