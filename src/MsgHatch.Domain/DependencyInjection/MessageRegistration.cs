@@ -10,7 +10,6 @@ namespace MsgHatch.Domain.DependencyInjection;
 internal sealed class MessageRegistration<TEvent>(MessageType type, int version) : IMessageHandler
 {
     private const int _schemaVersion = 1;
-    private const int _oneProcessingInMemory = 1;
 
     private readonly List<IChannelRegistration<TEvent>> _channels = [];
     private readonly Dictionary<int, Func<object, TEvent>> _upgrades = [];
@@ -32,11 +31,12 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
     public IChannelRegistration<TEvent>? FindChannel(ChannelId channel) =>
         _channels.Find(registration => registration.Channel == channel);
 
-    public ReceivedMessage<TEvent> ReceiveInMemory(TEvent domainEvent, MessageContext context, DateTime nowUtc, string? traceParent) =>
+    public ReceivedMessage<TEvent> Receive(
+        TEvent domainEvent, MessageContext context, DateTime nowUtc, int maxTryCount, string? traceParent) =>
         new(
             _schemaVersion,
             new DeliveryState(
-                context.MessageId, DeliveryStatus.Pending, TryCount: 0, _oneProcessingInMemory, nowUtc, LastTryAtUtc: null,
+                context.MessageId, DeliveryStatus.Pending, TryCount: 0, maxTryCount, nowUtc, LastTryAtUtc: null,
                 NextTryAtUtc: nowUtc, LeaseUntilUtc: null, ExpiresAtUtc: null, LastError: null),
             context.Tenant, Type, Version, context.Flags, traceParent, domainEvent);
 

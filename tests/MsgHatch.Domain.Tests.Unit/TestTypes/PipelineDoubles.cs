@@ -3,6 +3,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
@@ -12,7 +13,7 @@ namespace MsgHatch.Domain.Tests.Unit.TestTypes;
 
 /// <summary>
 /// Shared by the pipeline tests: one router, composer, and outbox store substitute for each tenant key, which the
-/// factory overloads of the setup methods give. Each router gives <see cref="Routes"/>, each composer gives one
+/// factory overloads of the setup methods give, and one inbox store substitute for each key that keeps what it gets. Each router gives <see cref="Routes"/>, each composer gives one
 /// envelope for each route with the address of the route as its text, and each store keeps what it gets.
 /// The test event has registrations on the test channel and the second test channel, but not on the third test channel.
 /// </summary>
@@ -22,10 +23,13 @@ public sealed class PipelineDoubles
     private readonly Dictionary<TenantKey, IEnvelopeComposer<TestEvent, TestEnvelope>> _composers = [];
     private readonly Dictionary<TenantKey, IEnvelopeComposer<TestEvent, OtherTestEnvelope>> _secondComposers = [];
     private readonly Dictionary<TenantKey, IOutboxStore> _stores = [];
+    private readonly Dictionary<TenantKey, IInboxStore> _inboxes = [];
 
     public IReadOnlyList<MessageRoute> Routes { get; set; } = [];
 
     public List<OutgoingMessage> Stored { get; } = [];
+
+    public List<ReceivedMessage> Accepted { get; } = [];
 
     public IMessageRouter<TestEvent> Router(TenantKey key) => GetOrAdd(_routers, key, NewRouter);
 
@@ -36,6 +40,8 @@ public sealed class PipelineDoubles
         GetOrAdd(_secondComposers, key, static () => EchoComposer<TestEvent, OtherTestEnvelope>(static route => new OtherTestEnvelope(TextOf(route))));
 
     public IOutboxStore Store(TenantKey key) => GetOrAdd(_stores, key, NewStore);
+
+    public IInboxStore Inbox(TenantKey key) => GetOrAdd(_inboxes, key, NewInbox);
 
     public ServiceProvider Build(
         TimeProvider time,
@@ -51,6 +57,7 @@ public sealed class PipelineDoubles
             .AddThirdTestChannel()
             .UseOutboxStore((_, key) => Store(key))
             .UseOutboxDispatchStore(static _ => Substitute.For<IOutboxDispatchStore>())
+            .UseInboxStore((_, key) => Inbox(key))
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
                 .WithRouter((_, key) => Router(key))
                 .AsChannel(
@@ -93,6 +100,18 @@ public sealed class PipelineDoubles
             .ReturnsForAnyArgs(call => ValueTask.FromResult(ErrorOr<IReadOnlyList<ErrorOr<TEnvelope>>>.ForValue(
                 [.. call.ArgAt<ReadOnlyMemory<MessageRoute>>(1).ToArray().Select(route => ErrorOr<TEnvelope>.ForValue(envelopeOf(route)))])));
         return composer;
+    }
+
+    private IInboxStore NewInbox()
+    {
+        var inbox = Substitute.For<IInboxStore>();
+        inbox.AddAsync(default!, default)
+            .ReturnsForAnyArgs(call =>
+            {
+                Accepted.Add(call.ArgAt<ReceivedMessage>(0));
+                return ValueTask.FromResult<Error?>(null);
+            });
+        return inbox;
     }
 
     private IOutboxStore NewStore()

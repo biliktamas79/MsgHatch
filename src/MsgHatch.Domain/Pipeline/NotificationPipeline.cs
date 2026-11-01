@@ -4,6 +4,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Telemetry;
@@ -19,6 +20,28 @@ internal sealed class NotificationPipeline(
     IServiceProvider services, IMessageRegistry registry, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time,
     MsgHatchMetrics metrics)
 {
+    private const int _oneProcessingInMemory = 1;
+
+    public async ValueTask<ErrorOr<Guid>> AcceptAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct)
+    {
+        var found = FindRegistration<TEvent>();
+        if (found.IsError)
+        {
+            return found.Error;
+        }
+
+        var inbox = services.GetKeyedService<IInboxStore>(TenantKey.For(context.Tenant));
+        if (inbox is null)
+        {
+            return new Error(Errors.NotFound, "No setup method selects an IInboxStore, for example UseInMemoryStores.");
+        }
+
+        var received = found.Value.Receive(
+            domainEvent, context, time.GetUtcNowDateTime(), retryOptions.Get(OptionNames.Inbox).MaxTryCount, traceParent: null);
+        var error = await inbox.AddAsync(received, ct);
+        return error is null ? context.MessageId : error;
+    }
+
     public async ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
         TEvent domainEvent, MessageContext context, CancellationToken ct)
     {
@@ -116,7 +139,7 @@ internal sealed class NotificationPipeline(
     {
         var key = TenantKey.For(context.Tenant);
         var nowUtc = time.GetUtcNowDateTime();
-        var received = registration.ReceiveInMemory(domainEvent, context, nowUtc, receivedTraceParent);
+        var received = registration.Receive(domainEvent, context, nowUtc, _oneProcessingInMemory, receivedTraceParent);
         var routes = givenRoutes is null
             ? await RouteAsync(registration, received, key, ct)
             : ErrorOr<IReadOnlyList<MessageRoute>>.ForValue(givenRoutes);

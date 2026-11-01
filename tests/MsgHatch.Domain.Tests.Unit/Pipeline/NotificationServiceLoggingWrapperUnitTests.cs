@@ -141,6 +141,58 @@ public sealed class NotificationServiceLoggingWrapperUnitTests
         Assert.Equal(LogLevel.Error, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1007).Level);
     }
 
+    [Fact]
+    public async Task AcceptAsync_Success_LogsADebugRecordWithTheTenantAndItsEventId()
+    {
+        // Arrange
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        await AcceptAsync(provider);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1008);
+        Assert.Equal((LogLevel.Debug, "t1"), (record.Level, record.GetStructuredStateValue("Tenant")));
+    }
+
+    [Fact]
+    public async Task AcceptAsync_TransientError_ReturnsTheSameErrorAndLogsAWarningWithItsEventId()
+    {
+        // Arrange
+        var error = new Error(Errors.Unavailable);
+        _doubles.Inbox(TenantKey.For(_tenant)).AddAsync(default!, TestContext.Current.CancellationToken).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(error));
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var result = await AcceptAsync(provider);
+
+        // Assert
+        Assert.Same(error, result.Error);
+        Assert.Equal(LogLevel.Warning, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1009).Level);
+    }
+
+    [Fact]
+    public async Task AcceptAsync_PermanentError_LogsAnErrorWithItsEventId()
+    {
+        // Arrange
+        _doubles.Inbox(TenantKey.For(_tenant)).AddAsync(default!, TestContext.Current.CancellationToken)
+            .ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.ValidationFailed)));
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        await AcceptAsync(provider);
+
+        // Assert
+        Assert.Equal(LogLevel.Error, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1009).Level);
+    }
+
+    private static async Task<ErrorOr<Guid>> AcceptAsync(IServiceProvider provider)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<INotificationService>()
+            .AcceptAsync(new TestEvent("text"), new MessageContext(Guid.NewGuid(), _tenant), TestContext.Current.CancellationToken);
+    }
+
     private void RouterGives(Error error) =>
         _doubles.Router(TenantKey.For(_tenant)).RouteAsync(default!, default)
             .ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<MessageRoute>>>(error));

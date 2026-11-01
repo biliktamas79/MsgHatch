@@ -21,6 +21,15 @@ internal sealed class NotificationServiceLoggingWrapper(
     }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<Guid>> AcceptAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.AcceptAsync(domainEvent, context, ct);
+        LogAccept(typeof(TEvent).Name, context, result, time.GetElapsedTime(started).TotalMilliseconds);
+        return result;
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
         TEvent domainEvent, MessageContext context, IReadOnlyList<MessageRoute>? routes, CancellationToken ct)
     {
@@ -43,6 +52,21 @@ internal sealed class NotificationServiceLoggingWrapper(
         {
             var routeCount = result.Value.Count;
             Log.PreviewSucceeded(logger, context.MessageId, eventType, context.Tenant?.Value, routeCount, elapsedMs);
+        }
+    }
+
+    private void LogAccept(string eventType, MessageContext context, ErrorOr<Guid> result, double elapsedMs)
+    {
+        if (result.IsError)
+        {
+            var level = ErrorLogLevels.For(result.Error);
+            Log.AcceptFailed(
+                logger, level, context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs,
+                result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+        }
+        else
+        {
+            Log.AcceptSucceeded(logger, context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs);
         }
     }
 

@@ -14,6 +14,9 @@ internal sealed class NotificationService(NotificationPipeline pipeline) : INoti
         TEvent domainEvent, MessageContext context, CancellationToken ct) =>
         AtBoundaryAsync(() => pipeline.ProcessAsync(domainEvent, context, ct), ct);
 
+    public ValueTask<ErrorOr<Guid>> AcceptAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct) =>
+        AtBoundaryAsync(() => pipeline.AcceptAsync(domainEvent, context, ct), ct);
+
     public ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
         TEvent domainEvent, MessageContext context, IReadOnlyList<MessageRoute>? routes, CancellationToken ct) =>
         AtBoundaryAsync(() => pipeline.PreviewAsync(domainEvent, context, routes, ct), ct);

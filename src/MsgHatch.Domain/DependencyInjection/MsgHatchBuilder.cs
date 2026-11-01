@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Pipeline;
@@ -124,13 +125,44 @@ public sealed class MsgHatchBuilder
     /// <returns>This builder.</returns>
     public MsgHatchBuilder UseInMemoryStores()
     {
+        Services.TryAddSingleton<InMemoryInboxStore>();
         Services.TryAddSingleton<InMemoryOutboxStore>();
+        AddInboxStore(
+            static (tenantServices, key) => tenantServices.GetRequiredService<InMemoryInboxStore>().For(key),
+            nameof(UseInMemoryStores));
+        AddInboxDispatchStore(static services => services.GetRequiredService<InMemoryInboxStore>(), nameof(UseInMemoryStores));
         AddOutboxStore(
             static (tenantServices, key) => tenantServices.GetRequiredService<InMemoryOutboxStore>().For(key),
             nameof(UseInMemoryStores));
         return AddOutboxDispatchStore(
             static services => services.GetRequiredService<InMemoryOutboxStore>(), nameof(UseInMemoryStores));
     }
+
+    /// <summary>Registers an inbox tenant store as a tenant service, with its logging wrapper (D127).</summary>
+    /// <typeparam name="TStore">The store type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseInboxStore<TStore>()
+        where TStore : class, IInboxStore =>
+        UseInboxStore(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TStore>(tenantServices));
+
+    /// <summary>Registers an inbox tenant store with a factory, for example for a test substitute.</summary>
+    /// <param name="factory">The factory of the store of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory) =>
+        AddInboxStore(factory, nameof(UseInboxStore));
+
+    /// <summary>Registers the inbox dispatch store as a singleton, with its logging wrapper (D127, D130).</summary>
+    /// <typeparam name="TStore">The store type.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseInboxDispatchStore<TStore>()
+        where TStore : class, IInboxDispatchStore =>
+        UseInboxDispatchStore(static services => ActivatorUtilities.CreateInstance<TStore>(services));
+
+    /// <summary>Registers the inbox dispatch store with a factory, for example for a test substitute.</summary>
+    /// <param name="factory">The factory of the store.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseInboxDispatchStore(Func<IServiceProvider, IInboxDispatchStore> factory) =>
+        AddInboxDispatchStore(factory, nameof(UseInboxDispatchStore));
 
     /// <summary>Registers an outbox tenant store as a tenant service, with its logging wrapper (D127).</summary>
     /// <typeparam name="TStore">The store type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
@@ -178,6 +210,29 @@ public sealed class MsgHatchBuilder
             services, factory(services),
             static (services, inner) => new TransportLoggingWrapper(
                 inner, Loggers.For<TransportLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        return this;
+    }
+
+    private MsgHatchBuilder AddInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory, string setupMethod)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Setup.Select(typeof(IInboxStore), setupMethod);
+        TenantServices.Add(
+            Services, Setup, ServiceLifetime.Singleton, factory,
+            static (tenantServices, key, inner) => new InboxStoreLoggingWrapper(
+                inner, key, Loggers.For<InboxStoreLoggingWrapper>(tenantServices),
+                tenantServices.GetRequiredService<TimeProvider>()));
+        return this;
+    }
+
+    private MsgHatchBuilder AddInboxDispatchStore(Func<IServiceProvider, IInboxDispatchStore> factory, string setupMethod)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Setup.Select(typeof(IInboxDispatchStore), setupMethod);
+        Services.AddSingleton(services => Loggers.Wrap(
+            services, factory(services),
+            static (services, inner) => new InboxDispatchStoreLoggingWrapper(
+                inner, Loggers.For<InboxDispatchStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
         return this;
     }
 

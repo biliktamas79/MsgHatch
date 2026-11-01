@@ -166,7 +166,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         // Arrange
         var claimed = new ClaimResult<OutgoingMessage>([TestMessages.AnOutgoingMessage()], TestMessages.CreatedAtUtc);
         var inner = AStoreOf(error: null);
-        inner.ClaimDueAsync(default, default, default, default, default)
+        inner.ClaimDueAsync(default, default, default, default, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<ClaimResult<OutgoingMessage>>.ForValue(claimed)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();

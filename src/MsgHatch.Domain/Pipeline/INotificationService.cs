@@ -22,6 +22,17 @@ public interface INotificationService
     ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct);
 
     /// <summary>
+    /// Stores one event in the inbox of the tenant of the context (section 4.8, step 1). The inbox processor processes
+    /// it later. The id of the context is the inbox id, so a second call with the same context stores nothing more.
+    /// </summary>
+    /// <typeparam name="TEvent">The type of the domain event.</typeparam>
+    /// <param name="domainEvent">The domain event.</param>
+    /// <param name="context">The message id, the tenant, and the flags of the event (D115).</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The inbox id, or the error. An unregistered event type gives <see cref="Errors.NotFound"/>.</returns>
+    ValueTask<ErrorOr<Guid>> AcceptAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct);
+
+    /// <summary>
     /// Composes the outgoing messages of one event as a test message, and stores and sends nothing (D84, D100).
     /// The flags of the context get <see cref="MessageFlags.Test"/>.
     /// </summary>

@@ -60,4 +60,17 @@ internal static partial class Log
     public static partial void PreviewFailed(
         ILogger logger, LogLevel level, Guid messageId, string eventType, string? tenant, double elapsedMs, int errorCode,
         string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1008, Level = LogLevel.Debug,
+        Message = "Accepted message {MessageId} of the event type {EventType} of tenant {Tenant} with flags {MessageFlags} into the inbox in {ElapsedMs} ms")]
+    public static partial void AcceptSucceeded(
+        ILogger logger, Guid messageId, string eventType, string? tenant, MessageFlags messageFlags, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1009,
+        Message = "Accept of message {MessageId} of the event type {EventType} of tenant {Tenant} with flags {MessageFlags} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void AcceptFailed(
+        ILogger logger, LogLevel level, Guid messageId, string eventType, string? tenant, MessageFlags messageFlags,
+        double elapsedMs, int errorCode, string errorName, string? errorMessage);
 }

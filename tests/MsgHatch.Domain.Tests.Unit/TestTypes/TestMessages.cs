@@ -30,8 +30,13 @@ public static class TestMessages
             "Test:TestEnvelope", contentVersion, flags, TraceParent: null, trace, envelope ?? new TestEnvelope("text"));
 
     public static ReceivedMessage<TEvent> AReceivedMessage<TEvent>(
-        TEvent domainEvent, TenantId? tenant = null, int contentVersion = 2, MessageFlags flags = MessageFlags.None) =>
+        TEvent domainEvent,
+        TenantId? tenant = null,
+        int contentVersion = 2,
+        MessageFlags flags = MessageFlags.None,
+        DeliveryState? delivery = null,
+        string? traceParent = null) =>
         new(
-            SchemaVersion: 1, ADeliveryState(), tenant, new MessageType("TestEvent"), contentVersion, flags,
-            TraceParent: null, domainEvent);
+            SchemaVersion: 1, delivery ?? ADeliveryState(), tenant, new MessageType("TestEvent"), contentVersion, flags,
+            traceParent, domainEvent);
 }

@@ -1,4 +1,5 @@
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Failures;
 
 namespace MsgHatch.Domain.Tests.Unit.Contracts;
 
@@ -93,6 +94,19 @@ public abstract partial class OutboxStoreTestsBase<TStore>
         Assert.Null(error);
         Assert.Equal(stored, await StoredAsync(message.Delivery.Id));
         Assert.Equal([first], await TestData.GetTriesAsync(message.Delivery.Id, Ct));
+    }
+
+    [Fact]
+    public async Task RecordTryAsync_MessageThatIsNotStored_ReturnsNotFound()
+    {
+        // Arrange
+        var message = AMessage(T1);
+
+        // Act
+        var error = await Store.RecordTryAsync(message, ATry(message, 1, PublishOutcome.Succeeded), nextTryAtUtc: null, Ct);
+
+        // Assert
+        Assert.Equal(Errors.NotFound, error?.Type);
     }
 
     private PublishTry ATry(OutgoingMessage message, int tryNumber, PublishOutcome outcome, string? errorMessage = null)

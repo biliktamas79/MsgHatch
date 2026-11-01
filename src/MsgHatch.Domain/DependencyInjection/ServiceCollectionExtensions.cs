@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
@@ -32,6 +33,10 @@ public static class ServiceCollectionExtensions
 
         options.ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchOptions>, MsgHatchOptionsValidator>());
+        services.AddOptions<RetryOptions>(OptionNames.Inbox)
+            .BindConfiguration($"{RetryOptions.SectionName}:{OptionNames.Inbox}")
+            .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RetryOptions>, RetryOptionsValidator>());
         services.AddOptions<MsgHatchSetupCheck>().ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchSetupCheck>, MsgHatchSetupValidator>());
         services.TryAddSingleton(TimeProvider.System);
