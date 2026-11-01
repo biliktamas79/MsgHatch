@@ -16,6 +16,8 @@ public sealed class MsgHatchBuilderUnitTests
         typeof(TestOpenRouter<TestEvent>),
         typeof(string),
         typeof(List<>),
+        typeof(ListTestOpenRouter<>),
+        typeof(FixedEventTestOpenRouter<>),
     ];
 
     [Fact]

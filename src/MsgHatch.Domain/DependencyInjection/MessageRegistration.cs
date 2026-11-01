@@ -52,7 +52,7 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
                 ? $"The message type {Type.Name} has no router. Select one with WithRouter or UseRouter."
                 : null;
         }
-        catch (InvalidOperationException exception)
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
         {
             return $"The router of the message type {Type.Name} does not resolve: {exception.Message}";
         }

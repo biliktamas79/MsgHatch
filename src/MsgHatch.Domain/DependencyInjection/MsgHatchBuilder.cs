@@ -75,14 +75,16 @@ public sealed class MsgHatchBuilder
     /// Selects an open generic router, for example <c>typeof(SubscriptionRouter&lt;&gt;)</c>, for each message type
     /// with no router of its own (D99).
     /// </summary>
-    /// <param name="routerType">An open generic type with one type parameter that implements <see cref="IMessageRouter{TEvent}"/>.</param>
+    /// <param name="routerType">
+    /// An open generic type with one type parameter <c>T</c> that implements <see cref="IMessageRouter{TEvent}"/> of <c>T</c>.
+    /// </param>
     /// <returns>This builder.</returns>
     public MsgHatchBuilder UseRouter(Type routerType)
     {
         ArgumentNullException.ThrowIfNull(routerType);
         if (!IsOpenGenericRouter(routerType))
         {
-            throw new ArgumentException("The router type is an open generic type with one type parameter that implements IMessageRouter<TEvent>.", nameof(routerType));
+            throw new ArgumentException("The router type is an open generic type with one type parameter T that implements IMessageRouter<T>.", nameof(routerType));
         }
 
         Setup.Select(typeof(IMessageRouter<>), nameof(UseRouter));
@@ -181,7 +183,6 @@ public sealed class MsgHatchBuilder
 
     private static bool IsOpenGenericRouter(Type routerType) =>
         routerType is { IsGenericTypeDefinition: true, IsAbstract: false }
-        && routerType.GetGenericArguments().Length == 1
-        && routerType.GetInterfaces().Any(static type =>
-            type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IMessageRouter<>));
+        && routerType.GetGenericArguments() is [var eventType]
+        && routerType.GetInterfaces().Contains(typeof(IMessageRouter<>).MakeGenericType(eventType));
 }

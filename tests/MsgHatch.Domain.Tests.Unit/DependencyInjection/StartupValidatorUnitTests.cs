@@ -80,6 +80,24 @@ public sealed class StartupValidatorUnitTests
     }
 
     [Fact]
+    public async Task Validate_OpenRouterWithAConstraintThatTheEventTypeBreaks_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel().UseInMemoryStores()
+            .UseRouter(typeof(ConstrainedTestOpenRouter<>)) // TestEvent is not IDisposable
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    [Fact]
     public async Task Validate_NoOutboxStores_ThrowsOptionsValidationException()
     {
         // Arrange
