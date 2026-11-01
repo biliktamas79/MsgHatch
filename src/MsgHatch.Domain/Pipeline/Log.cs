@@ -47,4 +47,17 @@ internal static partial class Log
     public static partial void ProcessFailed(
         ILogger logger, LogLevel level, Guid messageId, string eventType, string? tenant, MessageFlags messageFlags,
         double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1006, Level = LogLevel.Debug,
+        Message = "Previewed message {MessageId} of the event type {EventType} of tenant {Tenant} with flags Test: {RouteCount} routes in {ElapsedMs} ms")]
+    public static partial void PreviewSucceeded(
+        ILogger logger, Guid messageId, string eventType, string? tenant, int routeCount, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1007,
+        Message = "Preview of message {MessageId} of the event type {EventType} of tenant {Tenant} with flags Test failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void PreviewFailed(
+        ILogger logger, LogLevel level, Guid messageId, string eventType, string? tenant, double elapsedMs, int errorCode,
+        string errorName, string? errorMessage);
 }

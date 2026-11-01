@@ -20,4 +20,17 @@ public interface INotificationService
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The counts, or the error. An unregistered event type gives <see cref="Errors.NotFound"/>.</returns>
     ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct);
+
+    /// <summary>
+    /// Composes the outgoing messages of one event as a test message, and stores and sends nothing (D84, D100).
+    /// The flags of the context get <see cref="MessageFlags.Test"/>.
+    /// </summary>
+    /// <typeparam name="TEvent">The type of the domain event.</typeparam>
+    /// <param name="domainEvent">The domain event.</param>
+    /// <param name="context">The message id, the tenant, and the flags of the event (D115).</param>
+    /// <param name="routes">The routes to compose, or null for the routes of the router of the message type.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>One result for each route, in the order of the routes, or the error of the event.</returns>
+    ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
+        TEvent domainEvent, MessageContext context, IReadOnlyList<Routing.MessageRoute>? routes, CancellationToken ct);
 }

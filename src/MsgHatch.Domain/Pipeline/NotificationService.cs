@@ -1,5 +1,6 @@
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Domain.Pipeline;
 
@@ -9,12 +10,19 @@ namespace MsgHatch.Domain.Pipeline;
 /// </summary>
 internal sealed class NotificationService(NotificationPipeline pipeline) : INotificationService
 {
-    public async ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
-        TEvent domainEvent, MessageContext context, CancellationToken ct)
+    public ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
+        TEvent domainEvent, MessageContext context, CancellationToken ct) =>
+        AtBoundaryAsync(() => pipeline.ProcessAsync(domainEvent, context, ct), ct);
+
+    public ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
+        TEvent domainEvent, MessageContext context, IReadOnlyList<MessageRoute>? routes, CancellationToken ct) =>
+        AtBoundaryAsync(() => pipeline.PreviewAsync(domainEvent, context, routes, ct), ct);
+
+    private static async ValueTask<ErrorOr<T>> AtBoundaryAsync<T>(Func<ValueTask<ErrorOr<T>>> run, CancellationToken ct)
     {
         try
         {
-            return await pipeline.ProcessAsync(domainEvent, context, ct);
+            return await run();
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

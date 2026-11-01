@@ -39,6 +39,34 @@ internal sealed class NotificationPipeline(
         return outcomes.IsError ? outcomes.Error : await StoreAsync(key, outcomes.Value, ct);
     }
 
+    public async ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
+        TEvent domainEvent, MessageContext context, IReadOnlyList<MessageRoute>? routes, CancellationToken ct)
+    {
+        var registration = services.GetService<MessageRegistration<TEvent>>();
+        if (registration is null)
+        {
+            return new Error(Errors.NotFound, $"The event type {typeof(TEvent).Name} is not registered.");
+        }
+
+        var key = TenantKey.For(context.Tenant);
+        var nowUtc = time.GetUtcNowDateTime();
+        var received = registration.ReceiveInMemory(domainEvent, AsTestMessage(context), nowUtc, traceParent: null);
+        var previewRoutes = routes is null ? await RouteAsync(registration, received, key, ct) : ErrorOr<IReadOnlyList<MessageRoute>>.ForValue(routes);
+        if (previewRoutes.IsError)
+        {
+            return previewRoutes.Error;
+        }
+
+        var outcomes = await ComposeAsync(registration, received, previewRoutes.Value, key, new OutgoingDefaults(nowUtc, null, retryOptions), ct);
+        return outcomes.IsError ? outcomes.Error : ErrorOr<IReadOnlyList<RouteResult>>.ForValue(ToRouteResults(previewRoutes.Value, outcomes.Value));
+    }
+
+    private static MessageContext AsTestMessage(MessageContext context) => context with { Flags = context.Flags | MessageFlags.Test };
+
+    private static RouteResult[] ToRouteResults(IReadOnlyList<MessageRoute> routes, ErrorOr<OutgoingMessage>[] outcomes) =>
+        [.. routes.Select((route, position) => new RouteResult(
+            route, outcomes[position].IsSuccess ? outcomes[position].Value : null, outcomes[position].Error))];
+
     private ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync<TEvent>(
         MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, TenantKey key, CancellationToken ct)
     {

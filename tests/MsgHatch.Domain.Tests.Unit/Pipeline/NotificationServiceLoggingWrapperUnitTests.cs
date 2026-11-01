@@ -114,9 +114,44 @@ public sealed class NotificationServiceLoggingWrapperUnitTests
         Assert.Empty(provider.LogRecords());
     }
 
+    [Fact]
+    public async Task PreviewAsync_Success_LogsADebugRecordWithItsEventId()
+    {
+        // Arrange
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        await PreviewAsync(provider, [TestRoutes.ARoute("u1")]);
+
+        // Assert
+        Assert.Equal(LogLevel.Debug, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1006).Level);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_PermanentError_LogsAnErrorWithItsEventId()
+    {
+        // Arrange
+        RouterGives(new Error(Errors.ValidationFailed));
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        await PreviewAsync(provider, routes: null);
+
+        // Assert
+        Assert.Equal(LogLevel.Error, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1007).Level);
+    }
+
     private void RouterGives(Error error) =>
         _doubles.Router(TenantKey.For(_tenant)).RouteAsync(default!, default)
             .ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<MessageRoute>>>(error));
+
+    private static async Task<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync(
+        IServiceProvider provider, IReadOnlyList<MessageRoute>? routes)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<INotificationService>()
+            .PreviewAsync(new TestEvent("text"), new MessageContext(Guid.NewGuid(), _tenant), routes, TestContext.Current.CancellationToken);
+    }
 
     private static async Task<ErrorOr<NotificationResult>> ProcessAsync(IServiceProvider provider, MessageContext context)
     {
