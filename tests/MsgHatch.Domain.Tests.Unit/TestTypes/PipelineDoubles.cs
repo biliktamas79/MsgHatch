@@ -14,6 +14,7 @@ namespace MsgHatch.Domain.Tests.Unit.TestTypes;
 /// Shared by the pipeline tests: one router, composer, and outbox store substitute for each tenant key, which the
 /// factory overloads of the setup methods give. Each router gives <see cref="Routes"/>, each composer gives one
 /// envelope for each route with the address of the route as its text, and each store keeps what it gets.
+/// The test event has registrations on the test channel and the second test channel, but not on the third test channel.
 /// </summary>
 public sealed class PipelineDoubles
 {
@@ -47,6 +48,7 @@ public sealed class PipelineDoubles
         var builder = services.AddMsgHatch(o => o.EnableLogging = enableLogging)
             .AddTestChannel()
             .AddSecondTestChannel()
+            .AddThirdTestChannel()
             .UseOutboxStore((_, key) => Store(key))
             .UseOutboxDispatchStore(static _ => Substitute.For<IOutboxDispatchStore>())
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m

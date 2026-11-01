@@ -15,6 +15,7 @@ public sealed partial class NotificationServiceUnitTests
     public static TheoryData<string, int> RouteCheckRows => new()
     {
         { "UnregisteredChannel", 404 },
+        { "ChannelWithNoRegistrationOfTheMessageType", 404 },
         { "OtherSettingsType", 400 },
         { "SecondRouteForTheSameTargetAndChannel", 409 },
     };
@@ -22,6 +23,7 @@ public sealed partial class NotificationServiceUnitTests
     private static Dictionary<string, MessageRoute> FailingRoutes => new()
     {
         ["UnregisteredChannel"] = ARoute("u9", channel: new ChannelId("Unregistered")),
+        ["ChannelWithNoRegistrationOfTheMessageType"] = ARoute("u9", channel: TestChannel.ThirdId),
         ["OtherSettingsType"] = ARoute("u9", settings: new OtherTestChannelSettings()),
         ["SecondRouteForTheSameTargetAndChannel"] = ARoute("u1", address: "second@example.com"),
     };

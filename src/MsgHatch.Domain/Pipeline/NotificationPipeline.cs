@@ -138,7 +138,8 @@ internal sealed class NotificationPipeline(
         var checkedRoutes = Check(registration, routes, outcomes);
         foreach (var group in RouteGrouping.ByChannel(checkedRoutes.Select(static route => route.Route).ToArray()))
         {
-            var messages = await registration.FindChannel(group.Key)!.ComposeAsync(services, key, received, group.Routes, defaults, ct);
+            var channel = checkedRoutes[group.Positions.Span[0]].Channel;
+            var messages = await channel.ComposeAsync(services, key, received, group.Routes, defaults, ct);
             if (messages.IsError)
             {
                 return messages.Error;
@@ -153,43 +154,44 @@ internal sealed class NotificationPipeline(
         return outcomes;
     }
 
-    private List<(int Position, MessageRoute Route)> Check<TEvent>(
+    private List<(int Position, MessageRoute Route, IChannelRegistration<TEvent> Channel)> Check<TEvent>(
         MessageRegistration<TEvent> registration, IReadOnlyList<MessageRoute> routes, ErrorOr<OutgoingMessage>[] outcomes)
     {
-        var checkedRoutes = new List<(int Position, MessageRoute Route)>(routes.Count);
+        var checkedRoutes = new List<(int Position, MessageRoute Route, IChannelRegistration<TEvent> Channel)>(routes.Count);
         var targetsOnChannels = new HashSet<(DeliveryTarget Target, ChannelId Channel)>();
         for (var position = 0; position < routes.Count; position++)
         {
-            var error = CheckRoute(registration, routes[position], targetsOnChannels);
-            if (error is null)
+            var channel = CheckRoute(registration, routes[position], targetsOnChannels);
+            if (channel.IsError)
             {
-                checkedRoutes.Add((position, routes[position]));
+                outcomes[position] = channel.Error;
             }
             else
             {
-                outcomes[position] = error;
+                checkedRoutes.Add((position, routes[position], channel.Value));
             }
         }
 
         return checkedRoutes;
     }
 
-    private Error? CheckRoute<TEvent>(
+    private ErrorOr<IChannelRegistration<TEvent>> CheckRoute<TEvent>(
         MessageRegistration<TEvent> registration, MessageRoute route, HashSet<(DeliveryTarget, ChannelId)> targetsOnChannels)
     {
-        var channel = registry.FindChannel(route.Channel);
-        if (channel is null || registration.FindChannel(route.Channel) is null)
+        var descriptor = registry.FindChannel(route.Channel);
+        var channel = registration.FindChannel(route.Channel);
+        if (descriptor is null || channel is null)
         {
             return new Error(Errors.NotFound, $"The message type {registration.Type.Name} has no registration on the channel {route.Channel.Name}.");
         }
 
-        if (route.Settings?.GetType() != channel.SettingsType)
+        if (route.Settings?.GetType() != descriptor.SettingsType)
         {
-            return new Error(Errors.ValidationFailed, $"A route on the channel {route.Channel.Name} has settings of another type than {channel.SettingsType.Name}.");
+            return new Error(Errors.ValidationFailed, $"A route on the channel {route.Channel.Name} has settings of another type than {descriptor.SettingsType.Name}.");
         }
 
         return targetsOnChannels.Add((route.Target, route.Channel))
-            ? null
+            ? ErrorOr<IChannelRegistration<TEvent>>.ForValue(channel)
             : new Error(Errors.Conflict, $"A second route for the same target on the channel {route.Channel.Name}.");
     }
 
