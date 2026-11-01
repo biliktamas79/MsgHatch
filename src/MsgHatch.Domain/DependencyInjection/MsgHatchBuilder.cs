@@ -158,6 +158,29 @@ public sealed class MsgHatchBuilder
     public MsgHatchBuilder UseOutboxDispatchStore(Func<IServiceProvider, IOutboxDispatchStore> factory) =>
         AddOutboxDispatchStore(factory, nameof(UseOutboxDispatchStore));
 
+    /// <summary>
+    /// Registers the transport of one channel as a singleton, with its logging wrapper (D129). The host is then a
+    /// publisher of that channel (D101). The channel packages call it.
+    /// </summary>
+    /// <typeparam name="TTransport">The transport type.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseTransport<TTransport>()
+        where TTransport : class, ITransport =>
+        UseTransport(static services => ActivatorUtilities.CreateInstance<TTransport>(services));
+
+    /// <summary>Registers the transport of one channel with a factory, for example for a test substitute.</summary>
+    /// <param name="factory">The factory of the transport.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseTransport(Func<IServiceProvider, ITransport> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Services.AddSingleton(services => Loggers.Wrap(
+            services, factory(services),
+            static (services, inner) => new TransportLoggingWrapper(
+                inner, Loggers.For<TransportLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        return this;
+    }
+
     private MsgHatchBuilder AddOutboxStore(Func<IServiceProvider, TenantKey, IOutboxStore> factory, string setupMethod)
     {
         ArgumentNullException.ThrowIfNull(factory);

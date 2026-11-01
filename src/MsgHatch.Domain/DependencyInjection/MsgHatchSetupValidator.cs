@@ -1,13 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Outbox;
 
 namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
 /// The startup validation of the setup for the role of an event consumer (section 4.7): the outbox stores, one
-/// selection for each interface (D62), a router for each message type (D95), unique content types, and unique
-/// message type names.
+/// selection for each interface (D62), one transport for each channel (D129), a router for each message type (D95),
+/// unique content types, and unique message type names.
 /// </summary>
 internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatchSetup setup) : IValidateOptions<MsgHatchSetupCheck>
 {
@@ -17,6 +18,7 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         [
             .. MissingOutboxStores(),
             .. DuplicateSelections(),
+            .. DuplicateTransports(),
             .. DuplicateContentTypes(),
             .. DuplicateMessageTypes(),
             .. MessageTypesWithNoRouter(),
@@ -35,6 +37,12 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
             .Where(static group => group.Count() > 1)
             .Select(static group =>
                 $"{string.Join(" and ", group.Select(static selection => selection.SetupMethod))} select an implementation of {group.Key.Name}.");
+
+    private IEnumerable<string> DuplicateTransports() =>
+        services.GetServices<ITransport>()
+            .GroupBy(static transport => transport.Channel)
+            .Where(static group => group.Count() > 1)
+            .Select(static group => $"The channel {group.Key.Name} has {group.Count()} transports.");
 
     private IEnumerable<string> DuplicateContentTypes() =>
         setup.ContentTypes

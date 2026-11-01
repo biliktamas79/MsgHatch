@@ -147,6 +147,40 @@ public sealed class StartupValidatorUnitTests
         Assert.IsType<OptionsValidationException>(exception);
     }
 
+    [Fact]
+    public async Task Validate_TransportsForTwoChannels_Succeeds()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores()
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .UseTransport(static _ => TestTransports.For(TestChannel.SecondId)));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Validate_SecondTransportForTheSameChannel_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores()
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id))); // one transport for each channel (D129)
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
     private sealed class RouterWithAMissingService(IComparer<Guid> missing) : IMessageRouter<TestEvent>
     {
         public ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync(
