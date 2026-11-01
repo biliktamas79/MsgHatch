@@ -1,4 +1,8 @@
+using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Pipeline;
+using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Domain.DependencyInjection;
 
@@ -11,4 +15,8 @@ internal interface IChannelRegistration<TEvent>
     string ContentType { get; }
 
     int Version { get; }
+
+    ValueTask<ErrorOr<IReadOnlyList<ErrorOr<OutgoingMessage>>>> ComposeAsync(
+        IServiceProvider services, TenantKey key, ReceivedMessage<TEvent> received, ReadOnlyMemory<MessageRoute> routes,
+        OutgoingDefaults defaults, CancellationToken ct);
 }

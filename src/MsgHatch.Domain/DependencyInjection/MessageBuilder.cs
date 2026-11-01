@@ -60,6 +60,32 @@ public sealed class MessageBuilder<TEvent>
     }
 
     /// <summary>
+    /// Registers the payload loader of one payload type of this message type as a tenant service, with its logging
+    /// wrapper. The channel packages call it for the loader of each channel registration.
+    /// </summary>
+    /// <typeparam name="TPayload">The type of the template payload.</typeparam>
+    /// <typeparam name="TLoader">The loader type, a tenant service.</typeparam>
+    /// <returns>This builder.</returns>
+    public MessageBuilder<TEvent> UsePayloadLoader<TPayload, TLoader>()
+        where TLoader : class, IPayloadLoader<TEvent, TPayload> =>
+        UsePayloadLoader(static (tenantServices, _) => (IPayloadLoader<TEvent, TPayload>)ActivatorUtilities.CreateInstance<TLoader>(tenantServices));
+
+    /// <summary>Registers the payload loader of one payload type with a factory, for example for a test substitute.</summary>
+    /// <typeparam name="TPayload">The type of the template payload.</typeparam>
+    /// <param name="factory">The factory of the loader of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <returns>This builder.</returns>
+    public MessageBuilder<TEvent> UsePayloadLoader<TPayload>(Func<IServiceProvider, TenantKey, IPayloadLoader<TEvent, TPayload>> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        TenantServices.Add(
+            Services, _parent.Setup, ServiceLifetime.Scoped, factory,
+            static (tenantServices, key, inner) => new PayloadLoaderLoggingWrapper<TEvent, TPayload>(
+                inner, key, Loggers.For<PayloadLoaderLoggingWrapper<TEvent, TPayload>>(tenantServices),
+                tenantServices.GetRequiredService<TimeProvider>()));
+        return this;
+    }
+
+    /// <summary>
     /// Registers the message type on one channel (D96). The channel packages call it, after <c>AddChannelType</c>.
     /// The content type of the envelope is <c>{Channel}:{name}</c>.
     /// </summary>

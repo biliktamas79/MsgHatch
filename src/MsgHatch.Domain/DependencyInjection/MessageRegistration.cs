@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
 
@@ -8,6 +9,9 @@ namespace MsgHatch.Domain.DependencyInjection;
 /// <typeparam name="TEvent">The type of the domain event.</typeparam>
 internal sealed class MessageRegistration<TEvent>(MessageType type, int version) : IMessageHandler
 {
+    private const int _schemaVersion = 1;
+    private const int _oneProcessingInMemory = 1;
+
     private readonly List<IChannelRegistration<TEvent>> _channels = [];
     private readonly Dictionary<int, Func<object, TEvent>> _upgrades = [];
     private Type? _closedOpenRouterType;
@@ -28,6 +32,17 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
     public void AddChannel(IChannelRegistration<TEvent> channel) => _channels.Add(channel);
 
     public void AddUpgrade(int fromVersion, Func<object, TEvent> upgrade) => _upgrades.Add(fromVersion, upgrade);
+
+    public IChannelRegistration<TEvent>? FindChannel(ChannelId channel) =>
+        _channels.Find(registration => registration.Channel == channel);
+
+    public ReceivedMessage<TEvent> ReceiveInMemory(TEvent domainEvent, MessageContext context, DateTime nowUtc, string? traceParent) =>
+        new(
+            _schemaVersion,
+            new DeliveryState(
+                context.MessageId, DeliveryStatus.Pending, TryCount: 0, _oneProcessingInMemory, nowUtc, LastTryAtUtc: null,
+                NextTryAtUtc: nowUtc, LeaseUntilUtc: null, ExpiresAtUtc: null, LastError: null),
+            context.Tenant, Type, Version, context.Flags, traceParent, domainEvent);
 
     public IMessageRouter<TEvent>? CreateRouter(IServiceProvider tenantServices, TenantKey key, Type? openRouterType)
     {

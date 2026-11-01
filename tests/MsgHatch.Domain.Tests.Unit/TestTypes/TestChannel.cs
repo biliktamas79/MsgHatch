@@ -13,9 +13,18 @@ public static class TestChannel
 
     public static readonly ChannelDescriptor Descriptor = new(Id, "Test channel", ChannelFeatures.None, typeof(TestChannelSettings));
 
+    public static readonly ChannelId SecondId = new("Second");
+
+    public static readonly ChannelDescriptor SecondDescriptor =
+        new(SecondId, "Second test channel", ChannelFeatures.GroupDelivery, typeof(OtherTestChannelSettings));
+
     public static Func<IServiceProvider, TenantKey, IEnvelopeComposer<TEvent, TestEnvelope>> AnyComposer<TEvent>() =>
         static (_, _) => Substitute.For<IEnvelopeComposer<TEvent, TestEnvelope>>();
 
     public static MsgHatchBuilder AddTestChannel(this MsgHatchBuilder builder) =>
         builder.AddChannelType(Descriptor, 1, TestJsonContext.Default.TestChannelSettings, Substitute.For<IChannelSettingsValidator>());
+
+    public static MsgHatchBuilder AddSecondTestChannel(this MsgHatchBuilder builder) =>
+        builder.AddChannelType(
+            SecondDescriptor, 1, TestJsonContext.Default.OtherTestChannelSettings, Substitute.For<IChannelSettingsValidator>());
 }

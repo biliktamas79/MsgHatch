@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Persistence;
+using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Domain.DependencyInjection;
@@ -35,6 +36,11 @@ public static class ServiceCollectionExtensions
             new InMemoryMessageRegistry(setup.Channels, setup.Messages.Select(static message => message.Descriptor)));
         services.TryAddSingleton<IContentTypeRegistry>(_ => new ContentTypeRegistry(setup.ContentTypes));
         services.TryAddSingleton<MsgHatchJson>();
+        services.TryAddScoped<NotificationPipeline>();
+        services.TryAddScoped(static services => Loggers.Wrap<INotificationService>(
+            services, new NotificationService(services.GetRequiredService<NotificationPipeline>()),
+            static (services, inner) => new NotificationServiceLoggingWrapper(
+                inner, Loggers.For<NotificationServiceLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
         return new MsgHatchBuilder(services, setup);
     }
 

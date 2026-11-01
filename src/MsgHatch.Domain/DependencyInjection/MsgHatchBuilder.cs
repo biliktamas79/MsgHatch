@@ -5,6 +5,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
+using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Domain.DependencyInjection;
@@ -103,7 +104,10 @@ public sealed class MsgHatchBuilder
         Services.AddSingleton(registration);
         TenantServices.Add<IMessageRouter<TEvent>>(
             Services, Setup, ServiceLifetime.Scoped,
-            (tenantServices, key) => registration.CreateRouter(tenantServices, key, Setup.OpenRouterType));
+            (tenantServices, key) => registration.CreateRouter(tenantServices, key, Setup.OpenRouterType),
+            static (tenantServices, key, inner) => new MessageRouterLoggingWrapper<TEvent>(
+                inner, key, Loggers.For<MessageRouterLoggingWrapper<TEvent>>(tenantServices),
+                tenantServices.GetRequiredService<TimeProvider>()));
         configure(new MessageBuilder<TEvent>(this, registration));
         return this;
     }
@@ -165,16 +169,12 @@ public sealed class MsgHatchBuilder
     {
         ArgumentNullException.ThrowIfNull(factory);
         Setup.Select(typeof(IOutboxDispatchStore), setupMethod);
-        Services.AddSingleton(services => WithLogging(
+        Services.AddSingleton(services => Loggers.Wrap(
             services, factory(services),
             static (services, inner) => new OutboxDispatchStoreLoggingWrapper(
                 inner, Loggers.For<OutboxDispatchStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
         return this;
     }
-
-    private static TService WithLogging<TService>(
-        IServiceProvider services, TService inner, Func<IServiceProvider, TService, TService> wrapWithLogging) =>
-        TenantServices.IsLoggingEnabled(services) ? wrapWithLogging(services, inner) : inner;
 
     private static bool IsOpenGenericRouter(Type routerType) =>
         routerType is { IsGenericTypeDefinition: true, IsAbstract: false }

@@ -13,7 +13,7 @@ public sealed class RouteGroupingUnitTests
     public void ByChannel_RoutesOfTwoChannels_SplitsThemByChannelInTheOrderOfTheRouter()
     {
         // Arrange
-        MessageRoute[] routes = [ARoute("u1", _email), ARoute("u2", _signalR), ARoute("u3", _email)];
+        MessageRoute[] routes = [TestRoutes.ARoute("u1", _email), TestRoutes.ARoute("u2", _signalR), TestRoutes.ARoute("u3", _email)];
 
         // Act
         var groups = RouteGrouping.ByChannel(routes);
@@ -28,10 +28,10 @@ public sealed class RouteGroupingUnitTests
         // Arrange
         MessageRoute[] routes =
         [
-            ARoute("u1", _email, language: "en"),
-            ARoute("u2", _email, language: "hu"),
-            ARoute("u3", _email, language: "en", templateScope: "acme"),
-            ARoute("u4", _email, language: "en"),
+            TestRoutes.ARoute("u1", _email, language: "en"),
+            TestRoutes.ARoute("u2", _email, language: "hu"),
+            TestRoutes.ARoute("u3", _email, language: "en", templateScope: "acme"),
+            TestRoutes.ARoute("u4", _email, language: "en"),
         ];
 
         // Act
@@ -47,7 +47,7 @@ public sealed class RouteGroupingUnitTests
     public void ByLanguageAndScope_LanguagesThatDifferOnlyInCase_AreOneGroup()
     {
         // Arrange
-        MessageRoute[] routes = [ARoute("u1", _email, language: "hu-HU"), ARoute("u2", _email, language: "hu-hu")];
+        MessageRoute[] routes = [TestRoutes.ARoute("u1", _email, language: "hu-HU"), TestRoutes.ARoute("u2", _email, language: "hu-hu")];
 
         // Act
         var groups = RouteGrouping.ByLanguageAndScope(routes);
@@ -75,11 +75,6 @@ public sealed class RouteGroupingUnitTests
         // Assert
         Assert.Empty(groups);
     }
-
-    private static MessageRoute ARoute(
-        string userId, ChannelId channel, string language = "en", string? templateScope = null) =>
-        new(new DeliveryTarget(DeliveryTargetKind.User, userId), channel, new TestChannelSettings(), language,
-            Address: null, templateScope, Trace: null);
 
     private static string[] Describe<TKey>(IReadOnlyList<RouteGroup<TKey>> groups, Func<TKey, string> describeKey) =>
         [.. groups.Select(group =>

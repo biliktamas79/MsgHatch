@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Identity;
 
 namespace MsgHatch.Domain.DependencyInjection;
@@ -30,9 +29,6 @@ internal static class TenantServices
             lifetime));
     }
 
-    public static bool IsLoggingEnabled(IServiceProvider services) =>
-        services.GetRequiredService<IOptions<MsgHatchOptions>>().Value.EnableLogging;
-
     private static TService? Create<TService>(
         IServiceProvider provider,
         TenantKey key,
@@ -43,7 +39,7 @@ internal static class TenantServices
     {
         var tenantServices = new TenantServiceProvider(provider, key, setup.TenantServiceTypes);
         var service = create(tenantServices, key);
-        return service is null || wrapWithLogging is null || !IsLoggingEnabled(provider)
+        return service is null || wrapWithLogging is null || !Loggers.IsEnabled(provider)
             ? service
             : wrapWithLogging(tenantServices, key, service);
     }
