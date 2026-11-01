@@ -1,7 +1,9 @@
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 
@@ -105,6 +107,74 @@ public sealed class MsgHatchBuilder
         configure(new MessageBuilder<TEvent>(this, registration));
         return this;
     }
+
+    /// <summary>
+    /// Selects the in-memory stores, with their two parts and their logging wrappers, for a host with no database
+    /// (D119). They are not durable.
+    /// </summary>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseInMemoryStores()
+    {
+        Services.TryAddSingleton<InMemoryOutboxStore>();
+        AddOutboxStore(
+            static (tenantServices, key) => tenantServices.GetRequiredService<InMemoryOutboxStore>().For(key),
+            nameof(UseInMemoryStores));
+        return AddOutboxDispatchStore(
+            static services => services.GetRequiredService<InMemoryOutboxStore>(), nameof(UseInMemoryStores));
+    }
+
+    /// <summary>Registers an outbox tenant store as a tenant service, with its logging wrapper (D127).</summary>
+    /// <typeparam name="TStore">The store type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseOutboxStore<TStore>()
+        where TStore : class, IOutboxStore =>
+        UseOutboxStore(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TStore>(tenantServices));
+
+    /// <summary>Registers an outbox tenant store with a factory, for example for a test substitute.</summary>
+    /// <param name="factory">The factory of the store of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseOutboxStore(Func<IServiceProvider, TenantKey, IOutboxStore> factory) =>
+        AddOutboxStore(factory, nameof(UseOutboxStore));
+
+    /// <summary>Registers the outbox dispatch store as a singleton, with its logging wrapper (D127, D130).</summary>
+    /// <typeparam name="TStore">The store type.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseOutboxDispatchStore<TStore>()
+        where TStore : class, IOutboxDispatchStore =>
+        UseOutboxDispatchStore(static services => ActivatorUtilities.CreateInstance<TStore>(services));
+
+    /// <summary>Registers the outbox dispatch store with a factory, for example for a test substitute.</summary>
+    /// <param name="factory">The factory of the store.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseOutboxDispatchStore(Func<IServiceProvider, IOutboxDispatchStore> factory) =>
+        AddOutboxDispatchStore(factory, nameof(UseOutboxDispatchStore));
+
+    private MsgHatchBuilder AddOutboxStore(Func<IServiceProvider, TenantKey, IOutboxStore> factory, string setupMethod)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Setup.Select(typeof(IOutboxStore), setupMethod);
+        TenantServices.Add(
+            Services, Setup, ServiceLifetime.Singleton, factory,
+            static (tenantServices, key, inner) => new OutboxStoreLoggingWrapper(
+                inner, key, Loggers.For<OutboxStoreLoggingWrapper>(tenantServices),
+                tenantServices.GetRequiredService<TimeProvider>()));
+        return this;
+    }
+
+    private MsgHatchBuilder AddOutboxDispatchStore(Func<IServiceProvider, IOutboxDispatchStore> factory, string setupMethod)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Setup.Select(typeof(IOutboxDispatchStore), setupMethod);
+        Services.AddSingleton(services => WithLogging(
+            services, factory(services),
+            static (services, inner) => new OutboxDispatchStoreLoggingWrapper(
+                inner, Loggers.For<OutboxDispatchStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        return this;
+    }
+
+    private static TService WithLogging<TService>(
+        IServiceProvider services, TService inner, Func<IServiceProvider, TService, TService> wrapWithLogging) =>
+        TenantServices.IsLoggingEnabled(services) ? wrapWithLogging(services, inner) : inner;
 
     private static bool IsOpenGenericRouter(Type routerType) =>
         routerType is { IsGenericTypeDefinition: true, IsAbstract: false }

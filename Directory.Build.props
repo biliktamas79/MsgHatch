@@ -35,7 +35,7 @@
   <PropertyGroup Condition="'$(IsTestExecutable)' == 'true'">
     <OutputType>Exe</OutputType>
     <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
-    <NoWarn>$(NoWarn);CA1707</NoWarn>
+    <NoWarn>$(NoWarn);CA1707;CA2012</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

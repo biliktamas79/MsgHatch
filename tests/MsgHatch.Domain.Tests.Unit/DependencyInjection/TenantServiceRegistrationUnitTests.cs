@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -134,6 +135,44 @@ public sealed class TenantServiceRegistrationUnitTests
 
         // Assert
         Assert.Same(time, router.Time);
+    }
+
+    [Fact]
+    public async Task SingletonTenantService_SameKeyInTwoScopes_GivesTheSameInstance()
+    {
+        // Arrange
+        await using var provider = BuildWithOutboxStoreForEachKey();
+        await using var first = provider.CreateAsyncScope();
+        await using var second = provider.CreateAsyncScope();
+        var ofFirstScope = first.ServiceProvider.GetRequiredKeyedService<IOutboxStore>(_t1);
+
+        // Act
+        var ofSecondScope = second.ServiceProvider.GetRequiredKeyedService<IOutboxStore>(_t1);
+
+        // Assert
+        Assert.Same(ofFirstScope, ofSecondScope);
+    }
+
+    [Fact]
+    public async Task SingletonTenantService_TwoKeys_GiveOneInstanceForEachKey()
+    {
+        // Arrange
+        await using var provider = BuildWithOutboxStoreForEachKey();
+        var ofT1 = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+
+        // Act
+        var ofT2 = provider.GetRequiredKeyedService<IOutboxStore>(_t2);
+
+        // Assert
+        Assert.NotSame(ofT1, ofT2);
+    }
+
+    private static ServiceProvider BuildWithOutboxStoreForEachKey()
+    {
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false)
+            .UseOutboxStore(static (_, _) => Substitute.For<IOutboxStore>());
+        return services.Build();
     }
 
     private static ServiceProvider BuildWithKeyCapturingRouter()

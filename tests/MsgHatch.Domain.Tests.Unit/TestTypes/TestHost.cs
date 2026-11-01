@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 
 namespace MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -28,4 +29,11 @@ public static class TestHost
 
     public static ServiceProvider Build(this IServiceCollection services) =>
         services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+
+    public static IReadOnlyList<FakeLogRecord> LogRecords(this IServiceProvider provider) =>
+        provider.GetFakeLogCollector().GetSnapshot();
+
+    public static bool ContainsText(this FakeLogRecord record, string text) =>
+        record.Message.Contains(text, StringComparison.Ordinal)
+        || (record.StructuredState ?? []).Any(state => state.Value?.Contains(text, StringComparison.Ordinal) == true);
 }
