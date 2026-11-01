@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
@@ -13,12 +14,13 @@ using MsgHatch.Domain.Time;
 namespace MsgHatch.Domain.Pipeline;
 
 /// <summary>
-/// The steps 2 to 6 of the processing of one event (section 4.8): route, check, compose, build the outgoing messages,
-/// and store them. Each step resolves its tenant services with the tenant key of the event (D126).
+/// The steps 1 to 6 of the processing of one event (section 4.8): accept into the inbox, or route, check, compose,
+/// build the outgoing messages, and store them. Each step resolves its tenant services with the tenant key of the
+/// event (D126). After a store, it notifies the dispatch signal, and a notify error only logs a warning (D102).
 /// </summary>
 internal sealed class NotificationPipeline(
     IServiceProvider services, IMessageRegistry registry, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time,
-    MsgHatchMetrics metrics)
+    MsgHatchMetrics metrics, IDispatchSignal signal)
 {
     private const int _oneProcessingInMemory = 1;
 
@@ -39,7 +41,13 @@ internal sealed class NotificationPipeline(
         var received = found.Value.Receive(
             domainEvent, context, time.GetUtcNowDateTime(), retryOptions.Get(OptionNames.Inbox).MaxTryCount, traceParent: null);
         var error = await inbox.AddAsync(received, ct);
-        return error is null ? context.MessageId : error;
+        if (error is not null)
+        {
+            return error;
+        }
+
+        await NotifyAsync([DispatchTopic.Inbox], ct);
+        return context.MessageId;
     }
 
     public async ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
@@ -248,9 +256,22 @@ internal sealed class NotificationPipeline(
             }
 
             RecordStored(messages);
+            await NotifyAsync(messages.Select(static message => DispatchTopic.ForChannel(message.Channel)).Distinct(), ct);
         }
 
         return new NotificationResult(messages.Length, errors.Length, errors);
+    }
+
+    private async ValueTask NotifyAsync(IEnumerable<DispatchTopic> topics, CancellationToken ct)
+    {
+        foreach (var topic in topics)
+        {
+            var error = await signal.NotifyAsync(topic, ct);
+            if (error is not null)
+            {
+                Log.NotifyFailed(Loggers.For<NotificationPipeline>(services), topic.Name, error.Type.Code, error.Type.Name, error.Message);
+            }
+        }
     }
 
     private readonly record struct ComposedEvent(TenantKey Key, IReadOnlyList<MessageRoute> Routes, ErrorOr<OutgoingMessage>[] Outcomes);

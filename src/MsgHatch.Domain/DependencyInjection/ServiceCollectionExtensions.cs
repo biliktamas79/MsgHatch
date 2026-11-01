@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
@@ -14,7 +15,8 @@ public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the core services of MsgHatch: the options, the in-memory <see cref="IMessageRegistry"/> from the
-    /// registrations (D117), the content type registry, <see cref="MsgHatchJson"/>, and <see cref="TimeProvider.System"/>
+    /// registrations (D117), the content type registry, <see cref="MsgHatchJson"/>, <see cref="InProcessDispatchSignal"/>
+    /// as the <see cref="IDispatchSignal"/>, and <see cref="TimeProvider.System"/>
     /// if the host has registered no <see cref="TimeProvider"/>. The options bind from the section <c>MsgHatch</c>
     /// of the <c>IConfiguration</c> of the host.
     /// </summary>
@@ -44,6 +46,7 @@ public static class ServiceCollectionExtensions
             new InMemoryMessageRegistry(setup.Channels, setup.Messages.Select(static message => message.Descriptor)));
         services.TryAddSingleton<IContentTypeRegistry>(_ => new ContentTypeRegistry(setup.ContentTypes));
         services.TryAddSingleton<MsgHatchJson>();
+        services.TryAddSingleton<IDispatchSignal, InProcessDispatchSignal>();
         services.AddMetrics();
         services.TryAddSingleton<MsgHatchMetrics>();
         services.TryAddScoped<NotificationPipeline>();

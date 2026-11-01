@@ -2,6 +2,7 @@ using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
@@ -210,6 +211,27 @@ public sealed class MsgHatchBuilder
             services, factory(services),
             static (services, inner) => new TransportLoggingWrapper(
                 inner, Loggers.For<TransportLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        return this;
+    }
+
+    /// <summary>
+    /// Selects another dispatch signal, for example one between processes (D102). The default is
+    /// <see cref="InProcessDispatchSignal"/>. A signal package calls it.
+    /// </summary>
+    /// <typeparam name="TSignal">The signal type.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseDispatchSignal<TSignal>()
+        where TSignal : class, IDispatchSignal =>
+        UseDispatchSignal(static services => ActivatorUtilities.CreateInstance<TSignal>(services));
+
+    /// <summary>Selects another dispatch signal with a factory, for example for a test substitute.</summary>
+    /// <param name="factory">The factory of the signal.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseDispatchSignal(Func<IServiceProvider, IDispatchSignal> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Setup.Select(typeof(IDispatchSignal), nameof(UseDispatchSignal));
+        Services.AddSingleton(factory);
         return this;
     }
 

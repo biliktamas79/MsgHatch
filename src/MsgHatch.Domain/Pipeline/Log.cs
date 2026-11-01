@@ -73,4 +73,9 @@ internal static partial class Log
     public static partial void AcceptFailed(
         ILogger logger, LogLevel level, Guid messageId, string eventType, string? tenant, MessageFlags messageFlags,
         double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1010, Level = LogLevel.Warning,
+        Message = "Dispatch signal notify of the topic {Topic} failed: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void NotifyFailed(ILogger logger, string topic, int errorCode, string errorName, string? errorMessage);
 }

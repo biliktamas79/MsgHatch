@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
@@ -172,6 +173,23 @@ public sealed class StartupValidatorUnitTests
         AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores()
             .UseTransport(static _ => TestTransports.For(TestChannel.Id))
             .UseTransport(static _ => TestTransports.For(TestChannel.Id))); // one transport for each channel (D129)
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    [Fact]
+    public async Task Validate_TwoSelectionsOfADispatchSignal_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores()
+            .UseDispatchSignal<InProcessDispatchSignal>()
+            .UseDispatchSignal(static _ => Substitute.For<IDispatchSignal>())); // a second selection of IDispatchSignal (D62)
         await using var provider = services.Build();
 
         // Act
