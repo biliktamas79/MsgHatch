@@ -11,16 +11,16 @@ public static class TestChannel
 {
     public static readonly ChannelId Id = new("Test");
 
-    public static readonly ChannelDescriptor Descriptor = new(Id, "Test channel", ChannelFeatures.None, typeof(TestChannelSettings));
+    public static readonly ChannelDescriptor<TestChannelSettings> Descriptor = new(Id, "Test channel", ChannelFeatures.None);
 
     public static readonly ChannelId SecondId = new("Second");
 
-    public static readonly ChannelDescriptor SecondDescriptor =
-        new(SecondId, "Second test channel", ChannelFeatures.GroupDelivery, typeof(OtherTestChannelSettings));
+    public static readonly ChannelDescriptor<OtherTestChannelSettings> SecondDescriptor =
+        new(SecondId, "Second test channel", ChannelFeatures.GroupDelivery);
 
     public static readonly ChannelId ThirdId = new("Third");
 
-    public static readonly ChannelDescriptor ThirdDescriptor = new(ThirdId, "Third test channel", ChannelFeatures.None, typeof(TestChannelSettings));
+    public static readonly ChannelDescriptor<TestChannelSettings> ThirdDescriptor = new(ThirdId, "Third test channel", ChannelFeatures.None);
 
     public static Func<IServiceProvider, TenantKey, IEnvelopeComposer<TEvent, TestEnvelope>> AnyComposer<TEvent>() =>
         static (_, _) => Substitute.For<IEnvelopeComposer<TEvent, TestEnvelope>>();

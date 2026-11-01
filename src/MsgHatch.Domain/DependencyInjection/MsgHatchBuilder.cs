@@ -32,13 +32,16 @@ public sealed class MsgHatchBuilder
     /// Registers a channel: its descriptor, the content type <c>Settings:{Channel}</c> of its settings type, and its
     /// settings validator (D77). A second call for the same channel id changes nothing.
     /// </summary>
+    /// <typeparam name="TSettings">The settings type of the channel.</typeparam>
     /// <param name="descriptor">The descriptor of the channel.</param>
     /// <param name="settingsVersion">The version of the settings type.</param>
     /// <param name="settingsJson">The JSON type information of the settings type.</param>
     /// <param name="validator">The settings validator of the channel.</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder AddChannelType(
-        ChannelDescriptor descriptor, int settingsVersion, JsonTypeInfo settingsJson, IChannelSettingsValidator validator)
+    public MsgHatchBuilder AddChannelType<TSettings>(
+        ChannelDescriptor<TSettings> descriptor, int settingsVersion, JsonTypeInfo<TSettings> settingsJson,
+        IChannelSettingsValidator validator)
+        where TSettings : ChannelSettings
     {
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(validator);

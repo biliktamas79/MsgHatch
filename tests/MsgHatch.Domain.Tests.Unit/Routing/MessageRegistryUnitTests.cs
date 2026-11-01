@@ -11,8 +11,8 @@ namespace MsgHatch.Domain.Tests.Unit.Routing;
 /// <summary>The in-memory registry reader that the registrations fill (D117).</summary>
 public sealed class MessageRegistryUnitTests
 {
-    private static readonly ChannelDescriptor _second = new(
-        new ChannelId("Second"), "Second channel", ChannelFeatures.GroupDelivery, typeof(TestChannelSettings));
+    private static readonly ChannelDescriptor<TestChannelSettings> _second = new(
+        new ChannelId("Second"), "Second channel", ChannelFeatures.GroupDelivery);
 
     [Fact]
     public async Task Channels_TwoRegisteredChannels_GivesEachChannel()

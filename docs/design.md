@@ -225,7 +225,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D74 | Scope of a delivery | Confirmed | An event has a user scope or a company scope. For a user scope, each user gets the message. For a company scope, a channel with group delivery sends one message to the company, for example to the SignalR group of the company, and SignalR delivers it to the active sessions of all users of the company. | User scopes only. |
 | D75 | Company scope on other channels | Recommended | A channel without group delivery, for example email, sends to each user of the company, with the resolution of that user. The per-user resolution skips the channels with group delivery, so that no user gets a message two times. | One message to an address of the company. |
 | D76 | Recipient directory | Recommended | The consumer implements `IRecipientDirectory`. It gives the company, the UI language, and the channel addresses of each user, the default language and the channel addresses of a company, for example the email address of the company administrator, and the users of a company. | Addresses and languages in each subscription. |
-| D77 | Channel descriptors | Confirmed | Each channel package registers a `ChannelDescriptor` with its `ChannelFeatures` (languages, rich text, raw data, group delivery), a typed `ChannelSettings` record, and an `IChannelSettingsValidator`. | The same settings fields for all channels. |
+| D77 | Channel descriptors | Confirmed | Each channel package registers a `ChannelDescriptor<TSettings>` with its `ChannelFeatures` (languages, rich text, raw data, group delivery), a typed `ChannelSettings` record as `TSettings`, and an `IChannelSettingsValidator`. The compiler checks that the settings type derives from `ChannelSettings`, and that the JSON type information of `AddChannelType` has the same settings type. The registry gives each channel as the base record `ChannelDescriptor`. | The same settings fields for all channels. A `Type SettingsType` parameter, which accepts each type and fails each route at run time for a wrong type. |
 | D78 | Subscription store | Confirmed | `MsgHatch.Subscriptions` defines `ISubscriptionStore` for the subscriptions of all levels, and resolves the levels itself. `MsgHatch.Subscriptions.Data.FileSystem`, `.Data.Sqlite`, `.Data.EntityFrameworkCore`, and `.Data.MongoDb` implement it. | The consumer implements the store and the resolution. |
 | D79 | Concurrent changes | Recommended | Each subscription has a `Revision`. An update with an old revision gives `Errors.Conflict`. | The last write wins. |
 | D80 | Template scope | Recommended | The template scope is the company of the delivery target, so that a company can have its own email templates. | A free template scope string in each subscription. |
@@ -457,9 +457,19 @@ public abstract record ChannelSettings;
 [Flags]
 public enum ChannelFeatures { None = 0, Languages = 1, RichText = 2, RawData = 4, GroupDelivery = 8 }
 
-public sealed record ChannelDescriptor(
-    ChannelId Id, string Name, ChannelFeatures Features, Type SettingsType,
-    string? Description = null, bool Enabled = true);
+public abstract record ChannelDescriptor(
+    ChannelId Id, string Name, ChannelFeatures Features, string? Description = null, bool Enabled = true)
+{
+    public abstract Type SettingsType { get; }
+}
+
+public sealed record ChannelDescriptor<TSettings>(
+    ChannelId Id, string Name, ChannelFeatures Features, string? Description = null, bool Enabled = true)
+    : ChannelDescriptor(Id, Name, Features, Description, Enabled)
+    where TSettings : ChannelSettings
+{
+    public override Type SettingsType => typeof(TSettings);
+}
 
 public abstract record RouteTrace;
 
@@ -747,8 +757,8 @@ Email (`MsgHatch.Email`):
 public static class EmailChannel
 {
     public static readonly ChannelId Id = new("Email");
-    public static readonly ChannelDescriptor Descriptor =
-        new(Id, "Email", ChannelFeatures.Languages | ChannelFeatures.RichText, typeof(EmailChannelSettings));
+    public static readonly ChannelDescriptor<EmailChannelSettings> Descriptor =
+        new(Id, "Email", ChannelFeatures.Languages | ChannelFeatures.RichText);
 }
 
 public enum EmailFormat { Html, PlainText }
@@ -771,10 +781,9 @@ SignalR (`MsgHatch.SignalR`) and the broker (`MsgHatch.Broker`):
 public static class SignalRChannel
 {
     public static readonly ChannelId Id = new("SignalR");
-    public static readonly ChannelDescriptor Descriptor = new(
+    public static readonly ChannelDescriptor<SignalRChannelSettings> Descriptor = new(
         Id, "UI notification",
-        ChannelFeatures.Languages | ChannelFeatures.RawData | ChannelFeatures.GroupDelivery,
-        typeof(SignalRChannelSettings));
+        ChannelFeatures.Languages | ChannelFeatures.RawData | ChannelFeatures.GroupDelivery);
 }
 
 public sealed record SignalRChannelSettings(string? Language = null) : ChannelSettings;
@@ -782,9 +791,8 @@ public sealed record SignalRChannelSettings(string? Language = null) : ChannelSe
 public static class BrokerChannel
 {
     public static readonly ChannelId Id = new("Broker");
-    public static readonly ChannelDescriptor Descriptor = new(
-        Id, "Broker message", ChannelFeatures.RawData | ChannelFeatures.GroupDelivery,
-        typeof(BrokerChannelSettings));
+    public static readonly ChannelDescriptor<BrokerChannelSettings> Descriptor = new(
+        Id, "Broker message", ChannelFeatures.RawData | ChannelFeatures.GroupDelivery);
 }
 
 public sealed record BrokerChannelSettings(IReadOnlyDictionary<string, string>? Headers = null) : ChannelSettings;
@@ -1424,7 +1432,7 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 | Method | Effect |
 |---|---|
 | `AddMsgHatch(Action<MsgHatchOptions>?)` | Registers the core services: the in-memory `IMessageRegistry` from the registrations (D117), `InProcessDispatchSignal` as the `IDispatchSignal`, `IDeliveryManager` as a tenant service with its logging wrapper, and `TimeProvider.System` with `TryAddSingleton`. Returns `MsgHatchBuilder`. |
-| `AddChannelType(ChannelDescriptor, int settingsVersion, JsonTypeInfo settingsJson, IChannelSettingsValidator)` | Registers a channel: its descriptor, the content type `Settings:{Channel}` of its settings type with the version, and the settings validator. A second call for the same channel id changes nothing. The first `As<Channel>` registration of a channel package calls it (D77, H5). |
+| `AddChannelType<TSettings>(ChannelDescriptor<TSettings>, int settingsVersion, JsonTypeInfo<TSettings> settingsJson, IChannelSettingsValidator)` | Registers a channel: its descriptor, the content type `Settings:{Channel}` of its settings type with the version, and the settings validator. A second call for the same channel id changes nothing. The first `As<Channel>` registration of a channel package calls it (D77, H5). |
 | `AddTraceType<TTrace>(string name, int version, JsonTypeInfo<TTrace>)` | Registers a route trace type with the content type `Trace:{name}` and the version. `TTrace` derives from `RouteTrace`. The router packages call it (D98). |
 | `UseRouter(Type routerType)` | Selects an open generic router, for example `typeof(SubscriptionRouter<>)`, for each message type with no router of its own (D99). The router packages call it. |
 | `UseInMemoryStores()` | Selects `InMemoryInboxStore` and `InMemoryOutboxStore`, with their two parts and their logging wrappers, for a host with no database (D119). From phase 16, it also registers `InMemoryRegistrySettingsStore`. |
