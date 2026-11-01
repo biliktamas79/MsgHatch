@@ -6,7 +6,8 @@ namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
 /// The startup validation of the setup for the role of an event consumer (section 4.7): the outbox stores, one
-/// selection for each interface (D62), a router for each message type (D95), and unique content types.
+/// selection for each interface (D62), a router for each message type (D95), unique content types, and unique
+/// message type names.
 /// </summary>
 internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatchSetup setup) : IValidateOptions<MsgHatchSetupCheck>
 {
@@ -17,6 +18,7 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
             .. MissingOutboxStores(),
             .. DuplicateSelections(),
             .. DuplicateContentTypes(),
+            .. DuplicateMessageTypes(),
             .. MessageTypesWithNoRouter(),
         ];
         return failures.Length == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
@@ -39,6 +41,12 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
             .GroupBy(static entry => entry.Discriminator, StringComparer.Ordinal)
             .Where(static group => group.Count() > 1)
             .Select(static group => $"The content type {group.Key} is registered {group.Count()} times.");
+
+    private IEnumerable<string> DuplicateMessageTypes() =>
+        setup.Messages
+            .GroupBy(static message => message.Descriptor.Type)
+            .Where(static group => group.Count() > 1)
+            .Select(static group => $"The message type {group.Key.Name} is registered {group.Count()} times.");
 
     private IEnumerable<string> MessageTypesWithNoRouter()
     {

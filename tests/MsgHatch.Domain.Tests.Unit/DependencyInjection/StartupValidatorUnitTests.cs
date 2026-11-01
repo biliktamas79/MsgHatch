@@ -111,6 +111,24 @@ public sealed class StartupValidatorUnitTests
         Assert.IsType<OptionsValidationException>(exception);
     }
 
+    [Fact]
+    public async Task Validate_TwoMessageTypesWithTheSameNameAndOtherVersions_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores()
+            .AddMessage("TestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m // the name of the test message again
+                .WithRouter(static (_, _) => Substitute.For<IMessageRouter<OtherTestEvent>>())
+                .AsChannel(TestChannel.Id, "OtherEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<OtherTestEvent>())));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
     private sealed class RouterWithAMissingService(IComparer<Guid> missing) : IMessageRouter<TestEvent>
     {
         public ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync(

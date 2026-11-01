@@ -1521,6 +1521,7 @@ Startup validation, with `ValidateOnStart`:
 - With the role `Publisher`, the host registered at least one transport.
 - With `UseWolverineBroker`, the host registered Wolverine, so that `IMessageBus` resolves.
 - Each content type and version is unique.
+- Each message type name is unique. Two registrations with one name and two versions have two different content types, so the check above does not find them.
 - Each registered options class passes its attributes and its `IValidatableObject` rules (D64). For example, a missing `AmazonSesOptions.SenderEmail` or a `LeaseSafetyMargin` that is not less than `Lease` stops the start.
 
 A host runs this validation when it starts. Without a host, the consumer calls `IStartupValidator.Validate()`.
