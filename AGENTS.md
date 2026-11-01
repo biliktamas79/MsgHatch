@@ -25,6 +25,12 @@ dotnet test MsgHatch.slnx
 dotnet test tests/MsgHatch.Domain.Tests.Unit --filter "FullyQualifiedName~ErrorOrUnitTests"
 ```
 
+The coverage report of the unit tests (PowerShell 7). It writes `artifacts/coverage/index.html`, and fails when the line coverage of the production code is less than 90 %:
+
+```bash
+pwsh ./coverage.ps1
+```
+
 From phase 13 on, the benchmarks run in the Release configuration:
 
 ```bash
@@ -63,6 +69,7 @@ Section 5.5 of the design has the full rules. The short form:
 - Projects: `tests/{Project}.Tests.Unit`, `tests/{Project}.Tests.Integration`, or `tests/{Project}.Tests.Performance`, one for each production project and each level. SQLite tests are unit tests, because SQLite runs in process on a file in a temporary folder (D71).
 - Classes: `{Sut}UnitTests`, `{Sut}IntegTests`, or `{Sut}PerfTests`. Methods: `Method_Condition_ExpectedResult`.
 - Run: `dotnet test MsgHatch.slnx`, or `dotnet test` with one test project. A run that reports 0 tests is a failure.
+- Coverage: `pwsh ./coverage.ps1` keeps the unit test line coverage of the production code at 90 % or more. Read an uncovered line as a behavior with no test, not as a number to raise.
 - The use-case tests of each domain interface are in an abstract base class `{Interface}TestsBase<T>`. An implementation gets them with one subclass that only builds it.
 - Tests use only the public API and the DI setup methods. Do not add `InternalsVisibleTo`.
 - Each new test fails first.

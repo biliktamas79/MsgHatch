@@ -43,6 +43,10 @@
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
   </ItemGroup>
 
+  <PropertyGroup Condition="'$(IsUnitOrIntegrationTestProject)' == 'true'">
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)coverage.runsettings</RunSettingsFilePath>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(IsUnitOrIntegrationTestProject)' == 'true'">
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
