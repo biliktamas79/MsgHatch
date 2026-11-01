@@ -12,28 +12,12 @@ internal sealed class NotificationService(NotificationPipeline pipeline) : INoti
 {
     public ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
         TEvent domainEvent, MessageContext context, CancellationToken ct) =>
-        AtBoundaryAsync(() => pipeline.ProcessAsync(domainEvent, context, ct), ct);
+        Boundary.RunAsync(() => pipeline.ProcessAsync(domainEvent, context, ct), ct);
 
     public ValueTask<ErrorOr<Guid>> AcceptAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct) =>
-        AtBoundaryAsync(() => pipeline.AcceptAsync(domainEvent, context, ct), ct);
+        Boundary.RunAsync(() => pipeline.AcceptAsync(domainEvent, context, ct), ct);
 
     public ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
         TEvent domainEvent, MessageContext context, IReadOnlyList<MessageRoute>? routes, CancellationToken ct) =>
-        AtBoundaryAsync(() => pipeline.PreviewAsync(domainEvent, context, routes, ct), ct);
-
-    private static async ValueTask<ErrorOr<T>> AtBoundaryAsync<T>(Func<ValueTask<ErrorOr<T>>> run, CancellationToken ct)
-    {
-        try
-        {
-            return await run();
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            return new Error(Errors.OperationCancelled);
-        }
-        catch (Exception exception)
-        {
-            return new Error(Errors.Exception, exception.Message, exception);
-        }
-    }
+        Boundary.RunAsync(() => pipeline.PreviewAsync(domainEvent, context, routes, ct), ct);
 }

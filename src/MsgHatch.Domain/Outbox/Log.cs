@@ -80,4 +80,22 @@ internal static partial class Log
     public static partial void ChannelStateChangeFailed(
         ILogger logger, LogLevel level, string operation, string channel, ChannelDownReason? reason, double elapsedMs,
         int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(EventId = 1312, Level = LogLevel.Information, Message = "Outbox dispatcher started its loops")]
+    public static partial void DispatcherStarted(ILogger logger);
+
+    [LoggerMessage(EventId = 1313, Level = LogLevel.Information, Message = "Outbox dispatcher stopped its loops")]
+    public static partial void DispatcherStopped(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 1314, Level = LogLevel.Debug,
+        Message = "Outbox DispatchPendingAsync claimed {Claimed} messages: {Succeeded} succeeded, {Retried} retried, and {Failed} failed in {ElapsedMs} ms")]
+    public static partial void DispatchPendingSucceeded(
+        ILogger logger, int claimed, int succeeded, int retried, int failed, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1315,
+        Message = "Outbox DispatchPendingAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void DispatchPendingFailed(
+        ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 }

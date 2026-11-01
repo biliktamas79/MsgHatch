@@ -55,7 +55,7 @@ public sealed class MessageBuilder<TEvent>
         ArgumentNullException.ThrowIfNull(upgrade);
         _parent.Setup.ContentTypes.Add(
             ContentTypeRegistry.Entry(_registration.Type.Name, version, typeof(ReceivedMessage<TOld>), json));
-        _registration.AddUpgrade(version, old => upgrade((TOld)old));
+        _registration.AddUpgrade(version, old => upgrade(((ReceivedMessage<TOld>)old).Event));
         return this;
     }
 

@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
@@ -39,6 +41,9 @@ public static class ServiceCollectionExtensions
             .BindConfiguration($"{RetryOptions.SectionName}:{OptionNames.Inbox}")
             .ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RetryOptions>, RetryOptionsValidator>());
+        AddDispatchOptions(services, OptionNames.Inbox);
+        AddDispatchOptions(services, OptionNames.Outbox);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
         services.AddOptions<MsgHatchSetupCheck>().ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchSetupCheck>, MsgHatchSetupValidator>());
         services.TryAddSingleton(TimeProvider.System);
@@ -54,8 +59,19 @@ public static class ServiceCollectionExtensions
             services, new NotificationService(services.GetRequiredService<NotificationPipeline>()),
             static (services, inner) => new NotificationServiceLoggingWrapper(
                 inner, Loggers.For<NotificationServiceLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        services.TryAddSingleton(static services => Loggers.Wrap<IInboxProcessor>(
+            services, InboxProcessor.Create(services),
+            static (services, inner) => new InboxProcessorLoggingWrapper(
+                inner, Loggers.For<InboxProcessorLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        services.TryAddSingleton(static services => Loggers.Wrap<IOutboxDispatcher>(
+            services, OutboxDispatcher.Create(services),
+            static (services, inner) => new OutboxDispatcherLoggingWrapper(
+                inner, Loggers.For<OutboxDispatcherLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
         return new MsgHatchBuilder(services, setup);
     }
+
+    private static void AddDispatchOptions(IServiceCollection services, string name) =>
+        services.AddOptions<DispatchOptions>(name).BindConfiguration($"{DispatchOptions.SectionName}:{name}").ValidateOnStart();
 
     private static MsgHatchSetup? ExistingSetup(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(MsgHatchSetup))?.ImplementationInstance

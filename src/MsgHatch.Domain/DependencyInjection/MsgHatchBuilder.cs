@@ -235,6 +235,26 @@ public sealed class MsgHatchBuilder
         return this;
     }
 
+    /// <summary>Changes the dispatch options of the inbox processor. A value from code wins over the section <c>MsgHatch:Dispatch:Inbox</c>.</summary>
+    /// <param name="configure">The change of the options.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder ConfigureInboxDispatch(Action<DispatchOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        Services.Configure(OptionNames.Inbox, configure);
+        return this;
+    }
+
+    /// <summary>Changes the dispatch options of the outbox dispatcher. A value from code wins over the section <c>MsgHatch:Dispatch:Outbox</c>.</summary>
+    /// <param name="configure">The change of the options.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder ConfigureOutboxDispatch(Action<DispatchOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        Services.Configure(OptionNames.Outbox, configure);
+        return this;
+    }
+
     private MsgHatchBuilder AddInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory, string setupMethod)
     {
         ArgumentNullException.ThrowIfNull(factory);

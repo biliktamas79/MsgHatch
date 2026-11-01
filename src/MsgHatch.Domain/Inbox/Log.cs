@@ -54,4 +54,22 @@ internal static partial class Log
         Message = "Inbox DeleteTestDataAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void DeleteTestDataFailed(
         ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(EventId = 1208, Level = LogLevel.Information, Message = "Inbox processor started its loop")]
+    public static partial void ProcessorStarted(ILogger logger);
+
+    [LoggerMessage(EventId = 1209, Level = LogLevel.Information, Message = "Inbox processor stopped its loop")]
+    public static partial void ProcessorStopped(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 1210, Level = LogLevel.Debug,
+        Message = "Inbox ProcessPendingAsync claimed {Claimed} messages: {Succeeded} succeeded, {Retried} retried, and {Failed} failed in {ElapsedMs} ms")]
+    public static partial void ProcessPendingSucceeded(
+        ILogger logger, int claimed, int succeeded, int retried, int failed, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1211,
+        Message = "Inbox ProcessPendingAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void ProcessPendingFailed(
+        ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 }

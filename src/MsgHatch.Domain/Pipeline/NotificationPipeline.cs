@@ -66,7 +66,9 @@ internal sealed class NotificationPipeline(
         ErrorOr<NotificationResult> result = default;
         try
         {
-            result = await ProcessInSpanAsync(registration, domainEvent, context, span, ct);
+            var nowUtc = time.GetUtcNowDateTime();
+            var received = registration.Receive(domainEvent, context, nowUtc, _oneProcessingInMemory, span.CallerTraceParent);
+            result = await ProcessInSpanAsync(registration, received, nowUtc, span.TraceParent, ct);
             return result;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -86,12 +88,16 @@ internal sealed class NotificationPipeline(
         }
     }
 
+    /// <summary>Runs the steps 2 to 6 for a received message that the inbox processor claimed (section 4.8).</summary>
+    public ValueTask<ErrorOr<NotificationResult>> ProcessReceivedAsync<TEvent>(
+        MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, CancellationToken ct) =>
+        ProcessInSpanAsync(registration, received, time.GetUtcNowDateTime(), outgoingTraceParent: null, ct);
+
     private async ValueTask<ErrorOr<NotificationResult>> ProcessInSpanAsync<TEvent>(
-        MessageRegistration<TEvent> registration, TEvent domainEvent, MessageContext context, ProcessSpan span,
+        MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, DateTime nowUtc, string? outgoingTraceParent,
         CancellationToken ct)
     {
-        var composed = await RouteAndComposeAsync(
-            registration, domainEvent, context, givenRoutes: null, span.CallerTraceParent, span.TraceParent, ct);
+        var composed = await RouteAndComposeAsync(registration, received, nowUtc, givenRoutes: null, outgoingTraceParent, ct);
         if (composed.IsError)
         {
             return composed.Error;
@@ -129,8 +135,9 @@ internal sealed class NotificationPipeline(
             return found.Error;
         }
 
-        var composed = await RouteAndComposeAsync(
-            found.Value, domainEvent, AsTestMessage(context), routes, receivedTraceParent: null, outgoingTraceParent: null, ct);
+        var nowUtc = time.GetUtcNowDateTime();
+        var received = found.Value.Receive(domainEvent, AsTestMessage(context), nowUtc, _oneProcessingInMemory, traceParent: null);
+        var composed = await RouteAndComposeAsync(found.Value, received, nowUtc, routes, outgoingTraceParent: null, ct);
         return composed.IsError
             ? composed.Error
             : ErrorOr<IReadOnlyList<RouteResult>>.ForValue(ToRouteResults(composed.Value.Routes, composed.Value.Outcomes));
@@ -142,12 +149,10 @@ internal sealed class NotificationPipeline(
             : new Error(Errors.NotFound, $"The event type {typeof(TEvent).Name} is not registered.");
 
     private async ValueTask<ErrorOr<ComposedEvent>> RouteAndComposeAsync<TEvent>(
-        MessageRegistration<TEvent> registration, TEvent domainEvent, MessageContext context,
-        IReadOnlyList<MessageRoute>? givenRoutes, string? receivedTraceParent, string? outgoingTraceParent, CancellationToken ct)
+        MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, DateTime nowUtc,
+        IReadOnlyList<MessageRoute>? givenRoutes, string? outgoingTraceParent, CancellationToken ct)
     {
-        var key = TenantKey.For(context.Tenant);
-        var nowUtc = time.GetUtcNowDateTime();
-        var received = registration.Receive(domainEvent, context, nowUtc, _oneProcessingInMemory, receivedTraceParent);
+        var key = TenantKey.For(received.Tenant);
         var routes = givenRoutes is null
             ? await RouteAsync(registration, received, key, ct)
             : ErrorOr<IReadOnlyList<MessageRoute>>.ForValue(givenRoutes);

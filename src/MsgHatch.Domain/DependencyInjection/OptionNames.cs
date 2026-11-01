@@ -4,4 +4,5 @@ namespace MsgHatch.Domain.DependencyInjection;
 internal static class OptionNames
 {
     public const string Inbox = "Inbox";
+    public const string Outbox = "Outbox";
 }

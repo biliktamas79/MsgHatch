@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Domain.DependencyInjection;
@@ -12,7 +14,7 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
     private const int _schemaVersion = 1;
 
     private readonly List<IChannelRegistration<TEvent>> _channels = [];
-    private readonly Dictionary<int, Func<object, TEvent>> _upgrades = [];
+    private readonly Dictionary<int, Func<ReceivedMessage, TEvent>> _upgrades = [];
     private Type? _closedOpenRouterType;
 
     public MessageType Type { get; } = type;
@@ -26,7 +28,25 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
 
     public void AddChannel(IChannelRegistration<TEvent> channel) => _channels.Add(channel);
 
-    public void AddUpgrade(int fromVersion, Func<object, TEvent> upgrade) => _upgrades.Add(fromVersion, upgrade);
+    public void AddUpgrade(int fromVersion, Func<ReceivedMessage, TEvent> upgrade) => _upgrades.Add(fromVersion, upgrade);
+
+    public ValueTask<ErrorOr<NotificationResult>> ProcessAsync(
+        ReceivedMessage message, IServiceProvider scopedServices, CancellationToken ct)
+    {
+        var current = Upgrade(message);
+        return current.IsError
+            ? ValueTask.FromResult<ErrorOr<NotificationResult>>(current.Error)
+            : scopedServices.GetRequiredService<NotificationPipeline>().ProcessReceivedAsync(this, current.Value, ct);
+    }
+
+    private ErrorOr<ReceivedMessage<TEvent>> Upgrade(ReceivedMessage message) => message switch
+    {
+        ReceivedMessage<TEvent> current => current,
+        _ when _upgrades.TryGetValue(message.ContentVersion, out var upgrade) => new ReceivedMessage<TEvent>(
+            message.SchemaVersion, message.Delivery, message.Tenant, message.Type, Version, message.Flags, message.TraceParent,
+            upgrade(message)),
+        _ => new Error(Errors.UnsupportedVersion, $"The message type {Type.Name} has no upgrade from version {message.ContentVersion}."),
+    };
 
     public IChannelRegistration<TEvent>? FindChannel(ChannelId channel) =>
         _channels.Find(registration => registration.Channel == channel);

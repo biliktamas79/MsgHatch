@@ -14,6 +14,9 @@ public static class TestHost
 {
     public static readonly DateTimeOffset Start = new(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The longest real time that a test waits for an observable call. It only stops a test that hangs.</summary>
+    public static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
+
     public static FakeTimeProvider NewFakeTime() => new(Start);
 
     public static IServiceCollection CreateServices(
