@@ -1,11 +1,13 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MsgHatch.Domain/MsgHatch.Domain.csproj" />
+    <Project Path="src/MsgHatch.Email.AmazonSES/MsgHatch.Email.AmazonSES.csproj" />
     <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Unit/MsgHatch.Email.AmazonSES.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.Tests.Unit/MsgHatch.Email.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
   </Folder>
