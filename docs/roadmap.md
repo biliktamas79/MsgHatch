@@ -151,15 +151,16 @@ Done when: the build has no errors and no warnings, all tests pass, and the end-
 
 Goal: the outbox dispatcher sends the messages of the outbox through any transport, and the inbox processor processes the accepted events. The phase runs on the in-memory stores with a test transport, in one process and with two DI containers that act as separate processes.
 
-1. Add `Delivery/ITransport.cs` and `TransportLoggingWrapper` (D129). Add `PublishOutcome.cs` with no `Cancelled`, `PublishTry.cs`, and `PublishReceipt.cs` (section 4.4), and the internal `RetrySchedule` with the next try time of section 4.14.
+1. Add `Delivery/ITransport.cs` and `TransportLoggingWrapper` (D129). Add `PublishOutcome.cs` with no `Cancelled`, `PublishTry.cs`, and `PublishReceipt.cs` (section 4.4).
 2. Add `Dispatch/ClaimResult.cs`, `ChannelDownReason.cs`, and `ChannelDown.cs`. Add the members `ClaimDueAsync`, `RecordTryAsync`, and the members of the down state of a channel (D106) to `IOutboxDispatchStore`. Add them to `InMemoryOutboxStore`, and their use cases to `OutboxStoreTestsBase` (section 5.5).
 3. Add `Inbox/IInboxStore.cs` with `AddAsync`, and `Inbox/IInboxDispatchStore.cs` with `ClaimDueAsync`, `CompleteAsync`, `FailAsync`, and `DeleteTestDataAsync`. Add `InboxStoreLoggingWrapper`, `InboxDispatchStoreLoggingWrapper`, `UseInboxStore`, `UseInboxDispatchStore`, and `InMemoryInboxStore` with its two parts, which `UseInMemoryStores` now also registers. Add `INotificationService.AcceptAsync` (section 4.8, step 1). Add the contract base class `InboxStoreTestsBase<TStore>` with `IInboxStoreTestData`, and its subclass `InMemoryInboxStoreUnitTests`.
-4. Add `Dispatch/DispatchOptions.cs` with `DispatchOptionsValidator`, `DispatchSummary.cs`, `DispatchTopic.cs`, `IDispatchSignal.cs`, `InProcessDispatchSignal`, `UseDispatchSignal`, the internal dispatch loop with its work queue (section 4.9), and the notify of step 6 of section 4.8. Add the contract base class `DispatchSignalTestsBase<TSignal>`, and its subclass `InProcessDispatchSignalUnitTests`. A later signal between processes gets the same tests with one subclass (D102).
-5. Add `IInboxProcessor`, `IOutboxDispatcher`, the internal `InboxProcessor` and `OutboxDispatcher` with one dispatch loop for each published channel (D101), their logging wrappers, `ConfigureInboxDispatch`, and `ConfigureOutboxDispatch`.
+4. Add `Dispatch/DispatchOptions.cs` with `DispatchOptionsValidator`, `DispatchSummary.cs`, `DispatchTopic.cs`, `IDispatchSignal.cs`, `InProcessDispatchSignal`, `UseDispatchSignal`, and the notify of step 6 of section 4.8. Add the contract base class `DispatchSignalTestsBase<TSignal>`, and its subclass `InProcessDispatchSignalUnitTests`. A later signal between processes gets the same tests with one subclass (D102).
+5. Add `IInboxProcessor`, `IOutboxDispatcher`, the internal `InboxProcessor` and `OutboxDispatcher` with one dispatch loop for each published channel (D101), their logging wrappers, `ConfigureInboxDispatch`, `ConfigureOutboxDispatch`, and `UseTransport<TTransport>` with its factory overload. Add the internal dispatch loop with its work queue (section 4.9), and the internal `RetrySchedule` with the next try time of section 4.14. The tests reach these internal types only through `IInboxProcessor` and `IOutboxDispatcher`, so they come in this item.
 6. Add `Dispatch/ChannelDownOptions.cs` with `ChannelDownOptionsValidator`, `ConfigureChannelDown`, and the down state of the channels in the outbox loops (section 4.9, D86, D106).
 7. Add `TestDeliveryOptions` with its validator, `ConfigureTestDelivery`, and the test delivery of section 4.8. Add `MsgHatchOptions.Roles` with `MsgHatchRoles`, and the startup validation of the roles (D105).
 8. Add the `send` span, the `process` span of the inbox processor with its link, the `TraceParent` of `AcceptAsync`, and the instruments `msghatch.publish.tries`, `msghatch.messages.failed`, `msghatch.send.duration`, `msghatch.delivery.delay`, `msghatch.queue.length`, and `msghatch.channel.down` (section 4.21).
 9. Add the startup checks of D135 to the startup validation (section 4.7): at most one registration for each channel of a message type, different envelope types for the channel registrations of a message type, and one loader type for each payload type of a message type. A second `UsePayloadLoader` with the same loader type adds nothing.
+10. Add the upgrade of an old envelope version after the claim and before the send (section 4.8, publish step 4, and section 4.13).
 
 Tests. All times come from a `FakeTimeProvider`. The stores are the in-memory stores, or substitutes through the factory overloads where a test checks the calls:
 - The use cases of `OutboxStoreTestsBase` for the claim, the tries, and the down state, and the use cases of `InboxStoreTestsBase` (section 5.5), run on the in-memory stores.
@@ -194,6 +195,9 @@ Tests. All times come from a `FakeTimeProvider`. The stores are the in-memory st
   - Two channel registrations of one message type with the same envelope type.
   - Two loader types for one payload type of one message type.
 - Two channel registrations of one message type with one payload type and one loader type pass the startup validation. In one DI scope, their composers get the same loader instance (D135).
+- Envelope upgrade tests (section 4.13):
+  - An outgoing message of an old envelope version reaches the transport as the upgraded envelope with the current version. The store records the try of the stored message, and does not write the upgraded record back.
+  - A version that is newer than the code gives a `TransientError` try with `Errors.UnsupportedVersion`, and the transport gets no `SendAsync` call. This try does not count toward the down state.
 - Down state tests (D86, D106), with `ErrorThreshold` 3, `CheckInterval` 30 seconds, and two test channels. A substitute outbox dispatch store records the calls:
   - Three transient errors in a row on the first test channel call `SetChannelDownAsync` one time, with the reason `Errors`, the error code of the last try, and a next check time 30 seconds later. Two transient errors and then a success give no call.
   - A permanent error sets the count to 0. A `Suppressed` try and an `Expired` try do not change it.
@@ -220,14 +224,17 @@ Tests. All times come from a `FakeTimeProvider`. The stores are the in-memory st
 
 Commits:
 1. "Add the transport contract and publish tries"
-2. "Add claims, publish tries, and channel down states to the outbox dispatch store"
+2. "Add claims, tries, and channel down states to the outbox dispatch store"
 3. "Add the inbox stores, the in-memory inbox, and AcceptAsync"
-4. "Add the dispatch signal and the dispatch loops"
+4. "Add the dispatch signal and the dispatch options"
 5. "Add the inbox processor and the outbox dispatcher"
 6. "Add the shared down state of a channel"
 7. "Add test delivery and host roles"
 8. "Add dispatch telemetry"
 9. "Check the channel registrations and the payload loaders at startup"
+10. "Upgrade an old envelope version before the send"
+
+The review of phase 2 added 2 commits before commit 10: the wait of the dispatch loop and the health check of a channel split into small helpers, with tests of their error paths. The default roles (D105) need a transport for the role `Publisher`, so three phase 1 tests of a complete setup now register a test transport.
 
 Done when: the build has no errors and no warnings, all tests pass, and the test with two DI containers sends an event through the test transport.
 
@@ -283,6 +290,7 @@ Goal: the email publisher sends the emails of the outbox through `IEmailClient`,
    - The client converts each exception into an `Error`, and does not throw. `TooManyRequestsException` and `LimitExceededException` give `Errors.RateLimited`. `SendingPausedException`, `AccountSuspendedException`, `HttpRequestException`, and an HTTP 5xx response give `Errors.Unavailable`. The account-level errors log at the Critical level, because an administrator must act. `MessageRejectedException`, `BadRequestException`, `MailFromDomainNotVerifiedException`, and `NotFoundException` give `Errors.Rejected`.
    - `CheckHealthAsync` calls `GetAccountAsync`. It gives `Errors.Unavailable` when the response has `SendingEnabled` false, because SES then refuses each send, and the channel must stay down (D106). First check the property name in the package version.
 3. Add the startup validation rules of these packages.
+4. First decide the result of a transport or an upgrade function that throws, and record the decision in the design. From phase 2, the dispatcher logs `Errors.Exception` and records no try (section 4.8). So the message is claimed again after each lease, and never reaches `Failed`. A change of the dispatcher gets its own commit, with its tests.
 
 Tests:
 - The use cases of `TransportTestsBase`, run by `EmailTransportUnitTests` with an `IEmailClient` substitute as the driver: a success gives the receipt of the provider, a transient error and a permanent error come back as values, and a cancelled token gives `Errors.OperationCancelled`.
@@ -384,15 +392,19 @@ Goal: durable inbox and outbox stores with no database (D26).
    - `RecordTryAsync` reads the file, and changes nothing when its `TryCount` is not the try number minus 1. Else it adds the try to the `tries` array and writes the new delivery state into a temporary file. Then it replaces the old file with `File.Move`, in the folder of the new status.
    - The tenant store of a key reads the tenant from the JSON of each message, and skips the messages of the other tenants.
    - The stores have the comment `ponytail: rename-based claims suit one machine or a shared folder with atomic rename, use a database store for more throughput`.
+2. Make the inbox upgrade check the version before the CLR type, as the outbox upgrade does (D25). From phase 1, the inbox checks the CLR type first, so a newer version of the current type counts as current.
+3. First decide the expiry of a received message, and record the decision in the design. `DeliveryState.ExpiresAtUtc` and the retry options `Inbox` have an expiry, but the inbox processor does not read it (section 4.8).
 
 Tests:
 - The use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` (section 5.5) run on the two file stores, each in its own temporary folder.
 - The options tests of `FileStoreOptions`. Configuration binding: a value in the section `MsgHatch:FileStores` reaches `FileStoreOptions`, and a value from the `Action<FileStoreOptions>` of the setup method wins over it.
 - One call of `UseFileStores` registers `IInboxStore`, `IOutboxStore`, `IInboxDispatchStore`, and `IOutboxDispatchStore`, each resolved as its logging wrapper around the store of the package. The tenant store of a key and the dispatch store use one store instance.
 - Tests unique to the file stores: a permanent error moves the file to the `failed` folder of its channel, and a second store instance on the same folder reads the data of the first one.
+- A received message with a newer version of the current event type gives `Errors.UnsupportedVersion`, and the pipeline does not run.
 
 Commits:
 1. "Add JSON file stores for the inbox and the outbox"
+2. "Check the version first in the inbox upgrade"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
@@ -752,7 +764,7 @@ Done when: the build has no errors and no warnings, all unit tests pass, and the
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
-- A dispatch signal between processes, for example with a named pipe or a message broker (D102).
+- A dispatch signal between processes, for example with a named pipe or a message broker (D102). While the signal does not work, the fallback wait of the dispatch loop must also obey a next try time that a worker gives (D103). From phase 2, it ignores that time.
 - A PostgreSQL provider for the EF Core stores.
 - The Razor template engine `MsgHatch.Email.Razor` (D45).
 - SMS and push channels.
