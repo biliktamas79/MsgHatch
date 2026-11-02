@@ -275,10 +275,13 @@ Commits:
 1. "Add the placeholder payload source generator"
 2. "Add the email channel types"
 3. "Add the email template engine contract and the email composer"
-4. "Add template stores, selection, and parsing"
+4. "Add the template stores"
 5. "Add the placeholder engine"
 6. "Add email registration"
 7. "Register payload loaders apart from the channels"
+8. "Add the missing tests of the email composition"
+
+The commits differ from the items: the `MsgHatch.Email` project came in commit 1, because the generated writers implement its placeholder types. The template selector and the parser came with the engine in commit 5, and the two email logging wrappers came with the registration in commit 6, because tests reach these internal types only through these items. The review of phase 3 added 3 commits after commit 8: the startup check of D62 for two engines of one payload type, the encoder of the html part that keeps accented letters, and a test of `PooledCharBufferWriter.GetMemory`.
 
 Done when: the build has no errors and no warnings, all tests pass, and the end-to-end test finds a rendered email in the in-memory outbox.
 
