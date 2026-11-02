@@ -2,7 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Email.DependencyInjection;
@@ -400,6 +402,24 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
 
         // Assert
         Assert.Equal(FixedReceiptEmailClient.Receipt, result.Value);
+    }
+
+    [Fact]
+    public async Task UseEmailClient_PublisherHostWithNoMessageType_AppliesTheTestDeliveryOfTheConfiguration()
+    {
+        // Arrange
+        var client = Substitute.For<IEmailClient>();
+        client.SendAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<PublishReceipt>>(new PublishReceipt("ses-1")));
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:TestDelivery:Email:Mode"] = "Deliver" });
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseEmailClient(_ => client);
+        await using var provider = services.Build();
+        await provider.GetRequiredService<IOutboxStore>().AddAsync([TestMessages.AnOutgoingEmail(flags: MessageFlags.Test)], Ct);
+
+        // Act
+        await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        await client.ReceivedWithAnyArgs(1).SendAsync(default, default!, Ct);
     }
 
     [Fact]

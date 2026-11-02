@@ -107,7 +107,8 @@ public static class EmailExtensions
 
     /// <summary>
     /// Selects an email client, with its logging wrapper, and <see cref="EmailTransport"/> as the transport of the email
-    /// channel, with its logging wrapper (D129). The host is then a publisher of the email channel (D101).
+    /// channel, with its logging wrapper (D129). The host is then a publisher of the email channel (D101). It also
+    /// registers the email channel, so that a publisher host with no message type binds the options of the channel.
     /// </summary>
     /// <typeparam name="TClient">The client type, a thread-safe singleton.</typeparam>
     /// <param name="builder">The builder of the setup.</param>
@@ -125,7 +126,7 @@ public static class EmailExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(factory);
         builder.Services.AddSingleton(services => EmailLoggers.Wrap(services, factory(services)));
-        return builder.UseTransport(static services => new EmailTransport(services.GetRequiredService<IEmailClient>()));
+        return AddEmailChannel(builder).UseTransport(static services => new EmailTransport(services.GetRequiredService<IEmailClient>()));
     }
 
     /// <summary>
@@ -166,6 +167,9 @@ public static class EmailExtensions
         Action<ChannelBuilder<EmailMessage>>? configure = null) =>
         Register(payload, name, engine, configure);
 
+    private static MsgHatchBuilder AddEmailChannel(MsgHatchBuilder builder) =>
+        builder.AddChannelType(EmailChannel.Descriptor, 1, EmailJson.Default.EmailChannelSettings, new EmailChannelSettingsValidator());
+
     private static MsgHatchBuilder AddSharedStore(MsgHatchBuilder builder, Func<IServiceProvider, ITemplateStore> factory, string setupMethod)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -183,9 +187,7 @@ public static class EmailExtensions
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(engine);
         EmailSetup.Of(payload.Services).EngineSelections.Add((typeof(TPayload), $"{EmailChannel.Id.Name}:{name}", engine));
-        payload.Parent
-            .AddChannelType(EmailChannel.Descriptor, 1, EmailJson.Default.EmailChannelSettings, new EmailChannelSettingsValidator())
-            .AddTenantService(ServiceLifetime.Scoped, engine, EmailLoggers.Wrap);
+        AddEmailChannel(payload.Parent).AddTenantService(ServiceLifetime.Scoped, engine, EmailLoggers.Wrap);
         return payload.AsChannel<EmailMessage, EmailComposer<TEvent, TPayload>>(
             EmailChannel.Id, name, 1, EmailJson.Default.EmailMessage, configure: configure);
     }

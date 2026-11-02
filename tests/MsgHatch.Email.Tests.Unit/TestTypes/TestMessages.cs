@@ -25,10 +25,11 @@ public static class TestMessages
         IReadOnlyList<string>? bcc = null) =>
         new(to, subject, "<p>Order 1001</p>", "Order 1001", From: null, cc, bcc);
 
-    public static OutgoingMessage<EmailMessage> AnOutgoingEmail(EmailMessage? email = null, Guid? id = null, TenantId? tenant = null) =>
+    public static OutgoingMessage<EmailMessage> AnOutgoingEmail(
+        EmailMessage? email = null, Guid? id = null, TenantId? tenant = null, MessageFlags flags = MessageFlags.None) =>
         new(
             SchemaVersion: 1, ADeliveryState(id), SourceMessageId: Guid.NewGuid(), tenant, new MessageType("TestEvent"), EmailChannel.Id,
-            new DeliveryTarget(DeliveryTargetKind.User, "u1"), "Email:OrderEmail", ContentVersion: 1, MessageFlags.None, TraceParent: null,
+            new DeliveryTarget(DeliveryTargetKind.User, "u1"), "Email:OrderEmail", ContentVersion: 1, flags, TraceParent: null,
             Trace: null, email ?? AnEmail());
 
     private static DeliveryState ADeliveryState(Guid? id = null) =>
