@@ -21,6 +21,10 @@
     <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.0.106.7" />
   </ItemGroup>
 
+  <ItemGroup Label="MsgHatch.Email.Resend">
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.14" />
+  </ItemGroup>
+
   <ItemGroup Label="Analyzers">
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4" />
   </ItemGroup>
