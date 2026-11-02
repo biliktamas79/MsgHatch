@@ -5,6 +5,7 @@ using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Outbox;
+using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
@@ -198,6 +199,68 @@ public sealed class StartupValidatorUnitTests
         // Assert
         Assert.IsType<OptionsValidationException>(exception);
     }
+
+    public static TheoryData<string> RegistrationsThatBreakD135 =>
+    [
+        "SecondRegistrationOnTheSameChannel",
+        "TwoChannelRegistrationsWithTheSameEnvelopeType",
+        "TwoLoaderTypesForOnePayloadType",
+    ];
+
+    [Theory]
+    [MemberData(nameof(RegistrationsThatBreakD135))]
+    public async Task Validate_ChannelRegistrationsOrLoadersThatBreakD135_ThrowsOptionsValidationException(string registrations)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel().AddSecondTestChannel().UseInMemoryStores()
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => Register(m.WithRouter<TwoRouteTestRouter>(), registrations));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    [Fact]
+    public async Task Validate_TwoChannelRegistrationsWithOnePayloadTypeAndOneLoaderType_Succeeds()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel().AddSecondTestChannel().UseInMemoryStores()
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .WithRouter<TwoRouteTestRouter>()
+                .UsePayloadLoader<TestPayload, TestPayloadLoader>()
+                .AsChannel<TestEnvelope, PayloadTestComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope)
+                .UsePayloadLoader<TestPayload, TestPayloadLoader>()
+                .AsChannel<OtherTestEnvelope, OtherPayloadTestComposer>(TestChannel.SecondId, "OtherEnvelope", 1, TestJsonContext.Default.OtherTestEnvelope));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    private static MessageBuilder<TestEvent> Register(MessageBuilder<TestEvent> m, string registrations) => registrations switch
+    {
+        "SecondRegistrationOnTheSameChannel" => m
+            .AsChannel(TestChannel.Id, "First", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>())
+            .AsChannel(TestChannel.Id, "Second", 1, TestJsonContext.Default.OtherTestEnvelope,
+                static (_, _) => Substitute.For<IEnvelopeComposer<TestEvent, OtherTestEnvelope>>()),
+        "TwoChannelRegistrationsWithTheSameEnvelopeType" => m
+            .AsChannel(TestChannel.Id, "First", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>())
+            .AsChannel(TestChannel.SecondId, "Second", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()),
+        _ => m
+            .UsePayloadLoader<TestPayload, TestPayloadLoader>()
+            .UsePayloadLoader<TestPayload, OtherTestPayloadLoader>()
+            .AsChannel(TestChannel.Id, "First", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()),
+    };
 
     private sealed class RouterWithAMissingService(IComparer<Guid> missing) : IMessageRouter<TestEvent>
     {

@@ -15,6 +15,7 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
 
     private readonly List<IChannelRegistration<TEvent>> _channels = [];
     private readonly Dictionary<int, Func<ReceivedMessage, TEvent>> _upgrades = [];
+    private readonly List<(Type Payload, Type? Loader)> _loaders = [];
     private Type? _closedOpenRouterType;
 
     public MessageType Type { get; } = type;
@@ -29,6 +30,30 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
     public void AddChannel(IChannelRegistration<TEvent> channel) => _channels.Add(channel);
 
     public void AddUpgrade(int fromVersion, Func<ReceivedMessage, TEvent> upgrade) => _upgrades.Add(fromVersion, upgrade);
+
+    /// <summary>Records a payload loader. A factory has no loader type, so each factory counts as one more loader.</summary>
+    /// <returns>False when the same loader type is already registered for the payload type (D135).</returns>
+    public bool TryAddLoader(Type payload, Type? loader)
+    {
+        if (loader is not null && _loaders.Contains((payload, loader)))
+        {
+            return false;
+        }
+
+        _loaders.Add((payload, loader));
+        return true;
+    }
+
+    /// <summary>The breaks of the rules of D135: one registration for each channel, one envelope type for each registration, and one loader for each payload type.</summary>
+    public IEnumerable<string> RegistrationFailures() =>
+    [
+        .. _channels.GroupBy(static channel => channel.Channel).Where(static group => group.Count() > 1)
+            .Select(group => $"The message type {Type.Name} has {group.Count()} registrations on the channel {group.Key.Name}."),
+        .. _channels.GroupBy(static channel => channel.EnvelopeType).Where(static group => group.Count() > 1)
+            .Select(group => $"The message type {Type.Name} has {group.Count()} channel registrations with the envelope type {group.Key.Name}."),
+        .. _loaders.GroupBy(static loader => loader.Payload).Where(static group => group.Count() > 1)
+            .Select(group => $"The payload type {group.Key.Name} of the message type {Type.Name} has {group.Count()} loaders."),
+    ];
 
     public ValueTask<ErrorOr<NotificationResult>> ProcessAsync(
         ReceivedMessage message, IServiceProvider scopedServices, CancellationToken ct)

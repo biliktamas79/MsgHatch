@@ -7,7 +7,8 @@ namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
 /// The startup validation of the setup (section 4.7): the outbox stores, one selection for each interface (D62), one
-/// transport for each channel (D129), unique content types, and unique message type names. With the role
+/// transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
+/// registrations and the payload loaders of each message type (D135). With the role
 /// <see cref="MsgHatchRoles.Consumer"/>, a router for each message type (D95), and with the role
 /// <see cref="MsgHatchRoles.Publisher"/>, at least one transport (D105).
 /// </summary>
@@ -23,6 +24,7 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
             .. DuplicateTransports(),
             .. DuplicateContentTypes(),
             .. DuplicateMessageTypes(),
+            .. setup.Messages.SelectMany(static message => message.RegistrationFailures()),
             .. roles.HasFlag(MsgHatchRoles.Consumer) ? MessageTypesWithNoRouter() : [],
             .. roles.HasFlag(MsgHatchRoles.Publisher) ? MissingTransport() : [],
         ];

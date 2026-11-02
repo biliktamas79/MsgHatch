@@ -61,22 +61,35 @@ public sealed class MessageBuilder<TEvent>
 
     /// <summary>
     /// Registers the payload loader of one payload type of this message type as a tenant service, with its logging
-    /// wrapper. The channel packages call it for the loader of each channel registration.
+    /// wrapper. The channel packages call it for the loader of each channel registration. A second call with the same
+    /// loader type adds nothing, so two channels of one payload type share one loader (D135). Another loader type for
+    /// the same payload type fails the startup validation.
     /// </summary>
     /// <typeparam name="TPayload">The type of the template payload.</typeparam>
     /// <typeparam name="TLoader">The loader type, a tenant service.</typeparam>
     /// <returns>This builder.</returns>
     public MessageBuilder<TEvent> UsePayloadLoader<TPayload, TLoader>()
         where TLoader : class, IPayloadLoader<TEvent, TPayload> =>
-        UsePayloadLoader(static (tenantServices, _) => (IPayloadLoader<TEvent, TPayload>)ActivatorUtilities.CreateInstance<TLoader>(tenantServices));
+        _registration.TryAddLoader(typeof(TPayload), typeof(TLoader))
+            ? AddPayloadLoader<TPayload>(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TLoader>(tenantServices))
+            : this;
 
-    /// <summary>Registers the payload loader of one payload type with a factory, for example for a test substitute.</summary>
+    /// <summary>
+    /// Registers the payload loader of one payload type with a factory, for example for a test substitute. Each call
+    /// adds a loader, so a second call for the same payload type fails the startup validation (D135).
+    /// </summary>
     /// <typeparam name="TPayload">The type of the template payload.</typeparam>
     /// <param name="factory">The factory of the loader of one tenant key. Its service provider gives the tenant services of that key.</param>
     /// <returns>This builder.</returns>
     public MessageBuilder<TEvent> UsePayloadLoader<TPayload>(Func<IServiceProvider, TenantKey, IPayloadLoader<TEvent, TPayload>> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
+        _registration.TryAddLoader(typeof(TPayload), loader: null);
+        return AddPayloadLoader(factory);
+    }
+
+    private MessageBuilder<TEvent> AddPayloadLoader<TPayload>(Func<IServiceProvider, TenantKey, IPayloadLoader<TEvent, TPayload>> factory)
+    {
         TenantServices.Add(
             Services, _parent.Setup, ServiceLifetime.Scoped, factory,
             static (tenantServices, key, inner) => new PayloadLoaderLoggingWrapper<TEvent, TPayload>(

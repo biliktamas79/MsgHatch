@@ -17,6 +17,9 @@ internal interface IMessageHandler
     /// <returns>Null when the router resolves, else the text of the failure.</returns>
     string? RouterFailure(IServiceProvider scopedServices);
 
+    /// <summary>Gives the breaks of the rules of the channel registrations and the payload loaders (D135).</summary>
+    IEnumerable<string> RegistrationFailures();
+
     /// <summary>
     /// Upgrades a claimed received message of an old version (section 4.13), and runs the steps 2 to 6 for it in the
     /// given DI scope, with the tenant of the message (D126).

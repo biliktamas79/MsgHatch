@@ -22,6 +22,8 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
 
     public ChannelId Channel { get; } = channel;
 
+    public Type EnvelopeType => typeof(TEnvelope);
+
     public string ContentType { get; } = contentType;
 
     public int Version { get; } = version;

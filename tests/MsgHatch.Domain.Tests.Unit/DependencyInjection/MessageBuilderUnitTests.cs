@@ -84,6 +84,43 @@ public sealed class MessageBuilderUnitTests
     }
 
     [Fact]
+    public void UsePayloadLoader_SecondCallWithTheSameLoaderType_AddsNothing()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+
+        // Act
+        services.AddMsgHatch().AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+            .UsePayloadLoader<TestPayload, TestPayloadLoader>()
+            .UsePayloadLoader<TestPayload, TestPayloadLoader>());
+
+        // Assert
+        Assert.Equal(2, services.Count(static d => d.ServiceType == typeof(IPayloadLoader<TestEvent, TestPayload>))); // the keyed and the unkeyed registration of one call
+    }
+
+    [Fact]
+    public async Task UsePayloadLoader_SameLoaderTypeForTwoChannelRegistrations_GivesTheirComposersOneLoaderInstanceInOneScope()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel().AddSecondTestChannel()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .UsePayloadLoader<TestPayload, TestPayloadLoader>()
+                .AsChannel<TestEnvelope, PayloadTestComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope)
+                .UsePayloadLoader<TestPayload, TestPayloadLoader>()
+                .AsChannel<OtherTestEnvelope, OtherPayloadTestComposer>(TestChannel.SecondId, "OtherEnvelope", 1, TestJsonContext.Default.OtherTestEnvelope));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var first = (PayloadTestComposer)scope.ServiceProvider.GetRequiredService<IEnvelopeComposer<TestEvent, TestEnvelope>>();
+        var second = (OtherPayloadTestComposer)scope.ServiceProvider.GetRequiredService<IEnvelopeComposer<TestEvent, OtherTestEnvelope>>();
+
+        // Assert
+        Assert.Same(first.Loader, second.Loader);
+    }
+
+    [Fact]
     public async Task UsePayloadLoader_LoaderType_CreatesTheLoaderWithTheRequestedKey()
     {
         // Arrange

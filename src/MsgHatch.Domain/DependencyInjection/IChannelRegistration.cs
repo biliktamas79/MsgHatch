@@ -12,6 +12,8 @@ internal interface IChannelRegistration<TEvent>
 {
     ChannelId Channel { get; }
 
+    Type EnvelopeType { get; }
+
     string ContentType { get; }
 
     int Version { get; }
