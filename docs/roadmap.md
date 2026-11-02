@@ -320,6 +320,7 @@ Tests:
 - The options tests of `ResendOptions`. `ApiKey` gets null, empty, only whitespace, and a value. `SenderEmail` gets null, empty, only whitespace, a value with no `@`, a value, and a value with `<` and `>`. `SenderName` gets the lengths 99, 100, and 101.
 - `UseResend` alone registers all parts, the options bind from the section `MsgHatch:Resend`, a value from code wins, and a missing `ApiKey` or `SenderEmail` stops the start.
 - The Resend integration tests, against a real Resend account: an email with accented letters and a sender name with accented letters give the id of Resend, a second send with the same message id gives the id of the first send, a wrong API key gives `Errors.Unavailable` for a send and for the health check, and `CheckHealthAsync` gives null. A run with no API key reports each test as skipped.
+- The email channel from the event to the email client, in `MsgHatch.Email.Tests.Unit`: one host with both roles, the in-memory stores, the test templates, an email registration, and an `IEmailClient` substitute. After `ProcessAsync` of an event, `DispatchPendingAsync` sends each rendered email through the email client (section 4.8, steps 1 to 7).
 
 Commits:
 1. "Add the email transport and the email client contract"
@@ -328,6 +329,7 @@ Commits:
 4. "Add the Amazon SES integration tests"
 5. "Add the Resend email client"
 6. "Add the Resend integration tests"
+7. "Test the email channel from the event to the email client"
 
 Done when: the build has no errors and no warnings, all tests pass, and the SES and Resend integration tests pass with their accounts in `appsettings.Local.json`.
 
