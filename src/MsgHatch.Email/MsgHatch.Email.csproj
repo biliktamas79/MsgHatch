@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
+    <ProjectReference Include="..\MsgHatch.SourceGeneration\MsgHatch.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\MsgHatch.SourceGeneration\bin\$(Configuration)\netstandard2.0\MsgHatch.SourceGeneration.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+</Project>
