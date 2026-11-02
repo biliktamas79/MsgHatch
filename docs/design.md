@@ -273,7 +273,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D121 | MongoDB stores | Recommended | The package `MsgHatch.Data.MongoDb` stores each message as one document, with its tries in an embedded array, through the official MongoDB driver. A claim is a loop of `findOneAndUpdate` calls, one for each message (section 4.5). | One `updateMany` with a claim id, and then a find. A stop between the two calls leaves claimed messages that only the lease frees. |
 | D122 | Roadmap phases | Confirmed | Each phase ends in a tested and working state. Phase 1 reaches the outbox with the in-memory stores and no dispatcher. The dispatch loop, each channel, each storage technology, the caching, and each administration API come in their own phases (roadmap). | Phases by layer. A working system then exists only after several phases. |
 | D123 | Templates of a tenant | Recommended | The template store of a tenant is a tenant service (D126), and the shared template store is one service for all tenants. The template selector tries the template store of the tenant, with the scope and then with no scope. Then it tries the shared template store, with the scope and then with no scope. It does this for the language, and then for the default language. With no tenant, it tries only the shared store, also with the scope, so the company templates of D80 apply (section 4.10). | Templates for all tenants only. |
-| D124 | Integration tests | Recommended | The EF Core and MongoDB phases test their stores in `.Tests.Integration` projects, against a real SQL Server and a real MongoDB in a container, with Testcontainers. Phase 4 tests the Amazon SES client in `MsgHatch.Email.AmazonSES.Tests.Integration` against a real SES account. Its credentials come from `appsettings.Local.json`, which git ignores, and each of its tests is skipped with no account. The stage after the merge runs them (section 5.5). | Unit tests with an in-memory database provider. They do not test the claim statement. |
+| D124 | Integration tests | Recommended | The EF Core and MongoDB phases test their stores in `.Tests.Integration` projects, against a real SQL Server and a real MongoDB in a container, with Testcontainers. Phase 4 tests the Amazon SES client in `MsgHatch.Email.AmazonSES.Tests.Integration` against a real SES account, and the Resend client in `MsgHatch.Email.Resend.Tests.Integration` against a real Resend account. Their secrets come from `appsettings.Local.json`, which git ignores, and each of their tests is skipped with no account. The stage after the merge runs them (section 5.5). | Unit tests with an in-memory database provider. They do not test the claim statement. |
 | D125 | A store for each tenant | Recommended | A storage package can keep one storage for each tenant, for example one SQLite file for each tenant, through its own setup method, for example `UseSqliteTenantStores<TTenantSource>`. The keyed tenant store of a tenant opens the storage of that tenant, and the key `TenantKey.None` opens the system storage. Only the dispatch stores, which work for all tenants, need a library composite: it claims from the storage of each tenant of `ITenantSource`, and keeps the down states in the system storage (section 4.5). | One shared storage with a tenant column only. |
 | D126 | Keyed tenant services | Confirmed | Each tenant service is a keyed DI service with a `TenantKey` key, and no method of it has a tenant parameter. A setup method registers it with `KeyedService.AnyKey`, and adds an unkeyed registration that resolves the key `TenantKey.None`. So a setup with one tenant injects each service with no key, and a setup with tenants resolves the service of each tenant with `TenantKey.For(tenant)`. An implementation that needs its tenant takes a `TenantKey` parameter in its constructor, and the setup method creates it with that key. Each tenant service that it needs has the same key. The pipeline resolves the services of an event with the tenant of its message context, and the inbox processor with the tenant of the received message (section 4.6). | A `TenantId? tenant` parameter on each method of each service. Each signature then shows the tenant, and a null has two meanings. |
 | D127 | Tenant stores and dispatch stores | Confirmed | Each storage of messages has two parts. The tenant store (`IInboxStore`, `IOutboxStore`) is a tenant service: it adds, reads, counts, retries, and cancels the messages of one tenant. The dispatch store (`IInboxDispatchStore`, `IOutboxDispatchStore`) is one unkeyed service for all tenants: it claims the due messages, records the tries, keeps the down states, and deletes test data and old messages. One class can implement both parts (section 4.5). | One store interface with a tenant filter for the queries and none for the claim. |
@@ -287,6 +287,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D135 | Envelope and loader of each channel | Confirmed | Each channel has its own envelope type. An envelope that carries the payload is generic over the payload type, for example `SignalREnvelope<TPayload>` and `BrokerEnvelope<TPayload>`. The email envelope `EmailMessage` carries no payload. So two channel registrations of one message type never share a composer `IEnvelopeComposer<TEvent, TEnvelope>`, also when they have the same payload type. Two channels of one message type with the same payload type use the same payload loader `IPayloadLoader<TEvent, TPayload>`. In one DI scope, their composers get the same loader instance, and each composer calls it with the routes of its own channel. The startup validation enforces the rule: a message type has at most one registration for each channel, its channel registrations have different envelope types, and each of its payload types has one loader type. `WithPayload` registers the loader of a payload type one time, apart from the channel registrations of that payload type (D136). | The payload itself as the envelope of SignalR, and a startup check that rejects two channel registrations with one envelope type. Or one composer registration for each channel registration, which needs a second DI key next to the tenant key. |
 | D136 | Payload registration | Confirmed | A payload loader is a data service of the consumer, not a part of a channel or of a template engine. `MessageBuilder<TEvent>.WithPayload<TPayload, TLoader>(p => p.AsEmail("OrderShippedEmail"))` registers the loader of one payload type one time, and the channel registrations of that payload type inside its `PayloadBuilder<TEvent, TPayload>`. No channel method names a loader type. Each composer gets the loader through DI, so the channels of one payload type share it (D135). The channel packages add their `As<Channel>` methods to `PayloadBuilder<TEvent, TPayload>`, so C# infers the event type and the payload type of each call. C# binds explicit type arguments also to the type parameter of the receiver, so a method `AsEmail<TPayload, TLoader>` on `MessageBuilder<TEvent>` cannot compile in another assembly. For the same reason, another template engine is a factory argument of `AsEmail`, not a type argument. | A loader type argument on each `As<Channel>` method. It couples the data to a channel, and needs the event type as an explicit type argument. Or a flat `UsePayloadLoader` before each channel registration, which needs a startup rule for a channel with no loader. |
 | D137 | A transport or an upgrade that throws | Confirmed | When a transport or an envelope upgrade function throws, the dispatcher logs the exception, and records a `TransientError` try with `Errors.Exception`. The retry schedule and `MaxTryCount` apply, so a message that always throws reaches `Failed`. This try does not change the error count of the down state of its channel (D86), because a throw is a fault of the code, not an outage of the provider (section 4.8). | No try for a throw. The lease then ends, a later claim sends the message again, and a message that always throws never reaches `Failed`. |
+| D138 | Resend email client | Recommended | The package `MsgHatch.Email.Resend` calls the REST API of Resend through `IHttpClientFactory` and the named HTTP client `MsgHatch.Resend`, with source-generated JSON. Each send carries the outgoing message id as its `Idempotency-Key`, so Resend sends a repeated try within 24 hours only one time. `CheckHealthAsync` reads `GET /domains`. A 401 `restricted_api_key` answer comes from a valid key that can only send, so it counts as healthy. An error of the API key (401, or 403 `restricted_api_key` or `suspended_api_key`) gives `Errors.Unavailable` and a Critical log, so the messages stay pending until an administrator acts (section 4.4). | The official `Resend` SDK. Its client takes `IOptionsSnapshot`, a scoped service, so a singleton transport cannot hold it. It also brings an ASP.NET Core package and reflection-based JSON, and it loses the error names that its enum does not know. |
 
 The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3).
 
@@ -314,6 +315,7 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.SourceGeneration` | `netstandard2.0` | none | `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Analyzers` | The generator of placeholder writers (D18) |
 | `src/MsgHatch.Email` | `net10.0` | `MsgHatch.Domain`, and `MsgHatch.SourceGeneration` as an analyzer | none | The email channel, the template engine interface, the placeholder engine, the template stores, and `IEmailClient` |
 | `src/MsgHatch.Email.AmazonSES` | `net10.0` | `MsgHatch.Email` | `AWSSDK.SimpleEmailV2` | The SES implementation of `IEmailClient` |
+| `src/MsgHatch.Email.Resend` | `net10.0` | `MsgHatch.Email` | `Microsoft.Extensions.Http` | The Resend implementation of `IEmailClient` (D138) |
 | `src/MsgHatch.SignalR` | `net10.0` | `MsgHatch.Domain` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The SignalR channel |
 | `src/MsgHatch.Broker` | `net10.0` | `MsgHatch.Domain` | none | The broker channel, the broker composer and transport, and `IBrokerClient` |
 | `src/MsgHatch.Broker.Wolverine` | `net10.0` | `MsgHatch.Broker` | `WolverineFx` | The Wolverine implementation of `IBrokerClient` (D134) |
@@ -874,6 +876,9 @@ Options (D49, D63, D64, D65). Each options class is a `sealed class` with a publ
 | `AmazonSesOptions` | `MsgHatch:AmazonSes` | `SenderEmail` | none | `[Required]`, `[EmailAddress]`, and `[RegularExpression("^[ -~]+$")]`, because SES accepts only 7-bit ASCII in an address. A domain with other letters is in Punycode. |
 | | | `SenderName` | none | `[MaxLength(100)]` |
 | | | `Region` | none, so that the AWS SDK selects the region from its configuration | `[RegularExpression("^[a-z]{2}(-[a-z]+)+-[0-9]$")]` when it has a value |
+| `ResendOptions` | `MsgHatch:Resend` | `ApiKey` | none | `[Required]`. A key with the permission "sending access" is enough. |
+| | | `SenderEmail` | none | `[Required]`, `[EmailAddress]`. Its domain must be verified in Resend. The test sender `onboarding@resend.dev` needs no verified domain, and reaches only the test addresses of Resend and the address of the Resend account. |
+| | | `SenderName` | none | `[MaxLength(100)]` |
 
 Each setup method registers its options in this order:
 1. `services.AddOptions<DispatchOptions>(name).BindConfiguration(...)` with the `SectionName` of the options class, so that a value from the configuration applies first.
@@ -906,6 +911,8 @@ The pipeline and the dispatcher read the retry options of a message by its conte
 Each subscription store package uses the options class of its core data package, for example `SqliteStoreOptions`, so one setting serves the outbox and the subscriptions (D59).
 
 `AmazonSesOptions` gives the sender address `"{SenderName} <{SenderEmail}>"`. It gives only `SenderEmail` when `SenderName` is empty, or when `SenderEmail` already contains `<` and `>`. SES requires the MIME encoded-word syntax of RFC 2047 for a sender name with letters outside 7-bit ASCII. So such a `SenderName` becomes words of the form `=?UTF-8?B?…?=`, each of at most 75 characters, and a word ends only between letters.
+
+`ResendOptions` gives the same sender address with no encoding, because Resend encodes a sender name with letters outside 7-bit ASCII itself (checked with a real send, 2026-11-02).
 
 Types that a consumer writes, for example:
 
@@ -1511,6 +1518,7 @@ Setup methods of the other implementation packages (D60):
 | `UseTenantTemplateStore<TStore>()` | Email | The template store of each tenant, as a keyed `ITemplateStore` with no unkeyed registration, with its logging wrapper. The shared template store is the unkeyed `ITemplateStore`, so the two never collide (D62). The template selector tries the store of the tenant first (D123). |
 | `UseEmailClient<TClient>()` | Email | A custom `IEmailClient` and the email transport, with their logging wrappers, and the email channel with `AddChannelType`. So a publisher host with no message type also binds `MsgHatch:ChannelDown:Email` and `MsgHatch:TestDelivery:Email`. |
 | `UseAmazonSes(Action<AmazonSesOptions>?)`, `UseAmazonSes(string senderEmail)` | Email.AmazonSES | The options, `AmazonSimpleEmailServiceClient` as the `IEmailClient` with its logging wrapper, the email transport, and an `IAmazonSimpleEmailServiceV2` client for `AmazonSesOptions.Region`, if the host has not registered one. The AWS SDK finds the credentials. With no `Region` and no region in the AWS SDK configuration, the startup validation fails with an `OptionsValidationException` for `Region`. |
+| `UseResend(Action<ResendOptions>?)` | Email.Resend | The options, `ResendEmailClient` as the `IEmailClient` with its logging wrapper, the email transport, and the named HTTP client `MsgHatch.Resend`, which the host can configure further (D138). It has no `string` overload, because the package has two required options, and the API key does not belong in code. |
 | `UseSignalR<THub>()` | SignalR | `SignalRTransport<THub>` as the one `ITransport` of the SignalR channel, with its logging wrapper, and the SignalR server services with `AddSignalR` (D129). |
 | `UseBrokerClient<TClient>()` | Broker | A custom `IBrokerClient` and the broker transport, with their logging wrappers. One transport serves each payload type (D129). |
 | `UseWolverineBroker()` | Broker.Wolverine | `WolverineBrokerClient` as the `IBrokerClient` with its logging wrapper, and the broker transport. It uses the Wolverine of the host, because the host selects the transport of Wolverine, for example RabbitMQ or Amazon SQS (D134). |
@@ -1846,7 +1854,7 @@ These interfaces get a logging wrapper (D36):
 | `ISubscriptionManager` | `MsgHatch.Subscriptions` | `SubscriptionManagerLoggingWrapper` |
 | `IRoutingVerifier` | `MsgHatch.Subscriptions` | `RoutingVerifierLoggingWrapper` |
 | `IPayloadLoader<TEvent, TPayload>` | Consumer | `PayloadLoaderLoggingWrapper<TEvent, TPayload>` |
-| `IEmailClient` | Library (SES) or consumer | `EmailClientLoggingWrapper` |
+| `IEmailClient` | Library (SES, Resend) or consumer | `EmailClientLoggingWrapper` |
 | `IEmailTemplateEngine<TPayload>` | Library or consumer | `EmailTemplateEngineLoggingWrapper<TPayload>` |
 | `ITemplateStore` | Library or consumer | `TemplateStoreLoggingWrapper` |
 | `IBrokerClient` | Library (Wolverine) or consumer | `BrokerClientLoggingWrapper` |
@@ -1915,6 +1923,7 @@ Each namespace has one `internal static partial class Log` with `[LoggerMessage]
 | EF Core stores | 2700 to 2799 |
 | MongoDB stores | 2800 to 2899 |
 | Registry administration and its HTTP endpoints | 2900 to 2999 |
+| Resend | 3000 to 3099 |
 
 ### 4.17 Subscription router and management
 
@@ -2374,6 +2383,7 @@ Checked facts (2026-10-31). These external facts carry the design of this sectio
 │   ├── MsgHatch.SourceGeneration/                      (phase 3)
 │   ├── MsgHatch.Email/                                 (phase 3)
 │   ├── MsgHatch.Email.AmazonSES/                       (phase 4)
+│   ├── MsgHatch.Email.Resend/                          (phase 4)
 │   ├── MsgHatch.SignalR/                               (phase 5)
 │   ├── MsgHatch.Broker/                                (phase 6)
 │   ├── MsgHatch.Broker.Wolverine/                      (phase 6)
@@ -2396,6 +2406,8 @@ Checked facts (2026-10-31). These external facts carry the design of this sectio
 │   ├── MsgHatch.Email.Tests.Unit/                                           (phase 3)
 │   ├── MsgHatch.Email.AmazonSES.Tests.Unit/                                 (phase 4)
 │   ├── MsgHatch.Email.AmazonSES.Tests.Integration/                          (phase 4)
+│   ├── MsgHatch.Email.Resend.Tests.Unit/                                    (phase 4)
+│   ├── MsgHatch.Email.Resend.Tests.Integration/                             (phase 4)
 │   ├── MsgHatch.SignalR.Tests.Unit/                                         (phase 5)
 │   ├── MsgHatch.Broker.Tests.Unit/                                          (phase 6)
 │   ├── MsgHatch.Broker.Wolverine.Tests.Unit/                                (phase 6)
@@ -2535,6 +2547,8 @@ The tests follow the `core:automated-tests` skill of the Transcend agent tooling
 | `MsgHatch.Email.Tests.Unit` | Unit | A temporary folder for the file template store | 3 |
 | `MsgHatch.Email.AmazonSES.Tests.Unit` | Unit | none. The AWS client is a substitute. | 4 |
 | `MsgHatch.Email.AmazonSES.Tests.Integration` | Integration | An Amazon SES account, with the settings of `appsettings.Local.json`, which git ignores. The default recipient is the SES mailbox simulator. Each test is skipped with no account (D124). | 4 |
+| `MsgHatch.Email.Resend.Tests.Unit` | Unit | none. A fake HTTP handler is the Resend API. | 4 |
+| `MsgHatch.Email.Resend.Tests.Integration` | Integration | A Resend account, with the API key in `appsettings.Local.json`, which git ignores. The default sender is `onboarding@resend.dev`, and the default recipient is the Resend test address `delivered@resend.dev`. Each test is skipped with no API key (D124). | 4 |
 | `MsgHatch.SignalR.Tests.Unit` | Unit | none. The hub context is a substitute. | 5 |
 | `MsgHatch.Broker.Tests.Unit` | Unit | none. The broker client is a substitute. | 6 |
 | `MsgHatch.Broker.Wolverine.Tests.Unit` | Unit | none. The Wolverine message bus is a substitute. | 6 |
@@ -2558,17 +2572,17 @@ The tests follow the `core:automated-tests` skill of the Transcend agent tooling
 
 Packages:
 - `Directory.Build.props` gives each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance` the property `OutputType` `Exe`. It gives each unit and integration test project references to `xunit.v3`, `Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, `NSubstitute`, `NSubstitute.Analyzers.CSharp`, `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.Extensions.Diagnostics.Testing`, and `coverlet.collector` (D70).
-- `MsgHatch.Domain.Tests.Unit` also references `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`, for the DI container and the in-memory configuration of its tests. `MsgHatch.SourceGeneration.Tests.Unit` also references `Microsoft.CodeAnalysis.CSharp`. `ExampleApp.Tests.Unit` also references `OpenTelemetry.Exporter.InMemory`. `MsgHatch.Email.AmazonSES.Tests.Integration` also references `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration.Json`, for the DI container and the appsettings files. The EF Core integration test projects also reference `Testcontainers.MsSql`, and the MongoDB integration test projects `Testcontainers.MongoDb`. `MsgHatch.AspNetCore.Tests.Unit` and `MsgHatch.Subscriptions.AspNetCore.Tests.Unit` also reference `Microsoft.AspNetCore.TestHost`. The performance projects reference `BenchmarkDotNet`.
+- `MsgHatch.Domain.Tests.Unit` also references `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`, for the DI container and the in-memory configuration of its tests. `MsgHatch.SourceGeneration.Tests.Unit` also references `Microsoft.CodeAnalysis.CSharp`. `ExampleApp.Tests.Unit` also references `OpenTelemetry.Exporter.InMemory`. `MsgHatch.Email.AmazonSES.Tests.Unit` and `MsgHatch.Email.Resend.Tests.Unit` also reference `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`. `MsgHatch.Email.AmazonSES.Tests.Integration` and `MsgHatch.Email.Resend.Tests.Integration` also reference `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration.Json`, for the DI container and the appsettings files. The EF Core integration test projects also reference `Testcontainers.MsSql`, and the MongoDB integration test projects `Testcontainers.MongoDb`. `MsgHatch.AspNetCore.Tests.Unit` and `MsgHatch.Subscriptions.AspNetCore.Tests.Unit` also reference `Microsoft.AspNetCore.TestHost`. The performance projects reference `BenchmarkDotNet`.
 - Each test project references the production project under test. A project with subclasses of a contract base class also references the test project that holds the base class.
 - Before a phase adds a package, it reads the license of the pinned version from the package metadata. Only MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, and ISC are allowed. A dual license is allowed when one of its licenses is allowed. No license is taken from memory.
-- Assertions use the `Assert` class of xUnit. Fakes of the clock and the logger come from the Microsoft testing packages: `FakeTimeProvider` and `FakeLogger`. All other doubles are NSubstitute substitutes (D14).
+- Assertions use the `Assert` class of xUnit. Fakes of the clock and the logger come from the Microsoft testing packages: `FakeTimeProvider` and `FakeLogger`. All other doubles are NSubstitute substitutes (D14). The one exception is the fake HTTP handler of the Resend tests, because NSubstitute cannot configure the protected `SendAsync` of `HttpMessageHandler`.
 
 Stages. Each level runs in its own stage, and one glob on the path selects it:
 
 | Level | Glob | Stage |
 |---|---|---|
 | Unit | `**/*.Tests.Unit/*` | The validation of each pull request |
-| Integration | `**/*.Tests.Integration/*` | After the merge. The SES integration tests (phase 4) need an SES account in `appsettings.Local.json`. The EF Core and MongoDB integration tests (phases 18 and 19) need an agent with a container runtime (D124). |
+| Integration | `**/*.Tests.Integration/*` | After the merge. The SES and Resend integration tests (phase 4) need an account in `appsettings.Local.json`. The EF Core and MongoDB integration tests (phases 18 and 19) need an agent with a container runtime (D124). |
 | Performance | `**/*.Tests.Performance/*` | A manual or nightly run on a dedicated machine |
 
 The pipeline itself is out of scope. A unit test never needs a database server or a service, so the unit stage needs no infrastructure. The SQLite tests need only the native SQLite library, which the `Microsoft.Data.Sqlite` package contains, and a temporary folder (D71).
@@ -2626,7 +2640,7 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - `MessageFlags` round-trip unchanged. `DeleteTestDataAsync` deletes the test messages of all tenants and their tries, keeps each message without the flag, and returns the number of deleted messages. A second call returns 0.
 
 **Test design rules:**
-- A unit test is preferred. An integration test exists only for a real out-of-process dependency: Amazon SES for the SES client, SQL Server for the EF Core stores, and MongoDB for the MongoDB stores (D124). A secret of an integration test goes only into `appsettings.Local.json`, which git ignores, never into a file in the repository. SQLite runs in process, so its tests are unit tests (D71).
+- A unit test is preferred. An integration test exists only for a real out-of-process dependency: Amazon SES and Resend for their email clients, SQL Server for the EF Core stores, and MongoDB for the MongoDB stores (D124). A secret of an integration test goes only into `appsettings.Local.json`, which git ignores, never into a file in the repository. SQLite runs in process, so its tests are unit tests (D71).
 - Tests reach the code only through its public API (D68). An internal type, for example the dispatch loop, the pipeline, `RetrySchedule`, the template selector, or the template parser, is tested through the public interface that uses it.
 - A test that needs a DI container builds it with the setup methods of a host: `AddMsgHatch()` and the `Use…` methods. After the setup, it replaces only the doubles, through the factory overloads. No test copies the body of a setup method.
 - Each test has `// Arrange`, `// Act`, and `// Assert` comments, one behavior, and no `if`, loop, or `try` in its body.
@@ -2644,7 +2658,7 @@ Use cases of the store base classes. The phases add the use cases of the other b
 
 ## 6. Risks
 
-- **Duplicate emails.** Delivery is at-least-once. If the process stops after SES accepts an email and before `RecordTryAsync`, the email is sent again. SES has no idempotency key, so this risk stays. The second success is a second publish try, so the history shows the duplicate.
+- **Duplicate emails.** Delivery is at-least-once. If the process stops after SES accepts an email and before `RecordTryAsync`, the email is sent again. SES has no idempotency key, so this risk stays. Resend keeps the `Idempotency-Key` of each send for 24 hours (D138), so a repeated try within that time sends no second email. The second success is a second publish try, so the history shows the duplicate.
 - **Lease and buffer.** A message can wait in the work queue before its send. If its lease ends, another instance can claim and send it too. Both senders then record try number 1, the store ignores the second record, and the history shows one try for two sends. The lease safety margin (section 4.9) prevents this in normal operation. Keep `Lease` much longer than the slowest send.
 - **Contract discipline.** The golden-file tests find a breaking change only in a type that has samples. A consumer type with no samples can still break the reading of stored records. Such a failure gives `Errors.SerializationFailed`, a permanent error. `docs/stores.md` and the example app show how to add samples.
 - **Storage growth.** Finished messages and their publish tries stay in the store until `IDeliveryManager.PurgeAsync` deletes them (D128). The host calls it from its own timer with its retention, and a host that never calls it keeps each message. The retention is also the window of the duplicate detection of the inbox. `MaxTryCount` limits the number of tries for each message.

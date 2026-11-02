@@ -285,9 +285,9 @@ The commits differ from the items: the `MsgHatch.Email` project came in commit 1
 
 Done when: the build has no errors and no warnings, all tests pass, and the end-to-end test finds a rendered email in the in-memory outbox.
 
-### Phase 4: email delivery with Amazon SES
+### Phase 4: email delivery with Amazon SES and Resend
 
-Goal: the email publisher sends the emails of the outbox through `IEmailClient`, with Amazon SES as the first client.
+Goal: the email publisher sends the emails of the outbox through `IEmailClient`, with Amazon SES as the first client and Resend as the second.
 
 1. Add `IEmailClient` (section 4.6), `EmailClientLoggingWrapper`, `EmailTransport : ITransport`, and `UseEmailClient<TClient>` with its factory overload (D129). With a `redirectTo` value, the email transport replaces `To` with it, and removes `Cc` and `Bcc`. Add the contract base class `TransportTestsBase<TTransport>` with `ITransportTestDriver` in `tests/MsgHatch.Domain.Tests.Unit/Contracts/`, and its first subclass `EmailTransportUnitTests`.
 2. Add `src/MsgHatch.Email.AmazonSES` with `AmazonSesOptions` and its validator (section 4.4), `AmazonSimpleEmailServiceClient : IEmailClient`, and `UseAmazonSes` with its overload `UseAmazonSes(string senderEmail)`, which sets the one required option in code (section 4.7). Add `tests/MsgHatch.Email.AmazonSES.Tests.Unit`, the contract base class `EmailClientTestsBase<TClient>` with `IEmailClientTestDriver` in `tests/MsgHatch.Email.Tests.Unit/Contracts/`, and its subclass `AmazonSimpleEmailServiceClientUnitTests`:
@@ -298,6 +298,11 @@ Goal: the email publisher sends the emails of the outbox through `IEmailClient`,
 3. Add the startup validation rules of these packages.
 4. First decide the result of a transport or an upgrade function that throws, and record the decision in the design. From phase 2, the dispatcher logs `Errors.Exception` and records no try (section 4.8). So the message is claimed again after each lease, and never reaches `Failed`. A change of the dispatcher gets its own commit, with its tests.
 5. Add `tests/MsgHatch.Email.AmazonSES.Tests.Integration` with `AmazonSimpleEmailServiceClientIntegTests` (section 5.5, D124). The SES account comes from the section `SesIntegration` of `appsettings.json`, which holds no secret, and of `appsettings.Local.json`, which git ignores. The SES client of the tests uses only these credentials, and each test is skipped while its settings are not complete. The default recipient is the SES mailbox simulator `success@simulator.amazonses.com`.
+6. Add `src/MsgHatch.Email.Resend` with `ResendOptions` and its validator (section 4.4), `ResendEmailClient : IEmailClient` on the REST API of Resend through `IHttpClientFactory` (D138), and `UseResend` (section 4.7). Add `tests/MsgHatch.Email.Resend.Tests.Unit` with the subclass `ResendEmailClientUnitTests` of `EmailClientTestsBase`, and a fake HTTP handler as the Resend API:
+   - A send posts one JSON request to `/emails` with `from`, `to`, `subject`, `html`, `text`, `cc`, `bcc`, and the tag `msghatch-id`, and returns the `id` of the response in the receipt. It sends the API key as a Bearer token, a `User-Agent` header, which Resend requires, and the outgoing message id as the `Idempotency-Key`.
+   - The client converts each error response and each exception into an `Error`, and does not throw. 429 gives `Errors.RateLimited`. A 5xx response, an `HttpRequestException`, and 409 `concurrent_idempotent_requests` give `Errors.Unavailable`. An error of the API key gives `Errors.Unavailable` and logs at the Critical level, because an administrator must act. Each other 4xx response gives `Errors.Rejected`. The error message names only the HTTP status and the error name of Resend.
+   - `CheckHealthAsync` calls `GET /domains`. A 2xx response and 401 `restricted_api_key` give null, 429 gives `Errors.RateLimited`, and each other answer gives `Errors.Unavailable`.
+7. Add `tests/MsgHatch.Email.Resend.Tests.Integration` with `ResendEmailClientIntegTests` (section 5.5, D124). The API key comes from the section `ResendIntegration` of `appsettings.Local.json`, which git ignores. `appsettings.json` holds the default sender `onboarding@resend.dev` and the default recipient `delivered@resend.dev`. Each test is skipped while the API key is empty.
 
 Tests:
 - The use cases of `TransportTestsBase`, run by `EmailTransportUnitTests` with an `IEmailClient` substitute as the driver: a success gives the receipt of the provider, a transient error and a permanent error come back as values, and a cancelled token gives `Errors.OperationCancelled`.
@@ -310,14 +315,21 @@ Tests:
 - A publisher host with only `UseAmazonSes` sends only the email channel. The other messages of the same outbox stay pending (D101).
 - `UseAmazonSes(string senderEmail)` sends from that address, and the value wins over the section `MsgHatch:AmazonSes`.
 - The SES integration tests, against a real SES account: an email with accented letters gives the message id of SES, a sender name with accented letters (RFC 2047) gives the message id of SES, a sender address with an accented local part gives `Errors.Rejected`, and `CheckHealthAsync` gives null. A run with no account reports each test as skipped.
+- The use cases of `EmailClientTestsBase`, run by `ResendEmailClientUnitTests` with the fake HTTP handler as the driver.
+- Tests unique to Resend: the JSON of the request, with and without the html body and the copies. The three headers. One data-driven row for each HTTP status and error name, and for each exception. The Critical log of an API key error, with no address in it. The rows of the health check. The sender address rule.
+- The options tests of `ResendOptions`. `ApiKey` gets null, empty, only whitespace, and a value. `SenderEmail` gets null, empty, only whitespace, a value with no `@`, a value, and a value with `<` and `>`. `SenderName` gets the lengths 99, 100, and 101.
+- `UseResend` alone registers all parts, the options bind from the section `MsgHatch:Resend`, a value from code wins, and a missing `ApiKey` or `SenderEmail` stops the start.
+- The Resend integration tests, against a real Resend account: an email with accented letters and a sender name with accented letters give the id of Resend, a second send with the same message id gives the id of the first send, a wrong API key gives `Errors.Unavailable` for a send and for the health check, and `CheckHealthAsync` gives null. A run with no API key reports each test as skipped.
 
 Commits:
 1. "Add the email transport and the email client contract"
 2. "Add the Amazon SES email client"
 3. "Add UseAmazonSes with the sender address as a string"
 4. "Add the Amazon SES integration tests"
+5. "Add the Resend email client"
+6. "Add the Resend integration tests"
 
-Done when: the build has no errors and no warnings, all tests pass, and the SES integration tests pass with an SES account in `appsettings.Local.json`.
+Done when: the build has no errors and no warnings, all tests pass, and the SES and Resend integration tests pass with their accounts in `appsettings.Local.json`.
 
 ### Phase 5: SignalR channel
 

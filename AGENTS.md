@@ -8,7 +8,7 @@ MsgHatch is a .NET 10 library for message routing, message templates, and delive
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D137), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D138), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -35,6 +35,12 @@ From phase 4 on, the SES integration tests need an Amazon SES account. Put its s
 
 ```bash
 dotnet test tests/MsgHatch.Email.AmazonSES.Tests.Integration
+```
+
+The Resend integration tests need a Resend API key. Put it into `tests/MsgHatch.Email.Resend.Tests.Integration/appsettings.Local.json`, which git ignores. Each run sends 3 emails to the Resend test address `delivered@resend.dev`. With no key, each test is skipped:
+
+```bash
+dotnet test tests/MsgHatch.Email.Resend.Tests.Integration
 ```
 
 From phase 13 on, the benchmarks run in the Release configuration:
