@@ -106,6 +106,29 @@ public static class EmailExtensions
     }
 
     /// <summary>
+    /// Selects an email client, with its logging wrapper, and <see cref="EmailTransport"/> as the transport of the email
+    /// channel, with its logging wrapper (D129). The host is then a publisher of the email channel (D101).
+    /// </summary>
+    /// <typeparam name="TClient">The client type, a thread-safe singleton.</typeparam>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseEmailClient<TClient>(this MsgHatchBuilder builder)
+        where TClient : class, IEmailClient =>
+        builder.UseEmailClient(static services => ActivatorUtilities.CreateInstance<TClient>(services));
+
+    /// <summary>Selects an email client with a factory, for example for a test substitute, and the email transport.</summary>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="factory">The factory of the client.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseEmailClient(this MsgHatchBuilder builder, Func<IServiceProvider, IEmailClient> factory)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(factory);
+        builder.Services.AddSingleton(services => EmailLoggers.Wrap(services, factory(services)));
+        return builder.UseTransport(static services => new EmailTransport(services.GetRequiredService<IEmailClient>()));
+    }
+
+    /// <summary>
     /// Registers the message type on the email channel for one payload type, with
     /// <see cref="EmailComposer{TEvent, TPayload}"/> and the placeholder engine (section 4.7). The composer gets the
     /// payload loader of <c>WithPayload</c> (D136). The content type is <c>Email:{name}</c>. The envelope is the library

@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.SourceGeneration\MsgHatch.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\MsgHatch.Domain.Tests.Unit\MsgHatch.Domain.Tests.Unit.csproj" />
   </ItemGroup>
 
   <ItemGroup>

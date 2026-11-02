@@ -368,6 +368,55 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         Assert.Equal((row, typeof(OptionsValidationException)), (row, exception?.GetType()));
     }
 
+    [Fact]
+    public async Task UseEmailClient_ClientFactory_RegistersTheTransportOfTheEmailChannelThatSendsThroughTheClient()
+    {
+        // Arrange
+        var client = Substitute.For<IEmailClient>();
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseInMemoryStores().UseEmailClient(_ => client);
+        await using var provider = services.Build();
+        var transport = Assert.Single(provider.GetServices<ITransport>());
+        var message = TestMessages.AnOutgoingEmail();
+
+        // Act
+        await transport.SendAsync(message, redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(EmailChannel.Id, transport.Channel);
+        await client.Received(1).SendAsync(message.Delivery.Id, message.Envelope, Ct);
+    }
+
+    [Fact]
+    public async Task UseEmailClient_ClientType_SendsThroughAClientOfThatType()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseInMemoryStores().UseEmailClient<FixedReceiptEmailClient>();
+        await using var provider = services.Build();
+
+        // Act
+        var result = await provider.GetRequiredService<ITransport>().SendAsync(TestMessages.AnOutgoingEmail(), redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(FixedReceiptEmailClient.Receipt, result.Value);
+    }
+
+    [Fact]
+    public async Task Validate_TwoEmailClients_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseInMemoryStores().UseEmailClient<FixedReceiptEmailClient>().UseEmailClient(_ => Substitute.For<IEmailClient>());
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
     private static void TwoOrderEmails(
         MsgHatchBuilder builder, Action<PayloadBuilder<TestEvent, OrderEmail>> first, Action<PayloadBuilder<OtherTestEvent, OrderEmail>> second) =>
         builder.UseTestTemplates()

@@ -21,6 +21,11 @@ internal static class EmailLoggers
         new EmailTemplateEngineLoggingWrapper<TPayload>(
             engine, key, For<EmailTemplateEngineLoggingWrapper<TPayload>>(services), services.GetRequiredService<TimeProvider>());
 
+    public static IEmailClient Wrap(IServiceProvider services, IEmailClient client) =>
+        IsEnabled(services)
+            ? new EmailClientLoggingWrapper(client, For<EmailClientLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())
+            : client;
+
     private static bool IsEnabled(IServiceProvider services) =>
         services.GetRequiredService<IOptions<MsgHatchOptions>>().Value.EnableLogging;
 
