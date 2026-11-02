@@ -31,6 +31,12 @@ The coverage report of the unit tests (PowerShell 7). It writes `artifacts/cover
 pwsh ./coverage.ps1
 ```
 
+From phase 4 on, the SES integration tests need an Amazon SES account. Put its settings into `tests/MsgHatch.Email.AmazonSES.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. With no account, each test is skipped:
+
+```bash
+dotnet test tests/MsgHatch.Email.AmazonSES.Tests.Integration
+```
+
 From phase 13 on, the benchmarks run in the Release configuration:
 
 ```bash

@@ -290,13 +290,14 @@ Done when: the build has no errors and no warnings, all tests pass, and the end-
 Goal: the email publisher sends the emails of the outbox through `IEmailClient`, with Amazon SES as the first client.
 
 1. Add `IEmailClient` (section 4.6), `EmailClientLoggingWrapper`, `EmailTransport : ITransport`, and `UseEmailClient<TClient>` with its factory overload (D129). With a `redirectTo` value, the email transport replaces `To` with it, and removes `Cc` and `Bcc`. Add the contract base class `TransportTestsBase<TTransport>` with `ITransportTestDriver` in `tests/MsgHatch.Domain.Tests.Unit/Contracts/`, and its first subclass `EmailTransportUnitTests`.
-2. Add `src/MsgHatch.Email.AmazonSES` with `AmazonSesOptions` and its validator (section 4.4), `AmazonSimpleEmailServiceClient : IEmailClient`, and `UseAmazonSes` (section 4.7). Add `tests/MsgHatch.Email.AmazonSES.Tests.Unit`, the contract base class `EmailClientTestsBase<TClient>` with `IEmailClientTestDriver` in `tests/MsgHatch.Email.Tests.Unit/Contracts/`, and its subclass `AmazonSimpleEmailServiceClientUnitTests`:
+2. Add `src/MsgHatch.Email.AmazonSES` with `AmazonSesOptions` and its validator (section 4.4), `AmazonSimpleEmailServiceClient : IEmailClient`, and `UseAmazonSes` with its overload `UseAmazonSes(string senderEmail)`, which sets the one required option in code (section 4.7). Add `tests/MsgHatch.Email.AmazonSES.Tests.Unit`, the contract base class `EmailClientTestsBase<TClient>` with `IEmailClientTestDriver` in `tests/MsgHatch.Email.Tests.Unit/Contracts/`, and its subclass `AmazonSimpleEmailServiceClientUnitTests`:
    - `UseAmazonSes` registers `IAmazonSimpleEmailServiceV2` with `TryAddSingleton`, as an `AmazonSimpleEmailServiceV2Client` for `AmazonSesOptions.Region`, or for the region of the AWS SDK configuration when `Region` is null.
    - A send calls `SendEmailAsync` one time, and returns the `MessageId` of the response in the receipt. The client writes the outgoing message id into the email tag `msghatch-id`.
    - The client converts each exception into an `Error`, and does not throw. `TooManyRequestsException` and `LimitExceededException` give `Errors.RateLimited`. `SendingPausedException`, `AccountSuspendedException`, `HttpRequestException`, and an HTTP 5xx response give `Errors.Unavailable`. The account-level errors log at the Critical level, because an administrator must act. `MessageRejectedException`, `BadRequestException`, `MailFromDomainNotVerifiedException`, and `NotFoundException` give `Errors.Rejected`.
    - `CheckHealthAsync` calls `GetAccountAsync`. It gives `Errors.Unavailable` when the response has `SendingEnabled` false, because SES then refuses each send, and the channel must stay down (D106). First check the property name in the package version.
 3. Add the startup validation rules of these packages.
 4. First decide the result of a transport or an upgrade function that throws, and record the decision in the design. From phase 2, the dispatcher logs `Errors.Exception` and records no try (section 4.8). So the message is claimed again after each lease, and never reaches `Failed`. A change of the dispatcher gets its own commit, with its tests.
+5. Add `tests/MsgHatch.Email.AmazonSES.Tests.Integration` with `AmazonSimpleEmailServiceClientIntegTests` (section 5.5, D124). The SES account comes from the section `SesIntegration` of `appsettings.json`, which holds no secret, and of `appsettings.Local.json`, which git ignores. The SES client of the tests uses only these credentials, and each test is skipped while its settings are not complete. The default recipient is the SES mailbox simulator `success@simulator.amazonses.com`.
 
 Tests:
 - The use cases of `TransportTestsBase`, run by `EmailTransportUnitTests` with an `IEmailClient` substitute as the driver: a success gives the receipt of the provider, a transient error and a permanent error come back as values, and a cancelled token gives `Errors.OperationCancelled`.
@@ -307,12 +308,16 @@ Tests:
 - `UseAmazonSes` alone registers all parts: `IEmailClient` resolves as its logging wrapper around `AmazonSimpleEmailServiceClient`, and `IAmazonSimpleEmailServiceV2` resolves. An `IAmazonSimpleEmailServiceV2` that the test registered first stays.
 - The standard logging wrapper tests for the email client wrapper. A log record never contains an email address or a subject.
 - A publisher host with only `UseAmazonSes` sends only the email channel. The other messages of the same outbox stay pending (D101).
+- `UseAmazonSes(string senderEmail)` sends from that address, and the value wins over the section `MsgHatch:AmazonSes`.
+- The SES integration tests, against a real SES account: an email with accented letters gives the message id of SES, a sender name with accented letters (RFC 2047) gives the message id of SES, a sender address with an accented local part gives `Errors.Rejected`, and `CheckHealthAsync` gives null. A run with no account reports each test as skipped.
 
 Commits:
 1. "Add the email transport and the email client contract"
 2. "Add the Amazon SES email client"
+3. "Add UseAmazonSes with the sender address as a string"
+4. "Add the Amazon SES integration tests"
 
-Done when: the build has no errors and no warnings, and all tests pass.
+Done when: the build has no errors and no warnings, all tests pass, and the SES integration tests pass with an SES account in `appsettings.Local.json`.
 
 ### Phase 5: SignalR channel
 
