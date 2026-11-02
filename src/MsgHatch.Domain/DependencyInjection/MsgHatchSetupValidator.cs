@@ -6,14 +6,16 @@ using MsgHatch.Domain.Outbox;
 namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
-/// The startup validation of the setup for the role of an event consumer (section 4.7): the outbox stores, one
-/// selection for each interface (D62), one transport for each channel (D129), a router for each message type (D95),
-/// unique content types, and unique message type names.
+/// The startup validation of the setup (section 4.7): the outbox stores, one selection for each interface (D62), one
+/// transport for each channel (D129), unique content types, and unique message type names. With the role
+/// <see cref="MsgHatchRoles.Consumer"/>, a router for each message type (D95), and with the role
+/// <see cref="MsgHatchRoles.Publisher"/>, at least one transport (D105).
 /// </summary>
 internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatchSetup setup) : IValidateOptions<MsgHatchSetupCheck>
 {
     public ValidateOptionsResult Validate(string? name, MsgHatchSetupCheck options)
     {
+        var roles = services.GetRequiredService<IOptions<MsgHatchOptions>>().Value.Roles;
         string[] failures =
         [
             .. MissingOutboxStores(),
@@ -21,10 +23,16 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
             .. DuplicateTransports(),
             .. DuplicateContentTypes(),
             .. DuplicateMessageTypes(),
-            .. MessageTypesWithNoRouter(),
+            .. roles.HasFlag(MsgHatchRoles.Consumer) ? MessageTypesWithNoRouter() : [],
+            .. roles.HasFlag(MsgHatchRoles.Publisher) ? MissingTransport() : [],
         ];
         return failures.Length == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
+
+    private IEnumerable<string> MissingTransport() =>
+        services.GetServices<ITransport>().Any()
+            ? []
+            : ["The host has the role Publisher, but no setup method registers a transport, for example UseAmazonSes."];
 
     private IEnumerable<string> MissingOutboxStores() =>
         new[] { typeof(IOutboxStore), typeof(IOutboxDispatchStore) }

@@ -273,6 +273,21 @@ public sealed class MsgHatchBuilder
         return this;
     }
 
+    /// <summary>
+    /// Changes the test delivery of one channel (D83). A value from code wins over the section
+    /// <c>MsgHatch:TestDelivery:{Channel}</c>.
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="configure">The change of the options.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder ConfigureTestDelivery(ChannelId channel, Action<TestDeliveryOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        AddChannelOptions(channel);
+        Services.Configure(channel.Name, configure);
+        return this;
+    }
+
     private void AddChannelOptions(ChannelId channel)
     {
         if (!Setup.ChannelsWithOptions.Add(channel))
@@ -284,6 +299,10 @@ public sealed class MsgHatchBuilder
             .BindConfiguration($"{ChannelDownOptions.SectionName}:{channel.Name}")
             .ValidateOnStart();
         Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ChannelDownOptions>, ChannelDownOptionsValidator>());
+        Services.AddOptions<TestDeliveryOptions>(channel.Name)
+            .BindConfiguration($"{TestDeliveryOptions.SectionName}:{channel.Name}")
+            .ValidateOnStart();
+        Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TestDeliveryOptions>, TestDeliveryOptionsValidator>());
     }
 
     private MsgHatchBuilder AddInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory, string setupMethod)

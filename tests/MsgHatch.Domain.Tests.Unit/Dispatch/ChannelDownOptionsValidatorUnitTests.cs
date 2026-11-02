@@ -96,7 +96,7 @@ public sealed class ChannelDownOptionsValidatorUnitTests
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatch().AddTestChannel().UseInMemoryStores().ConfigureChannelDown(TestChannel.Id, static o => o.ErrorThreshold = 0);
+        services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseTransport(static _ => TestTransports.For(TestChannel.Id)).ConfigureChannelDown(TestChannel.Id, static o => o.ErrorThreshold = 0);
         await using var provider = services.Build();
 
         // Act

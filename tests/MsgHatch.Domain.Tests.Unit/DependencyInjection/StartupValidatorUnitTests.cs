@@ -19,7 +19,7 @@ public sealed class StartupValidatorUnitTests
     {
         // Arrange
         var services = TestHost.CreateServices();
-        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores());
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseTransport(static _ => TestTransports.For(TestChannel.Id)));
         await using var provider = services.Build();
 
         // Act

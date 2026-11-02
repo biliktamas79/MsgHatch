@@ -182,6 +182,7 @@ public sealed class MessageBuilderUnitTests
         services.AddMsgHatch()
             .AddTestChannel()
             .UseInMemoryStores()
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id))
             .UseRouter(typeof(TestOpenRouter<>))
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
                 .AsChannel(

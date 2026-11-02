@@ -44,4 +44,36 @@ public sealed class MsgHatchOptionsValidatorUnitTests
         // Assert
         Assert.Equal(expectedFailedProperties, OptionsFailures.FailedProperties(result));
     }
+
+    public static TheoryData<MsgHatchRoles, string[]> RolesRows => new()
+    {
+        { MsgHatchRoles.None, [nameof(MsgHatchOptions.Roles)] },
+        { MsgHatchRoles.Consumer, [] },
+        { MsgHatchRoles.Publisher, [] },
+        { MsgHatchRoles.Consumer | MsgHatchRoles.Publisher, [] },
+    };
+
+    [Fact]
+    public void Roles_Default_IsBothRoles()
+    {
+        // Act
+        var options = new MsgHatchOptions();
+
+        // Assert
+        Assert.Equal(MsgHatchRoles.Consumer | MsgHatchRoles.Publisher, options.Roles);
+    }
+
+    [Theory]
+    [MemberData(nameof(RolesRows))]
+    public void Validate_Roles_FailsForNoRole(MsgHatchRoles value, string[] expectedFailedProperties)
+    {
+        // Arrange
+        var options = new MsgHatchOptions { Roles = value };
+
+        // Act
+        var result = new MsgHatchOptionsValidator().Validate(null, options);
+
+        // Assert
+        Assert.Equal(expectedFailedProperties, OptionsFailures.FailedProperties(result));
+    }
 }

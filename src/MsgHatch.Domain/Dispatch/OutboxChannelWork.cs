@@ -16,7 +16,8 @@ namespace MsgHatch.Domain.Dispatch;
 // ponytail: fixed check interval, a growing interval if long outages need it
 internal sealed class OutboxChannelWork(
     ITransport transport, IOutboxDispatchStore store, DispatchOptions options, ChannelDownOptions downOptions,
-    IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time, ILogger logger) : IDispatchWork<OutgoingMessage>
+    TestDeliveryOptions testDelivery, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time, ILogger logger)
+    : IDispatchWork<OutgoingMessage>
 {
     private volatile ChannelDown? _down;
     private int _errorsInARow;
@@ -113,7 +114,17 @@ internal sealed class OutboxChannelWork(
             return await RecordAsync(message, expired, nextTryAtUtc: null, ct);
         }
 
-        var sent = await transport.SendAsync(message, redirectTo: null, ct);
+        var isTest = message.Flags.HasFlag(MessageFlags.Test);
+        if (isTest && testDelivery.Mode == TestDeliveryMode.Suppress)
+        {
+            var suppressed = new PublishTry(
+                message.Delivery.Id, tryNumber, startedAtUtc, startedAtUtc, PublishOutcome.Suppressed, ProviderMessageId: null,
+                ErrorCode: null, ErrorName: null, ErrorMessage: null);
+            return await RecordAsync(message, suppressed, nextTryAtUtc: null, ct);
+        }
+
+        var redirectTo = isTest && testDelivery.Mode == TestDeliveryMode.Redirect ? testDelivery.RedirectTo : null;
+        var sent = await transport.SendAsync(message, redirectTo, ct);
         var finishedAtUtc = time.GetUtcNowDateTime();
         return IsCancelledSend(sent)
             ? ItemResult.None

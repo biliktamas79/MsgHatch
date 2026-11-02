@@ -207,6 +207,20 @@ public sealed class InboxProcessorUnitTests
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_TestMessage_GivesTheTestFlagToEachOutgoingMessage()
+    {
+        // Arrange
+        await using var provider = Build();
+        await AddAsync(provider, AMessage() with { Flags = MessageFlags.Test });
+
+        // Act
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        Assert.Equal([MessageFlags.Test], provider.GetRequiredService<InMemoryOutboxStore>().GetMessages().Select(static m => m.Flags));
+    }
+
+    [Fact]
     public async Task ProcessPendingAsync_BatchSizeZero_ReturnsValidationFailed()
     {
         // Arrange
