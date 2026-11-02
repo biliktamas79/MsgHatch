@@ -26,8 +26,7 @@ public sealed class MessageBuilder<TEvent>
     /// <summary>The service collection, for the extension methods of other packages.</summary>
     public IServiceCollection Services => _parent.Services;
 
-    /// <summary>The builder of the setup, for the channel registrations of other packages, which call <c>AddChannelType</c>.</summary>
-    public MsgHatchBuilder Parent => _parent;
+    internal MsgHatchBuilder Parent => _parent;
 
     /// <summary>Selects the router of this message type. It wins over the open generic router of <c>UseRouter</c> (D99).</summary>
     /// <typeparam name="TRouter">The router type, a tenant service.</typeparam>
@@ -89,6 +88,41 @@ public sealed class MessageBuilder<TEvent>
         ArgumentNullException.ThrowIfNull(factory);
         _registration.TryAddLoader(typeof(TPayload), loader: null);
         return AddPayloadLoader(factory);
+    }
+
+    /// <summary>
+    /// Registers the payload loader of one payload type apart from the channels, and the channel registrations that use
+    /// that payload type (D136). The loader is a tenant service with its logging wrapper. In one DI scope, the composers of
+    /// these channel registrations get the same loader instance (D135).
+    /// </summary>
+    /// <typeparam name="TPayload">The type of the template payload.</typeparam>
+    /// <typeparam name="TLoader">The loader type, a tenant service.</typeparam>
+    /// <param name="channels">The channel registrations of the payload type, for example <c>p =&gt; p.AsEmail("OrderShippedEmail")</c>.</param>
+    /// <returns>This builder.</returns>
+    public MessageBuilder<TEvent> WithPayload<TPayload, TLoader>(Action<PayloadBuilder<TEvent, TPayload>> channels)
+        where TLoader : class, IPayloadLoader<TEvent, TPayload>
+    {
+        ArgumentNullException.ThrowIfNull(channels);
+        UsePayloadLoader<TPayload, TLoader>();
+        channels(new PayloadBuilder<TEvent, TPayload>(this));
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the payload loader of one payload type with a factory, for example for a test substitute, and the
+    /// channel registrations that use that payload type (D136).
+    /// </summary>
+    /// <typeparam name="TPayload">The type of the template payload.</typeparam>
+    /// <param name="loader">The factory of the loader of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="channels">The channel registrations of the payload type.</param>
+    /// <returns>This builder.</returns>
+    public MessageBuilder<TEvent> WithPayload<TPayload>(
+        Func<IServiceProvider, TenantKey, IPayloadLoader<TEvent, TPayload>> loader, Action<PayloadBuilder<TEvent, TPayload>> channels)
+    {
+        ArgumentNullException.ThrowIfNull(channels);
+        UsePayloadLoader(loader);
+        channels(new PayloadBuilder<TEvent, TPayload>(this));
+        return this;
     }
 
     private MessageBuilder<TEvent> AddPayloadLoader<TPayload>(Func<IServiceProvider, TenantKey, IPayloadLoader<TEvent, TPayload>> factory)

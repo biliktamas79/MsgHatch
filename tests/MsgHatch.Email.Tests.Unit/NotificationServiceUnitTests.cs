@@ -26,7 +26,7 @@ public sealed class NotificationServiceUnitTests
         // Arrange
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores().UseTestTemplates()
-            .AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderShippedEmail"), name: "OrderShipped");
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderShippedEmail")), name: "OrderShipped");
         await using var provider = services.Build();
 
         // Act
@@ -51,7 +51,7 @@ public sealed class NotificationServiceUnitTests
         // Arrange
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores().UseTestTemplates()
-            .AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderShippedEmail"), name: "OrderShipped");
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderShippedEmail")), name: "OrderShipped");
         await using var provider = services.Build();
 
         // Act
@@ -68,7 +68,7 @@ public sealed class NotificationServiceUnitTests
         var prepares = new List<(TenantKey Key, string Language)>();
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores()
-            .AddTestEvent(m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderShippedEmail", (_, key) => AnEngineRecordingTo(prepares, key)));
+            .AddTestEvent(m => m.WithPayload<OrderEmail, TestOrderLoader>(p => p.AsEmail("OrderShippedEmail", (_, key) => AnEngineRecordingTo(prepares, key))));
         await using var provider = services.Build();
 
         // Act

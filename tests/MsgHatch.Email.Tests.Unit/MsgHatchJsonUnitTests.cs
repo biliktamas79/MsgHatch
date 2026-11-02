@@ -15,7 +15,7 @@ public sealed class MsgHatchJsonUnitTests
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatch().AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+        services.AddMsgHatch().AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         await using var provider = services.Build();
 
         // Act

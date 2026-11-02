@@ -205,6 +205,7 @@ public sealed class StartupValidatorUnitTests
         "SecondRegistrationOnTheSameChannel",
         "TwoChannelRegistrationsWithTheSameEnvelopeType",
         "TwoLoaderTypesForOnePayloadType",
+        "TwoPayloadRegistrationsWithTwoLoaderTypesForOnePayloadType",
     ];
 
     [Theory]
@@ -256,6 +257,11 @@ public sealed class StartupValidatorUnitTests
         "TwoChannelRegistrationsWithTheSameEnvelopeType" => m
             .AsChannel(TestChannel.Id, "First", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>())
             .AsChannel(TestChannel.SecondId, "Second", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()),
+        "TwoPayloadRegistrationsWithTwoLoaderTypesForOnePayloadType" => m
+            .WithPayload<TestPayload, TestPayloadLoader>(static p => p
+                .AsChannel<TestEnvelope, PayloadTestComposer>(TestChannel.Id, "First", 1, TestJsonContext.Default.TestEnvelope))
+            .WithPayload<TestPayload, OtherTestPayloadLoader>(static p => p
+                .AsChannel<OtherTestEnvelope, OtherPayloadTestComposer>(TestChannel.SecondId, "Second", 1, TestJsonContext.Default.OtherTestEnvelope)),
         _ => m
             .UsePayloadLoader<TestPayload, TestPayloadLoader>()
             .UsePayloadLoader<TestPayload, OtherTestPayloadLoader>()

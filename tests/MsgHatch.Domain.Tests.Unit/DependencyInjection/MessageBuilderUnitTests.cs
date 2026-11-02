@@ -17,17 +17,61 @@ public sealed class MessageBuilderUnitTests
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
     [Fact]
-    public void Parent_BuilderOfAddMessage_IsTheBuilderThatAddMessageReturns()
+    public void WithPayload_PayloadBuilder_GivesTheBuilderAndTheServicesOfTheSetup()
     {
         // Arrange
-        var builder = TestHost.CreateServices().AddMsgHatch();
-        MsgHatchBuilder? parent = null;
+        var services = TestHost.CreateServices();
+        var builder = services.AddMsgHatch();
+        (MsgHatchBuilder Parent, IServiceCollection Services)? payload = null;
 
         // Act
-        var returned = builder.AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => parent = m.Parent);
+        builder.AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
+            .WithPayload<TestPayload, TestPayloadLoader>(p => payload = (p.Parent, p.Services)));
 
         // Assert
-        Assert.Same(returned, parent);
+        Assert.Same(builder, payload?.Parent);
+        Assert.Same(services, payload?.Services);
+    }
+
+    [Fact]
+    public async Task WithPayload_TwoChannelRegistrations_GivesTheirComposersOneLoaderInstanceInOneScope()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel().AddSecondTestChannel()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .WithPayload<TestPayload, TestPayloadLoader>(static p => p
+                    .AsChannel<TestEnvelope, PayloadTestComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope)
+                    .AsChannel<OtherTestEnvelope, OtherPayloadTestComposer>(TestChannel.SecondId, "OtherEnvelope", 1, TestJsonContext.Default.OtherTestEnvelope)));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var first = (PayloadTestComposer)scope.ServiceProvider.GetRequiredService<IEnvelopeComposer<TestEvent, TestEnvelope>>();
+        var second = (OtherPayloadTestComposer)scope.ServiceProvider.GetRequiredService<IEnvelopeComposer<TestEvent, OtherTestEnvelope>>();
+
+        // Assert
+        Assert.Same(first.Loader, second.Loader);
+    }
+
+    [Fact]
+    public async Task WithPayload_LoaderFactory_RegistersTheLoaderOfTheFactoryForTheChannelRegistrations()
+    {
+        // Arrange
+        var loader = Substitute.For<IPayloadLoader<TestEvent, TestPayload>>();
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false).AddTestChannel()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
+                .WithPayload((_, _) => loader, static p => p
+                    .AsChannel<TestEnvelope, PayloadTestComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope)));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var composer = (PayloadTestComposer)scope.ServiceProvider.GetRequiredKeyedService<IEnvelopeComposer<TestEvent, TestEnvelope>>(_t1);
+
+        // Assert
+        Assert.Same(loader, composer.Loader);
     }
 
     [Fact]

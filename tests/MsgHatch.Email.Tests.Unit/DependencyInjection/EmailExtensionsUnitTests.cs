@@ -38,7 +38,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatchWithStores().UseTestTemplates().AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+        services.AddMsgHatchWithStores().UseTestTemplates().AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         await using var provider = services.Build();
 
         // Act
@@ -58,10 +58,10 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         // Arrange
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores().UseTestTemplates()
-            .AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"))
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")))
             .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m
                 .WithRouter<TwoEmailRoutesRouter<OtherTestEvent>>()
-                .AsEmail<OtherTestEvent, OrderEmail, OtherOrderLoader>("OtherEmail"));
+                .WithPayload<OrderEmail, OtherOrderLoader>(static p => p.AsEmail("OtherEmail")));
         await using var provider = services.Build();
 
         // Act
@@ -79,7 +79,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         // Arrange
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores(enableLogging: false)
-            .AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader, KeyCapturingEngine>("OrderEmail"));
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services))));
         await using var provider = services.Build();
         await using var scope = provider.CreateAsyncScope();
 
@@ -193,7 +193,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatchWithStores().UseFileTemplates().AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+        services.AddMsgHatchWithStores().UseFileTemplates().AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         await using var provider = services.Build();
 
         // Act
@@ -211,7 +211,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         var services = TestHost.CreateServices();
         var builder = services.AddMsgHatchWithStores();
         templateStores(builder);
-        builder.AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+        builder.AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         await using var provider = services.Build();
 
         // Act
@@ -226,7 +226,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatchWithStores().AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+        services.AddMsgHatchWithStores().AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         await using var provider = services.Build();
 
         // Act
@@ -242,7 +242,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         // Arrange
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseTransport(static _ => EmailHost.AnEmailTransport())
-            .AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         await using var provider = services.Build();
 
         // Act
@@ -257,7 +257,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatchWithStores().AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader, KeyCapturingEngine>("OrderEmail"));
+        services.AddMsgHatchWithStores().AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services))));
         await using var provider = services.Build();
 
         // Act
@@ -275,7 +275,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         var services = TestHost.CreateServices();
         var builder = services.AddMsgHatchWithStores();
         templateStores(builder);
-        builder.AddTestEvent(static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+        builder.AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         await using var provider = services.Build();
 
         // Act

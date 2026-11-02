@@ -245,14 +245,15 @@ Goal: flow steps 3 to 5 for email. The rendered emails are in the in-memory outb
 1. Add `src/MsgHatch.SourceGeneration` with the generator of section 4.10, and `tests/MsgHatch.SourceGeneration.Tests.Unit`.
 2. Add `src/MsgHatch.Email` with `EmailChannel`, `EmailChannelSettings`, `EmailMessage`, and `RenderedEmail` (section 4.4), and `tests/MsgHatch.Email.Tests.Unit`.
 3. Add `Engines/EmailTemplateRequest.cs`, `IEmailTemplateEngine.cs`, `IEmailTemplate.cs`, and `EmailTemplateEngineLoggingWrapper<TPayload>`.
-4. Add the email composer `EmailComposer<TEvent, TPayload> : IEnvelopeComposer<TEvent, EmailMessage>` (section 4.8, step 4). It calls the payload loader of its registration and the template engine.
+4. Add the email composer `EmailComposer<TEvent, TPayload> : IEnvelopeComposer<TEvent, EmailMessage>` (section 4.8, step 4). It calls the payload loader of its payload registration (D136) and the template engine.
 5. Add `Templates/TemplateKey.cs`, `TemplateLookup.cs`, `TemplatePartKind.cs`, `TemplatePart.cs`, `TemplateSource.cs`, `ITemplateStore.cs`, the internal `TemplateSelector` with the fallback of D123, and `TemplateStoreLoggingWrapper`.
 6. Add the internal `TemplateParser`, `ParsedTemplate`, and `ParsedTemplateCache<TPayload>`.
 7. Add `Placeholders/PlaceholderPayloadAttribute.cs`, `IPlaceholderPayload.cs`, and `IPlaceholderWriter.cs`.
 8. Add the internal `PooledCharBufferWriter`, the internal `PlaceholderRenderer`, and `PlaceholderEmailEngine<TPayload>`. Add the contract base class `EmailTemplateEngineTestsBase<TEngine>` with `IEmailTemplateTestData` in `tests/MsgHatch.Email.Tests.Unit/Contracts/`, and its subclass `PlaceholderEmailEngineUnitTests`.
 9. Add `FileTemplateOptions` with its validator, `FileSystemTemplateStore`, and `EmbeddedResourceTemplateStore`, each with the cache of its sources (section 4.10). Add the contract base class `TemplateStoreTestsBase<TStore>` with `ITemplateStoreTestData`, and its subclasses `FileSystemTemplateStoreUnitTests` and `EmbeddedResourceTemplateStoreUnitTests`.
-10. Add `UseTemplateStore`, `UseTenantTemplateStore`, `UseEmbeddedTemplates`, `UseFileTemplates`, and the two `AsEmail` overloads (section 4.7). Add the startup validation rule for the template store. Add `EmailChannelSettingsValidator`, which the first `AsEmail` registers with `AddChannelType`.
+10. Add `UseTemplateStore`, `UseTenantTemplateStore`, `UseEmbeddedTemplates`, `UseFileTemplates`, and the two `AsEmail` overloads of `PayloadBuilder<TEvent, TPayload>`: the placeholder engine, and another engine from a factory (section 4.7, D136). Add the startup validation rule for the template store. Add `EmailChannelSettingsValidator`, which the first `AsEmail` registers with `AddChannelType`.
 11. Add the `MsgHatch.Email` package content: the generator assembly under `analyzers/dotnet/cs`.
+12. Add `DependencyInjection/PayloadBuilder.cs` and `MessageBuilder<TEvent>.WithPayload` with its factory overload (D136). The loader of a payload type is registered one time, apart from the channel registrations that use it.
 
 Tests:
 - The generated writer writes a `string`, an `int`, a `DateTime` in the culture of the language, and a null nullable property. Writing an `int` and a `DateTime` property allocates 0 bytes.
@@ -266,6 +267,7 @@ Tests:
 - The email composer calls the payload loader one time with all routes, and calls `PrepareAsync` of the engine of its key one time for each language and scope group. It takes `To` from the route address, and uses the culture of the route language. `RenderAsync` receives the route of each email, with its trace unchanged.
 - A route with no address fails with `Errors.ValidationFailed`, and the other routes get their emails. A loader error is the outer error of the composer. A missing template gives `Errors.NotFound` for the messages of that group only.
 - `AsEmail` adds the content type `Email:{name}` to the registry, and two `AsEmail` registrations add the email channel one time. With no retry configuration, an email has no `ExpiresAtUtc` (D94).
+- `WithPayload` with two channel registrations gives their composers one loader instance in one DI scope, also with a loader factory. Two `WithPayload` calls with two loader types for one payload type fail the startup validation (D135).
 - The standard logging wrapper tests for the engine and template store wrappers. A log record never contains an email address or a subject.
 - End to end, with `UseInMemoryStores()`, embedded templates, and a test router: `ProcessAsync` stores a rendered email in the in-memory outbox.
 
@@ -276,6 +278,7 @@ Commits:
 4. "Add template stores, selection, and parsing"
 5. "Add the placeholder engine"
 6. "Add email registration"
+7. "Register payload loaders apart from the channels"
 
 Done when: the build has no errors and no warnings, all tests pass, and the end-to-end test finds a rendered email in the in-memory outbox.
 
@@ -312,8 +315,8 @@ Done when: the build has no errors and no warnings, and all tests pass.
 
 Goal: real-time UI updates, composed by the event consumer and sent by the SignalR publisher.
 
-1. Add `src/MsgHatch.SignalR` with `SignalRChannel`, `SignalRChannelSettings`, `SignalRChannelSettingsValidator`, `ISignalREnvelope`, `SignalREnvelope<TPayload>` (D135), the SignalR composer, `SignalRTransport<THub> : ITransport where THub : Hub`, `UseSignalR<THub>`, and `MessageBuilder<TEvent>.AsSignalR<TPayload, TLoader>`. The first `AsSignalR` registers the channel with `AddChannelType`. The settings validator accepts each settings value, because the subscription manager checks the language (section 4.17). Add `tests/MsgHatch.SignalR.Tests.Unit` with `SignalRTransportUnitTests`, a subclass of `TransportTestsBase`.
-2. The composer calls the payload loader of its registration, and puts each payload into a `SignalREnvelope<TPayload>` (D17, D135).
+1. Add `src/MsgHatch.SignalR` with `SignalRChannel`, `SignalRChannelSettings`, `SignalRChannelSettingsValidator`, `ISignalREnvelope`, `SignalREnvelope<TPayload>` (D135), the SignalR composer, `SignalRTransport<THub> : ITransport where THub : Hub`, `UseSignalR<THub>`, and `PayloadBuilder<TEvent, TPayload>.AsSignalR` (D136). The first `AsSignalR` registers the channel with `AddChannelType`. The settings validator accepts each settings value, because the subscription manager checks the language (section 4.17). Add `tests/MsgHatch.SignalR.Tests.Unit` with `SignalRTransportUnitTests`, a subclass of `TransportTestsBase`.
+2. The composer calls the payload loader of its payload registration, and puts each payload into a `SignalREnvelope<TPayload>` (D17, D135).
 3. The transport sends `ISignalREnvelope.Payload` of `OutgoingMessage.Content` with the message type name as the method name:
    - For a user target, to `Clients.User(SignalRUsers.ForUser(tenant, user))`, with the tenant of the outgoing message. The text is the user id with no tenant, and `{TenantId}:{UserId}` with a tenant. The host's `IUserIdProvider` must give the same text for each connection (D114).
    - For a company target, to `Clients.Group(SignalRGroups.ForCompany(tenant, company))`. The group name is `msghatch:company:{CompanyId}` with no tenant, and `msghatch:{TenantId}:company:{CompanyId}` with a tenant. The host's hub adds each connection to the group of the company of its user, for example in `OnConnectedAsync`.
@@ -336,8 +339,8 @@ Done when: the build has no errors and no warnings, and all tests pass.
 
 Goal: broker messages, composed by the event consumer and sent by the broker publisher through Wolverine (D134).
 
-1. Add `src/MsgHatch.Broker` with `BrokerChannel`, `BrokerChannelSettings`, `BrokerChannelSettingsValidator`, `IBrokerEnvelope`, `BrokerEnvelope<TPayload>`, the broker composer, `BrokerPublish`, `IBrokerClient`, `BrokerClientLoggingWrapper`, `BrokerTransport : ITransport`, `UseBrokerClient<TClient>` with its factory overload, and `MessageBuilder<TEvent>.AsBroker<TPayload, TLoader>`. The first `AsBroker` registers the channel with `AddChannelType`. The settings validator rejects a header with an empty name, and a header name that starts with `msghatch-`, because the library uses these names. Add `tests/MsgHatch.Broker.Tests.Unit` with `BrokerTransportUnitTests`, a subclass of `TransportTestsBase`, and the contract base class `BrokerClientTestsBase<TClient>` with `IBrokerClientTestDriver` in its `Contracts/` folder.
-2. The composer calls the payload loader of its registration. The broker transport builds the headers: the headers of the channel settings, `msghatch-id` with the outgoing message id, `msghatch-tenant` for a message of a tenant, `msghatch-test: true` for a test message, and `msghatch-redirect` with the `redirectTo` value. Then it calls `IBrokerClient.PublishAsync` (section 4.6). So each client only maps these values to its library, and a receiver can find duplicates by `msghatch-id`.
+1. Add `src/MsgHatch.Broker` with `BrokerChannel`, `BrokerChannelSettings`, `BrokerChannelSettingsValidator`, `IBrokerEnvelope`, `BrokerEnvelope<TPayload>`, the broker composer, `BrokerPublish`, `IBrokerClient`, `BrokerClientLoggingWrapper`, `BrokerTransport : ITransport`, `UseBrokerClient<TClient>` with its factory overload, and `PayloadBuilder<TEvent, TPayload>.AsBroker` (D136). The first `AsBroker` registers the channel with `AddChannelType`. The settings validator rejects a header with an empty name, and a header name that starts with `msghatch-`, because the library uses these names. Add `tests/MsgHatch.Broker.Tests.Unit` with `BrokerTransportUnitTests`, a subclass of `TransportTestsBase`, and the contract base class `BrokerClientTestsBase<TClient>` with `IBrokerClientTestDriver` in its `Contracts/` folder.
+2. The composer calls the payload loader of its payload registration. The broker transport builds the headers: the headers of the channel settings, `msghatch-id` with the outgoing message id, `msghatch-tenant` for a message of a tenant, `msghatch-test: true` for a test message, and `msghatch-redirect` with the `redirectTo` value. Then it calls `IBrokerClient.PublishAsync` (section 4.6). So each client only maps these values to its library, and a receiver can find duplicates by `msghatch-id`.
 3. Add `src/MsgHatch.Broker.Wolverine` with `WolverineBrokerClient : IBrokerClient` and `UseWolverineBroker` (section 4.7). Add `tests/MsgHatch.Broker.Wolverine.Tests.Unit` with `WolverineBrokerClientUnitTests`, a subclass of `BrokerClientTestsBase`:
    - The client calls `IMessageBus.PublishAsync` with the payload and a `DeliveryOptions` with the headers and the tenant id. It returns a receipt with no provider id.
    - First check that `PublishAsync` with a payload of the static type `object` routes by the run-time type of the payload, in the pinned version. If it does not, the client calls the generic method through one cached delegate for each payload type.

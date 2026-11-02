@@ -25,7 +25,7 @@ public sealed class EngineHost : IAsyncDisposable
             builder.UseTenantTemplateStore((_, _) => tenantStore);
         }
 
-        builder.AddMessage("TestEvent", 1, TestJsonContext.Default.TestEvent, static m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail"));
+        builder.AddMessage("TestEvent", 1, TestJsonContext.Default.TestEvent, static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
         _provider = services.Build();
         _scope = _provider.CreateAsyncScope();
     }

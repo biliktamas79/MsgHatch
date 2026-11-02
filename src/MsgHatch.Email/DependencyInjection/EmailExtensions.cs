@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Domain.Pipeline;
 using MsgHatch.Email.Engines;
 using MsgHatch.Email.Placeholders;
 using MsgHatch.Email.Templates;
@@ -12,8 +11,8 @@ using MsgHatch.Email.Templates;
 namespace MsgHatch.Email.DependencyInjection;
 
 /// <summary>
-/// The setup methods of the email package (section 4.7, D60, D61). An <c>AsEmail</c> call names the event type as its
-/// first type argument, because C# infers no type argument of the receiver when a call gives the other ones.
+/// The setup methods of the email package (section 4.7, D60, D61). <c>AsEmail</c> extends the payload builder of
+/// <c>WithPayload</c> (D136), so that C# infers the event type and the payload type of a call.
 /// </summary>
 public static class EmailExtensions
 {
@@ -107,57 +106,42 @@ public static class EmailExtensions
     }
 
     /// <summary>
-    /// Registers the message type on the email channel, with <see cref="EmailComposer{TEvent, TPayload}"/> and the
-    /// placeholder engine (section 4.7). The content type is <c>Email:{name}</c>. The envelope is the library type
-    /// <see cref="EmailMessage"/>, so the registration needs no version and no JSON type information (D17).
+    /// Registers the message type on the email channel for one payload type, with
+    /// <see cref="EmailComposer{TEvent, TPayload}"/> and the placeholder engine (section 4.7). The composer gets the
+    /// payload loader of <c>WithPayload</c> (D136). The content type is <c>Email:{name}</c>. The envelope is the library
+    /// type <see cref="EmailMessage"/>, so the registration needs no version and no JSON type information (D17).
     /// </summary>
     /// <typeparam name="TEvent">The type of the domain event.</typeparam>
     /// <typeparam name="TPayload">The payload type, with the placeholder writer of the source generator.</typeparam>
-    /// <typeparam name="TLoader">The payload loader, a tenant service.</typeparam>
-    /// <param name="message">The builder of the message type.</param>
+    /// <param name="payload">The builder of the payload type.</param>
     /// <param name="name">The name of the registration.</param>
-    /// <param name="configure">The configuration of the old versions and the retry options of this registration.</param>
-    /// <returns>The builder of the message type.</returns>
-    public static MessageBuilder<TEvent> AsEmail<TEvent, TPayload, TLoader>(
-        this MessageBuilder<TEvent> message, string name, Action<ChannelBuilder<EmailMessage>>? configure = null)
+    /// <param name="configure">The configuration of the retry options of this registration.</param>
+    /// <returns>The builder of the payload type.</returns>
+    public static PayloadBuilder<TEvent, TPayload> AsEmail<TEvent, TPayload>(
+        this PayloadBuilder<TEvent, TPayload> payload, string name, Action<ChannelBuilder<EmailMessage>>? configure = null)
         where TPayload : IPlaceholderPayload<TPayload>
-        where TLoader : class, IPayloadLoader<TEvent, TPayload>
     {
-        ArgumentNullException.ThrowIfNull(message);
-        EmailSetup.Of(message.Services).PlaceholderRegistrations.Add($"{EmailChannel.Id.Name}:{name}");
-        return Register<TEvent, TPayload, TLoader>(message, name, PlaceholderEngine<TPayload>, configure);
+        ArgumentNullException.ThrowIfNull(payload);
+        EmailSetup.Of(payload.Services).PlaceholderRegistrations.Add($"{EmailChannel.Id.Name}:{name}");
+        return Register(payload, name, PlaceholderEngine<TPayload>, configure);
     }
 
-    /// <summary>Registers the message type on the email channel with another template engine (D44).</summary>
+    /// <summary>
+    /// Registers the message type on the email channel for one payload type, with another template engine (D44), for
+    /// example <c>static (services, _) =&gt; ActivatorUtilities.CreateInstance&lt;RazorEngine&gt;(services)</c>, or a test
+    /// substitute.
+    /// </summary>
     /// <typeparam name="TEvent">The type of the domain event.</typeparam>
     /// <typeparam name="TPayload">The payload type.</typeparam>
-    /// <typeparam name="TLoader">The payload loader, a tenant service.</typeparam>
-    /// <typeparam name="TEngine">The template engine, a tenant service.</typeparam>
-    /// <param name="message">The builder of the message type.</param>
-    /// <param name="name">The name of the registration.</param>
-    /// <param name="configure">The configuration of the old versions and the retry options of this registration.</param>
-    /// <returns>The builder of the message type.</returns>
-    public static MessageBuilder<TEvent> AsEmail<TEvent, TPayload, TLoader, TEngine>(
-        this MessageBuilder<TEvent> message, string name, Action<ChannelBuilder<EmailMessage>>? configure = null)
-        where TLoader : class, IPayloadLoader<TEvent, TPayload>
-        where TEngine : class, IEmailTemplateEngine<TPayload> =>
-        Register<TEvent, TPayload, TLoader>(
-            message, name, static (tenantServices, _) => ActivatorUtilities.CreateInstance<TEngine>(tenantServices), configure);
-
-    /// <summary>Registers the message type on the email channel with a factory of the engine, for example for a test substitute.</summary>
-    /// <typeparam name="TEvent">The type of the domain event.</typeparam>
-    /// <typeparam name="TPayload">The payload type.</typeparam>
-    /// <typeparam name="TLoader">The payload loader, a tenant service.</typeparam>
-    /// <param name="message">The builder of the message type.</param>
+    /// <param name="payload">The builder of the payload type.</param>
     /// <param name="name">The name of the registration.</param>
     /// <param name="engine">The factory of the engine of one tenant key. Its service provider gives the tenant services of that key.</param>
-    /// <param name="configure">The configuration of the old versions and the retry options of this registration.</param>
-    /// <returns>The builder of the message type.</returns>
-    public static MessageBuilder<TEvent> AsEmail<TEvent, TPayload, TLoader>(
-        this MessageBuilder<TEvent> message, string name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine,
-        Action<ChannelBuilder<EmailMessage>>? configure = null)
-        where TLoader : class, IPayloadLoader<TEvent, TPayload> =>
-        Register<TEvent, TPayload, TLoader>(message, name, engine, configure);
+    /// <param name="configure">The configuration of the retry options of this registration.</param>
+    /// <returns>The builder of the payload type.</returns>
+    public static PayloadBuilder<TEvent, TPayload> AsEmail<TEvent, TPayload>(
+        this PayloadBuilder<TEvent, TPayload> payload, string name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine,
+        Action<ChannelBuilder<EmailMessage>>? configure = null) =>
+        Register(payload, name, engine, configure);
 
     private static MsgHatchBuilder AddSharedStore(MsgHatchBuilder builder, Func<IServiceProvider, ITemplateStore> factory, string setupMethod)
     {
@@ -168,19 +152,18 @@ public static class EmailExtensions
         return builder;
     }
 
-    private static MessageBuilder<TEvent> Register<TEvent, TPayload, TLoader>(
-        MessageBuilder<TEvent> message, string name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine,
+
+    private static PayloadBuilder<TEvent, TPayload> Register<TEvent, TPayload>(
+        PayloadBuilder<TEvent, TPayload> payload, string name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine,
         Action<ChannelBuilder<EmailMessage>>? configure)
-        where TLoader : class, IPayloadLoader<TEvent, TPayload>
     {
-        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(engine);
-        message.Parent
+        payload.Parent
             .AddChannelType(EmailChannel.Descriptor, 1, EmailJson.Default.EmailChannelSettings, new EmailChannelSettingsValidator())
             .AddTenantService(ServiceLifetime.Scoped, engine, EmailLoggers.Wrap);
-        return message
-            .UsePayloadLoader<TPayload, TLoader>()
-            .AsChannel<EmailMessage, EmailComposer<TEvent, TPayload>>(EmailChannel.Id, name, 1, EmailJson.Default.EmailMessage, configure: configure);
+        return payload.AsChannel<EmailMessage, EmailComposer<TEvent, TPayload>>(
+            EmailChannel.Id, name, 1, EmailJson.Default.EmailMessage, configure: configure);
     }
 
     private static PlaceholderEmailEngine<TPayload> PlaceholderEngine<TPayload>(IServiceProvider tenantServices, TenantKey key)

@@ -145,7 +145,7 @@ public sealed class EmailTemplateEngineLoggingWrapperUnitTests
     {
         var services = TestHost.CreateServices();
         services.AddMsgHatch(o => o.EnableLogging = enableLogging)
-            .AddMessage("TestEvent", 1, TestJsonContext.Default.TestEvent, m => m.AsEmail<TestEvent, OrderEmail, TestOrderLoader>("OrderEmail", (_, _) => inner));
+            .AddMessage("TestEvent", 1, TestJsonContext.Default.TestEvent, m => m.WithPayload<OrderEmail, TestOrderLoader>(p => p.AsEmail("OrderEmail", (_, _) => inner)));
         return services.Build();
     }
 }
