@@ -27,6 +27,8 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
     public MessageTypeDescriptor Descriptor =>
         new(Type, typeof(TEvent), [.. _channels.Select(static channel => channel.Channel).Distinct()]);
 
+    public IEnumerable<IEnvelopeUpgrade> EnvelopeUpgrades => _channels;
+
     public void AddChannel(IChannelRegistration<TEvent> channel) => _channels.Add(channel);
 
     public void AddUpgrade(int fromVersion, Func<ReceivedMessage, TEvent> upgrade) => _upgrades.Add(fromVersion, upgrade);

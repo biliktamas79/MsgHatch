@@ -1,6 +1,8 @@
+using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
@@ -11,15 +13,16 @@ namespace MsgHatch.Domain.Dispatch;
 
 /// <summary>
 /// The work of the outbox loop of one channel: it claims the messages of the channel, and publishes each claimed
-/// message with the transport of the channel (section 4.8, publishing). It creates no DI scope (D130). It counts the
-/// transient errors in a row of its channel, marks the channel down for all publisher instances at the threshold, and
-/// runs the health check of a down channel (D86, D106).
+/// message with the transport of the channel (section 4.8, publishing). It upgrades a message of an old envelope version
+/// before the send, and records the try of the claimed message (section 4.13). It creates no DI scope (D130). It counts
+/// the transient errors in a row of its transport, marks the channel down for all publisher instances at the threshold,
+/// and runs the health check of a down channel (D86, D106).
 /// </summary>
 // ponytail: fixed check interval, a growing interval if long outages need it
 internal sealed class OutboxChannelWork(
-    ITransport transport, IOutboxDispatchStore store, DispatchOptions options, ChannelDownOptions downOptions,
-    TestDeliveryOptions testDelivery, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time, MsgHatchMetrics metrics,
-    ILogger logger)
+    ITransport transport, IOutboxDispatchStore store, FrozenDictionary<string, IEnvelopeUpgrade> upgrades, DispatchOptions options,
+    ChannelDownOptions downOptions, TestDeliveryOptions testDelivery, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time,
+    MsgHatchMetrics metrics, ILogger logger)
     : IDispatchWork<OutgoingMessage>
 {
     private volatile ChannelDown? _down;
@@ -121,26 +124,38 @@ internal sealed class OutboxChannelWork(
         var tryNumber = message.Delivery.TryCount + 1;
         var sendStarted = time.GetTimestamp();
         var startedAtUtc = time.GetUtcNowDateTime();
-        if (message.Delivery.ExpiresAtUtc <= startedAtUtc)
+        if (TryWithNoSend(message, tryNumber, startedAtUtc) is { } noSend)
         {
-            var expired = new PublishTry(
-                message.Delivery.Id, tryNumber, startedAtUtc, startedAtUtc, PublishOutcome.Expired, ProviderMessageId: null,
-                Errors.Expired.Code, Errors.Expired.Name, ErrorMessage: null);
-            return await RecordAsync(message, expired, nextTryAtUtc: null, ct);
+            return await RecordAsync(message, noSend, nextTryAtUtc: null, ct);
         }
 
-        var isTest = message.Flags.HasFlag(MessageFlags.Test);
-        if (isTest && testDelivery.Mode == TestDeliveryMode.Suppress)
+        var current = CurrentVersionOf(message);
+        if (current.IsError)
         {
-            var suppressed = new PublishTry(
-                message.Delivery.Id, tryNumber, startedAtUtc, startedAtUtc, PublishOutcome.Suppressed, ProviderMessageId: null,
-                ErrorCode: null, ErrorName: null, ErrorMessage: null);
-            return await RecordAsync(message, suppressed, nextTryAtUtc: null, ct);
+            var unsupported = TryOf(message, tryNumber, startedAtUtc, startedAtUtc, current.Error);
+            return await RecordAsync(message, unsupported, NextTryAtUtc(message, unsupported), ct);
         }
 
+        return await SendAsync(message, current.Value, tryNumber, sendStarted, startedAtUtc, ct);
+    }
+
+    private PublishTry? TryWithNoSend(OutgoingMessage message, int tryNumber, DateTime startedAtUtc) =>
+        message.Delivery.ExpiresAtUtc <= startedAtUtc ? NoSendTry(message, tryNumber, startedAtUtc, PublishOutcome.Expired, Errors.Expired)
+        : IsTest(message) && testDelivery.Mode == TestDeliveryMode.Suppress
+            ? NoSendTry(message, tryNumber, startedAtUtc, PublishOutcome.Suppressed, error: null)
+        : null;
+
+    private static PublishTry NoSendTry(OutgoingMessage message, int tryNumber, DateTime atUtc, PublishOutcome outcome, ErrorType? error) =>
+        new(message.Delivery.Id, tryNumber, atUtc, atUtc, outcome, ProviderMessageId: null, error?.Code, error?.Name, ErrorMessage: null);
+
+    private ErrorOr<OutgoingMessage> CurrentVersionOf(OutgoingMessage message) =>
+        upgrades.TryGetValue(message.ContentType, out var upgrade) ? upgrade.Upgrade(message) : message;
+
+    private async ValueTask<ItemResult> SendAsync(
+        OutgoingMessage message, OutgoingMessage current, int tryNumber, long sendStarted, DateTime startedAtUtc, CancellationToken ct)
+    {
         using var span = SendSpan.Start(message, tryNumber);
-        var redirectTo = isTest && testDelivery.Mode == TestDeliveryMode.Redirect ? testDelivery.RedirectTo : null;
-        var sent = await transport.SendAsync(message, redirectTo, ct);
+        var sent = await transport.SendAsync(current, RedirectOf(message), ct);
         var finishedAtUtc = time.GetUtcNowDateTime();
         if (IsCancelledSend(sent))
         {
@@ -150,8 +165,15 @@ internal sealed class OutboxChannelWork(
         var publishTry = TryOf(message, tryNumber, startedAtUtc, finishedAtUtc, sent);
         span.Finish(publishTry.Outcome, sent.Error);
         metrics.RecordSendDuration(transport.Channel, publishTry.Outcome, time.GetElapsedTime(sendStarted));
-        return await RecordAsync(message, publishTry, NextTryAtUtc(message, publishTry), ct);
+        var result = await RecordAsync(message, publishTry, NextTryAtUtc(message, publishTry), ct);
+        await CountErrorsInARowAsync(publishTry, ct);
+        return result;
     }
+
+    private string? RedirectOf(OutgoingMessage message) =>
+        IsTest(message) && testDelivery.Mode == TestDeliveryMode.Redirect ? testDelivery.RedirectTo : null;
+
+    private static bool IsTest(OutgoingMessage message) => message.Flags.HasFlag(MessageFlags.Test);
 
     private static PublishTry TryOf(
         OutgoingMessage message, int tryNumber, DateTime startedAtUtc, DateTime finishedAtUtc, ErrorOr<PublishReceipt> sent)
@@ -179,7 +201,6 @@ internal sealed class OutboxChannelWork(
     {
         var error = await store.RecordTryAsync(message, publishTry, nextTryAtUtc, ct);
         var repeated = error is null ? null : await store.RecordTryAsync(message, publishTry, nextTryAtUtc, ct);
-        await CountErrorsInARowAsync(publishTry, ct);
         if (error is not null && repeated is not null)
         {
             return ItemResult.None;

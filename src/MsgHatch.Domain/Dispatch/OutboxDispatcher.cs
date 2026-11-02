@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
@@ -26,12 +27,16 @@ internal sealed class OutboxDispatcher(IReadOnlyList<DispatchLoop<OutgoingMessag
         var testDelivery = services.GetRequiredService<IOptionsMonitor<TestDeliveryOptions>>();
         var metrics = services.GetRequiredService<MsgHatchMetrics>();
         var logger = Loggers.For<OutboxDispatcher>(services);
+        var upgrades = services.GetRequiredService<MsgHatchSetup>().Messages
+            .SelectMany(static message => message.EnvelopeUpgrades)
+            .DistinctBy(static upgrade => upgrade.ContentType, StringComparer.Ordinal)
+            .ToFrozenDictionary(static upgrade => upgrade.ContentType, StringComparer.Ordinal);
         return new OutboxDispatcher(
         [
             .. services.GetServices<ITransport>().Select(transport => ObservedLoop(
                 new OutboxChannelWork(
-                    transport, store, options, downOptions.Get(transport.Channel.Name), testDelivery.Get(transport.Channel.Name),
-                    retryOptions, time, metrics, logger),
+                    transport, store, upgrades, options, downOptions.Get(transport.Channel.Name),
+                    testDelivery.Get(transport.Channel.Name), retryOptions, time, metrics, logger),
                 options, signal, time, metrics)),
         ]);
     }

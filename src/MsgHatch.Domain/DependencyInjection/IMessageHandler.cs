@@ -13,6 +13,9 @@ internal interface IMessageHandler
 
     MessageTypeDescriptor Descriptor { get; }
 
+    /// <summary>The envelope upgrades of the channel registrations, for the outbox dispatcher (section 4.13).</summary>
+    IEnumerable<IEnvelopeUpgrade> EnvelopeUpgrades { get; }
+
     /// <summary>Resolves the router of <c>TenantKey.None</c> in the given DI scope.</summary>
     /// <returns>Null when the router resolves, else the text of the failure.</returns>
     string? RouterFailure(IServiceProvider scopedServices);

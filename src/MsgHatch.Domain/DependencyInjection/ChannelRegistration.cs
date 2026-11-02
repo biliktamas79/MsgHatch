@@ -57,6 +57,18 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
         return ErrorOr<IReadOnlyList<ErrorOr<OutgoingMessage>>>.ForValue(messages);
     }
 
+    public ErrorOr<OutgoingMessage> Upgrade(OutgoingMessage message) => message.ContentVersion switch
+    {
+        var version when version == Version => message,
+        var version when Upgrades.TryGetValue(version, out var upgrade) => Upgraded(message, upgrade(message.Content)),
+        var version => new Error(Errors.UnsupportedVersion, $"The content type {ContentType} has no upgrade from version {version}."),
+    };
+
+    private OutgoingMessage<TEnvelope> Upgraded(OutgoingMessage old, TEnvelope envelope) =>
+        new(
+            old.SchemaVersion, old.Delivery, old.SourceMessageId, old.Tenant, old.Type, old.Channel, old.Target, old.ContentType,
+            Version, old.Flags, old.TraceParent, old.Trace, envelope);
+
     private ErrorOr<OutgoingMessage> ToMessage(
         ReceivedMessage<TEvent> received, MessageRoute route, ErrorOr<TEnvelope> envelope, RetryOptions retry,
         OutgoingDefaults defaults)
