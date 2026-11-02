@@ -26,10 +26,12 @@ internal sealed class InboxWork(
 
     public ValueTask BeforeClaimAsync(CancellationToken ct) => ValueTask.CompletedTask;
 
+    public ValueTask BeforeBatchAsync(CancellationToken ct) => ValueTask.CompletedTask;
+
     public ValueTask<ErrorOr<ClaimResult<ReceivedMessage>>> ClaimAsync(int maxCount, DateTime nowUtc, CancellationToken ct) =>
         store.ClaimDueAsync(maxCount, nowUtc, options.Lease, ct);
 
-    public DateTime? NextWakeAtUtc(ClaimResult<ReceivedMessage> result) => result.NextDueAtUtc;
+    public DateTime? AfterClaim(ClaimResult<ReceivedMessage> result) => result.NextDueAtUtc;
 
     public DateTime? LeaseUntilUtcOf(ReceivedMessage message) => message.Delivery.LeaseUntilUtc;
 

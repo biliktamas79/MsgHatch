@@ -11,12 +11,19 @@ internal interface IDispatchWork<T>
 {
     DispatchTopic Topic { get; }
 
+    /// <summary>Runs before each claim of the claim loop, with the state that the last claim gave.</summary>
     ValueTask BeforeClaimAsync(CancellationToken ct);
+
+    /// <summary>Runs before the claim of one batch, which has no state of an earlier claim.</summary>
+    ValueTask BeforeBatchAsync(CancellationToken ct);
 
     ValueTask<ErrorOr<ClaimResult<T>>> ClaimAsync(int maxCount, DateTime nowUtc, CancellationToken ct);
 
-    /// <summary>The time at which the claim loop claims again with no signal, or null to wait only for a signal or a poll.</summary>
-    DateTime? NextWakeAtUtc(ClaimResult<T> result);
+    /// <summary>
+    /// Keeps what a claim tells, and gives the time at which the claim loop claims again with no signal, or null to
+    /// wait only for a signal or a poll.
+    /// </summary>
+    DateTime? AfterClaim(ClaimResult<T> result);
 
     DateTime? LeaseUntilUtcOf(T message);
 

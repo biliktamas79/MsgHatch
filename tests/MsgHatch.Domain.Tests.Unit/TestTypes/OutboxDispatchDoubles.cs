@@ -35,6 +35,10 @@ public sealed class OutboxDispatchDoubles
             _records.Writer.TryWrite(new RecordCall(call.ArgAt<OutgoingMessage>(0), call.ArgAt<PublishTry>(1), call.ArgAt<DateTime?>(2)));
             return ValueTask.FromResult<Error?>(null);
         });
+        Store.GetDownChannelsAsync(default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([])));
+        Store.SetChannelDownAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
+        Store.SetChannelUpAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
+        Store.TryStartChannelCheckAsync(default, default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(false)));
     }
 
     public WaitRecordingTimeProvider Time { get; } = new();
@@ -100,6 +104,9 @@ public sealed class OutboxDispatchDoubles
 
     public static ErrorOr<ClaimResult<OutgoingMessage>> Claim(params OutgoingMessage[] messages) =>
         new ClaimResult<OutgoingMessage>(messages, NextDueAtUtc: null);
+
+    public static ErrorOr<ClaimResult<OutgoingMessage>> ClaimDown(ChannelDown down) =>
+        new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down);
 
     public static ErrorOr<ClaimResult<OutgoingMessage>> ClaimWithNextDue(DateTime nextDueAtUtc, params OutgoingMessage[] messages) =>
         new ClaimResult<OutgoingMessage>(messages, nextDueAtUtc);

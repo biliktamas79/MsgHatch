@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Identity;
@@ -51,6 +52,8 @@ public sealed class MsgHatchBuilder
         {
             return this;
         }
+
+        AddChannelOptions(descriptor.Id);
 
         Setup.ContentTypes.Add(
             ContentTypeRegistry.Entry($"Settings:{descriptor.Id.Name}", settingsVersion, descriptor.SettingsType, settingsJson));
@@ -253,6 +256,34 @@ public sealed class MsgHatchBuilder
         ArgumentNullException.ThrowIfNull(configure);
         Services.Configure(OptionNames.Outbox, configure);
         return this;
+    }
+
+    /// <summary>
+    /// Changes the error threshold and the check interval of the down state of one channel (D86). A value from code
+    /// wins over the section <c>MsgHatch:ChannelDown:{Channel}</c>.
+    /// </summary>
+    /// <param name="channel">The channel.</param>
+    /// <param name="configure">The change of the options.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder ConfigureChannelDown(ChannelId channel, Action<ChannelDownOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        AddChannelOptions(channel);
+        Services.Configure(channel.Name, configure);
+        return this;
+    }
+
+    private void AddChannelOptions(ChannelId channel)
+    {
+        if (!Setup.ChannelsWithOptions.Add(channel))
+        {
+            return;
+        }
+
+        Services.AddOptions<ChannelDownOptions>(channel.Name)
+            .BindConfiguration($"{ChannelDownOptions.SectionName}:{channel.Name}")
+            .ValidateOnStart();
+        Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ChannelDownOptions>, ChannelDownOptionsValidator>());
     }
 
     private MsgHatchBuilder AddInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory, string setupMethod)

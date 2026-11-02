@@ -36,13 +36,14 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
 
     public async ValueTask<ErrorOr<DispatchSummary>> RunOnceAsync(int batchSize, CancellationToken ct)
     {
-        await work.BeforeClaimAsync(ct);
+        await work.BeforeBatchAsync(ct);
         var claimed = await ClaimSafelyAsync(batchSize, time.GetUtcNowDateTime(), ct);
         if (claimed.IsError)
         {
             return claimed.Error;
         }
 
+        work.AfterClaim(claimed.Value);
         var messages = claimed.Value.Messages;
         var outcomes = new ItemOutcome[messages.Count];
         await Parallel.ForEachAsync(
@@ -89,6 +90,7 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
             return Longer(pollDelay);
         }
 
+        var wakeAtUtc = work.AfterClaim(claimed.Value);
         foreach (var message in claimed.Value.Messages)
         {
             writer.TryWrite(message);
@@ -101,7 +103,7 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
         }
 
         var pollAtUtc = options.EnablePolling ? nowUtc + pollDelay : (DateTime?)null;
-        var signalled = await WaitAsync(Earliest(work.NextWakeAtUtc(claimed.Value), pollAtUtc), ct);
+        var signalled = await WaitAsync(Earliest(wakeAtUtc, pollAtUtc), ct);
         return signalled || count > 0 ? options.PollInterval : Longer(pollDelay);
     }
 

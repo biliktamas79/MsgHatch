@@ -1,3 +1,4 @@
+using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 
@@ -18,6 +19,8 @@ internal sealed class MsgHatchSetup
     public List<ImplementationSelection> Selections { get; } = [];
 
     public HashSet<Type> TenantServiceTypes { get; } = [];
+
+    public HashSet<ChannelId> ChannelsWithOptions { get; } = [];
 
     public Type? OpenRouterType { get; set; }
 

@@ -21,11 +21,13 @@ internal sealed class OutboxDispatcher(IReadOnlyList<DispatchLoop<OutgoingMessag
         var retryOptions = services.GetRequiredService<IOptionsMonitor<RetryOptions>>();
         var signal = services.GetRequiredService<IDispatchSignal>();
         var time = services.GetRequiredService<TimeProvider>();
+        var downOptions = services.GetRequiredService<IOptionsMonitor<ChannelDownOptions>>();
         var logger = Loggers.For<OutboxDispatcher>(services);
         return new OutboxDispatcher(
         [
             .. services.GetServices<ITransport>().Select(transport => new DispatchLoop<OutgoingMessage>(
-                new OutboxChannelWork(transport, store, options, retryOptions, time, logger), options, signal, time)),
+                new OutboxChannelWork(transport, store, options, downOptions.Get(transport.Channel.Name), retryOptions, time, logger),
+                options, signal, time)),
         ]);
     }
 

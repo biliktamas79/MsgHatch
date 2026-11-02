@@ -19,4 +19,14 @@ internal static partial class Log
     public static partial void ReceivedMessageFailed(
         ILogger logger, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags, int errorCode,
         string errorName, Exception exception);
+
+    [LoggerMessage(
+        EventId = 1402, Level = LogLevel.Error,
+        Message = "Channel {Channel} is down for all its publishers after transient errors in a row: {ErrorCode} {ErrorName}")]
+    public static partial void ChannelDown(ILogger logger, string channel, int? errorCode, string? errorName);
+
+    [LoggerMessage(
+        EventId = 1403, Level = LogLevel.Information,
+        Message = "Channel {Channel} is up again after a health check, after {DownSeconds} seconds down")]
+    public static partial void ChannelUp(ILogger logger, string channel, double downSeconds);
 }
