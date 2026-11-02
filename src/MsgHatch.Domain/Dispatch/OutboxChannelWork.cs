@@ -94,17 +94,21 @@ internal sealed class OutboxChannelWork(
     private async ValueTask CheckWhenDueAsync(ChannelDown down, CancellationToken ct)
     {
         var nowUtc = time.GetUtcNowDateTime();
-        if (down.Reason != ChannelDownReason.Errors || !(down.NextCheckAtUtc <= nowUtc))
+        if (IsCheckDue(down, nowUtc) && await TryStartCheckAsync(nowUtc, ct) && await transport.CheckHealthAsync(ct) is null)
         {
-            return;
+            await MarkUpAsync(down, nowUtc, ct);
         }
+    }
 
-        var started = await store.TryStartChannelCheckAsync(transport.Channel, nowUtc, nowUtc + downOptions.CheckInterval, ct);
-        if (started is not { IsSuccess: true, Value: true } || await transport.CheckHealthAsync(ct) is not null)
-        {
-            return;
-        }
+    private static bool IsCheckDue(ChannelDown down, DateTime nowUtc) =>
+        down.Reason == ChannelDownReason.Errors && down.NextCheckAtUtc <= nowUtc;
 
+    private async ValueTask<bool> TryStartCheckAsync(DateTime nowUtc, CancellationToken ct) =>
+        await store.TryStartChannelCheckAsync(transport.Channel, nowUtc, nowUtc + downOptions.CheckInterval, ct)
+            is { IsSuccess: true, Value: true };
+
+    private async ValueTask MarkUpAsync(ChannelDown down, DateTime nowUtc, CancellationToken ct)
+    {
         var up = await store.SetChannelUpAsync(transport.Channel, ChannelDownReason.Errors, ct);
         if (up is { IsSuccess: true, Value: true })
         {

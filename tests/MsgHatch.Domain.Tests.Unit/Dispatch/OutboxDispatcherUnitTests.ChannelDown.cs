@@ -156,6 +156,40 @@ public sealed partial class OutboxDispatcherUnitTests
     }
 
     [Fact]
+    public async Task DispatchPendingAsync_CheckStartThatFails_DoesNotCheckTheHealth()
+    {
+        // Arrange
+        _doubles.Store.GetDownChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([ADownState(_doubles.Now)])));
+        _doubles.Store.TryStartChannelCheckAsync(default, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<bool>>(new Error(Errors.Unavailable)));
+        var transport = TestTransports.For(TestChannel.Id);
+        await using var provider = BuildWithTheDownOptions(transport);
+
+        // Act
+        await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        await _doubles.Store.Received(1).TryStartChannelCheckAsync(TestChannel.Id, Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await transport.DidNotReceive().CheckHealthAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DispatchPendingAsync_SetChannelUpThatFails_LogsNoChannelUp()
+    {
+        // Arrange
+        _doubles.Store.GetDownChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([ADownState(_doubles.Now)])));
+        _doubles.Store.TryStartChannelCheckAsync(default, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
+        _doubles.Store.SetChannelUpAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<bool>>(new Error(Errors.Unavailable)));
+        await using var provider = BuildWithTheDownOptions(TestTransports.For(TestChannel.Id));
+
+        // Act
+        await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        await _doubles.Store.Received(1).SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Arg.Any<CancellationToken>());
+        Assert.DoesNotContain(provider.LogRecords(), static r => r.Id.Id == 1403);
+    }
+
+    [Fact]
     public async Task RunAsync_DownStateOfTheReasonErrors_StartsTheCheckWhenTheTimeReachesTheNextCheckAndThenMarksTheChannelUp()
     {
         // Arrange
