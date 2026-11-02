@@ -21,6 +21,7 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
         IClassFixture<PlaceholderTemplateTestData>
 {
     private const string _html = "<p>html</p>";
+    private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
     private static readonly string[] _tenantWithScope =
         ["tenant:hu:acme", "tenant:hu:", "shared:hu:acme", "shared:hu:", "tenant:en:acme", "tenant:en:", "shared:en:acme", "shared:en:"];
@@ -158,15 +159,15 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
 
     [Theory]
     [MemberData(nameof(FallbackRows))]
-    public async Task PrepareAsync_TemplatesOfTheFallback_GivesTheFirstTemplateInTheOrderOfD123(
-        string row, bool withTenantStore, string? scope, string[] seeded, string expectedTemplate)
+    public async Task PrepareAsync_TemplatesOfTheFallbackFromTheContainer_GivesTheFirstTemplateInTheOrderOfD123(
+        string row, bool withTenant, string? scope, string[] seeded, string expectedTemplate)
     {
         // Arrange
         var stores = new FallbackStores(seeded);
-        var engine = EngineWith(withTenantStore ? stores.Tenant : null, stores.Shared);
+        await using var host = new EngineHost(stores.Tenant, stores.Shared);
 
         // Act
-        var outcome = await OutcomeOfAsync(engine, new EmailTemplateRequest(Type, "hu", scope));
+        var outcome = await OutcomeOfAsync(host.Engine(withTenant ? _t1 : TenantKey.None), new EmailTemplateRequest(Type, "hu", scope));
 
         // Assert
         Assert.Equal((row, expectedTemplate), (row, outcome));
@@ -177,9 +178,10 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
     {
         // Arrange
         var stores = new FallbackStores([]);
+        await using var host = new EngineHost(stores.Tenant, stores.Shared);
 
         // Act
-        var result = await EngineWith(stores.Tenant, stores.Shared).PrepareAsync(new EmailTemplateRequest(Type, "hu", "acme"), Ct);
+        var result = await host.Engine(_t1).PrepareAsync(new EmailTemplateRequest(Type, "hu", "acme"), Ct);
 
         // Assert
         Assert.Equal(404, CodeOf(result));
@@ -187,13 +189,28 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
     }
 
     [Fact]
+    public async Task PrepareAsync_TenantKeyAndNoTenantTemplateStore_LooksUpOnlyTheSharedStore()
+    {
+        // Arrange
+        var stores = new FallbackStores([]);
+        await using var host = new EngineHost(tenantStore: null, stores.Shared);
+
+        // Act
+        await host.Engine(_t1).PrepareAsync(new EmailTemplateRequest(Type, "hu", "acme"), Ct);
+
+        // Assert
+        Assert.Equal(["shared:hu:acme", "shared:hu:", "shared:en:acme", "shared:en:"], stores.Lookups);
+    }
+
+    [Fact]
     public async Task PrepareAsync_RequestInTheDefaultLanguage_LooksUpEachTemplateOneTime()
     {
         // Arrange
         var stores = new FallbackStores([]);
+        await using var host = new EngineHost(stores.Tenant, stores.Shared);
 
         // Act
-        await EngineWith(stores.Tenant, stores.Shared).PrepareAsync(new EmailTemplateRequest(Type, "en", "acme"), Ct);
+        await host.Engine(_t1).PrepareAsync(new EmailTemplateRequest(Type, "en", "acme"), Ct);
 
         // Assert
         Assert.Equal(["tenant:en:acme", "tenant:en:", "shared:en:acme", "shared:en:"], stores.Lookups);
@@ -205,9 +222,10 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
         // Arrange
         var error = new Error(Errors.Unavailable);
         var stores = new FallbackStores(_tenantWithScope) { TenantError = error };
+        await using var host = new EngineHost(stores.Tenant, stores.Shared);
 
         // Act
-        var result = await EngineWith(stores.Tenant, stores.Shared).PrepareAsync(new EmailTemplateRequest(Type, "hu", "acme"), Ct);
+        var result = await host.Engine(_t1).PrepareAsync(new EmailTemplateRequest(Type, "hu", "acme"), Ct);
 
         // Assert
         Assert.Same(error, result.Error);
@@ -227,7 +245,7 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
     private static TemplatePart Part(string name, string text) =>
         new(name, name == "html" ? TemplatePartKind.Html : TemplatePartKind.PlainText, text);
 
-    private static async Task<string> OutcomeOfAsync(PlaceholderEmailEngine<OrderEmail> engine, EmailTemplateRequest request)
+    private static async Task<string> OutcomeOfAsync(IEmailTemplateEngine<OrderEmail> engine, EmailTemplateRequest request)
     {
         var template = await engine.PrepareAsync(request, Ct);
         if (template.IsError)

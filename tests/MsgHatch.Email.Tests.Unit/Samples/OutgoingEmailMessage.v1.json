@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "delivery": {
+    "id": "5e0d2c7a-91b4-5f3e-8c21-7a4b6d9e0f12",
+    "status": "Pending",
+    "tryCount": 0,
+    "maxTryCount": 8,
+    "createdAtUtc": "2030-01-01T00:00:00Z",
+    "lastTryAtUtc": null,
+    "nextTryAtUtc": "2030-01-01T00:00:00Z",
+    "leaseUntilUtc": null,
+    "expiresAtUtc": null,
+    "lastError": null
+  },
+  "sourceMessageId": "0b6c1f7e-2a44-4d8e-9a3b-61c0f5e2d7a9",
+  "tenant": "t1",
+  "type": "TestEvent",
+  "channel": "Email",
+  "target": { "kind": "User", "id": "u1" },
+  "contentType": "Email:OrderEmail",
+  "contentVersion": 1,
+  "flags": "None",
+  "traceParent": null,
+  "trace": null,
+  "envelope": {
+    "to": "client1@example.com",
+    "subject": "Ödön Űr rendelése: 1001",
+    "htmlBody": "<p>Kedves Ödön &amp; \"Űr\"</p>",
+    "textBody": "Kedves Ödön",
+    "from": null,
+    "cc": ["copy@example.com", "second@example.com"],
+    "bcc": null
+  }
+}

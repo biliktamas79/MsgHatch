@@ -148,6 +148,62 @@ public sealed class MsgHatchBuilderUnitTests
         Assert.Same(first, second);
     }
 
+    [Fact]
+    public async Task AddTenantService_ServiceOfAPackage_GivesTheInstanceOfEachKeyAndTheInstanceOfNoneWithNoKey()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTenantService(ServiceLifetime.Singleton, static (_, key) => new KeyCapturingService(key));
+        await using var provider = services.Build();
+        var t1 = TenantKey.For(new TenantId("t1"));
+        var none = provider.GetRequiredKeyedService<KeyCapturingService>(TenantKey.None);
+
+        // Act
+        KeyCapturingService[] resolved = [provider.GetRequiredKeyedService<KeyCapturingService>(t1), provider.GetRequiredService<KeyCapturingService>()];
+
+        // Assert
+        Assert.Equal([t1, TenantKey.None], resolved.Select(static service => service.Key));
+        Assert.Same(none, resolved[1]);
+    }
+
+    [Fact]
+    public async Task AddTenantService_FactoryThatResolvesAnotherTenantService_GetsTheServiceOfTheSameKey()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch()
+            .AddTenantService(ServiceLifetime.Singleton, static (_, key) => new KeyCapturingService(key))
+            .AddTenantService(
+                ServiceLifetime.Singleton,
+                static (tenantServices, _) => new DependentService(tenantServices.GetRequiredService<KeyCapturingService>()));
+        await using var provider = services.Build();
+        var t1 = TenantKey.For(new TenantId("t1"));
+
+        // Act
+        var service = provider.GetRequiredKeyedService<DependentService>(t1);
+
+        // Assert
+        Assert.Equal(t1, service.Inner.Key);
+    }
+
+    [Theory]
+    [InlineData(true, "wrapper")]
+    [InlineData(false, "inner")]
+    public async Task AddTenantService_LoggingWrapper_WrapsTheServiceOnlyWithEnableLogging(bool enableLogging, string expectedName)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(o => o.EnableLogging = enableLogging).AddTenantService(
+            ServiceLifetime.Singleton, static (_, key) => new KeyCapturingService(key), static (_, _, inner) => inner with { Name = "wrapper" });
+        await using var provider = services.Build();
+
+        // Act
+        var service = provider.GetRequiredService<KeyCapturingService>();
+
+        // Assert
+        Assert.Equal(expectedName, service.Name);
+    }
+
     [Theory]
     [MemberData(nameof(TypesThatAreNotOpenGenericRouters))]
     public void UseRouter_TypeThatIsNotAnOpenGenericRouter_ThrowsArgumentException(Type routerType)

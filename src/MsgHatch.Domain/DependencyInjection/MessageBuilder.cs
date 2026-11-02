@@ -26,6 +26,9 @@ public sealed class MessageBuilder<TEvent>
     /// <summary>The service collection, for the extension methods of other packages.</summary>
     public IServiceCollection Services => _parent.Services;
 
+    /// <summary>The builder of the setup, for the channel registrations of other packages, which call <c>AddChannelType</c>.</summary>
+    public MsgHatchBuilder Parent => _parent;
+
     /// <summary>Selects the router of this message type. It wins over the open generic router of <c>UseRouter</c> (D99).</summary>
     /// <typeparam name="TRouter">The router type, a tenant service.</typeparam>
     /// <returns>This builder.</returns>

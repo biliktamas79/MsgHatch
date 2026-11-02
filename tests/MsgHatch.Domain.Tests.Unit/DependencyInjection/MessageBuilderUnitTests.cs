@@ -17,6 +17,20 @@ public sealed class MessageBuilderUnitTests
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
     [Fact]
+    public void Parent_BuilderOfAddMessage_IsTheBuilderThatAddMessageReturns()
+    {
+        // Arrange
+        var builder = TestHost.CreateServices().AddMsgHatch();
+        MsgHatchBuilder? parent = null;
+
+        // Act
+        var returned = builder.AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => parent = m.Parent);
+
+        // Assert
+        Assert.Same(returned, parent);
+    }
+
+    [Fact]
     public async Task WithRouter_AndAnOpenGenericRouter_TheRouterOfTheMessageTypeWinsForAKey()
     {
         // Arrange

@@ -77,6 +77,27 @@ public sealed class MsgHatchBuilder
     }
 
     /// <summary>
+    /// Registers a tenant service of a package (D126): one instance for each <see cref="TenantKey"/>, and an unkeyed
+    /// registration that gives the instance of <see cref="TenantKey.None"/>. The service provider of the factory gives
+    /// the key and each tenant service of the same key. The channel and router packages call it.
+    /// </summary>
+    /// <typeparam name="TService">The service type.</typeparam>
+    /// <param name="lifetime">The lifetime of each instance.</param>
+    /// <param name="factory">The factory of the service of one tenant key.</param>
+    /// <param name="wrapWithLogging">The logging wrapper, which the builder adds only with <see cref="MsgHatchOptions.EnableLogging"/>.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder AddTenantService<TService>(
+        ServiceLifetime lifetime,
+        Func<IServiceProvider, TenantKey, TService> factory,
+        Func<IServiceProvider, TenantKey, TService, TService>? wrapWithLogging = null)
+        where TService : class
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        TenantServices.Add(Services, Setup, lifetime, factory, wrapWithLogging);
+        return this;
+    }
+
+    /// <summary>
     /// Selects an open generic router, for example <c>typeof(SubscriptionRouter&lt;&gt;)</c>, for each message type
     /// with no router of its own (D99).
     /// </summary>
