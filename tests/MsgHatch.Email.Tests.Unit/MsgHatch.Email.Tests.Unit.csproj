@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
+  </ItemGroup>
+
+</Project>
