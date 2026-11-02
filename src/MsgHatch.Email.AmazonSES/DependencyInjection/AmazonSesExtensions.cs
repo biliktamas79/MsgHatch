@@ -1,4 +1,5 @@
 using Amazon;
+using Amazon.Runtime;
 using Amazon.SimpleEmailV2;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,5 +46,19 @@ public static class AmazonSesExtensions
         builder.UseAmazonSes(o => o.SenderEmail = senderEmail);
 
     private static AmazonSimpleEmailServiceV2Client SesClientOf(string? region) =>
-        region is null ? new AmazonSimpleEmailServiceV2Client() : new AmazonSimpleEmailServiceV2Client(RegionEndpoint.GetBySystemName(region));
+        region is null ? SesClientOfTheRegionOfTheAwsSdk() : new AmazonSimpleEmailServiceV2Client(RegionEndpoint.GetBySystemName(region));
+
+    private static AmazonSimpleEmailServiceV2Client SesClientOfTheRegionOfTheAwsSdk()
+    {
+        try
+        {
+            return new AmazonSimpleEmailServiceV2Client();
+        }
+        catch (AmazonClientException)
+        {
+            throw new OptionsValidationException(
+                nameof(AmazonSesOptions), typeof(AmazonSesOptions),
+                [$"{nameof(AmazonSesOptions.Region)}: the AWS SDK configuration has no region. Set {AmazonSesOptions.SectionName}:{nameof(AmazonSesOptions.Region)}, or a region of the AWS SDK, for example the environment variable AWS_REGION."]);
+        }
+    }
 }

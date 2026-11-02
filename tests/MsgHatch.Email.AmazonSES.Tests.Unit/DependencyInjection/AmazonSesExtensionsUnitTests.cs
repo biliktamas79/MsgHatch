@@ -1,4 +1,5 @@
 using Amazon;
+using Amazon.Runtime;
 using Amazon.SimpleEmailV2;
 using Amazon.SimpleEmailV2.Model;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +15,8 @@ namespace MsgHatch.Email.AmazonSES.Tests.Unit.DependencyInjection;
 /// <summary>
 /// <c>UseAmazonSes</c> alone registers all parts of the package (section 4.7, D60). A test that resolves the real SES
 /// client sends no request, so it needs no AWS credentials. The AWS SDK keeps the region of its configuration after the
-/// first use, so only one test resolves a client with no region, and the class sets that region back at the end.
+/// first use, so each test that resolves a client with no region sets that region and clears the kept value, and the
+/// class sets both back at the end.
 /// </summary>
 public sealed class AmazonSesExtensionsUnitTests : IDisposable
 {
@@ -24,7 +26,7 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public void Dispose() => AWSConfigs.AWSRegion = _awsRegion;
+    public void Dispose() => UseTheRegionOfTheAwsSdk(_awsRegion);
 
     [Fact]
     public async Task UseAmazonSes_Alone_ResolvesTheEmailClientAsTheLoggingWrapperAroundTheSesClient()
@@ -81,7 +83,7 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
     public async Task UseAmazonSes_NoRegion_RegistersTheSesClientOfTheRegionOfTheAwsSdkConfiguration()
     {
         // Arrange
-        AWSConfigs.AWSRegion = "eu-central-1";
+        UseTheRegionOfTheAwsSdk("eu-central-1");
         var services = TestHost.CreateServices();
         services.AddMsgHatch().UseAmazonSes(static o => o.SenderEmail = _senderEmail);
         await using var provider = services.Build();
@@ -91,6 +93,24 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
 
         // Assert
         Assert.Equal(RegionEndpoint.EUCentral1, Assert.IsType<AmazonSimpleEmailServiceV2Client>(ses).Config.RegionEndpoint);
+    }
+
+    [Fact]
+    public async Task Validate_NoRegionInTheOptionsAndInTheAwsSdk_ThrowsOptionsValidationExceptionForTheRegion()
+    {
+        // Arrange
+        UseTheRegionOfTheAwsSdk(region: null);
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseInMemoryStores().UseAmazonSes(static o => o.SenderEmail = _senderEmail);
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var validation = Assert.IsType<OptionsValidationException>(exception);
+        var failure = Assert.Single(validation.Failures);
+        Assert.Equal((typeof(AmazonSesOptions), "Region"), (validation.OptionsType, failure[..failure.IndexOf(':', StringComparison.Ordinal)]));
     }
 
     [Fact]
@@ -175,6 +195,12 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
 
         // Assert
         Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    private static void UseTheRegionOfTheAwsSdk(string? region)
+    {
+        AWSConfigs.AWSRegion = region;
+        FallbackRegionFactory.Reset();
     }
 
     private static IAmazonSimpleEmailServiceV2 AnAcceptingSes()
