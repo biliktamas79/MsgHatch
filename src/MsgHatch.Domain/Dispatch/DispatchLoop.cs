@@ -145,10 +145,8 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
             return Wake.Due;
         }
 
-        using var timeout = delay is { } wait ? new CancellationTokenSource(wait, time) : null;
-        using var wake = timeout is null
-            ? CancellationTokenSource.CreateLinkedTokenSource(ct)
-            : CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        using var timeout = TimeoutAfter(delay);
+        using var wake = WakeOnTimeoutOrStop(timeout, ct);
         if (!Publish(wake, dueUtc))
         {
             return Wake.TimeGiven;
@@ -156,18 +154,34 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
 
         try
         {
-            var error = await signal.WaitAsync(work.Topic, wake.Token);
-            ct.ThrowIfCancellationRequested();
-            return error is null ? Wake.Signal
-                : error.Type != Errors.OperationCancelled ? await WaitForTheBrokenSignalAsync(dueUtc, ct)
-                : timeout?.IsCancellationRequested == true ? Wake.Due
-                : Wake.TimeGiven;
+            return await WaitForTheSignalAsync(dueUtc, timeout, wake.Token, ct);
         }
         finally
         {
             Unpublish();
         }
     }
+
+    private async ValueTask<Wake> WaitForTheSignalAsync(
+        DateTime? dueUtc, CancellationTokenSource? timeout, CancellationToken wake, CancellationToken ct)
+    {
+        var error = await signal.WaitAsync(work.Topic, wake);
+        ct.ThrowIfCancellationRequested();
+        return IsBroken(error) ? await WaitForTheBrokenSignalAsync(dueUtc, ct) : WakeOf(error, timeout);
+    }
+
+    private CancellationTokenSource? TimeoutAfter(TimeSpan? delay) =>
+        delay is { } wait ? new CancellationTokenSource(wait, time) : null;
+
+    private static CancellationTokenSource WakeOnTimeoutOrStop(CancellationTokenSource? timeout, CancellationToken ct) =>
+        timeout is null
+            ? CancellationTokenSource.CreateLinkedTokenSource(ct)
+            : CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+
+    private static bool IsBroken(Error? error) => error is not null && error.Type != Errors.OperationCancelled;
+
+    private static Wake WakeOf(Error? error, CancellationTokenSource? timeout) =>
+        error is null ? Wake.Signal : timeout?.IsCancellationRequested == true ? Wake.Due : Wake.TimeGiven;
 
     private async ValueTask<Wake> WaitForTheBrokenSignalAsync(DateTime? dueUtc, CancellationToken ct)
     {

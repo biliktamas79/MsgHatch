@@ -193,6 +193,94 @@ public sealed partial class OutboxDispatcherUnitTests
     }
 
     [Fact]
+    public async Task RunAsync_NoPollingAndANextDueTimeThatPassed_ClaimsAgainAtOnceWithNoWait()
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, ClaimWithNextDue(_doubles.Now.AddSeconds(-1)));
+        await using var provider = _doubles.Build(static o => o.EnablePolling = false, transports: TestTransports.For(TestChannel.Id));
+
+        // Act
+        await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
+
+        // Assert
+        ClaimCall[] claims = [await _doubles.NextClaimAsync(), await _doubles.NextClaimAsync()];
+        Assert.Equal((claims[0].NowUtc, false), (claims[1].NowUtc, _doubles.Time.HasMoreWaits));
+    }
+
+    [Fact]
+    public async Task RunAsync_TimeGivenWhileTheLoopStartsItsWait_WaitsUntilTheGivenTime()
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, ClaimWithNextDue(_doubles.Now.AddHours(1), AMessage(), AMessage()));
+        var waitStarts = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSend = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var transport = TestTransports.For(TestChannel.Id);
+        transport.SendAsync(default!, default, Ct).ReturnsForAnyArgs(
+            call => RateLimitedAfterAsync(waitStarts.Task, call.ArgAt<CancellationToken>(2)),
+            _ =>
+            {
+                secondSend.TrySetResult();
+                return ValueTask.FromResult<ErrorOr<PublishReceipt>>(new PublishReceipt("provider-2"));
+            });
+        _doubles.Time.HoldNextTimer(waitStarts, secondSend.Task);
+        await using var provider = _doubles.Build(static o => (o.EnablePolling, o.MaxDegreeOfParallelism) = (false, 1), transports: transport);
+
+        // Act
+        await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
+
+        // Assert
+        var nextTryAtUtc = (await _doubles.NextRecordAsync()).NextTryAtUtc!.Value;
+        TimeSpan[] waits = [await _doubles.Time.NextWaitAsync(), await _doubles.Time.NextWaitAsync()];
+        Assert.Equal([TimeSpan.FromHours(1), nextTryAtUtc - _doubles.Now], waits);
+    }
+
+    [Theory]
+    [InlineData(true, 2)]
+    [InlineData(false, 1)]
+    public async Task RunAsync_SignalThatDoesNotWork_WaitsOnePollIntervalAndClaimsAgain(bool enablePolling, int timers)
+    {
+        // Arrange
+        var signal = Substitute.For<IDispatchSignal>();
+        signal.WaitAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Unavailable)));
+        await using var provider = _doubles.Build(
+            o => o.EnablePolling = enablePolling, b => b.UseDispatchSignal(_ => signal), TestTransports.For(TestChannel.Id));
+        await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
+        await _doubles.NextClaimAsync();
+        for (var timer = 0; timer < timers; timer++)
+        {
+            await _doubles.Time.NextWaitAsync();
+        }
+
+        // Act
+        _doubles.Time.Advance(TimeSpan.FromSeconds(1));
+
+        // Assert
+        Assert.Equal(TestHost.Start.UtcDateTime.AddSeconds(1), (await _doubles.NextClaimAsync()).NowUtc);
+    }
+
+    [Fact]
+    public async Task RunAsync_SignalThatFailsAfterTheDueTime_ClaimsAgainAtOnce()
+    {
+        // Arrange
+        var signal = Substitute.For<IDispatchSignal>();
+        signal.WaitAsync(default, Ct).ReturnsForAnyArgs(
+            _ =>
+            {
+                _doubles.Time.Advance(TimeSpan.FromSeconds(2));
+                return ValueTask.FromResult<Error?>(new Error(Errors.Unavailable));
+            },
+            _ => ValueTask.FromResult<Error?>(new Error(Errors.Unavailable)));
+        await using var provider = _doubles.Build(more: b => b.UseDispatchSignal(_ => signal), transports: TestTransports.For(TestChannel.Id));
+
+        // Act
+        await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
+
+        // Assert
+        ClaimCall[] claims = [await _doubles.NextClaimAsync(), await _doubles.NextClaimAsync()];
+        Assert.Equal(TestHost.Start.UtcDateTime.AddSeconds(2), claims[1].NowUtc);
+    }
+
+    [Fact]
     public async Task RunAsync_Cancelled_ReturnsAndSendsNoMessageThatIsStillInTheWorkQueue()
     {
         // Arrange
@@ -268,6 +356,12 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         await sendStarted.Task.WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct);
         Assert.Equal(ofTheSecondChannel, (await _doubles.NextRecordAsync()).Message);
+    }
+
+    private static async ValueTask<ErrorOr<PublishReceipt>> RateLimitedAfterAsync(Task waitStarts, CancellationToken ct)
+    {
+        await waitStarts.WaitAsync(ct);
+        return new Error(Errors.RateLimited);
     }
 
     private async Task<TimeSpan> PollAgainAsync()
