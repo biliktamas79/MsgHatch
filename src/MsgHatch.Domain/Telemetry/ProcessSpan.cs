@@ -7,10 +7,10 @@ using MsgHatch.Domain.Pipeline;
 namespace MsgHatch.Domain.Telemetry;
 
 /// <summary>
-/// The <c>process {MessageType}</c> span of <c>ProcessAsync</c>, a child of <see cref="Activity.Current"/> (D131, D132).
-/// With no listener, no span starts, and the outgoing messages get the trace context of <see cref="Activity.Current"/>.
+/// The <c>process {MessageType}</c> span (D131, D132): of <c>ProcessAsync</c>, a child of <see cref="Activity.Current"/>,
+/// and of the inbox processor, a span in a new trace with a link to the trace context of the received message. With no
+/// listener, no span starts, and the outgoing messages get the trace context of <see cref="Activity.Current"/>.
 /// </summary>
-// ponytail: traceparent only, add the tracestate if a vendor needs it
 internal readonly struct ProcessSpan : IDisposable
 {
     private readonly Activity? _activity;
@@ -19,7 +19,7 @@ internal readonly struct ProcessSpan : IDisposable
     {
         _activity = activity;
         CallerTraceParent = callerTraceParent;
-        TraceParent = TraceParentOf(activity) ?? callerTraceParent;
+        TraceParent = TraceParents.Of(activity) ?? callerTraceParent;
     }
 
     public string? CallerTraceParent { get; }
@@ -28,13 +28,25 @@ internal readonly struct ProcessSpan : IDisposable
 
     public static ProcessSpan Start(MessageType type, MessageContext context)
     {
-        var callerTraceParent = TraceParentOf(Activity.Current);
+        var callerTraceParent = TraceParents.Current();
         var activity = TelemetryNames.Source.HasListeners()
             ? TelemetryNames.Source.StartActivity($"process {type.Name}", ActivityKind.Consumer)
             : null;
         if (activity is { IsAllDataRequested: true })
         {
             SetStartAttributes(activity, type, context);
+        }
+
+        return new ProcessSpan(activity, callerTraceParent);
+    }
+
+    public static ProcessSpan StartForReceived(ReceivedMessage received)
+    {
+        var callerTraceParent = TraceParents.Current();
+        var activity = TraceParents.StartInANewTrace($"process {received.Type.Name}", ActivityKind.Consumer, received.TraceParent);
+        if (activity is { IsAllDataRequested: true })
+        {
+            SetStartAttributes(activity, received.Type, new MessageContext(received.Delivery.Id, received.Tenant, received.Flags));
         }
 
         return new ProcessSpan(activity, callerTraceParent);
@@ -76,7 +88,4 @@ internal readonly struct ProcessSpan : IDisposable
             activity.SetTag(TelemetryNames.Tenant, tenant.Value);
         }
     }
-
-    private static string? TraceParentOf(Activity? activity) =>
-        activity is { IdFormat: ActivityIdFormat.W3C } ? activity.Id : null;
 }

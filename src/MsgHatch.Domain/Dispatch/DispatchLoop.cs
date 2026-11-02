@@ -17,6 +17,7 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
     private DateTime? _givenAtUtc;
     private CancellationTokenSource? _wake;
     private DateTime? _wakeDueUtc;
+    private volatile Channel<T>? _queue;
 
     private enum Wake
     {
@@ -25,9 +26,13 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
         TimeGiven,
     }
 
+    /// <summary>The messages in the work queue of the running loop, for the gauge <c>msghatch.queue.length</c>.</summary>
+    public int QueueLength => _queue?.Reader.Count ?? 0;
+
     public async ValueTask RunAsync(CancellationToken ct)
     {
         var queue = Channel.CreateBounded<T>(new BoundedChannelOptions(options.QueueCapacity) { SingleWriter = true });
+        _queue = queue;
         var workers = Enumerable.Range(0, options.MaxDegreeOfParallelism).Select(_ => WorkAsync(queue.Reader, ct)).ToArray();
         await ClaimUntilCancelledAsync(queue, ct);
         queue.Writer.TryComplete();

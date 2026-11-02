@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.Metrics.Testing;
 using Microsoft.Extensions.Logging;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
@@ -11,6 +14,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
+using MsgHatch.Domain.Telemetry;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -19,8 +23,10 @@ using static MsgHatch.Domain.Tests.Unit.TestTypes.TestRoutes;
 namespace MsgHatch.Domain.Tests.Unit.Dispatch;
 
 /// <summary>The inbox processor through <see cref="IInboxProcessor"/> (section 4.8, the processing of one claimed received message).</summary>
+[Collection(SequentialTelemetry.Name)]
 public sealed class InboxProcessorUnitTests
 {
+    private const string _messageTraceParent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
     private static readonly Guid _fixedId = Guid.Parse("11223344-5566-7788-99aa-bbccddeeff00");
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
@@ -218,6 +224,61 @@ public sealed class InboxProcessorUnitTests
 
         // Assert
         Assert.Equal([MessageFlags.Test], provider.GetRequiredService<InMemoryOutboxStore>().GetMessages().Select(static m => m.Flags));
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_ListenerOnTheSource_GivesAProcessSpanInANewTraceWithALinkToTheReceivedMessage()
+    {
+        // Arrange
+        await using var provider = Build();
+        var message = await AddAsync(provider, AMessage(_t1) with { TraceParent = _messageTraceParent });
+        var spans = new ConcurrentQueue<Activity>();
+        using var listener = SequentialTelemetry.ListenTo([MsgHatchTelemetry.SourceName, SequentialTelemetry.TestSource.Name], spans);
+        using var parent = SequentialTelemetry.TestSource.StartActivity("test")!;
+
+        // Act
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        var span = Assert.Single(spans, s => Equals(s.GetTagItem("messaging.message.id"), message.Delivery.Id.ToString()));
+        var link = Assert.Single(span.Links);
+        Assert.Equal(
+            ("process TestEvent", ActivityKind.Consumer, default(ActivitySpanId), false, "4bf92f3577b34da6a3ce929d0e0e4736", (object?)"t1"),
+            (span.DisplayName, span.Kind, span.ParentSpanId, span.TraceId == parent.TraceId, link.Context.TraceId.ToString(), span.GetTagItem("msghatch.tenant")));
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_ListenerOnTheSource_GivesEachOutgoingMessageTheIdOfTheProcessSpanAsTraceParent()
+    {
+        // Arrange
+        await using var provider = Build();
+        var message = await AddAsync(provider, AMessage() with { TraceParent = _messageTraceParent });
+        var spans = new ConcurrentQueue<Activity>();
+        using var listener = SequentialTelemetry.ListenTo([MsgHatchTelemetry.SourceName], spans);
+
+        // Act
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        var span = Assert.Single(spans, s => Equals(s.GetTagItem("messaging.message.id"), message.Delivery.Id.ToString()));
+        Assert.Equal(span.Id, Assert.Single(provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()).TraceParent);
+    }
+
+    [Fact]
+    public async Task ProcessPendingAsync_ClaimedMessage_RecordsOneProcessDurationAndCountsNoReceivedEventAgain()
+    {
+        // Arrange
+        await using var provider = Build();
+        await AddAsync(provider, AMessage());
+        var meters = provider.GetRequiredService<IMeterFactory>();
+        using var duration = new MetricCollector<double>(meters, MsgHatchTelemetry.MeterName, "msghatch.process.duration");
+        using var received = new MetricCollector<long>(meters, MsgHatchTelemetry.MeterName, "msghatch.messages.received");
+
+        // Act
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        Assert.Equal((1, 0), (duration.GetMeasurementSnapshot().Count, received.GetMeasurementSnapshot().Count));
     }
 
     [Fact]

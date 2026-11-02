@@ -38,8 +38,9 @@ internal sealed class NotificationPipeline(
             return new Error(Errors.NotFound, "No setup method selects an IInboxStore, for example UseInMemoryStores.");
         }
 
+        metrics.RecordReceived(found.Value.Type, context.Flags);
         var received = found.Value.Receive(
-            domainEvent, context, time.GetUtcNowDateTime(), retryOptions.Get(OptionNames.Inbox).MaxTryCount, traceParent: null);
+            domainEvent, context, time.GetUtcNowDateTime(), retryOptions.Get(OptionNames.Inbox).MaxTryCount, TraceParents.Current());
         var error = await inbox.AddAsync(received, ct);
         if (error is not null)
         {
@@ -63,12 +64,36 @@ internal sealed class NotificationPipeline(
         var started = time.GetTimestamp();
         using var span = ProcessSpan.Start(registration.Type, context);
         metrics.RecordReceived(registration.Type, context.Flags);
-        ErrorOr<NotificationResult> result = default;
-        try
+        return await MeasureAsync(registration.Type, context.Flags, started, span, () =>
         {
             var nowUtc = time.GetUtcNowDateTime();
             var received = registration.Receive(domainEvent, context, nowUtc, _oneProcessingInMemory, span.CallerTraceParent);
-            result = await ProcessInSpanAsync(registration, received, nowUtc, span.TraceParent, ct);
+            return ProcessInSpanAsync(registration, received, nowUtc, span.TraceParent, ct);
+        }, ct);
+    }
+
+    /// <summary>
+    /// Runs the steps 2 to 6 for a received message that the inbox processor claimed (section 4.8), in a
+    /// <c>process</c> span of a new trace with a link to the trace context of the message (D132).
+    /// </summary>
+    public async ValueTask<ErrorOr<NotificationResult>> ProcessReceivedAsync<TEvent>(
+        MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        using var span = ProcessSpan.StartForReceived(received);
+        return await MeasureAsync(
+            registration.Type, received.Flags, started, span,
+            () => ProcessInSpanAsync(registration, received, time.GetUtcNowDateTime(), span.TraceParent, ct), ct);
+    }
+
+    private async ValueTask<ErrorOr<NotificationResult>> MeasureAsync(
+        MessageType type, MessageFlags flags, long started, ProcessSpan span, Func<ValueTask<ErrorOr<NotificationResult>>> process,
+        CancellationToken ct)
+    {
+        ErrorOr<NotificationResult> result = default;
+        try
+        {
+            result = await process();
             return result;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -84,14 +109,9 @@ internal sealed class NotificationPipeline(
         finally
         {
             span.Finish(result);
-            metrics.RecordProcessed(registration.Type, context.Flags, result.Error, time.GetElapsedTime(started));
+            metrics.RecordProcessed(type, flags, result.Error, time.GetElapsedTime(started));
         }
     }
-
-    /// <summary>Runs the steps 2 to 6 for a received message that the inbox processor claimed (section 4.8).</summary>
-    public ValueTask<ErrorOr<NotificationResult>> ProcessReceivedAsync<TEvent>(
-        MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, CancellationToken ct) =>
-        ProcessInSpanAsync(registration, received, time.GetUtcNowDateTime(), outgoingTraceParent: null, ct);
 
     private async ValueTask<ErrorOr<NotificationResult>> ProcessInSpanAsync<TEvent>(
         MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, DateTime nowUtc, string? outgoingTraceParent,

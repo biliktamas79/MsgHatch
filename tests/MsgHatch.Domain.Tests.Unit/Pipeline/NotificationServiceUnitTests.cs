@@ -9,6 +9,7 @@ using MsgHatch.Domain.Tests.Unit.TestTypes;
 namespace MsgHatch.Domain.Tests.Unit.Pipeline;
 
 /// <summary>The pipeline tests of <see cref="INotificationService"/>, with substitutes through the factory overloads.</summary>
+[Collection(SequentialTelemetry.Name)]
 public sealed partial class NotificationServiceUnitTests
 {
     private static readonly TenantId _tenant = new("t1");

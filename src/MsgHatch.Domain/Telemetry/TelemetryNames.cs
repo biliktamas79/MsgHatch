@@ -19,8 +19,12 @@ internal static class TelemetryNames
     public const string Stored = "msghatch.stored";
     public const string Failed = "msghatch.failed";
     public const string Skipped = "msghatch.skipped";
+    public const string TryNumber = "msghatch.try_number";
+    public const string Outcome = "msghatch.outcome";
+    public const string Queue = "msghatch.queue";
     public const string System = "msghatch";
     public const string ProcessOperation = "process";
+    public const string SendOperation = "send";
 
     public static readonly ActivitySource Source = new(MsgHatchTelemetry.SourceName);
 }

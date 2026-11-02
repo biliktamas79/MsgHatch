@@ -5,6 +5,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Telemetry;
 
 namespace MsgHatch.Domain.Dispatch;
 
@@ -21,7 +22,9 @@ internal sealed class InboxProcessor(DispatchLoop<ReceivedMessage> loop) : IInbo
         var work = new InboxWork(
             services.GetRequiredService<IInboxDispatchStore>(), services.GetRequiredService<IServiceScopeFactory>(), handlers, options,
             services.GetRequiredService<IOptionsMonitor<RetryOptions>>(), time, Loggers.For<InboxProcessor>(services));
-        return new InboxProcessor(new DispatchLoop<ReceivedMessage>(work, options, services.GetRequiredService<IDispatchSignal>(), time));
+        var loop = new DispatchLoop<ReceivedMessage>(work, options, services.GetRequiredService<IDispatchSignal>(), time);
+        services.GetRequiredService<MsgHatchMetrics>().ObserveQueue(DispatchTopic.Inbox.Name, () => loop.QueueLength);
+        return new InboxProcessor(loop);
     }
 
     public ValueTask RunAsync(CancellationToken ct) => loop.RunAsync(ct);

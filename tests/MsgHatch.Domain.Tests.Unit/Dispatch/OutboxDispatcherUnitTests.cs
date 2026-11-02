@@ -15,6 +15,7 @@ using static MsgHatch.Domain.Tests.Unit.TestTypes.OutboxDispatchDoubles;
 namespace MsgHatch.Domain.Tests.Unit.Dispatch;
 
 /// <summary>The outbox dispatcher through <see cref="IOutboxDispatcher"/>, with an outbox dispatch store substitute (section 4.8, publishing).</summary>
+[Collection(SequentialTelemetry.Name)]
 public sealed partial class OutboxDispatcherUnitTests
 {
     private static readonly Guid _fixedId = Guid.Parse("11223344-5566-7788-99aa-bbccddeeff00");

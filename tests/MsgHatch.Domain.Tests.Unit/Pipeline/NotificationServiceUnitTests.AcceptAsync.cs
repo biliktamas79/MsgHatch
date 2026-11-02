@@ -1,5 +1,10 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.Metrics.Testing;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Telemetry;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
@@ -139,6 +144,36 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(Errors.NotFound, accepted.Error?.Type);
+    }
+
+    [Fact]
+    public async Task AcceptAsync_InsideAnActivityOfTheTest_StoresTheIdOfThatActivityAsTraceParent()
+    {
+        // Arrange
+        await using var provider = BuildWithInMemoryInbox();
+        using var listener = SequentialTelemetry.ListenTo([SequentialTelemetry.TestSource.Name], new ConcurrentQueue<Activity>());
+        using var parent = SequentialTelemetry.TestSource.StartActivity("test")!;
+
+        // Act
+        await AcceptAsync(provider, new TestEvent("text"), AContext());
+
+        // Assert
+        Assert.Equal(parent.Id, Assert.Single(provider.GetRequiredService<InMemoryInboxStore>().GetMessages()).TraceParent);
+    }
+
+    [Fact]
+    public async Task AcceptAsync_Event_AddsOneReceivedEventWithItsMessageType()
+    {
+        // Arrange
+        await using var provider = BuildWithInMemoryInbox();
+        using var received = new MetricCollector<long>(provider.GetRequiredService<IMeterFactory>(), MsgHatchTelemetry.MeterName, "msghatch.messages.received");
+
+        // Act
+        await AcceptAsync(provider, new TestEvent("text"), AContext());
+
+        // Assert
+        var measurement = Assert.Single(received.GetMeasurementSnapshot());
+        Assert.Equal((1L, (object?)"TestEvent"), (measurement.Value, measurement.Tags["msghatch.message_type"]));
     }
 
     private ServiceProvider BuildWithInMemoryInbox(IReadOnlyDictionary<string, string?>? configuration = null)

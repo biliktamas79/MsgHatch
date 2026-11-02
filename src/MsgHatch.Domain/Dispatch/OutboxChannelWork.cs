@@ -2,7 +2,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
+using MsgHatch.Domain.Telemetry;
 using MsgHatch.Domain.Time;
 
 namespace MsgHatch.Domain.Dispatch;
@@ -16,13 +18,20 @@ namespace MsgHatch.Domain.Dispatch;
 // ponytail: fixed check interval, a growing interval if long outages need it
 internal sealed class OutboxChannelWork(
     ITransport transport, IOutboxDispatchStore store, DispatchOptions options, ChannelDownOptions downOptions,
-    TestDeliveryOptions testDelivery, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time, ILogger logger)
+    TestDeliveryOptions testDelivery, IOptionsMonitor<RetryOptions> retryOptions, TimeProvider time, MsgHatchMetrics metrics,
+    ILogger logger)
     : IDispatchWork<OutgoingMessage>
 {
     private volatile ChannelDown? _down;
+    private volatile bool _lastClaimWasDown;
     private int _errorsInARow;
 
     public DispatchTopic Topic { get; } = DispatchTopic.ForChannel(transport.Channel);
+
+    public ChannelId Channel => transport.Channel;
+
+    /// <summary>True when the last claim of the loop gave a down state, for the gauge <c>msghatch.channel.down</c>.</summary>
+    public bool LastClaimWasDown => _lastClaimWasDown;
 
     public async ValueTask BeforeClaimAsync(CancellationToken ct)
     {
@@ -52,6 +61,7 @@ internal sealed class OutboxChannelWork(
         }
 
         _down = result.Down;
+        _lastClaimWasDown = result.Down is not null;
         return result.Down switch
         {
             null => result.NextDueAtUtc,
@@ -105,6 +115,7 @@ internal sealed class OutboxChannelWork(
     private async ValueTask<ItemResult> PublishAsync(OutgoingMessage message, CancellationToken ct)
     {
         var tryNumber = message.Delivery.TryCount + 1;
+        var sendStarted = time.GetTimestamp();
         var startedAtUtc = time.GetUtcNowDateTime();
         if (message.Delivery.ExpiresAtUtc <= startedAtUtc)
         {
@@ -123,31 +134,35 @@ internal sealed class OutboxChannelWork(
             return await RecordAsync(message, suppressed, nextTryAtUtc: null, ct);
         }
 
+        using var span = SendSpan.Start(message, tryNumber);
         var redirectTo = isTest && testDelivery.Mode == TestDeliveryMode.Redirect ? testDelivery.RedirectTo : null;
         var sent = await transport.SendAsync(message, redirectTo, ct);
         var finishedAtUtc = time.GetUtcNowDateTime();
-        return IsCancelledSend(sent)
-            ? ItemResult.None
-            : await RecordSendAsync(message, tryNumber, startedAtUtc, finishedAtUtc, sent, ct);
+        if (IsCancelledSend(sent))
+        {
+            return ItemResult.None;
+        }
+
+        var publishTry = TryOf(message, tryNumber, startedAtUtc, finishedAtUtc, sent);
+        span.Finish(publishTry.Outcome, sent.Error);
+        metrics.RecordSendDuration(transport.Channel, publishTry.Outcome, time.GetElapsedTime(sendStarted));
+        return await RecordAsync(message, publishTry, NextTryAtUtc(message, publishTry), ct);
     }
 
-    private ValueTask<ItemResult> RecordSendAsync(
-        OutgoingMessage message, int tryNumber, DateTime startedAtUtc, DateTime finishedAtUtc, ErrorOr<PublishReceipt> sent,
-        CancellationToken ct)
+    private static PublishTry TryOf(
+        OutgoingMessage message, int tryNumber, DateTime startedAtUtc, DateTime finishedAtUtc, ErrorOr<PublishReceipt> sent)
     {
         if (sent.IsError)
         {
             var outcome = sent.Error.Type.IsTransient ? PublishOutcome.TransientError : PublishOutcome.PermanentError;
-            var failed = new PublishTry(
+            return new PublishTry(
                 message.Delivery.Id, tryNumber, startedAtUtc, finishedAtUtc, outcome, ProviderMessageId: null, sent.Error.Type.Code,
                 sent.Error.Type.Name, sent.Error.Message);
-            return RecordAsync(message, failed, NextTryAtUtc(message, failed), ct);
         }
 
-        var succeeded = new PublishTry(
+        return new PublishTry(
             message.Delivery.Id, tryNumber, startedAtUtc, finishedAtUtc, PublishOutcome.Succeeded, sent.Value.ProviderMessageId,
             ErrorCode: null, ErrorName: null, ErrorMessage: null);
-        return RecordAsync(message, succeeded, nextTryAtUtc: null, ct);
     }
 
     private DateTime? NextTryAtUtc(OutgoingMessage message, PublishTry failed) =>
@@ -161,9 +176,28 @@ internal sealed class OutboxChannelWork(
         var error = await store.RecordTryAsync(message, publishTry, nextTryAtUtc, ct);
         var repeated = error is null ? null : await store.RecordTryAsync(message, publishTry, nextTryAtUtc, ct);
         await CountErrorsInARowAsync(publishTry, ct);
-        return error is not null && repeated is not null
-            ? ItemResult.None
-            : new ItemResult(OutcomeOf(publishTry.Outcome, nextTryAtUtc), nextTryAtUtc);
+        if (error is not null && repeated is not null)
+        {
+            return ItemResult.None;
+        }
+
+        var outcome = OutcomeOf(publishTry.Outcome, nextTryAtUtc);
+        MeasureRecordedTry(message, publishTry, outcome);
+        return new ItemResult(outcome, nextTryAtUtc);
+    }
+
+    private void MeasureRecordedTry(OutgoingMessage message, PublishTry publishTry, ItemOutcome outcome)
+    {
+        metrics.RecordTry(message, publishTry.Outcome);
+        if (outcome == ItemOutcome.Failed)
+        {
+            metrics.RecordFailed(message, publishTry.ErrorName);
+        }
+
+        if (publishTry.Outcome == PublishOutcome.Succeeded)
+        {
+            metrics.RecordDeliveryDelay(message, publishTry.FinishedAtUtc - message.Delivery.CreatedAtUtc);
+        }
     }
 
     private async ValueTask CountErrorsInARowAsync(PublishTry publishTry, CancellationToken ct)

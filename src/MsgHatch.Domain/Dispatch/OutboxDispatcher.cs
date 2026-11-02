@@ -4,6 +4,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Outbox;
+using MsgHatch.Domain.Telemetry;
 
 namespace MsgHatch.Domain.Dispatch;
 
@@ -23,15 +24,25 @@ internal sealed class OutboxDispatcher(IReadOnlyList<DispatchLoop<OutgoingMessag
         var time = services.GetRequiredService<TimeProvider>();
         var downOptions = services.GetRequiredService<IOptionsMonitor<ChannelDownOptions>>();
         var testDelivery = services.GetRequiredService<IOptionsMonitor<TestDeliveryOptions>>();
+        var metrics = services.GetRequiredService<MsgHatchMetrics>();
         var logger = Loggers.For<OutboxDispatcher>(services);
         return new OutboxDispatcher(
         [
-            .. services.GetServices<ITransport>().Select(transport => new DispatchLoop<OutgoingMessage>(
+            .. services.GetServices<ITransport>().Select(transport => ObservedLoop(
                 new OutboxChannelWork(
                     transport, store, options, downOptions.Get(transport.Channel.Name), testDelivery.Get(transport.Channel.Name),
-                    retryOptions, time, logger),
-                options, signal, time)),
+                    retryOptions, time, metrics, logger),
+                options, signal, time, metrics)),
         ]);
+    }
+
+    private static DispatchLoop<OutgoingMessage> ObservedLoop(
+        OutboxChannelWork work, DispatchOptions options, IDispatchSignal signal, TimeProvider time, MsgHatchMetrics metrics)
+    {
+        var loop = new DispatchLoop<OutgoingMessage>(work, options, signal, time);
+        metrics.ObserveQueue(work.Channel.Name, () => loop.QueueLength);
+        metrics.ObserveChannel(work.Channel, () => work.LastClaimWasDown);
+        return loop;
     }
 
     public async ValueTask RunAsync(CancellationToken ct) =>
