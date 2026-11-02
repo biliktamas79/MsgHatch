@@ -1,16 +1,20 @@
 using System.Buffers;
 using System.Text.Encodings.Web;
+using System.Text.Unicode;
 using MsgHatch.Email.Templates;
 
 namespace MsgHatch.Email.Placeholders;
 
 /// <summary>
 /// Renders one parsed part for one payload (section 4.10). It writes each segment into a pooled buffer. In an
-/// <see cref="TemplatePartKind.Html"/> part, it encodes each value with <see cref="HtmlEncoder.Default"/>. In the other
-/// parts, it does not encode.
+/// <see cref="TemplatePartKind.Html"/> part, it encodes each value with an <see cref="HtmlEncoder"/> that allows all
+/// Unicode ranges, so that accented letters stay letters and the HTML characters are encoded. In the other parts, it
+/// does not encode.
 /// </summary>
 internal static class PlaceholderRenderer
 {
+    private static readonly HtmlEncoder _html = HtmlEncoder.Create(UnicodeRanges.All);
+
     public static string Render<TPayload>(
         ParsedTemplate.Part part, in TPayload payload, IPlaceholderWriter<TPayload> writer, IFormatProvider culture,
         PooledCharBufferWriter output, PooledCharBufferWriter value)
@@ -42,7 +46,7 @@ internal static class PlaceholderRenderer
         var status = OperationStatus.DestinationTooSmall;
         while (status != OperationStatus.Done)
         {
-            status = HtmlEncoder.Default.Encode(source, output.GetSpan(source.Length + 16), out var consumed, out var written);
+            status = _html.Encode(source, output.GetSpan(source.Length + 16), out var consumed, out var written);
             output.Advance(written);
             source = source[consumed..];
         }

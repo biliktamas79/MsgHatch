@@ -38,16 +38,16 @@ public abstract partial class EmailTemplateEngineTestsBase<TEngine>
     }
 
     [Fact]
-    public async Task RenderAsync_AccentedCharacters_RenderUnchangedInTheSubjectTheTextAndTheTemplateText()
+    public async Task RenderAsync_AccentedCharacters_RenderUnchangedInEachPart()
     {
         // Arrange
-        TestData.Seed(Type, "hu", "{Name} rendelése", "<p>Kedves ügyfelünk, ő ű</p>", "Kedves {Name}, ő ű");
+        TestData.Seed(Type, "hu", "{Name} rendelése", "<p>Kedves {Name}, ő ű</p>", "Kedves {Name}, ő ű");
 
         // Act
         var rendered = await RenderAsync(APayload(name: "Ödön Űr"), "hu");
 
         // Assert
-        Assert.Equal(new RenderedEmail("Ödön Űr rendelése", "<p>Kedves ügyfelünk, ő ű</p>", "Kedves Ödön Űr, ő ű"), rendered);
+        Assert.Equal(new RenderedEmail("Ödön Űr rendelése", "<p>Kedves Ödön Űr, ő ű</p>", "Kedves Ödön Űr, ő ű"), rendered);
     }
 
     [Fact]
