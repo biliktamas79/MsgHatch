@@ -81,6 +81,37 @@ public sealed class EmailTemplateEngineLoggingWrapperUnitTests
     }
 
     [Fact]
+    public async Task PrepareAsync_CancelledError_LogsInformationWithItsEventId()
+    {
+        // Arrange
+        await using var provider = BuildWith(AnEngine(new Error(Errors.OperationCancelled)));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await PrepareAsync(scope.ServiceProvider);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((LogLevel.Information, 2003), (record.Level, record.Id.Id));
+    }
+
+    [Fact]
+    public async Task PrepareAsync_ErrorOfTheEngineWithNoTenant_LogsNoTenant()
+    {
+        // Arrange
+        await using var provider = BuildWith(AnEngine(new Error(Errors.NotFound)));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await scope.ServiceProvider.GetRequiredService<IEmailTemplateEngine<OrderEmail>>()
+            .PrepareAsync(new EmailTemplateRequest(new MessageType("TestEvent"), "en", Scope: null), Ct);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal(((string?)null, 2003), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
+    }
+
+    [Fact]
     public async Task PrepareAsync_TenantServiceOfAKey_LogsTheTenantOfTheKey()
     {
         // Arrange

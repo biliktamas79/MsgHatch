@@ -20,6 +20,9 @@ public sealed partial class PlaceholderPayloadGeneratorUnitTests
         { nameof(WriterTestPayload.OrderId), "6f9619ff-8b86-d011-b42d-00c04fc964ff" },
         { nameof(WriterTestPayload.Express), "True" },
         { nameof(WriterTestPayload.Extra), "extra" },
+        { nameof(WriterTestPayload.Level), "2" },
+        { nameof(WriterTestPayload.AppVersion), "1.2.3" },
+        { nameof(WriterTestPayload.BaseText), "base" },
     };
 
     public static TheoryData<string> CultureRows => new() { "en-US", "hu-HU", "ar-SA" };
@@ -138,5 +141,5 @@ public sealed partial class PlaceholderPayloadGeneratorUnitTests
 
     private static WriterTestPayload APayload(
         string name = "Client 1", string? note = "note", int count = 3, int? rank = 1, object? extra = null) =>
-        new(name, note, count, rank, _shippedAt, _orderId, Express: true, extra);
+        new(name, note, count, rank, _shippedAt, _orderId, Express: true, extra, Level: 2, new Version(1, 2, 3), "base");
 }

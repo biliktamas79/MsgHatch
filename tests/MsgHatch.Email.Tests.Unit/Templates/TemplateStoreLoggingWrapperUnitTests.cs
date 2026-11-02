@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MsgHatch.Domain.DependencyInjection;
@@ -73,6 +74,38 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 2001), (record.Level, record.Id.Id));
+    }
+
+    [Fact]
+    public async Task FindAsync_CancelledError_LogsInformationWithItsEventId()
+    {
+        // Arrange
+        await using var provider = BuildWithSharedStore(AStore(new Error(Errors.OperationCancelled)));
+
+        // Act
+        await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((LogLevel.Information, 2001), (record.Level, record.Id.Id));
+    }
+
+    [Fact]
+    public async Task UseTemplateStore_HostWithNoLoggingServices_GivesTheResultOfTheInnerStore()
+    {
+        // Arrange
+        var source = ASource("Order shipped");
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton<TimeProvider>(TestHost.NewFakeTime());
+        services.AddMsgHatch().UseTemplateStore(_ => AStore(ErrorOr<TemplateSource?>.ForValue(source)));
+        await using var provider = services.Build();
+
+        // Act
+        var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
+
+        // Assert
+        Assert.Same(source, result.Value);
     }
 
     [Fact]

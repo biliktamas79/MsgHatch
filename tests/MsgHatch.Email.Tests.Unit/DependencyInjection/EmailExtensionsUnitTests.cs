@@ -123,6 +123,36 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
     }
 
     [Fact]
+    public async Task UseTenantTemplateStore_KeyThatIsNotATenantKey_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseTenantTemplateStore<KeyCapturingTemplateStore>();
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(() => provider.GetKeyedService<ITemplateStore>("t1")); // a text, not a TenantKey
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
+    }
+
+    [Fact]
+    public async Task UseTenantTemplateStore_StoreTypeWithNoTenantKeyParameter_ThrowsInvalidOperationExceptionAtResolution()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseTenantTemplateStore<EmptyTemplateStore>();
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(() => provider.GetRequiredKeyedService<ITemplateStore>(_t1));
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception);
+    }
+
+    [Fact]
     public async Task UseTenantTemplateStore_AndASharedStore_TheUnkeyedStoreIsTheSharedStore()
     {
         // Arrange

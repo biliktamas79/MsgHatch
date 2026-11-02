@@ -102,6 +102,21 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
         Assert.Equal((row, (int?)422), (row, CodeOf(result)));
     }
 
+    [Theory]
+    [InlineData("<p>{{Unknown}}</p>", "text")]
+    [InlineData("<p>html</p>", "{{Unknown}}")]
+    public async Task PrepareAsync_UnknownPlaceholderInTheHtmlOrTheTextPart_GivesTemplateInvalid(string html, string text)
+    {
+        // Arrange
+        var store = AStoreWith(PlaceholderTemplateTestData.ASource([Part("subject", "Order"), Part("html", html), Part("text", text)]));
+
+        // Act
+        var result = await EngineWith(tenantStore: null, store).PrepareAsync(new EmailTemplateRequest(Type, "en", Scope: null), Ct);
+
+        // Assert
+        Assert.Equal(422, CodeOf(result));
+    }
+
     [Fact]
     public async Task PrepareAsync_SourceWithTheKeyOfAParsedTemplate_UsesTheParsedTemplate()
     {
