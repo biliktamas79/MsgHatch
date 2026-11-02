@@ -905,7 +905,7 @@ The pipeline and the dispatcher read the retry options of a message by its conte
 
 Each subscription store package uses the options class of its core data package, for example `SqliteStoreOptions`, so one setting serves the outbox and the subscriptions (D59).
 
-`AmazonSesOptions` gives the sender address `"{SenderName} <{SenderEmail}>"`. It gives only `SenderEmail` when `SenderName` is empty, or when `SenderEmail` already contains `<` and `>`.
+`AmazonSesOptions` gives the sender address `"{SenderName} <{SenderEmail}>"`. It gives only `SenderEmail` when `SenderName` is empty, or when `SenderEmail` already contains `<` and `>`. SES requires the MIME encoded-word syntax of RFC 2047 for a sender name with letters outside 7-bit ASCII. So such a `SenderName` becomes words of the form `=?UTF-8?B?…?=`, each of at most 75 characters, and a word ends only between letters.
 
 Types that a consumer writes, for example:
 

@@ -28,10 +28,11 @@ public sealed class AmazonSesOptions
 
     /// <summary>
     /// The sender address: <c>"{SenderName} &lt;{SenderEmail}&gt;"</c>, or only <see cref="SenderEmail"/> when the name is
-    /// empty, or when <see cref="SenderEmail"/> already contains <c>&lt;</c> and <c>&gt;</c>.
+    /// empty, or when <see cref="SenderEmail"/> already contains <c>&lt;</c> and <c>&gt;</c>. A name with letters outside
+    /// 7-bit ASCII is in the MIME encoded-word syntax of RFC 2047.
     /// </summary>
     internal string SenderAddress =>
         string.IsNullOrWhiteSpace(SenderName) || (SenderEmail.Contains('<', StringComparison.Ordinal) && SenderEmail.Contains('>', StringComparison.Ordinal))
             ? SenderEmail
-            : $"{SenderName} <{SenderEmail}>";
+            : $"{EncodedWords.Of(SenderName)} <{SenderEmail}>";
 }

@@ -66,7 +66,23 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
         { "an empty sender name", "noreply@example.com", "", "noreply@example.com" },
         { "a sender name of only whitespace", "noreply@example.com", "   ", "noreply@example.com" },
         { "a sender name", "noreply@example.com", "Example", "Example <noreply@example.com>" },
-        { "a sender name with accented letters", "noreply@example.com", "Példa Kft.", "Példa Kft. <noreply@example.com>" },
+        { "a sender name with accented letters", "noreply@example.com", "Példa Kft.", "=?UTF-8?B?UMOpbGRhIEtmdC4=?= <noreply@example.com>" },
+        {
+            "a name of 44 bytes in one word", "noreply@example.com", "é" + new string('a', 42),
+            "=?UTF-8?B?w6lhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=?= <noreply@example.com>"
+        },
+        {
+            "a name of 45 bytes in one word", "noreply@example.com", "é" + new string('a', 43),
+            "=?UTF-8?B?w6lhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh?= <noreply@example.com>"
+        },
+        {
+            "a name of 46 bytes in two words", "noreply@example.com", "é" + new string('a', 44),
+            "=?UTF-8?B?w6lhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh?= =?UTF-8?B?YQ==?= <noreply@example.com>"
+        },
+        {
+            "a letter of two bytes after 44 bytes in the next word", "noreply@example.com", new string('a', 44) + "é",
+            "=?UTF-8?B?YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=?= =?UTF-8?B?w6k=?= <noreply@example.com>"
+        },
         { "an address with < and >", "Example <noreply@example.com>", "Other", "Example <noreply@example.com>" },
     };
 
