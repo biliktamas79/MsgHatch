@@ -4,4 +4,8 @@
     <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="TemplateFiles\*" LogicalName="MsgHatch.Email.Tests.Unit.TemplateFiles.%(Filename)%(Extension)" WithCulture="false" />
+  </ItemGroup>
+
 </Project>
