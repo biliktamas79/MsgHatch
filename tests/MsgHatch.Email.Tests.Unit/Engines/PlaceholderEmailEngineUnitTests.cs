@@ -172,6 +172,21 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
             (rendered.Value.Subject, rendered.Value.HtmlBody));
     }
 
+    [Fact]
+    public async Task RenderAsync_WriterThatAsksForMemory_RendersTheValueInEachPart()
+    {
+        // Arrange
+        var store = AStoreWith(PlaceholderTemplateTestData.ASource([Part("subject", "[{{Name}}]"), Part("html", "<p>{{Name}}</p>")]));
+        var engine = new PlaceholderEmailEngine<MemoryWriterPayload>(tenantStore: null, store, Options.Create(new MsgHatchOptions { DefaultLanguage = "en" }));
+        var template = await engine.PrepareAsync(new EmailTemplateRequest(Type, "en", Scope: null), Ct);
+
+        // Act
+        var rendered = await template.Value.RenderAsync(new MemoryWriterPayload("Client 1"), TestRoutes.AnEmailRoute(), CultureInfo.InvariantCulture, Ct);
+
+        // Assert
+        Assert.Equal(("[Client 1]", "<p>Client 1</p>"), (rendered.Value.Subject, rendered.Value.HtmlBody));
+    }
+
     [Theory]
     [MemberData(nameof(FallbackRows))]
     public async Task PrepareAsync_TemplatesOfTheFallbackFromTheContainer_GivesTheFirstTemplateInTheOrderOfD123(
