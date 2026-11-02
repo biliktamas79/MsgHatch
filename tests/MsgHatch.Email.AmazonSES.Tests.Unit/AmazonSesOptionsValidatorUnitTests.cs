@@ -14,7 +14,10 @@ public sealed class AmazonSesOptionsValidatorUnitTests
         { "", [_senderEmail] },
         { "   ", [_senderEmail] },
         { "noreply.example.com", [_senderEmail] },
-        { "példa@example.com", [] },
+        { "példa@example.com", [_senderEmail] },
+        { "noreply@példa.hu", [_senderEmail] },
+        { "noreply@xn--plda-bpa.hu", [] },
+        { "Example <noreply@example.com>", [] },
         { "noreply@example.com", [] },
     };
 
@@ -34,7 +37,7 @@ public sealed class AmazonSesOptionsValidatorUnitTests
 
     [Theory]
     [MemberData(nameof(SenderEmailRows))]
-    public void Validate_SenderEmail_FailsWhenItIsMissingOrHasNoAt(string? value, string[] expectedFailedProperties)
+    public void Validate_SenderEmail_FailsWhenItIsMissingHasNoAtOrIsNotAscii(string? value, string[] expectedFailedProperties)
     {
         // Arrange
         var options = new AmazonSesOptions { SenderEmail = value! };

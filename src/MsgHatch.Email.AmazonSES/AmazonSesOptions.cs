@@ -8,9 +8,14 @@ public sealed class AmazonSesOptions
     /// <summary>The configuration section.</summary>
     public const string SectionName = "MsgHatch:AmazonSes";
 
-    /// <summary>The sender address of each email with no address of its own, for example <c>noreply@example.com</c>.</summary>
+    /// <summary>
+    /// The sender address of each email with no address of its own, for example <c>noreply@example.com</c>. SES accepts
+    /// only 7-bit ASCII in an address, so a domain with other letters must be in Punycode, for example
+    /// <c>noreply@xn--plda-bpa.hu</c>.
+    /// </summary>
     [Required]
     [EmailAddress]
+    [RegularExpression("^[ -~]+$")]
     public string SenderEmail { get; set; } = string.Empty;
 
     /// <summary>The name of the sender, or null for no name.</summary>

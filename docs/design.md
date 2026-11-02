@@ -871,7 +871,7 @@ Options (D49, D63, D64, D65). Each options class is a `sealed class` with a publ
 | | | `DatabaseName` | `"msghatch"` | `[Required]`, `[RegularExpression("^[A-Za-z0-9_-]+$")]` |
 | `RegistryOptions` | `MsgHatch:Registry` | `RefreshInterval` | 30 seconds | `[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]` (D118) |
 | `FileTemplateOptions` | `MsgHatch:FileTemplates` | `RootPath` | none | `[Required]` |
-| `AmazonSesOptions` | `MsgHatch:AmazonSes` | `SenderEmail` | none | `[Required]`, `[EmailAddress]` |
+| `AmazonSesOptions` | `MsgHatch:AmazonSes` | `SenderEmail` | none | `[Required]`, `[EmailAddress]`, and `[RegularExpression("^[ -~]+$")]`, because SES accepts only 7-bit ASCII in an address. A domain with other letters is in Punycode. |
 | | | `SenderName` | none | `[MaxLength(100)]` |
 | | | `Region` | none, so that the AWS SDK selects the region from its configuration | `[RegularExpression("^[a-z]{2}(-[a-z]+)+-[0-9]$")]` when it has a value |
 
