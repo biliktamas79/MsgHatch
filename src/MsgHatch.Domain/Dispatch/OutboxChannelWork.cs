@@ -87,12 +87,15 @@ internal sealed class OutboxChannelWork(
         }
         catch (Exception exception)
         {
-            Log.OutgoingMessageFailed(
-                logger, message.Delivery.Id, message.Channel.Name, message.Tenant?.Value, message.Flags, Errors.Exception.Code,
-                Errors.Exception.Name, exception);
+            LogException(message, exception);
             return ItemResult.None;
         }
     }
+
+    private void LogException(OutgoingMessage message, Exception exception) =>
+        Log.OutgoingMessageFailed(
+            logger, message.Delivery.Id, message.Channel.Name, message.Tenant?.Value, message.Flags, Errors.Exception.Code,
+            Errors.Exception.Name, exception);
 
     private async ValueTask CheckWhenDueAsync(ChannelDown down, CancellationToken ct)
     {
@@ -129,7 +132,16 @@ internal sealed class OutboxChannelWork(
             return await RecordAsync(message, noSend, nextTryAtUtc: null, ct);
         }
 
-        var current = CurrentVersionOf(message);
+        ErrorOr<OutgoingMessage> current;
+        try
+        {
+            current = CurrentVersionOf(message);
+        }
+        catch (Exception exception)
+        {
+            return await RecordThrownTryAsync(message, tryNumber, startedAtUtc, exception, ct);
+        }
+
         if (current.IsError)
         {
             var unsupported = TryOf(message, tryNumber, startedAtUtc, startedAtUtc, current.Error);
@@ -155,7 +167,17 @@ internal sealed class OutboxChannelWork(
         OutgoingMessage message, OutgoingMessage current, int tryNumber, long sendStarted, DateTime startedAtUtc, CancellationToken ct)
     {
         using var span = SendSpan.Start(message, tryNumber);
-        var sent = await transport.SendAsync(current, RedirectOf(message), ct);
+        ErrorOr<PublishReceipt> sent;
+        try
+        {
+            sent = await transport.SendAsync(current, RedirectOf(message), ct);
+        }
+        catch (Exception exception) when (!IsCancellationOf(exception, ct))
+        {
+            span.Finish(PublishOutcome.TransientError, new Error(Errors.Exception));
+            return await RecordThrownTryAsync(message, tryNumber, startedAtUtc, exception, ct);
+        }
+
         var finishedAtUtc = time.GetUtcNowDateTime();
         if (IsCancelledSend(sent))
         {
@@ -168,6 +190,22 @@ internal sealed class OutboxChannelWork(
         var result = await RecordAsync(message, publishTry, NextTryAtUtc(message, publishTry), ct);
         await CountErrorsInARowAsync(publishTry, ct);
         return result;
+    }
+
+    private static bool IsCancellationOf(Exception exception, CancellationToken ct) =>
+        exception is OperationCanceledException && ct.IsCancellationRequested;
+
+    /// <summary>
+    /// Records a transient try with <see cref="Errors.Exception"/> for a transport or an upgrade function that throws. It
+    /// does not change the error count of the down state, because a throw is a fault of the code, not an outage (D137).
+    /// </summary>
+    private async ValueTask<ItemResult> RecordThrownTryAsync(
+        OutgoingMessage message, int tryNumber, DateTime startedAtUtc, Exception exception, CancellationToken ct)
+    {
+        LogException(message, exception);
+        var thrown = TryOf(
+            message, tryNumber, startedAtUtc, time.GetUtcNowDateTime(), new Error(Errors.Exception, exception.Message, exception));
+        return await RecordAsync(message, thrown, NextTryAtUtc(message, thrown), ct);
     }
 
     private string? RedirectOf(OutgoingMessage message) =>

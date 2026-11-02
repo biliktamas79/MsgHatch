@@ -78,6 +78,40 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Empty(SetDownStates());
     }
 
+    [Fact]
+    public async Task DispatchPendingAsync_UpgradeFunctionThatThrows_RecordsATransientExceptionTryAndSendsNothing()
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, Claim(AVersionOneMessage("old")));
+        var transport = TestTransports.For(TestChannel.Id);
+        await using var provider = BuildWithEnvelopeVersionTwo(transport, static _ => throw new InvalidOperationException("defective upgrade"));
+
+        // Act
+        var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        var record = await _doubles.NextRecordAsync();
+        Assert.Equal(
+            (PublishOutcome.TransientError, (int?)500, true, 1),
+            (record.Try.Outcome, record.Try.ErrorCode, record.NextTryAtUtc is not null, summary.Value.Retried));
+        await transport.DidNotReceiveWithAnyArgs().SendAsync(default!, default, Ct);
+    }
+
+    [Fact]
+    public async Task DispatchPendingAsync_UpgradeFunctionThatThrows_DoesNotCountAsATransportErrorForTheDownState()
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, Claim(AVersionOneMessage("old")));
+        await using var provider = BuildWithEnvelopeVersionTwo(
+            TestTransports.For(TestChannel.Id), static _ => throw new InvalidOperationException("defective upgrade"));
+
+        // Act
+        await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        Assert.Empty(SetDownStates());
+    }
+
     private static OutgoingMessage<OtherTestEnvelope> AVersionOneMessage(string text)
     {
         var current = AMessage();
@@ -92,14 +126,15 @@ public sealed partial class OutboxDispatcherUnitTests
             .Where(static call => call.GetMethodInfo().Name == nameof(ITransport.SendAsync))
             .Select(static call => (OutgoingMessage)call.GetArguments()[0]!)];
 
-    private Microsoft.Extensions.DependencyInjection.ServiceProvider BuildWithEnvelopeVersionTwo(ITransport transport) =>
+    private Microsoft.Extensions.DependencyInjection.ServiceProvider BuildWithEnvelopeVersionTwo(
+        ITransport transport, Func<OtherTestEnvelope, TestEnvelope>? upgrade = null) =>
         _doubles.Build(
-            more: static b => b
+            more: b => b
                 .ConfigureChannelDown(TestChannel.Id, static o => o.ErrorThreshold = 1)
-                .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
                     .AsChannel(
                         TestChannel.Id, "TestEnvelope", 2, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>(),
-                        configure: static channel => channel.WithUpgrade(
-                            1, TestJsonContext.Default.OtherTestEnvelope, static old => new TestEnvelope($"{old.Text} upgraded")))),
+                        configure: channel => channel.WithUpgrade(
+                            1, TestJsonContext.Default.OtherTestEnvelope, upgrade ?? (static old => new TestEnvelope($"{old.Text} upgraded"))))),
             transports: transport);
 }

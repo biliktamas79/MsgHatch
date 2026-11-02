@@ -210,6 +210,70 @@ public sealed partial class OutboxDispatcherUnitTests
     }
 
     [Fact]
+    public async Task DispatchPendingAsync_TransportThatThrows_LogsTheExceptionAndRecordsATransientExceptionTryWithANextTryTime()
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(tryCount: 0, maxTryCount: 8)));
+        await using var provider = _doubles.Build(transports: AThrowingTransport());
+
+        // Act
+        var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        var record = await _doubles.NextRecordAsync();
+        Assert.Equal(
+            (PublishOutcome.TransientError, (int?)500, "Exception", true, 1),
+            (record.Try.Outcome, record.Try.ErrorCode, record.Try.ErrorName, record.NextTryAtUtc is not null, summary.Value.Retried));
+        Assert.Equal(LogLevel.Error, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1400).Level);
+    }
+
+    [Fact]
+    public async Task DispatchPendingAsync_TransportThatThrowsOnTheLastTry_RecordsNoNextTryTimeAndFailsTheMessage()
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(tryCount: 7, maxTryCount: 8)));
+        await using var provider = _doubles.Build(transports: AThrowingTransport());
+
+        // Act
+        var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        var record = await _doubles.NextRecordAsync();
+        Assert.Equal(((DateTime?)null, (int?)500, 1), (record.NextTryAtUtc, record.Try.ErrorCode, summary.Value.Failed));
+    }
+
+    [Fact]
+    public async Task DispatchPendingAsync_ThrowBetweenTwoTransientErrors_DoesNotChangeTheErrorCountOfTheDownState()
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage()), Claim(AMessage()), Claim(AMessage()));
+        var transport = TestTransports.For(TestChannel.Id);
+        transport.SendAsync(default!, default, Ct).ReturnsForAnyArgs(
+            static _ => ValueTask.FromResult<ErrorOr<PublishReceipt>>(new Error(Errors.RateLimited)),
+            static _ => throw new InvalidOperationException("defective transport"),
+            static _ => ValueTask.FromResult<ErrorOr<PublishReceipt>>(new Error(Errors.RateLimited)));
+        await using var provider = _doubles.Build(
+            transports: transport, more: static b => b.ConfigureChannelDown(TestChannel.Id, static o => o.ErrorThreshold = 2));
+        var dispatcher = provider.GetRequiredService<IOutboxDispatcher>();
+        await dispatcher.DispatchPendingAsync(10, Ct);
+        await dispatcher.DispatchPendingAsync(10, Ct);
+
+        // Act
+        await dispatcher.DispatchPendingAsync(10, Ct);
+
+        // Assert
+        var down = Assert.Single(SetDownStates());
+        Assert.Equal((int?)429, down.ErrorCode);
+    }
+
+    private static ITransport AThrowingTransport()
+    {
+        var transport = TestTransports.For(TestChannel.Id);
+        transport.SendAsync(default!, default, Ct).ThrowsAsyncForAnyArgs(new InvalidOperationException("defective transport"));
+        return transport;
+    }
+
+    [Fact]
     public async Task DispatchPendingAsync_FakeTime_GivesItToTheClaimAsNow()
     {
         // Arrange
