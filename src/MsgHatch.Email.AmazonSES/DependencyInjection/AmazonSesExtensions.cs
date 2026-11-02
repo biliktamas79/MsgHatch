@@ -37,6 +37,13 @@ public static class AmazonSesExtensions
         return builder.UseEmailClient<AmazonSimpleEmailServiceClient>();
     }
 
+    /// <summary>Selects Amazon SES for the email channel, with the sender address from code.</summary>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="senderEmail">The sender address, the one required option of the package.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseAmazonSes(this MsgHatchBuilder builder, string senderEmail) =>
+        builder.UseAmazonSes(o => o.SenderEmail = senderEmail);
+
     private static AmazonSimpleEmailServiceV2Client SesClientOf(string? region) =>
         region is null ? new AmazonSimpleEmailServiceV2Client() : new AmazonSimpleEmailServiceV2Client(RegionEndpoint.GetBySystemName(region));
 }

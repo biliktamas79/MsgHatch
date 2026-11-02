@@ -145,6 +145,23 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
     }
 
     [Fact]
+    public async Task UseAmazonSes_SenderEmailString_SendsFromThatAddressAndWinsOverTheConfiguration()
+    {
+        // Arrange
+        var ses = AnAcceptingSes();
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:AmazonSes:SenderEmail"] = "config@example.com" });
+        services.AddSingleton(ses);
+        services.AddMsgHatch().UseAmazonSes("code@example.com");
+        await using var provider = services.Build();
+
+        // Act
+        await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+
+        // Assert
+        await ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(static r => r.FromEmailAddress == "code@example.com"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Validate_NoSenderEmail_ThrowsOptionsValidationException()
     {
         // Arrange
