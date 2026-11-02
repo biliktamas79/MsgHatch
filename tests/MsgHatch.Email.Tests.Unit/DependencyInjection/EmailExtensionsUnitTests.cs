@@ -18,6 +18,27 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
 {
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
+    private static readonly Func<IServiceProvider, TenantKey, IEmailTemplateEngine<OrderEmail>> _anotherEngine =
+        static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services);
+
+    public static TheoryData<string, Action<MsgHatchBuilder>> OneEngineRows => new()
+    {
+        { "two placeholder registrations", static builder => TwoOrderEmails(builder, static p => p.AsEmail("OrderEmail"), static p => p.AsEmail("OtherEmail")) },
+        { "one engine factory two times", static builder => TwoOrderEmails(builder, static p => p.AsEmail("OrderEmail", _anotherEngine), static p => p.AsEmail("OtherEmail", _anotherEngine)) },
+    };
+
+    public static TheoryData<string, Action<MsgHatchBuilder>> TwoEngineRows => new()
+    {
+        { "the placeholder engine and another engine", static builder => TwoOrderEmails(builder, static p => p.AsEmail("OrderEmail"), static p => p.AsEmail("OtherEmail", _anotherEngine)) },
+        {
+            "two engine factories",
+            static builder => TwoOrderEmails(
+                builder,
+                static p => p.AsEmail("OrderEmail", _anotherEngine),
+                static p => p.AsEmail("OtherEmail", static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services)))
+        },
+    };
+
     public static TheoryData<string, Action<MsgHatchBuilder>> TwoSelectionRows => new()
     {
         { "two shared stores", static builder => builder.UseTestTemplates().UseTemplateStore<EmptyTemplateStore>() },
@@ -314,4 +335,44 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         // Assert
         Assert.Equal((row, typeof(OptionsValidationException)), (row, exception?.GetType()));
     }
+
+    [Theory]
+    [MemberData(nameof(OneEngineRows))]
+    public async Task Validate_RegistrationsOfOnePayloadTypeWithOneEngine_Succeeds(string row, Action<MsgHatchBuilder> registrations)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        registrations(services.AddMsgHatchWithStores());
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Equal((row, (Exception?)null), (row, exception));
+    }
+
+    [Theory]
+    [MemberData(nameof(TwoEngineRows))]
+    public async Task Validate_RegistrationsOfOnePayloadTypeWithTwoEngines_ThrowsOptionsValidationException(string row, Action<MsgHatchBuilder> registrations)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        registrations(services.AddMsgHatchWithStores());
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Equal((row, typeof(OptionsValidationException)), (row, exception?.GetType()));
+    }
+
+    private static void TwoOrderEmails(
+        MsgHatchBuilder builder, Action<PayloadBuilder<TestEvent, OrderEmail>> first, Action<PayloadBuilder<OtherTestEvent, OrderEmail>> second) =>
+        builder.UseTestTemplates()
+            .AddTestEvent(m => m.WithPayload<OrderEmail, TestOrderLoader>(first))
+            .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, m => m
+                .WithRouter<TwoEmailRoutesRouter<OtherTestEvent>>()
+                .WithPayload<OrderEmail, OtherOrderLoader>(second));
 }

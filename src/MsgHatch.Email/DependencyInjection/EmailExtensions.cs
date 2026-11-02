@@ -159,6 +159,7 @@ public static class EmailExtensions
     {
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(engine);
+        EmailSetup.Of(payload.Services).EngineSelections.Add((typeof(TPayload), $"{EmailChannel.Id.Name}:{name}", engine));
         payload.Parent
             .AddChannelType(EmailChannel.Descriptor, 1, EmailJson.Default.EmailChannelSettings, new EmailChannelSettingsValidator())
             .AddTenantService(ServiceLifetime.Scoped, engine, EmailLoggers.Wrap);

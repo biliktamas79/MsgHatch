@@ -6,7 +6,7 @@ namespace MsgHatch.Email.DependencyInjection;
 
 /// <summary>
 /// What the email setup methods registered: one instance in the service collection, for the startup validation of
-/// the template stores (section 4.7, D62).
+/// the template stores and the template engines (section 4.7, D62).
 /// </summary>
 internal sealed class EmailSetup
 {
@@ -15,6 +15,8 @@ internal sealed class EmailSetup
     public List<string> TenantStoreSelections { get; } = [];
 
     public List<string> PlaceholderRegistrations { get; } = [];
+
+    public List<(Type PayloadType, string ContentType, Delegate Engine)> EngineSelections { get; } = [];
 
     public static EmailSetup Of(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(EmailSetup))?.ImplementationInstance as EmailSetup

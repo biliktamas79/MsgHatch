@@ -1520,7 +1520,7 @@ Message channel registrations of the channel packages. Each one is an extension 
 | Method | Package | Effect |
 |---|---|---|
 | `PayloadBuilder<TEvent, TPayload>.AsEmail(name, configure?)` | Email | Registers email with `EmailComposer<TEvent, TPayload>` and the placeholder engine. Requires `TPayload : IPlaceholderPayload<TPayload>`. The channel envelope is the library type `EmailMessage`, so the registration needs no version and no JSON type information (D17). |
-| `PayloadBuilder<TEvent, TPayload>.AsEmail(name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine, configure?)` | Email | Registers email with another engine, from a factory, for example `static (services, _) => ActivatorUtilities.CreateInstance<RazorEngine>(services)` or a test substitute. |
+| `PayloadBuilder<TEvent, TPayload>.AsEmail(name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine, configure?)` | Email | Registers email with another engine, from a factory, for example `static (services, _) => ActivatorUtilities.CreateInstance<RazorEngine>(services)` or a test substitute. The email registrations of one payload type share one engine. Two registrations of one payload type with two engine factories fail the startup validation, and the error names both registrations (D62). |
 | `PayloadBuilder<TEvent, TPayload>.AsSignalR(name, version, JsonTypeInfo<SignalREnvelope<TPayload>>, configure?)` | SignalR | Registers a SignalR message. The channel envelope is `SignalREnvelope<TPayload>`. |
 | `PayloadBuilder<TEvent, TPayload>.AsBroker(name, version, JsonTypeInfo<BrokerEnvelope<TPayload>>, configure?)` | Broker | Registers a broker message. The channel envelope is `BrokerEnvelope<TPayload>`. |
 
