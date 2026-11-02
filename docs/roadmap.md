@@ -11,7 +11,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 1 Core to the outbox | 0 |
 | 2 Dispatch | 1 |
 | 3 Email composition | 1 |
-| 4 Email delivery with Amazon SES | 2, 3 |
+| 4 Email delivery with Amazon SES and Resend | 2, 3 |
 | 5 SignalR channel | 2, 4 |
 | 6 Broker channel with Wolverine | 2, 4 |
 | 7 JSON file stores | 2 |
@@ -27,6 +27,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 17 A store for each tenant | 10, 13, 15, 16 |
 | 18 EF Core stores | 15, 16 |
 | 19 MongoDB stores | 15, 16 |
+| 20 Amazon SES against a real account | 4 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -314,7 +315,7 @@ Tests:
 - The standard logging wrapper tests for the email client wrapper. A log record never contains an email address or a subject.
 - A publisher host with only `UseAmazonSes` sends only the email channel. The other messages of the same outbox stay pending (D101).
 - `UseAmazonSes(string senderEmail)` sends from that address, and the value wins over the section `MsgHatch:AmazonSes`.
-- The SES integration tests, against a real SES account: an email with accented letters gives the message id of SES, a sender name with accented letters (RFC 2047) gives the message id of SES, a sender address with an accented local part gives `Errors.Rejected`, and `CheckHealthAsync` gives null. A run with no account reports each test as skipped.
+- The SES integration tests, against a real SES account: an email with accented letters gives the message id of SES, a sender name with accented letters (RFC 2047) gives the message id of SES, a sender address with an accented local part gives `Errors.Rejected`, and `CheckHealthAsync` gives null. A run with no account reports each test as skipped. Phase 20 runs these tests against a real SES account.
 - The use cases of `EmailClientTestsBase`, run by `ResendEmailClientUnitTests` with the fake HTTP handler as the driver.
 - Tests unique to Resend: the JSON of the request, with and without the html body and the copies. The three headers. One data-driven row for each HTTP status and error name, and for each exception. The Critical log of an API key error, with no address in it. The rows of the health check. The sender address rule.
 - The options tests of `ResendOptions`. `ApiKey` gets null, empty, only whitespace, and a value. `SenderEmail` gets null, empty, only whitespace, a value with no `@`, a value, and a value with `<` and `>`. `SenderName` gets the lengths 99, 100, and 101.
@@ -331,7 +332,7 @@ Commits:
 6. "Add the Resend integration tests"
 7. "Test the email channel from the event to the email client"
 
-Done when: the build has no errors and no warnings, all tests pass, and the SES and Resend integration tests pass with their accounts in `appsettings.Local.json`.
+Done when: the build has no errors and no warnings, all tests pass, and the Resend integration tests pass with a Resend account in `appsettings.Local.json`. With no SES account, the SES integration tests are skipped. Phase 20 runs them against a real account.
 
 ### Phase 5: SignalR channel
 
@@ -785,6 +786,23 @@ Commits:
 2. "Add the MongoDB subscription store"
 
 Done when: the build has no errors and no warnings, all unit tests pass, and the integration tests pass in the stage after the merge.
+
+### Phase 20: Amazon SES against a real account
+
+Goal: the SES client of phase 4 works against a real SES account, and each difference that the run finds is fixed. The owner moved this test out of phase 4, so that the next phases do not wait for an SES account. The phase needs only phase 4, so it can run at any time after it.
+
+1. Put the settings of an SES account into `tests/MsgHatch.Email.AmazonSES.Tests.Integration/appsettings.Local.json`, which git ignores: the access key of an IAM user with `ses:SendEmail` and `ses:GetAccount`, the region code, and a verified sender identity. `appsettings.json` next to it describes each key.
+2. Run the SES integration tests of phase 4. Each run sends 3 billed emails to the SES mailbox simulator, also in the SES sandbox.
+3. For each test that fails, first find out whether the client or the premise of the test is wrong. The premises with the most risk are the RFC 2047 sender name, and `Errors.Rejected` for a sender with an accented local part. Record each changed rule in the design, and fix the client with a unit test that fails first.
+
+Tests:
+- The 4 SES integration tests of phase 4 pass against the real account.
+- Each fix has a unit test in `MsgHatch.Email.AmazonSES.Tests.Unit` that fails first.
+
+Commits:
+1. One commit for each fix, if the run finds a difference, for example "Fix the sender name of the Amazon SES client".
+
+Done when: the build has no errors and no warnings, all tests pass, and the SES integration tests pass with an SES account in `appsettings.Local.json`.
 
 ### Later phases
 
