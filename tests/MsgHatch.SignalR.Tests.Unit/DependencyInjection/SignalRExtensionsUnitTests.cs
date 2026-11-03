@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Pipeline;
@@ -63,6 +64,25 @@ public sealed class SignalRExtensionsUnitTests
             provider.GetRequiredService<InMemoryOutboxStore>().GetMessages().Select(static message => (
                 message.Target, message.ContentType, message.Delivery.MaxTryCount, message.Delivery.ExpiresAtUtc,
                 ((OutgoingMessage<SignalREnvelope<TestPayload>>)message).Envelope)));
+    }
+
+    [Fact]
+    public async Task UseSignalR_ExceptionClassifierOfTheTransport_GivesItsErrorType()
+    {
+        // Arrange
+        var hub = new HubDoubles();
+        hub.Proxy.SendCoreAsync(default!, default!, Ct).ReturnsForAnyArgs(Task.FromException(new IOException()));
+        var services = SignalRHost.CreateServices();
+        services.AddSingleton(hub.Hub);
+        services.AddMsgHatch().UseInMemoryStores().UseSignalR<TestHub>()
+            .AddExceptionClassifier<SignalRTransport<TestHub>, ConflictClassifier<SignalRTransport<TestHub>>>();
+        await using var provider = services.Build();
+
+        // Act
+        var result = await Assert.Single(provider.GetServices<ITransport>()).SendAsync(SignalRMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
     }
 
     [Fact]

@@ -162,6 +162,36 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
     }
 
     [Fact]
+    public async Task SendAsync_ClassifierKnowsTheException_ReturnsItsErrorTypeBeforeTheBuiltInMapping()
+    {
+        // Arrange
+        var transport = new SignalRTransport<TestHub>(_hub.Hub, [new ConflictClassifier<SignalRTransport<TestHub>>()]);
+        _hub.Proxy.SendCoreAsync(default!, default!, Ct).ReturnsForAnyArgs(Task.FromException(new IOException()));
+
+        // Act
+        var result = await transport.SendAsync(SignalRMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task SendAsync_CancelledTokenAndAClassifier_ReturnsOperationCancelled()
+    {
+        // Arrange
+        var transport = new SignalRTransport<TestHub>(_hub.Hub, [new ConflictClassifier<SignalRTransport<TestHub>>()]);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        await stop.CancelAsync();
+        _hub.Proxy.SendCoreAsync(default!, default!, Ct).ReturnsForAnyArgs(Task.FromException(new OperationCanceledException()));
+
+        // Act
+        var result = await transport.SendAsync(SignalRMessages.AnOutgoingMessage(), redirectTo: null, stop.Token);
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_SignalR_ReturnsNull()
     {
         // Act

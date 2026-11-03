@@ -4,6 +4,7 @@ using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Broker.Wolverine.DependencyInjection;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
 using Wolverine;
@@ -96,6 +97,25 @@ public sealed class WolverineBrokerExtensionsUnitTests
 
         // Assert
         Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    [Fact]
+    public async Task UseWolverineBroker_ExceptionClassifierOfTheClient_GivesItsErrorType()
+    {
+        // Arrange
+        var runtime = Substitute.For<IWolverineRuntime>();
+        runtime.When(static r => r.AssertHasStarted()).Do(static _ => throw new WolverineHasNotStartedException());
+        var services = TestHost.CreateServices();
+        services.AddSingleton(runtime);
+        services.AddMsgHatch().UseInMemoryStores().UseWolverineBroker()
+            .AddExceptionClassifier<WolverineBrokerClient, ConflictClassifier<WolverineBrokerClient>>();
+        await using var provider = services.Build();
+
+        // Act
+        var result = await provider.GetRequiredService<ITransport>().SendAsync(BrokerMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
     }
 
     private static IWolverineRuntime ARuntime(bool syncRetryBlock)

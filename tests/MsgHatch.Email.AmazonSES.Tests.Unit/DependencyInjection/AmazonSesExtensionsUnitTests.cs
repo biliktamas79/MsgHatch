@@ -8,7 +8,10 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Email.AmazonSES.DependencyInjection;
 using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Failures;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using SesConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Email.AmazonSES.AmazonSimpleEmailServiceClient>;
 
 namespace MsgHatch.Email.AmazonSES.Tests.Unit.DependencyInjection;
 
@@ -46,6 +49,25 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
         Assert.IsNotType<AmazonSimpleEmailServiceClient>(client);
         Assert.Equal(2004, Assert.Single(provider.LogRecords()).Id.Id);
         await ses.ReceivedWithAnyArgs(1).SendEmailAsync(default!, Ct);
+    }
+
+    [Fact]
+    public async Task UseAmazonSes_ExceptionClassifierOfTheClient_GivesItsErrorType()
+    {
+        // Arrange
+        var ses = Substitute.For<IAmazonSimpleEmailServiceV2>();
+        ses.SendEmailAsync(default!, Ct).ThrowsAsyncForAnyArgs(new HttpRequestException());
+        var services = TestHost.CreateServices();
+        services.AddSingleton(ses);
+        services.AddMsgHatch().UseAmazonSes(static o => o.SenderEmail = _senderEmail)
+            .AddExceptionClassifier<AmazonSimpleEmailServiceClient, SesConflictClassifier>();
+        await using var provider = services.Build();
+
+        // Act
+        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
     }
 
     [Fact]

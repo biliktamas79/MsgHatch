@@ -11,6 +11,7 @@ using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using AwsErrorType = Amazon.Runtime.ErrorType;
+using SesConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Email.AmazonSES.AmazonSimpleEmailServiceClient>;
 
 namespace MsgHatch.Email.AmazonSES.Tests.Unit;
 
@@ -176,6 +177,36 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
 
         // Assert
         Assert.Equal((row, (int?)expectedCode), (row, result.Error?.Type.Code));
+    }
+
+    [Fact]
+    public async Task SendAsync_ClassifierKnowsTheException_ReturnsItsErrorTypeBeforeTheBuiltInMapping()
+    {
+        // Arrange
+        var client = new AmazonSimpleEmailServiceClient(_ses, Options.Create(AnOptions()), classifiers: [new SesConflictClassifier()]);
+        _ses.SendEmailAsync(default!, Ct).ThrowsAsyncForAnyArgs(new HttpRequestException());
+
+        // Act
+        var result = await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task SendAsync_CancelledTokenAndAClassifier_ReturnsOperationCancelled()
+    {
+        // Arrange
+        var client = new AmazonSimpleEmailServiceClient(_ses, Options.Create(AnOptions()), classifiers: [new SesConflictClassifier()]);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        await stop.CancelAsync();
+        _ses.SendEmailAsync(default!, Ct).ThrowsAsyncForAnyArgs(new OperationCanceledException());
+
+        // Act
+        var result = await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), stop.Token);
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
     }
 
     [Theory]

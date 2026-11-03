@@ -15,9 +15,15 @@ namespace MsgHatch.SignalR;
 /// </summary>
 /// <typeparam name="THub">The hub of the host.</typeparam>
 /// <param name="hub">The hub context.</param>
-public sealed class SignalRTransport<THub>(IHubContext<THub> hub) : ITransport
+/// <param name="classifiers">
+/// The exception classifiers of the host (D141). The transport asks them before its built-in mapping. Null means none.
+/// </param>
+public sealed class SignalRTransport<THub>(
+    IHubContext<THub> hub, IEnumerable<IExceptionClassifier<SignalRTransport<THub>>>? classifiers = null) : ITransport
     where THub : Hub
 {
+    private readonly IExceptionClassifier<SignalRTransport<THub>>[] _classifiers = [.. classifiers ?? []];
+
     /// <inheritdoc />
     public ChannelId Channel => SignalRChannel.Id;
 
@@ -63,9 +69,10 @@ public sealed class SignalRTransport<THub>(IHubContext<THub> hub) : ITransport
         _ => new Error(Errors.ValidationFailed, $"The target kind {target.Kind} is not known."),
     };
 
-    private static Error ErrorOf(Exception exception, CancellationToken ct) => exception switch
+    private Error ErrorOf(Exception exception, CancellationToken ct) => exception switch
     {
         OperationCanceledException when ct.IsCancellationRequested => new Error(Errors.OperationCancelled),
+        _ when _classifiers.Classify(exception) is { } type => SignalRError(type, exception),
         JsonException or NotSupportedException => SignalRError(Errors.Rejected, exception),
         _ => SignalRError(Errors.Unavailable, exception),
     };

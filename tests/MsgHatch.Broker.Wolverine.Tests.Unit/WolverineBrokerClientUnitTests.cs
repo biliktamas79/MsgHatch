@@ -121,6 +121,35 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     }
 
     [Fact]
+    public async Task PublishAsync_ClassifierKnowsTheException_ReturnsItsErrorTypeBeforeTheBuiltInMapping()
+    {
+        // Arrange
+        var client = new WolverineBrokerClient(() => _bus, [new ConflictClassifier<WolverineBrokerClient>()]);
+        _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.FromException(new IOException()));
+
+        // Act
+        var result = await client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task PublishAsync_CancelledTokenAndAClassifier_ReturnsOperationCancelled()
+    {
+        // Arrange
+        var client = new WolverineBrokerClient(() => _bus, [new ConflictClassifier<WolverineBrokerClient>()]);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        await stop.CancelAsync();
+
+        // Act
+        var result = await client.PublishAsync(APublish(), stop.Token);
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_Wolverine_ReturnsNull()
     {
         // Act

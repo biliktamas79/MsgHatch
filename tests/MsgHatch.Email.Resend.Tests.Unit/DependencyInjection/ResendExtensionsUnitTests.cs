@@ -5,6 +5,8 @@ using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Email.Resend.DependencyInjection;
 using MsgHatch.Email.Resend.Tests.Unit.TestTypes;
 using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Failures;
+using ResendConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Email.Resend.ResendEmailClient>;
 
 namespace MsgHatch.Email.Resend.Tests.Unit.DependencyInjection;
 
@@ -45,6 +47,23 @@ public sealed class ResendExtensionsUnitTests : IDisposable
         Assert.IsNotType<ResendEmailClient>(client);
         Assert.Single(provider.LogRecords(), static record => record.Id.Id == 2004);
         Assert.Single(_api.Requests);
+    }
+
+    [Fact]
+    public async Task UseResend_ExceptionClassifierOfTheClient_GivesItsErrorType()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseResend(static o => { o.ApiKey = _apiKey; o.SenderEmail = _senderEmail; })
+            .AddExceptionClassifier<ResendEmailClient, ResendConflictClassifier>();
+        await using var provider = WithTheFakeApi(services).Build();
+        _api.Throws(new HttpRequestException());
+
+        // Act
+        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
     }
 
     [Fact]

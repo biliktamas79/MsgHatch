@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Broker.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using Wolverine.Runtime;
 
 namespace MsgHatch.Broker.Wolverine.DependencyInjection;
@@ -39,7 +40,8 @@ public static class WolverineBrokerExtensions
                 static (_, services) => services.GetService<IWolverineRuntime>() is null or { Options.Durability.UseSyncRetryBlock: true },
                 "UseWolverineBroker needs Durability.UseSyncRetryBlock = true in Wolverine, so that a send that fails throws.")
             .ValidateOnStart();
-        return builder.UseBrokerClient(static services =>
-            new WolverineBrokerClient(() => new MessageBus(services.GetRequiredService<IWolverineRuntime>())));
+        return builder.UseBrokerClient(static services => new WolverineBrokerClient(
+            () => new MessageBus(services.GetRequiredService<IWolverineRuntime>()),
+            services.GetServices<IExceptionClassifier<WolverineBrokerClient>>()));
     }
 }

@@ -18,10 +18,18 @@ namespace MsgHatch.Email.AmazonSES;
 /// <param name="ses">The SES client of the AWS SDK.</param>
 /// <param name="options">The settings.</param>
 /// <param name="logger">The logger of the account errors, or null for no log.</param>
+/// <param name="classifiers">
+/// The exception classifiers of the host (D141). The client asks them before its built-in mapping. Null means none.
+/// </param>
 public sealed class AmazonSimpleEmailServiceClient(
-    IAmazonSimpleEmailServiceV2 ses, IOptions<AmazonSesOptions> options, ILogger<AmazonSimpleEmailServiceClient>? logger = null)
+    IAmazonSimpleEmailServiceV2 ses,
+    IOptions<AmazonSesOptions> options,
+    ILogger<AmazonSimpleEmailServiceClient>? logger = null,
+    IEnumerable<IExceptionClassifier<AmazonSimpleEmailServiceClient>>? classifiers = null)
     : IEmailClient
 {
+    private readonly IExceptionClassifier<AmazonSimpleEmailServiceClient>[] _classifiers = [.. classifiers ?? []];
+
     /// <summary>The name of the email tag that holds the outgoing message id.</summary>
     public const string MessageIdTag = "msghatch-id";
 
@@ -85,6 +93,7 @@ public sealed class AmazonSimpleEmailServiceClient(
     private Error ErrorOf(Exception exception, CancellationToken ct) => exception switch
     {
         OperationCanceledException when ct.IsCancellationRequested => new Error(Errors.OperationCancelled),
+        _ when _classifiers.Classify(exception) is { } type => SesError(type, exception),
         TooManyRequestsException or LimitExceededException => SesError(Errors.RateLimited, exception),
         SendingPausedException or AccountSuspendedException => AccountErrorOf(exception),
         HttpRequestException or AmazonServiceException { StatusCode: >= HttpStatusCode.InternalServerError } =>

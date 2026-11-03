@@ -7,6 +7,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Email.Resend.Tests.Unit.TestTypes;
 using MsgHatch.Email.Tests.Unit.Contracts;
 using MsgHatch.Email.Tests.Unit.TestTypes;
+using ResendConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Email.Resend.ResendEmailClient>;
 
 namespace MsgHatch.Email.Resend.Tests.Unit;
 
@@ -213,6 +214,36 @@ public sealed class ResendEmailClientUnitTests : EmailClientTestsBase<ResendEmai
 
         // Assert
         Assert.Equal((row, (int?)expectedCode), (row, result.Error?.Type.Code));
+    }
+
+    [Fact]
+    public async Task SendAsync_ClassifierKnowsTheException_ReturnsItsErrorTypeBeforeTheBuiltInMapping()
+    {
+        // Arrange
+        var client = new ResendEmailClient(_api.Clients(), Options.Create(AnOptions()), classifiers: [new ResendConflictClassifier()]);
+        _api.Throws(new HttpRequestException());
+
+        // Act
+        var result = await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task SendAsync_CancelledTokenAndAClassifier_ReturnsOperationCancelled()
+    {
+        // Arrange
+        var client = new ResendEmailClient(_api.Clients(), Options.Create(AnOptions()), classifiers: [new ResendConflictClassifier()]);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        await stop.CancelAsync();
+        _api.Throws(new OperationCanceledException());
+
+        // Act
+        var result = await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), stop.Token);
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
     }
 
     [Theory]

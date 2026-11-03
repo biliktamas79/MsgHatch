@@ -19,10 +19,19 @@ namespace MsgHatch.Email.Resend;
 /// <param name="httpClients">The factory of the HTTP client <see cref="HttpClientName"/>.</param>
 /// <param name="options">The settings.</param>
 /// <param name="logger">The logger of the API key errors, or null for no log.</param>
+/// <param name="classifiers">
+/// The exception classifiers of the host (D141). The client asks them before its built-in mapping of an exception. An
+/// error response of Resend is not an exception, so they do not see it. Null means none.
+/// </param>
 public sealed class ResendEmailClient(
-    IHttpClientFactory httpClients, IOptions<ResendOptions> options, ILogger<ResendEmailClient>? logger = null)
+    IHttpClientFactory httpClients,
+    IOptions<ResendOptions> options,
+    ILogger<ResendEmailClient>? logger = null,
+    IEnumerable<IExceptionClassifier<ResendEmailClient>>? classifiers = null)
     : IEmailClient
 {
+    private readonly IExceptionClassifier<ResendEmailClient>[] _classifiers = [.. classifiers ?? []];
+
     /// <summary>The name of the HTTP client of the Resend API.</summary>
     public const string HttpClientName = "MsgHatch.Resend";
 
@@ -146,9 +155,10 @@ public sealed class ResendEmailClient(
     private static Error ResendError(ErrorType type, HttpStatusCode status, string? name) =>
         new(type, $"Resend: HTTP {(int)status} {name}".TrimEnd());
 
-    private static Error ErrorOf(Exception exception, CancellationToken ct) => exception switch
+    private Error ErrorOf(Exception exception, CancellationToken ct) => exception switch
     {
         OperationCanceledException when ct.IsCancellationRequested => new Error(Errors.OperationCancelled),
+        _ when _classifiers.Classify(exception) is { } type => new Error(type, $"Resend: {exception.GetType().Name}", exception),
         HttpRequestException => new Error(Errors.Unavailable, $"Resend: {nameof(HttpRequestException)}", exception),
         _ => new Error(Errors.Exception, $"Resend: {exception.GetType().Name}", exception),
     };

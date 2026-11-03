@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
@@ -20,6 +21,56 @@ public sealed class MsgHatchBuilderUnitTests
         typeof(ListTestOpenRouter<>),
         typeof(FixedEventTestOpenRouter<>),
     ];
+
+    [Fact]
+    public async Task AddExceptionClassifier_TwoClassifiersOfOneClient_RegistersBothInTheirOrder()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch()
+            .AddExceptionClassifier<TestClient, UnknownClassifier<TestClient>>()
+            .AddExceptionClassifier<TestClient, ConflictClassifier<TestClient>>();
+
+        // Act
+        await using var provider = services.Build();
+
+        // Assert
+        Assert.Equal(
+            [typeof(UnknownClassifier<TestClient>), typeof(ConflictClassifier<TestClient>)],
+            provider.GetServices<IExceptionClassifier<TestClient>>().Select(static classifier => classifier.GetType()));
+    }
+
+    [Fact]
+    public async Task AddExceptionClassifier_SameClassifierTwice_RegistersItOneTime()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch()
+            .AddExceptionClassifier<TestClient, ConflictClassifier<TestClient>>()
+            .AddExceptionClassifier<TestClient, ConflictClassifier<TestClient>>();
+
+        // Act
+        await using var provider = services.Build();
+
+        // Assert
+        Assert.Single(provider.GetServices<IExceptionClassifier<TestClient>>());
+    }
+
+    [Fact]
+    public async Task AddExceptionClassifier_ClassifierOfAnotherClient_IsNoClassifierOfThisClient()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddExceptionClassifier<OtherTestClient, ConflictClassifier<OtherTestClient>>();
+
+        // Act
+        await using var provider = services.Build();
+
+        // Assert
+        Assert.Equal(
+            (0, 1),
+            (provider.GetServices<IExceptionClassifier<TestClient>>().Count(), provider.GetServices<IExceptionClassifier<OtherTestClient>>().Count()));
+    }
 
     [Fact]
     public async Task AddChannelType_NewChannel_AddsTheChannelAndItsSettingsContentType()

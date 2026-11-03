@@ -22,8 +22,15 @@ namespace MsgHatch.Broker.Wolverine;
 /// The factory of the message bus of one publish. <c>UseWolverineBroker</c> gives a new <c>MessageBus</c> on the
 /// runtime of the host, because Wolverine registers <see cref="IMessageBus"/> as a scoped service.
 /// </param>
-public sealed class WolverineBrokerClient(Func<IMessageBus> bus) : IBrokerClient
+/// <param name="classifiers">
+/// The exception classifiers of the host, for example for the exceptions of its Wolverine transport package (D141). The
+/// client asks them before its built-in mapping. Null means none.
+/// </param>
+public sealed class WolverineBrokerClient(
+    Func<IMessageBus> bus, IEnumerable<IExceptionClassifier<WolverineBrokerClient>>? classifiers = null) : IBrokerClient
 {
+    private readonly IExceptionClassifier<WolverineBrokerClient>[] _classifiers = [.. classifiers ?? []];
+
     /// <inheritdoc />
     public async ValueTask<ErrorOr<PublishReceipt>> PublishAsync(BrokerPublish publish, CancellationToken ct)
     {
@@ -55,9 +62,10 @@ public sealed class WolverineBrokerClient(Func<IMessageBus> bus) : IBrokerClient
         return options;
     }
 
-    private static Error ErrorOf(Exception exception, CancellationToken ct) => exception switch
+    private Error ErrorOf(Exception exception, CancellationToken ct) => exception switch
     {
         OperationCanceledException when ct.IsCancellationRequested => new Error(Errors.OperationCancelled),
+        _ when _classifiers.Classify(exception) is { } type => WolverineError(type, exception),
         IndeterminateRoutesException => WolverineError(Errors.NotFound, exception),
         SendRejectedException or MessageTooLargeException or WolverineSerializationException or JsonException or NotSupportedException =>
             WolverineError(Errors.Rejected, exception),

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
@@ -94,6 +95,22 @@ public sealed class MsgHatchBuilder
     {
         ArgumentNullException.ThrowIfNull(factory);
         TenantServices.Add(Services, Setup, lifetime, factory, wrapWithLogging);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a classifier of the exceptions of the client <typeparamref name="TClient"/>, as a singleton (D141). A client
+    /// can have many classifiers, for example one for each Wolverine transport of the host. It asks them in the order of
+    /// their registration, before its built-in mapping, and the first result that is not null wins. A second call with
+    /// the same classifier type adds nothing.
+    /// </summary>
+    /// <typeparam name="TClient">The client that uses the classifier, for example <c>WolverineBrokerClient</c>.</typeparam>
+    /// <typeparam name="TClassifier">The classifier type.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder AddExceptionClassifier<TClient, TClassifier>()
+        where TClassifier : class, IExceptionClassifier<TClient>
+    {
+        Services.TryAddEnumerable(ServiceDescriptor.Singleton<IExceptionClassifier<TClient>, TClassifier>());
         return this;
     }
 
