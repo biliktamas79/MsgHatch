@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Broker.Wolverine\MsgHatch.Broker.Wolverine.csproj" />
+    <ProjectReference Include="..\MsgHatch.Broker.Tests.Unit\MsgHatch.Broker.Tests.Unit.csproj" />
+  </ItemGroup>
+
+</Project>
