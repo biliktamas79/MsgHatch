@@ -16,6 +16,8 @@ using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
 using Wolverine;
 using Wolverine.Runtime.Routing;
+using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace MsgHatch.Broker.Wolverine.Tests.Unit;
 
@@ -43,6 +45,9 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     {
         { "JsonException of the serializer", new JsonException(), 403 },
         { "NotSupportedException of the serializer", new NotSupportedException(), 403 },
+        { "WolverineSerializationException of the envelope", new WolverineSerializationException("serializer"), 403 },
+        { "SendRejectedException of a transport that refuses the message", new SendRejectedException("refused"), 403 },
+        { "MessageTooLargeException of a transport", new MessageTooLargeException(new Envelope(), 1024), 403 },
         { "WolverineHasNotStartedException", new WolverineHasNotStartedException(), 503 },
         { "IOException of a transport", new IOException(), 503 },
         { "TaskCanceledException of a timeout, with no cancelled token", new TaskCanceledException(), 503 },
@@ -204,6 +209,32 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
 
         // Assert
         Assert.Equal(Errors.NotFound, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task PublishAsync_RealWolverineTransportRefusesTheMessage_ReturnsRejected()
+    {
+        // Arrange
+        await using var wolverine = await WolverineTestHost.StartAsync(static () => new SendRejectedException("refused"), Ct);
+
+        // Act
+        var result = await wolverine.Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Rejected, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task PublishAsync_RealWolverineTransportThrowsNotSupportedException_ReturnsAReceiptForALostMessage()
+    {
+        // Arrange
+        await using var wolverine = await WolverineTestHost.StartAsync(static () => new NotSupportedException("transport"), Ct);
+
+        // Act
+        var result = await wolverine.Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal((null, 0), (result.Error, wolverine.Transport.Sent.Count));
     }
 
     [Theory]

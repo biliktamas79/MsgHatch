@@ -3,6 +3,8 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using Wolverine;
 using Wolverine.Runtime.Routing;
+using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace MsgHatch.Broker.Wolverine;
 
@@ -10,7 +12,9 @@ namespace MsgHatch.Broker.Wolverine;
 /// The broker client of Wolverine (D134). It sends the payload with <see cref="IMessageBus.SendAsync{T}"/>, which
 /// routes by the run-time type of the payload, with the headers and the tenant id in <see cref="DeliveryOptions"/>.
 /// A payload type with no Wolverine route gives the permanent <see cref="Errors.NotFound"/>, because
-/// <see cref="IMessageBus.PublishAsync{T}"/> would drop the message with no error.
+/// <see cref="IMessageBus.PublishAsync{T}"/> would drop the message with no error. An exception that a retry cannot fix
+/// gives the permanent <see cref="Errors.Rejected"/>: a message that the transport refuses, a message that is too large,
+/// and a serialization failure. So the outbox does not retry them.
 /// Wolverine gives no message id, so the receipt has no provider id. Wolverine writes the id of
 /// <see cref="System.Diagnostics.Activity.Current"/>, the <c>send</c> span of MsgHatch, into its header <c>parent-id</c>.
 /// </summary>
@@ -55,7 +59,8 @@ public sealed class WolverineBrokerClient(Func<IMessageBus> bus) : IBrokerClient
     {
         OperationCanceledException when ct.IsCancellationRequested => new Error(Errors.OperationCancelled),
         IndeterminateRoutesException => WolverineError(Errors.NotFound, exception),
-        JsonException or NotSupportedException => WolverineError(Errors.Rejected, exception),
+        SendRejectedException or MessageTooLargeException or WolverineSerializationException or JsonException or NotSupportedException =>
+            WolverineError(Errors.Rejected, exception),
         _ => WolverineError(Errors.Unavailable, exception),
     };
 

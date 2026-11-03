@@ -9,15 +9,18 @@ namespace MsgHatch.Broker.Wolverine.Tests.Unit.TestTypes;
 
 /// <summary>
 /// A Wolverine transport in memory, with one endpoint at <see cref="Address"/>. Its sender fails the first
-/// <c>failedSends</c> sends with an <see cref="IOException"/>, as a broker that is not available, and records each send
-/// after them. Wolverine reuses a sent envelope, so the sender copies its fields at the time of the send.
+/// <c>failedSends</c> sends, by default with an <see cref="IOException"/> as a broker that is not available, and records
+/// each send after them. Wolverine reuses a sent envelope, so the sender copies its fields at the time of the send.
 /// </summary>
 /// <param name="failedSends">The number of sends that fail before the first send that succeeds.</param>
-public sealed class FakeWolverineTransport(int failedSends = 0) : TransportBase<FakeWolverineEndpoint>("fake", "Fake", [])
+/// <param name="failure">The exception of a failed send, or null for an <see cref="IOException"/>.</param>
+public sealed class FakeWolverineTransport(int failedSends = 0, Func<Exception>? failure = null)
+    : TransportBase<FakeWolverineEndpoint>("fake", "Fake", [])
 {
     public static readonly Uri Address = new("fake://broker");
 
-    private readonly FakeWolverineEndpoint _endpoint = new(Address, failedSends);
+    private readonly FakeWolverineEndpoint _endpoint =
+        new(Address, failedSends, failure ?? (static () => new IOException("The fake broker is not available.")));
 
     public IReadOnlyCollection<SentEnvelope> Sent => _endpoint.Sender.Sent;
 
@@ -27,9 +30,9 @@ public sealed class FakeWolverineTransport(int failedSends = 0) : TransportBase<
 }
 
 /// <summary>The endpoint of <see cref="FakeWolverineTransport"/>. It only sends.</summary>
-public sealed class FakeWolverineEndpoint(Uri uri, int failedSends) : Endpoint(uri, EndpointRole.Application)
+public sealed class FakeWolverineEndpoint(Uri uri, int failedSends, Func<Exception> failure) : Endpoint(uri, EndpointRole.Application)
 {
-    public FakeWolverineSender Sender { get; } = new(uri, failedSends);
+    public FakeWolverineSender Sender { get; } = new(uri, failedSends, failure);
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver) =>
         throw new NotSupportedException("The fake endpoint only sends.");
@@ -38,7 +41,7 @@ public sealed class FakeWolverineEndpoint(Uri uri, int failedSends) : Endpoint(u
 }
 
 /// <summary>The sender of <see cref="FakeWolverineTransport"/>.</summary>
-public sealed class FakeWolverineSender(Uri destination, int failedSends) : ISender
+public sealed class FakeWolverineSender(Uri destination, int failedSends, Func<Exception> failure) : ISender
 {
     private readonly ConcurrentQueue<SentEnvelope> _sent = new();
     private int _sends;
@@ -55,7 +58,7 @@ public sealed class FakeWolverineSender(Uri destination, int failedSends) : ISen
     {
         if (Interlocked.Increment(ref _sends) <= failedSends)
         {
-            return ValueTask.FromException(new IOException("The fake broker is not available."));
+            return ValueTask.FromException(failure());
         }
 
         _sent.Enqueue(new SentEnvelope(envelope.Message, new Dictionary<string, string?>(envelope.Headers), envelope.TenantId, envelope.ParentId));

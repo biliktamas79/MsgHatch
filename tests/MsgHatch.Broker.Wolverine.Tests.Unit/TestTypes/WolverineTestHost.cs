@@ -32,9 +32,16 @@ public sealed class WolverineTestHost : IAsyncDisposable
     public static Task<WolverineTestHost> StartAsync(CancellationToken ct) =>
         StartAsync(inline: true, syncRetryBlock: true, failedSends: 0, ct);
 
-    public static async Task<WolverineTestHost> StartAsync(bool inline, bool syncRetryBlock, int failedSends, CancellationToken ct)
+    /// <summary>Starts a host with the required setup of section 4.7, whose transport fails each send with <paramref name="failure"/>.</summary>
+    public static Task<WolverineTestHost> StartAsync(Func<Exception> failure, CancellationToken ct) =>
+        StartAsync(new FakeWolverineTransport(int.MaxValue, failure), inline: true, syncRetryBlock: true, ct);
+
+    public static Task<WolverineTestHost> StartAsync(bool inline, bool syncRetryBlock, int failedSends, CancellationToken ct) =>
+        StartAsync(new FakeWolverineTransport(failedSends), inline, syncRetryBlock, ct);
+
+    private static async Task<WolverineTestHost> StartAsync(
+        FakeWolverineTransport transport, bool inline, bool syncRetryBlock, CancellationToken ct)
     {
-        var transport = new FakeWolverineTransport(failedSends);
         var builder = Host.CreateApplicationBuilder();
         builder.Logging.ClearProviders();
         builder.Services.AddWolverine(options =>
