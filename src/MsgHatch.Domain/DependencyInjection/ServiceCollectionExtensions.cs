@@ -15,6 +15,9 @@ namespace MsgHatch.Domain.DependencyInjection;
 /// <summary>The entry point of the MsgHatch setup.</summary>
 public static class ServiceCollectionExtensions
 {
+    private const string _inboxHasNoExpiry =
+        "Expiry: The inbox has no expiry. The age of an event in the inbox counts against the expiry of each outgoing message (D142).";
+
     /// <summary>
     /// Registers the core services of MsgHatch: the options, the in-memory <see cref="IMessageRegistry"/> from the
     /// registrations (D117), the content type registry, <see cref="MsgHatchJson"/>, <see cref="InProcessDispatchSignal"/>
@@ -39,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchOptions>, MsgHatchOptionsValidator>());
         services.AddOptions<RetryOptions>(OptionNames.Inbox)
             .BindConfiguration($"{RetryOptions.SectionName}:{OptionNames.Inbox}")
+            .Validate(static options => options.Expiry is null, _inboxHasNoExpiry)
             .ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RetryOptions>, RetryOptionsValidator>());
         AddDispatchOptions(services, OptionNames.Inbox);

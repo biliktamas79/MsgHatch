@@ -86,7 +86,8 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
         var id = DeterministicId.Create(received.Delivery.Id, received.Tenant, route.Target, Channel);
         var delivery = new DeliveryState(
             id, DeliveryStatus.Pending, TryCount: 0, retry.MaxTryCount, defaults.NowUtc, LastTryAtUtc: null,
-            NextTryAtUtc: defaults.NowUtc, LeaseUntilUtc: null, ExpiresAtUtc: defaults.NowUtc + retry.Expiry, LastError: null);
+            NextTryAtUtc: defaults.NowUtc, LeaseUntilUtc: null, ExpiresAtUtc: received.Delivery.CreatedAtUtc + retry.Expiry,
+            LastError: null);
         return new OutgoingMessage<TEnvelope>(
             _schemaVersion, delivery, received.Delivery.Id, received.Tenant, received.Type, Channel, route.Target, ContentType,
             Version, received.Flags, defaults.TraceParent, route.Trace, envelope.Value);

@@ -452,7 +452,7 @@ Goal: durable inbox and outbox stores with no database (D26).
    - The tenant store of a key reads the tenant from the JSON of each message, and skips the messages of the other tenants.
    - The stores have the comment `ponytail: rename-based claims suit one machine or a shared folder with atomic rename, use a database store for more throughput`.
 2. Make the inbox upgrade check the version before the CLR type, as the outbox upgrade does (D25). From phase 1, the inbox checks the CLR type first, so a newer version of the current type counts as current.
-3. First decide the expiry of a received message, and record the decision in the design. `DeliveryState.ExpiresAtUtc` and the retry options `Inbox` have an expiry, but the inbox processor does not read it (section 4.8).
+3. First decide the expiry of a received message, and record the decision in the design. `DeliveryState.ExpiresAtUtc` and the retry options `Inbox` have an expiry, but the inbox processor does not read it (section 4.8). Result (D142): the inbox has no expiry of its own. The expiry of an outgoing message counts from the `CreatedAtUtc` of its received message, and the startup validation rejects `MsgHatch:Retry:Inbox:Expiry`.
 
 Tests:
 - The use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` (section 5.5) run on the two file stores, each in its own temporary folder.
@@ -460,6 +460,7 @@ Tests:
 - One call of `UseFileStores` registers `IInboxStore`, `IOutboxStore`, `IInboxDispatchStore`, and `IOutboxDispatchStore`, each resolved as its logging wrapper around the store of the package. The tenant store of a key and the dispatch store use one store instance.
 - Tests unique to the file stores: a permanent error moves the file to the `failed` folder of its channel, and a second store instance on the same folder reads the data of the first one.
 - A received message with a newer version of the current event type gives `Errors.UnsupportedVersion`, and the pipeline does not run.
+- An event that waited one hour in the inbox, with an expiry of 5 minutes, gives an outgoing message that expires 5 minutes after the accept time (D142). A value in `MsgHatch:Retry:Inbox:Expiry` fails the validation of the inbox retry options.
 
 Commits:
 1. "Add JSON file stores for the inbox and the outbox"

@@ -72,6 +72,22 @@ public sealed class InboxProcessorUnitTests
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_EventThatWaitedOneHourAndAnExpiryOfFiveMinutes_GivesAnExpiryFiveMinutesAfterTheAcceptTime()
+    {
+        // Arrange
+        await using var provider = Build(more: static b => b.Services.Configure<RetryOptions>("Test:TestEnvelope", static o => o.Expiry = TimeSpan.FromMinutes(5)));
+        var acceptedAtUtc = _time.UtcNow.AddHours(-1);
+        await AddAsync(provider, AMessage() with { Delivery = TestMessages.ADeliveryState() with { CreatedAtUtc = acceptedAtUtc, NextTryAtUtc = acceptedAtUtc } });
+
+        // Act
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        var delivery = Assert.Single(provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()).Delivery;
+        Assert.Equal(((DateTime?)acceptedAtUtc.AddMinutes(5), _time.UtcNow), (delivery.ExpiresAtUtc, delivery.CreatedAtUtc));
+    }
+
+    [Fact]
     public async Task ProcessPendingAsync_NewerVersionOfTheCurrentEventType_FailsWithATransientUnsupportedVersionAndDoesNotRunThePipeline()
     {
         // Arrange

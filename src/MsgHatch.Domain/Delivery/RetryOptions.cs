@@ -23,7 +23,10 @@ public sealed class RetryOptions : IValidatableObject
     [Range(typeof(TimeSpan), "00:00:01", "7.00:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan MaxDelay { get; set; } = TimeSpan.FromMinutes(15);
 
-    /// <summary>The time after which a message is not sent, or null for no expiry (D94).</summary>
+    /// <summary>
+    /// The time after the accept time of the event after which a message is not sent, or null for no expiry (D94). The
+    /// options <c>Inbox</c> allow no value, because the time in the inbox counts against this expiry (D142).
+    /// </summary>
     [Range(typeof(TimeSpan), "00:00:01", "30.00:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan? Expiry { get; set; }
 

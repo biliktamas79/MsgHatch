@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
@@ -53,6 +55,23 @@ public sealed class ServiceCollectionExtensionsUnitTests
 
         // Assert
         Assert.IsType<OtherDispatchSignal>(signal);
+    }
+
+    [Fact]
+    public async Task AddMsgHatch_ExpiryInTheInboxRetrySection_FailsTheValidationOfTheInboxRetryOptionsOnExpiry()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:Retry:Inbox:Expiry"] = "00:05:00" });
+        services.AddMsgHatch();
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(() => provider.GetRequiredService<IOptionsMonitor<RetryOptions>>().Get("Inbox"));
+
+        // Assert
+        var validation = Assert.IsType<OptionsValidationException>(exception);
+        var failure = Assert.Single(validation.Failures);
+        Assert.Equal(("Inbox", "Expiry"), (validation.OptionsName, failure[..failure.IndexOf(':', StringComparison.Ordinal)]));
     }
 
     private sealed class OtherDispatchSignal : IDispatchSignal
