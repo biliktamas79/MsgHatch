@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.SignalR\MsgHatch.SignalR.csproj" />
+    <ProjectReference Include="..\MsgHatch.Domain.Tests.Unit\MsgHatch.Domain.Tests.Unit.csproj" />
+  </ItemGroup>
+
+</Project>

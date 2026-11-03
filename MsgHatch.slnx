@@ -4,6 +4,7 @@
     <Project Path="src/MsgHatch.Email.AmazonSES/MsgHatch.Email.AmazonSES.csproj" />
     <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
     <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
+    <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -13,6 +14,7 @@
     <Project Path="tests/MsgHatch.Email.Resend.Tests.Integration/MsgHatch.Email.Resend.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Email.Resend.Tests.Unit/MsgHatch.Email.Resend.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.Tests.Unit/MsgHatch.Email.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.SignalR.Tests.Unit/MsgHatch.SignalR.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
   </Folder>
 </Solution>
