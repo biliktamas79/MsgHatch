@@ -179,7 +179,6 @@ public static class EmailExtensions
         return builder;
     }
 
-
     private static PayloadBuilder<TEvent, TPayload> Register<TEvent, TPayload>(
         PayloadBuilder<TEvent, TPayload> payload, string name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine,
         Action<ChannelBuilder<EmailMessage>>? configure)
