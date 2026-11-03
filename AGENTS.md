@@ -43,6 +43,12 @@ The Resend integration tests need a Resend API key. Put it into `tests/MsgHatch.
 dotnet test tests/MsgHatch.Email.Resend.Tests.Integration
 ```
 
+From phase 6 on, the Wolverine integration tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://localhost:5672`, into `tests/MsgHatch.Broker.Wolverine.Tests.Integration/appsettings.Local.json`, which git ignores. The tests declare only exclusive queues. With no URI, each test is skipped:
+
+```bash
+dotnet test tests/MsgHatch.Broker.Wolverine.Tests.Integration
+```
+
 From phase 13 on, the benchmarks run in the Release configuration:
 
 ```bash

@@ -29,6 +29,10 @@
     <PackageVersion Include="WolverineFx" Version="6.61.0" />
   </ItemGroup>
 
+  <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration">
+    <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.61.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Analyzers">
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4" />
   </ItemGroup>
