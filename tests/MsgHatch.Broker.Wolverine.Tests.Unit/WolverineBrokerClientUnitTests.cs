@@ -8,6 +8,7 @@ using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Broker.Wolverine.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Telemetry;
@@ -21,7 +22,9 @@ namespace MsgHatch.Broker.Wolverine.Tests.Unit;
 /// <summary>
 /// The Wolverine broker client: the use cases of the broker client contract with an <see cref="IMessageBus"/>
 /// substitute, and the rules that only this client has: the exceptions of Wolverine, the health check, and the publish
-/// inside the <c>send</c> span, which Wolverine writes into the header <c>parent-id</c> (section 4.21).
+/// inside the <c>send</c> span, which Wolverine writes into the header <c>parent-id</c> (section 4.21). The tests with
+/// <see cref="WolverineTestHost"/> run a real Wolverine runtime with a fake transport in memory: they check the facts
+/// of Wolverine that the client depends on, and the result of each send mode when the broker is not available.
 /// </summary>
 [Collection(SequentialTelemetry.Name)]
 public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<WolverineBrokerClient>
@@ -43,6 +46,14 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
         { "WolverineHasNotStartedException", new WolverineHasNotStartedException(), 503 },
         { "IOException of a transport", new IOException(), 503 },
         { "TaskCanceledException of a timeout, with no cancelled token", new TaskCanceledException(), 503 },
+    };
+
+    public static TheoryData<string, bool, bool, int, int?> SendModeRows => new()
+    {
+        { "Inline with the sync retry block, the broker never accepts: an error", true, true, int.MaxValue, 503 },
+        { "Inline with the sync retry block, the broker accepts the third try: a receipt", true, true, 2, null },
+        { "Inline with the default retry block, the broker never accepts: a receipt for a lost message", true, false, int.MaxValue, null },
+        { "Buffered, the broker never accepts: a receipt for a lost message", false, true, int.MaxValue, null },
     };
 
     [Theory]
@@ -137,5 +148,76 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
         // Assert
         var send = Assert.Single(spans, static span => span.DisplayName == "send Broker");
         Assert.Equal(send.Id, currentAtPublish);
+    }
+
+    [Fact]
+    public async Task PublishAsync_RealWolverineWithARouteForTheRunTimeType_SendsThePayloadThroughThatRoute()
+    {
+        // Arrange
+        await using var wolverine = await WolverineTestHost.StartAsync(Ct);
+        var payload = new TestPayload("text");
+
+        // Act
+        await wolverine.Client.PublishAsync(APublish(payload: payload), Ct);
+
+        // Assert
+        Assert.Same(payload, Assert.Single(wolverine.Transport.Sent).Message);
+    }
+
+    [Fact]
+    public async Task PublishAsync_RealWolverine_SendsTheHeadersAndTheTenantIdInTheEnvelope()
+    {
+        // Arrange
+        await using var wolverine = await WolverineTestHost.StartAsync(Ct);
+        var headers = new Dictionary<string, string> { ["msghatch-id"] = "id-1", ["x-source"] = "orders" };
+
+        // Act
+        await wolverine.Client.PublishAsync(APublish(tenant: new TenantId("t1"), headers: headers), Ct);
+
+        // Assert
+        var sent = Assert.Single(wolverine.Transport.Sent);
+        Assert.Equal(("id-1", "orders", "t1"), (sent.Headers["msghatch-id"], sent.Headers["x-source"], sent.TenantId));
+    }
+
+    [Fact]
+    public async Task PublishAsync_RealWolverineWithACurrentActivity_SendsItsIdAsTheParentId()
+    {
+        // Arrange
+        await using var wolverine = await WolverineTestHost.StartAsync(Ct);
+        using var send = new Activity("send Broker").Start();
+
+        // Act
+        await wolverine.Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal(send.Id, Assert.Single(wolverine.Transport.Sent).ParentId);
+    }
+
+    [Fact]
+    public async Task PublishAsync_RealWolverineWithNoRouteForThePayloadType_ReturnsNotFound()
+    {
+        // Arrange
+        await using var wolverine = await WolverineTestHost.StartAsync(Ct);
+
+        // Act
+        var result = await wolverine.Client.PublishAsync(APublish(payload: new OtherPayload(1)), Ct);
+
+        // Assert
+        Assert.Equal(Errors.NotFound, result.Error?.Type);
+    }
+
+    [Theory]
+    [MemberData(nameof(SendModeRows))]
+    public async Task PublishAsync_SendModeOfRealWolverine_GivesTheResultOfTheRow(
+        string row, bool inline, bool syncRetryBlock, int failedSends, int? expectedCode)
+    {
+        // Arrange
+        await using var wolverine = await WolverineTestHost.StartAsync(inline, syncRetryBlock, failedSends, Ct);
+
+        // Act
+        var result = await wolverine.Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal((row, expectedCode), (row, result.Error?.Type.Code));
     }
 }
