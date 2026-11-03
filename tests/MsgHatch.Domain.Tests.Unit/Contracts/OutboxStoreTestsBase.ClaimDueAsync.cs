@@ -141,6 +141,43 @@ public abstract partial class OutboxStoreTestsBase<TStore>
         Assert.Equal((1, (DateTime?)later), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
     }
 
+    [Theory]
+    [MemberData(nameof(OutboxStoreTestRows.FinalOutcomeRows), MemberType = typeof(OutboxStoreTestRows))]
+    public async Task ClaimDueAsync_MessageWithAFinalTryAfterItsLease_DoesNotClaimItAgain(PublishOutcome outcome)
+    {
+        // Arrange
+        var message = await AddAsync(AMessage(T1));
+        var claimed = Assert.Single((await ClaimAsync()).Value.Messages);
+        await Store.RecordTryAsync(claimed, ATry(message, 1, outcome), nextTryAtUtc: null, Ct);
+        Time.Advance(TimeSpan.FromSeconds(31));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal((0, (DateTime?)null), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
+    }
+
+    [Theory]
+    [InlineData(59, 0)]
+    [InlineData(60, 1)]
+    [InlineData(61, 1)]
+    public async Task ClaimDueAsync_AfterATransientErrorWithANextTryTimeIn60Seconds_ClaimsTheMessageOnlyFromThatTime(
+        int secondsLater, int expected)
+    {
+        // Arrange
+        var message = await AddAsync(AMessage(T1));
+        var claimed = Assert.Single((await ClaimAsync()).Value.Messages);
+        await Store.RecordTryAsync(claimed, ATry(message, 1, PublishOutcome.TransientError), Now.AddSeconds(60), Ct);
+        Time.Advance(TimeSpan.FromSeconds(secondsLater));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal(expected, result.Value.Messages.Count);
+    }
+
     [Fact]
     public async Task ClaimDueAsync_OnlyTheClaimedMessageIsPending_GivesItsLeaseEndAsNextDue()
     {

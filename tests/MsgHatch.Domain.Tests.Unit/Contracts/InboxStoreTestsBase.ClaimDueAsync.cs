@@ -144,6 +144,57 @@ public abstract partial class InboxStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task ClaimDueAsync_CompletedMessageAfterItsLease_DoesNotClaimItAgain()
+    {
+        // Arrange
+        await AddAsync(AMessage(T1));
+        var claimed = Assert.Single((await ClaimAsync()).Value.Messages);
+        await Store.CompleteAsync(claimed, Now, Ct);
+        Time.Advance(TimeSpan.FromSeconds(31));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal((0, (DateTime?)null), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_PermanentlyFailedMessageAfterItsLease_DoesNotClaimItAgain()
+    {
+        // Arrange
+        await AddAsync(AMessage(T1));
+        var claimed = Assert.Single((await ClaimAsync()).Value.Messages);
+        await Store.FailAsync(claimed, "ValidationFailed", Now, nextTryAtUtc: null, Ct);
+        Time.Advance(TimeSpan.FromSeconds(31));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal((0, (DateTime?)null), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
+    }
+
+    [Theory]
+    [InlineData(59, 0)]
+    [InlineData(60, 1)]
+    [InlineData(61, 1)]
+    public async Task ClaimDueAsync_AfterAFailWithANextTryTimeIn60Seconds_ClaimsTheMessageOnlyFromThatTime(int secondsLater, int expected)
+    {
+        // Arrange
+        await AddAsync(AMessage(T1));
+        var claimed = Assert.Single((await ClaimAsync()).Value.Messages);
+        await Store.FailAsync(claimed, "RateLimited", Now, Now.AddSeconds(60), Ct);
+        Time.Advance(TimeSpan.FromSeconds(secondsLater));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal(expected, result.Value.Messages.Count);
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_OnlyTheClaimedMessageIsPending_GivesItsLeaseEndAsNextDue()
     {
         // Arrange

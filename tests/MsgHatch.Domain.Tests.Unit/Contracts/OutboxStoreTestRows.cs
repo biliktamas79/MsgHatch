@@ -12,6 +12,16 @@ public static class OutboxStoreTestRows
         { "t1", "" },
     };
 
+    /// <summary>The outcomes that end the delivery when the try has no next try time.</summary>
+    public static TheoryData<PublishOutcome> FinalOutcomeRows =>
+    [
+        PublishOutcome.Succeeded,
+        PublishOutcome.Suppressed,
+        PublishOutcome.TransientError,
+        PublishOutcome.PermanentError,
+        PublishOutcome.Expired,
+    ];
+
     public static TheoryData<PublishOutcome, bool, DeliveryStatus> OutcomeRows => new()
     {
         { PublishOutcome.Succeeded, false, DeliveryStatus.Done },
