@@ -67,11 +67,11 @@ public sealed class WolverineBrokerExtensionsUnitTests
     }
 
     [Fact]
-    public async Task Validate_UseWolverineBrokerWithTheWolverineRuntime_Succeeds()
+    public async Task Validate_WolverineWithTheSyncRetryBlock_Succeeds()
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddSingleton(Substitute.For<IWolverineRuntime>());
+        services.AddSingleton(ARuntime(syncRetryBlock: true));
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseWolverineBroker();
         await using var provider = services.Build();
 
@@ -80,5 +80,28 @@ public sealed class WolverineBrokerExtensionsUnitTests
 
         // Assert
         Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Validate_WolverineWithoutTheSyncRetryBlock_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddSingleton(ARuntime(syncRetryBlock: false));
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseWolverineBroker();
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    private static IWolverineRuntime ARuntime(bool syncRetryBlock)
+    {
+        var runtime = Substitute.For<IWolverineRuntime>();
+        runtime.Options.Returns(new WolverineOptions { Durability = { UseSyncRetryBlock = syncRetryBlock } });
+        return runtime;
     }
 }
