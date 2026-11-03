@@ -358,9 +358,11 @@ Tests:
 - `AsSignalR` adds the content type `SignalR:{name}` to the registry. With no retry configuration, a SignalR message gets 3 tries and an `ExpiresAtUtc` 5 minutes after the fake time (D94).
 - With a `redirectTo` value, the transport sends to that group.
 - `UseSignalR<THub>` alone registers one `ITransport` for the SignalR channel, for each payload type, and `IHubContext<THub>`, and passes the startup validation. A publisher host with only `UseSignalR` applies the section `MsgHatch:TestDelivery:SignalR`.
+- Golden file: a version 1 sample of an outgoing SignalR message deserializes with the content type of a SignalR registration, and gives the envelope with its payload (section 4.13).
 
 Commits:
 1. "Add the SignalR channel"
+2. "Add the golden file of the SignalR envelope"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 

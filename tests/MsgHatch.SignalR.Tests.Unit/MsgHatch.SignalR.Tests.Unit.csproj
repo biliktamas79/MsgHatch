@@ -5,4 +5,8 @@
     <ProjectReference Include="..\MsgHatch.Domain.Tests.Unit\MsgHatch.Domain.Tests.Unit.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Samples\*.json" />
+  </ItemGroup>
+
 </Project>

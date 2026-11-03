@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "delivery": {
+    "id": "3f8a1c5e-7b2d-5e94-a6c0-9d4e2b7f1a58",
+    "status": "Pending",
+    "tryCount": 0,
+    "maxTryCount": 3,
+    "createdAtUtc": "2030-01-01T00:00:00Z",
+    "lastTryAtUtc": null,
+    "nextTryAtUtc": "2030-01-01T00:00:00Z",
+    "leaseUntilUtc": null,
+    "expiresAtUtc": "2030-01-01T00:05:00Z",
+    "lastError": null
+  },
+  "sourceMessageId": "0b6c1f7e-2a44-4d8e-9a3b-61c0f5e2d7a9",
+  "tenant": "t1",
+  "type": "TestEvent",
+  "channel": "SignalR",
+  "target": { "kind": "User", "id": "u1" },
+  "contentType": "SignalR:TestUpdate",
+  "contentVersion": 2,
+  "flags": "None",
+  "traceParent": null,
+  "trace": null,
+  "envelope": {
+    "payload": { "text": "Order 1001 is shipped" }
+  }
+}
