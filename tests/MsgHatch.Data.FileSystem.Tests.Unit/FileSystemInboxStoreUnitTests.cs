@@ -130,6 +130,70 @@ public sealed class FileSystemInboxStoreUnitTests()
         Assert.Equal(next.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
     }
 
+    [Fact]
+    public async Task ClaimDueAsync_MessageDueHalfAMillisecondLater_ClaimsNothingAndGivesTheNextMillisecondAsNextDue()
+    {
+        // Arrange
+        await AddAsync(AMessage(T1, nextTryAtUtc: Now.AddTicks(5_000)));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal((0, (DateTime?)Now.AddMilliseconds(1)), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
+    }
+
+    [Fact]
+    public async Task AddAsync_IdThatIsAlreadyStored_LeavesNoTemporaryFile()
+    {
+        // Arrange
+        var stored = await AddAsync(AMessage(T1));
+
+        // Act
+        await TenantStore(T1).AddAsync(AMessage(T1, id: stored.Delivery.Id), Ct);
+
+        // Assert
+        Assert.Empty(Directory.EnumerateFiles(Store.RootPath, "*.tmp", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_FileNameWithNoValidTimePrefix_SkipsThatFileAndClaimsTheOtherMessage()
+    {
+        // Arrange
+        var message = await AddAsync(AMessage(T1));
+        WritePendingFile("notes.json", "{ not a message }");
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal(message.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
+        Assert.Equal(["notes.json"], FileNamesIn("pending"));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_TwentyMessagesFailedInTheOtherOrderWithOneNextTryTime_ClaimsThemInTheOrderOfTheirAdd()
+    {
+        // Arrange
+        var added = await AddInOrderAsync(20);
+        await FailInTheOtherOrderAsync((await ClaimAsync(maxCount: 20)).Value.Messages, Now.AddSeconds(60));
+        Time.Advance(TimeSpan.FromSeconds(60));
+
+        // Act
+        var result = await ClaimAsync(maxCount: 20);
+
+        // Assert
+        Assert.Equal(added, result.Value.Messages.Select(static message => message.Delivery.Id));
+    }
+
+    private async Task FailInTheOtherOrderAsync(IReadOnlyList<ReceivedMessage> messages, DateTime nextTryAtUtc)
+    {
+        foreach (var message in messages.Reverse())
+        {
+            await Store.FailAsync(message, "RateLimited", Now, nextTryAtUtc, Ct);
+        }
+    }
+
     private async Task<Guid[]> AddInOrderAsync(int count)
     {
         var messages = Enumerable.Range(0, count).Select(_ => AMessage(T1)).ToArray();

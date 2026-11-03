@@ -72,6 +72,21 @@ public sealed class InboxProcessorUnitTests
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_OldVersionWithTheTypeOfTheCurrentVersion_RoutesTheEventThatTheRegisteredFunctionUpgraded()
+    {
+        // Arrange
+        await using var provider = BuildWithAnUpgradeOfTheCurrentType();
+        await AddAsync(provider, AMessage(text: "old") with { ContentVersion = 1 });
+
+        // Act
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        var routed = RoutedMessage();
+        Assert.Equal((new TestEvent("old fixed"), 2), (routed.Event, routed.ContentVersion));
+    }
+
+    [Fact]
     public async Task ProcessPendingAsync_EventThatWaitedOneHourAndAnExpiryOfFiveMinutes_GivesAnExpiryFiveMinutesAfterTheAcceptTime()
     {
         // Arrange
@@ -406,6 +421,20 @@ public sealed class InboxProcessorUnitTests
                 .WithUpgrade(1, TestJsonContext.Default.TestEventV1, static v1 => new TestEvent($"{v1.Value} upgraded"))
                 .AsChannel<TestEnvelope, TestEnvelopeComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope));
         more?.Invoke(builder);
+        return services.Build();
+    }
+
+    /// <summary>A setup whose version 1 has the CLR type of version 2, for a change of meaning with no change of shape (D25).</summary>
+    private ServiceProvider BuildWithAnUpgradeOfTheCurrentType()
+    {
+        var services = TestHost.CreateServices(_time);
+        services.AddMsgHatch(static o => o.EnableLogging = false)
+            .AddTestChannel()
+            .UseInMemoryStores()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
+                .WithRouter((_, _) => _router)
+                .WithUpgrade(1, TestJsonContext.Default.TestEvent, static old => new TestEvent($"{old.Text} fixed"))
+                .AsChannel<TestEnvelope, TestEnvelopeComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope));
         return services.Build();
     }
 }

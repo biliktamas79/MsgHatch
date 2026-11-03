@@ -1,3 +1,4 @@
+using System.Text;
 using MsgHatch.Data.FileSystem.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
@@ -89,6 +90,76 @@ public sealed class FileSystemOutboxStoreUnitTests()
         // Assert
         Assert.Equal([down], result.Value);
     }
+
+    [Fact]
+    public async Task AddAsync_MessageAndTestMessage_StoresTheTestMessageUnderTheTestFolder()
+    {
+        // Arrange
+        var message = AMessage(T1);
+        var testMessage = AMessage(T1, flags: MessageFlags.Test);
+
+        // Act
+        await TenantStore(T1).AddAsync([message, testMessage], Ct);
+
+        // Assert
+        Assert.Equal(
+            [Path.Combine("outbox", "Test", "pending"), Path.Combine("test", "outbox", "Test", "pending")],
+            StoreFolders.MessageFiles(Store.RootPath, "outbox").Select(path => StoreFolders.RelativeFolderOf(Store.RootPath, path)));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_NewerVersionThanTheCode_KeepsTheFileClaimedForANewerInstanceAfterTheLease()
+    {
+        // Arrange
+        WriteChannelFile(Path.Combine("pending", "20300101000000000_0000000000_newer.json"), NewerVersionOf(AMessage(T1)));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal((0, (DateTime?)Now.AddSeconds(30)), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
+        Assert.True(File.Exists(Path.Combine(Store.RootPath, "outbox", "Test", "claimed", "20300101000030000_0000000000_newer.json")));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_DownFileThatAnotherCallerHoldsOpen_ReturnsUnavailable()
+    {
+        // Arrange
+        await AddAsync(AMessage(T1));
+        await Store.SetChannelDownAsync(ADownOfAPerson(), Ct);
+        using var held = HoldTheDownFileOpen();
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal(Errors.Unavailable, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task TryStartChannelCheckAsync_DownFileThatAnotherCallerHoldsOpen_ReturnsFalse()
+    {
+        // Arrange
+        await Store.SetChannelDownAsync(
+            new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
+        using var held = HoldTheDownFileOpen();
+
+        // Act
+        var started = await Store.TryStartChannelCheckAsync(TestChannel.Id, Now, Now.AddSeconds(30), Ct);
+
+        // Assert
+        Assert.Equal((true, false), (started.IsSuccess, started.Value));
+    }
+
+    private ChannelDown ADownOfAPerson() =>
+        new(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance");
+
+    private FileStream HoldTheDownFileOpen() =>
+        new(Path.Combine(Store.RootPath, "outbox", "Test", "down.json"), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+    private static string NewerVersionOf(OutgoingMessage message) =>
+        Encoding.UTF8.GetString(new MsgHatchJson(TestContentTypes.ARegistry()).Serialize(message).Value)
+            .Replace("\"contentVersion\":1", "\"contentVersion\":2", StringComparison.Ordinal);
 
     private void WriteChannelFile(string relativePath, string text)
     {
