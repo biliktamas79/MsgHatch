@@ -17,15 +17,15 @@ public sealed class WolverineBrokerClientTestDriver : IBrokerClientTestDriver
 
     public PublishReceipt Accepts()
     {
-        Bus.PublishAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.CompletedTask);
+        Bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.CompletedTask);
         return new PublishReceipt(ProviderMessageId: null);
     }
 
     public void Fails(ErrorType type) =>
-        Bus.PublishAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.FromException(ExceptionOf(type)));
+        Bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.FromException(ExceptionOf(type)));
 
     public void WaitsUntilCancelled() =>
-        Bus.PublishAsync<object>(default!, default).ReturnsForAnyArgs(new ValueTask(new TaskCompletionSource().Task));
+        Bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(new ValueTask(new TaskCompletionSource().Task));
 
     public (object Payload, IReadOnlyDictionary<string, string?> Headers, string? Tenant) Published()
     {

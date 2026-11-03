@@ -14,6 +14,7 @@ using MsgHatch.Domain.Telemetry;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
 using Wolverine;
+using Wolverine.Runtime.Routing;
 
 namespace MsgHatch.Broker.Wolverine.Tests.Unit;
 
@@ -49,13 +50,26 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     public async Task PublishAsync_ExceptionOfWolverine_ReturnsTheErrorCodeOfTheRowWithTheException(string row, Exception exception, int expectedCode)
     {
         // Arrange
-        _bus.PublishAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.FromException(exception));
+        _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.FromException(exception));
 
         // Act
         var result = await Client.PublishAsync(APublish(), Ct);
 
         // Assert
         Assert.Equal((row, expectedCode, exception), (row, result.Error?.Type.Code, result.Error?.Exception));
+    }
+
+    [Fact]
+    public async Task PublishAsync_PayloadTypeWithNoWolverineRoute_ReturnsNotFound()
+    {
+        // Arrange
+        _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(_ => throw new IndeterminateRoutesException(typeof(TestPayload)));
+
+        // Act
+        var result = await Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.NotFound, result.Error?.Type);
     }
 
     [Fact]
@@ -77,7 +91,7 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     {
         // Arrange
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
-        _bus.PublishAsync<object>(default!, default).ReturnsForAnyArgs(_ =>
+        _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(_ =>
         {
             stop.Cancel();
             return new ValueTask(new TaskCompletionSource().Task);
@@ -105,7 +119,7 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     {
         // Arrange
         string? currentAtPublish = null;
-        _bus.PublishAsync<object>(default!, default).ReturnsForAnyArgs(_ =>
+        _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(_ =>
         {
             currentAtPublish = Activity.Current?.Id;
             return ValueTask.CompletedTask;
