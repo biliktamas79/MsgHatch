@@ -66,13 +66,13 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
             : scopedServices.GetRequiredService<NotificationPipeline>().ProcessReceivedAsync(this, current.Value, ct);
     }
 
-    private ErrorOr<ReceivedMessage<TEvent>> Upgrade(ReceivedMessage message) => message switch
+    private ErrorOr<ReceivedMessage<TEvent>> Upgrade(ReceivedMessage message) => message.ContentVersion switch
     {
-        ReceivedMessage<TEvent> current => current,
-        _ when _upgrades.TryGetValue(message.ContentVersion, out var upgrade) => new ReceivedMessage<TEvent>(
+        var version when version == Version && message is ReceivedMessage<TEvent> current => current,
+        var version when _upgrades.TryGetValue(version, out var upgrade) => new ReceivedMessage<TEvent>(
             message.SchemaVersion, message.Delivery, message.Tenant, message.Type, Version, message.Flags, message.TraceParent,
             upgrade(message)),
-        _ => new Error(Errors.UnsupportedVersion, $"The message type {Type.Name} has no upgrade from version {message.ContentVersion}."),
+        var version => new Error(Errors.UnsupportedVersion, $"The message type {Type.Name} has no upgrade from version {version}."),
     };
 
     public IChannelRegistration<TEvent>? FindChannel(ChannelId channel) =>

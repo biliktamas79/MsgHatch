@@ -72,6 +72,24 @@ public sealed class InboxProcessorUnitTests
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_NewerVersionOfTheCurrentEventType_FailsWithATransientUnsupportedVersionAndDoesNotRunThePipeline()
+    {
+        // Arrange
+        await using var provider = Build();
+        var message = await AddAsync(provider, AMessage() with { ContentVersion = 3 });
+
+        // Act
+        var summary = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        var delivery = Stored(provider, message).Delivery;
+        Assert.Equal(
+            (DeliveryStatus.Pending, true, 1),
+            (delivery.Status, delivery.LastError?.StartsWith("UnsupportedVersion", StringComparison.Ordinal), summary.Value.Retried));
+        Assert.Empty(_router.ReceivedCalls());
+    }
+
+    [Fact]
     public async Task ProcessPendingAsync_TokenCancelledDuringThePipeline_RecordsNothingAndTheNextClaimGetsTheMessageAfterItsLease()
     {
         // Arrange
