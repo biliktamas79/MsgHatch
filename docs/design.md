@@ -1001,6 +1001,12 @@ SQLite store rules:
 - `RecordTryAsync` is one statement: `UPDATE MsgHatchOutbox SET Tries = json_insert(Tries, '$[#]', json(@try)), TryCount = @tryNumber, ... WHERE Id = @id AND TryCount = @tryNumber - 1`. A changed row count of 0 means that the try is already recorded (D27).
 - The database file must be on a local disk. SQLite does not support network file systems.
 
+File store rules (D26):
+- A message file is `{nextTryAtUtc:yyyyMMddHHmmssfff}_{sequence:D10}_{key}.json` in the status folder `pending`, `claimed`, `done`, or `failed`, under `{RootPath}/inbox` or `{RootPath}/outbox/{channel}` (D104). The key of a received message is its id and its escaped tenant id, and the key of an outgoing message is its id.
+- The sequence counts the files that one store instance adds with the same time prefix, so a sort by name keeps the insert order of the messages with the same due time.
+- A claim renames each due file into `claimed`, with the lease end as its time prefix (D103). The claims of one store instance take turns. On Windows, a rename goes through a handle of the source, so two processes on one folder can rarely claim one file in the same lease.
+- A claimed file that the code cannot read stays out of the claim: a newer version stays in `claimed` for a newer instance (section 4.13), and a permanent error moves the file to `failed`.
+
 The library gives each store the type information that it needs (`MsgHatch.Domain.Persistence`):
 
 ```csharp
