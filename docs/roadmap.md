@@ -338,20 +338,26 @@ Done when: the build has no errors and no warnings, all tests pass, and the Rese
 
 Goal: real-time UI updates, composed by the event consumer and sent by the SignalR publisher.
 
-1. Add `src/MsgHatch.SignalR` with `SignalRChannel`, `SignalRChannelSettings`, `SignalRChannelSettingsValidator`, `ISignalREnvelope`, `SignalREnvelope<TPayload>` (D135), the SignalR composer, `SignalRTransport<THub> : ITransport where THub : Hub`, `UseSignalR<THub>`, and `PayloadBuilder<TEvent, TPayload>.AsSignalR` (D136). The first `AsSignalR` registers the channel with `AddChannelType`. The settings validator accepts each settings value, because the subscription manager checks the language (section 4.17). Add `tests/MsgHatch.SignalR.Tests.Unit` with `SignalRTransportUnitTests`, a subclass of `TransportTestsBase`.
+1. Add `src/MsgHatch.SignalR` with `SignalRChannel`, `SignalRChannelSettings`, `SignalRChannelSettingsValidator`, `ISignalREnvelope`, `SignalREnvelope<TPayload>` (D135), the SignalR composer, `SignalRTransport<THub> : ITransport where THub : Hub`, `UseSignalR<THub>`, and `PayloadBuilder<TEvent, TPayload>.AsSignalR` (D136). `UseSignalR` and the first `AsSignalR` register the channel with `AddChannelType`, so that a publisher host with no message type binds `MsgHatch:ChannelDown:SignalR` and `MsgHatch:TestDelivery:SignalR`. The settings validator accepts each `SignalRChannelSettings` value, because the subscription manager checks the language (section 4.17), and rejects the settings of another channel. Add `tests/MsgHatch.SignalR.Tests.Unit` with `SignalRTransportUnitTests`, a subclass of `TransportTestsBase`.
 2. The composer calls the payload loader of its payload registration, and puts each payload into a `SignalREnvelope<TPayload>` (D17, D135).
 3. The transport sends `ISignalREnvelope.Payload` of `OutgoingMessage.Content` with the message type name as the method name:
    - For a user target, to `Clients.User(SignalRUsers.ForUser(tenant, user))`, with the tenant of the outgoing message. The text is the user id with no tenant, and `{TenantId}:{UserId}` with a tenant. The host's `IUserIdProvider` must give the same text for each connection (D114).
    - For a company target, to `Clients.Group(SignalRGroups.ForCompany(tenant, company))`. The group name is `msghatch:company:{CompanyId}` with no tenant, and `msghatch:{TenantId}:company:{CompanyId}` with a tenant. The host's hub adds each connection to the group of the company of its user, for example in `OnConnectedAsync`.
+   - An id can contain `:`, so in each id of a user name or a group name, `%` becomes `%25` and `:` becomes `%3A`. Without this rule, the tenant `a:b` with the user `c` and the tenant `a` with the user `b:c` get the same user name `a:b:c`. Then one tenant gets the notifications of the other tenant. An id with no `:` and no `%` keeps the text of the two bullets above.
    - The transport returns a receipt with no provider id. SignalR has no delivery guarantee, so "sent" means that SignalR accepted the message.
+   - The transport converts each exception into an `Error`, and does not throw. A cancelled token gives `Errors.OperationCancelled`. `JsonException` and `NotSupportedException`, which a hub protocol throws for a payload that it cannot serialize, give `Errors.Rejected`. Each other exception gives `Errors.Unavailable`, because a backplane or Azure SignalR throws its own exception types for an outage, for example `RedisConnectionException`. The error message names only the exception type. Content that is not an `ISignalREnvelope`, and a target with an invalid id or kind, give `Errors.ValidationFailed`.
 4. With a `redirectTo` value, the transport sends to the SignalR group `redirectTo` in place of the target.
 
 Tests:
 - The use cases of `TransportTestsBase`, run by `SignalRTransportUnitTests`.
 - The transport calls `Clients.User` and `Clients.Group` with the names of item 3, with and without a tenant, each with the method name, on an `IHubContext<THub>` substitute.
-- `AsSignalR` adds the content type `SignalR:{name}` to the registry. With no retry configuration, a SignalR message gets an `ExpiresAtUtc` 5 minutes after the fake time (D94).
+- `SignalRUsers` and `SignalRGroups` give the names of item 3, as rows of one data-driven test each, also for ids with `:` and `%`.
+- One data-driven row for each exception class checks the `ErrorType` code. Content of another type and an invalid target give `Errors.ValidationFailed`, and the transport sends nothing. `CheckHealthAsync` returns null.
+- The SignalR composer calls the payload loader one time with all routes. It gives one envelope with the payload of each route, in the order of the routes. A loader error and a payload count that is not the route count are the outer error. A null payload fails only its route.
+- The settings validator accepts each `SignalRChannelSettings` value, also an unknown language, and rejects the settings of another channel.
+- `AsSignalR` adds the content type `SignalR:{name}` to the registry. With no retry configuration, a SignalR message gets 3 tries and an `ExpiresAtUtc` 5 minutes after the fake time (D94).
 - With a `redirectTo` value, the transport sends to that group.
-- `UseSignalR<THub>` alone registers one `ITransport` for the SignalR channel, for each payload type, and `IHubContext<THub>`.
+- `UseSignalR<THub>` alone registers one `ITransport` for the SignalR channel, for each payload type, and `IHubContext<THub>`, and passes the startup validation. A publisher host with only `UseSignalR` applies the section `MsgHatch:TestDelivery:SignalR`.
 
 Commits:
 1. "Add the SignalR channel"
