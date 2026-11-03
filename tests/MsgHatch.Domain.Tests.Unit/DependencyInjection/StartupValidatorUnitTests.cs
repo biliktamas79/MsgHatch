@@ -46,6 +46,25 @@ public sealed class StartupValidatorUnitTests
         Assert.IsType<OptionsValidationException>(exception);
     }
 
+    [Theory]
+    [InlineData(null, "UseInMemoryStores and UseOutboxStore")]
+    [InlineData("UseOtherStores", "UseInMemoryStores and UseOtherStores")]
+    public async Task Validate_SecondSelectionWithOrWithoutASetupMethodName_NamesBothSetupMethods(string? setupMethod, string expectedNames)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .UseOutboxStore(static (_, _) => Substitute.For<IOutboxStore>(), setupMethod));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.StartsWith($"{expectedNames} select ", failure, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Validate_MessageTypeWithNoRouter_ThrowsOptionsValidationException()
     {

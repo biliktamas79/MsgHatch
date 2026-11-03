@@ -31,10 +31,10 @@ public static class FileStoreExtensions
         builder.Services.TryAddSingleton(static services => new FileSystemInboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new FileSystemOutboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));
         return builder
-            .UseInboxStore(static (services, key) => services.GetRequiredService<FileSystemInboxStore>().For(key))
-            .UseInboxDispatchStore(static services => services.GetRequiredService<FileSystemInboxStore>())
-            .UseOutboxStore(static (services, key) => services.GetRequiredService<FileSystemOutboxStore>().For(key))
-            .UseOutboxDispatchStore(static services => services.GetRequiredService<FileSystemOutboxStore>());
+            .UseInboxStore(static (services, key) => services.GetRequiredService<FileSystemInboxStore>().For(key), nameof(UseFileStores))
+            .UseInboxDispatchStore(static services => services.GetRequiredService<FileSystemInboxStore>(), nameof(UseFileStores))
+            .UseOutboxStore(static (services, key) => services.GetRequiredService<FileSystemOutboxStore>().For(key), nameof(UseFileStores))
+            .UseOutboxDispatchStore(static services => services.GetRequiredService<FileSystemOutboxStore>(), nameof(UseFileStores));
     }
 
     /// <summary>Selects the JSON file stores on a folder.</summary>

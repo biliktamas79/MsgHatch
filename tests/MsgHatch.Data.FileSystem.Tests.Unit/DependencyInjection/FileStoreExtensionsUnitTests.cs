@@ -107,6 +107,27 @@ public sealed class FileStoreExtensionsUnitTests : IDisposable
         Assert.Equal("RootPath", failure[..failure.IndexOf(':', StringComparison.Ordinal)]);
     }
 
+    [Fact]
+    public async Task UseFileStores_AfterUseInMemoryStores_NamesBothSetupMethodsForEachStoreInterface()
+    {
+        // Arrange
+        const string names = "UseInMemoryStores and UseFileStores select an implementation of ";
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseInMemoryStores().UseFileStores(_rootPath);
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Equal(
+            ["IInboxDispatchStore", "IInboxStore", "IOutboxDispatchStore", "IOutboxStore"],
+            Assert.IsType<OptionsValidationException>(exception).Failures
+                .Where(static failure => failure.StartsWith(names, StringComparison.Ordinal))
+                .Select(static failure => failure[names.Length..^1])
+                .Order(StringComparer.Ordinal));
+    }
+
     private string ClaimedFolderOf(string store) =>
         StoreFolders.RelativeFolderOf(_rootPath, Assert.Single(StoreFolders.MessageFiles(_rootPath, store)));
 

@@ -189,9 +189,10 @@ public sealed class MsgHatchBuilder
 
     /// <summary>Registers an inbox tenant store with a factory, for example for a test substitute.</summary>
     /// <param name="factory">The factory of the store of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory) =>
-        AddInboxStore(factory, nameof(UseInboxStore));
+    public MsgHatchBuilder UseInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory, string? setupMethod = null) =>
+        AddInboxStore(factory, setupMethod ?? nameof(UseInboxStore));
 
     /// <summary>Registers the inbox dispatch store as a singleton, with its logging wrapper (D127, D130).</summary>
     /// <typeparam name="TStore">The store type.</typeparam>
@@ -202,9 +203,10 @@ public sealed class MsgHatchBuilder
 
     /// <summary>Registers the inbox dispatch store with a factory, for example for a test substitute.</summary>
     /// <param name="factory">The factory of the store.</param>
+    /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseInboxDispatchStore(Func<IServiceProvider, IInboxDispatchStore> factory) =>
-        AddInboxDispatchStore(factory, nameof(UseInboxDispatchStore));
+    public MsgHatchBuilder UseInboxDispatchStore(Func<IServiceProvider, IInboxDispatchStore> factory, string? setupMethod = null) =>
+        AddInboxDispatchStore(factory, setupMethod ?? nameof(UseInboxDispatchStore));
 
     /// <summary>Registers an outbox tenant store as a tenant service, with its logging wrapper (D127).</summary>
     /// <typeparam name="TStore">The store type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
@@ -215,9 +217,10 @@ public sealed class MsgHatchBuilder
 
     /// <summary>Registers an outbox tenant store with a factory, for example for a test substitute.</summary>
     /// <param name="factory">The factory of the store of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseOutboxStore(Func<IServiceProvider, TenantKey, IOutboxStore> factory) =>
-        AddOutboxStore(factory, nameof(UseOutboxStore));
+    public MsgHatchBuilder UseOutboxStore(Func<IServiceProvider, TenantKey, IOutboxStore> factory, string? setupMethod = null) =>
+        AddOutboxStore(factory, setupMethod ?? nameof(UseOutboxStore));
 
     /// <summary>Registers the outbox dispatch store as a singleton, with its logging wrapper (D127, D130).</summary>
     /// <typeparam name="TStore">The store type.</typeparam>
@@ -228,9 +231,10 @@ public sealed class MsgHatchBuilder
 
     /// <summary>Registers the outbox dispatch store with a factory, for example for a test substitute.</summary>
     /// <param name="factory">The factory of the store.</param>
+    /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseOutboxDispatchStore(Func<IServiceProvider, IOutboxDispatchStore> factory) =>
-        AddOutboxDispatchStore(factory, nameof(UseOutboxDispatchStore));
+    public MsgHatchBuilder UseOutboxDispatchStore(Func<IServiceProvider, IOutboxDispatchStore> factory, string? setupMethod = null) =>
+        AddOutboxDispatchStore(factory, setupMethod ?? nameof(UseOutboxDispatchStore));
 
     /// <summary>
     /// Registers the transport of one channel as a singleton, with its logging wrapper (D129). The host is then a
