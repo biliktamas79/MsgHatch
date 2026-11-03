@@ -368,7 +368,7 @@ Done when: the build has no errors and no warnings, and all tests pass.
 
 ### Phase 6: broker channel with Wolverine
 
-Goal: broker messages, composed by the event consumer and sent by the broker publisher through Wolverine (D134).
+Goal: broker messages, composed by the event consumer and sent by the broker publisher through Wolverine (D134). A message type can send its domain event unchanged, as its own payload (D139).
 
 1. Add `src/MsgHatch.Broker` with `BrokerChannel`, `BrokerChannelSettings`, `BrokerChannelSettingsValidator`, `IBrokerEnvelope`, `BrokerEnvelope<TPayload>`, the broker composer, `BrokerPublish`, `IBrokerClient`, `BrokerClientLoggingWrapper`, `BrokerTransport : ITransport`, `UseBrokerClient<TClient>` with its factory overload, and `PayloadBuilder<TEvent, TPayload>.AsBroker` (D136). The first `AsBroker` registers the channel with `AddChannelType`. The settings validator rejects a header with an empty name, and a header name that starts with `msghatch-`, because the library uses these names. Add `tests/MsgHatch.Broker.Tests.Unit` with `BrokerTransportUnitTests`, a subclass of `TransportTestsBase`, and the contract base class `BrokerClientTestsBase<TClient>` with `IBrokerClientTestDriver` in its `Contracts/` folder.
 2. The composer calls the payload loader of its payload registration. The broker transport builds the headers: the headers of the channel settings, `msghatch-id` with the outgoing message id, `msghatch-tenant` for a message of a tenant, `msghatch-test: true` for a test message, and `msghatch-redirect` with the `redirectTo` value. Then it calls `IBrokerClient.PublishAsync` (section 4.6). So each client only maps these values to its library, and a receiver can find duplicates by `msghatch-id`.
@@ -378,6 +378,7 @@ Goal: broker messages, composed by the event consumer and sent by the broker pub
    - First check which headers Wolverine uses for the trace context, and add the result to the checked facts of section 4.21.
    - The client converts each exception into an `Error`, and does not throw. `CheckHealthAsync` returns null, because Wolverine has no general health check of a transport.
 4. Add the startup validation rule of `UseWolverineBroker` (section 4.7).
+5. Add `MessageBuilder<TEvent>.WithEventPayload` and the internal `EventPayloadLoader<TEvent> : IPayloadLoader<TEvent, TEvent>` to `src/MsgHatch.Domain` (D139). `WithEventPayload` registers the loader with `UsePayloadLoader`. The loader returns the event of the received message for each route, as one instance.
 
 Checked facts (2026-10-31) behind D134. The phase reads each source again for the pinned version:
 
@@ -407,10 +408,14 @@ Tests:
 - The settings validator rejects an empty header name and the name `msghatch-x`, and accepts `x-source`.
 - The standard logging wrapper tests for the broker client wrapper.
 - `UseWolverineBroker` alone registers the `IBrokerClient` and one `ITransport` for the broker channel.
+- With `WithEventPayload`, the resolved `IPayloadLoader<TEvent, TEvent>` returns the event of the received message for each route, as one instance. Its composers get one loader instance in one DI scope.
+- `WithEventPayload` and a `WithPayload` call with an own loader for the event type fail the startup validation (D135).
+- A broker message of `WithEventPayload` carries the domain event as its payload, from the event to the broker client.
 
 Commits:
 1. "Add the broker channel and the broker client contract"
 2. "Add the Wolverine broker client"
+3. "Add the event as its own payload"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
