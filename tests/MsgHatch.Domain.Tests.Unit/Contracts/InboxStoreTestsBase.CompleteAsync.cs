@@ -1,5 +1,6 @@
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
 
 namespace MsgHatch.Domain.Tests.Unit.Contracts;
 
@@ -71,6 +72,39 @@ public abstract partial class InboxStoreTestsBase<TStore>
         Assert.Equal(
             [DeliveryStatus.Pending, DeliveryStatus.Failed],
             [(await StoredAsync(ofT1)).Delivery.Status, (await StoredAsync(ofT2)).Delivery.Status]);
+    }
+
+    [Fact]
+    public async Task FailAsync_SameIdOfATenantThatDiffersOnlyInCase_ChangesOnlyTheMessageOfItsTenant()
+    {
+        // Arrange
+        var ofUpperCaseT1 = await AddAsync(AMessage(UpperCaseT1));
+        var ofT1 = await AddAsync(AMessage(T1, id: ofUpperCaseT1.Delivery.Id));
+
+        // Act
+        await Store.FailAsync(ofT1, "ValidationFailed", Now, nextTryAtUtc: null, Ct);
+
+        // Assert
+        Assert.Equal(
+            [DeliveryStatus.Pending, DeliveryStatus.Failed],
+            [(await StoredAsync(ofUpperCaseT1)).Delivery.Status, (await StoredAsync(ofT1)).Delivery.Status]);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_TenantIdWithSpecialCharacters_CompletesTheMessageWithItsTenantUnchanged()
+    {
+        // Arrange
+        var key = TenantKey.For(new TenantId("Ősz-Űr|a/b:c*?\"<>^%"));
+        var message = await AddAsync(AMessage(key));
+        var claimed = Assert.Single((await ClaimAsync()).Value.Messages);
+
+        // Act
+        var error = await Store.CompleteAsync(claimed, Now, Ct);
+
+        // Assert
+        Assert.Null(error);
+        var stored = await StoredAsync(message);
+        Assert.Equal((key.Tenant, DeliveryStatus.Done), (stored.Tenant, stored.Delivery.Status));
     }
 
     [Fact]

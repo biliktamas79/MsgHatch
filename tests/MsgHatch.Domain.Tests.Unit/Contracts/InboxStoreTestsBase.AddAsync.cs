@@ -66,6 +66,20 @@ public abstract partial class InboxStoreTestsBase<TStore>
         Assert.Equal([ofT1, ofT2], await TestData.GetStoredAsync(Ct));
     }
 
+    [Fact]
+    public async Task AddAsync_SameIdWithTwoTenantsThatDifferOnlyInCase_StoresTwoMessages()
+    {
+        // Arrange
+        var ofT1 = await AddAsync(AMessage(T1));
+        var ofUpperCaseT1 = AMessage(UpperCaseT1, id: ofT1.Delivery.Id);
+
+        // Act
+        await TenantStore(UpperCaseT1).AddAsync(ofUpperCaseT1, Ct);
+
+        // Assert
+        Assert.Equal([ofT1, ofUpperCaseT1], await TestData.GetStoredAsync(Ct));
+    }
+
     [Theory]
     [MemberData(nameof(OutboxStoreTestRows.OtherTenantRows), MemberType = typeof(OutboxStoreTestRows))]
     public async Task AddAsync_MessageOfAnotherTenant_ReturnsValidationFailedAndAddsNothing(string storeTenant, string messageTenant)

@@ -83,15 +83,24 @@ internal sealed class MessageFiles
     public static string? Find(string folder, string key) =>
         _statusFolders.SelectMany(status => FilesOf(Path.Combine(folder, status), $"*_{key}.json")).FirstOrDefault();
 
-    /// <summary>The key part of a file name: the id, and for a tenant also the escaped tenant id.</summary>
+    /// <summary>The key part of a file name: the id, and for a tenant also the name of the tenant.</summary>
     public static string KeyOf(Guid id, TenantId? tenant) =>
-        tenant is { } value ? $"{id:D}_{Uri.EscapeDataString(value.Value)}" : id.ToString("D");
+        tenant is { } value ? $"{id:D}_{NameOf(value)}" : id.ToString("D");
 
     /// <summary>The marker <c>ids/{tenantFolder}/{id}</c> of a stored key under the root of a store.</summary>
     public static string MarkerOf(string root, TenantId? tenant, Guid id) =>
         tenant is { } value
-            ? Path.Combine(root, "ids", "tenants", Uri.EscapeDataString(value.Value), id.ToString("D"))
+            ? Path.Combine(root, "ids", "tenants", NameOf(value), id.ToString("D"))
             : Path.Combine(root, "ids", "no-tenant", id.ToString("D"));
+
+    /// <summary>
+    /// The tenant id in a file or folder name: escaped with <see cref="Uri.EscapeDataString(string)"/>, which also escapes
+    /// <c>^</c>, and each capital letter A to Z as <c>^</c> and the small letter. Windows and macOS ignore the case of a
+    /// name, but a tenant id is case-sensitive.
+    /// </summary>
+    private static string NameOf(TenantId tenant) =>
+        string.Concat(Uri.EscapeDataString(tenant.Value).Select(static character =>
+            char.IsAsciiLetterUpper(character) ? $"^{char.ToLowerInvariant(character)}" : character.ToString()));
 
     /// <summary>
     /// Writes the new content of a file into the folder of its status, with its next try time as the due time, through

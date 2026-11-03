@@ -19,6 +19,9 @@ public abstract partial class InboxStoreTestsBase<TStore> : IAsyncLifetime
     protected static readonly TenantKey T1 = TenantKey.For(new TenantId("t1"));
     protected static readonly TenantKey T2 = TenantKey.For(new TenantId("t2"));
 
+    /// <summary>A tenant id that differs from <see cref="T1"/> only in case. Windows and macOS ignore the case of a file name.</summary>
+    protected static readonly TenantKey UpperCaseT1 = TenantKey.For(new TenantId("T1"));
+
     private readonly Func<TStore, TenantKey, IInboxStore> _tenantStore;
 
     protected InboxStoreTestsBase(
