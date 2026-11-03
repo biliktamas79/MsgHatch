@@ -16,6 +16,55 @@ public sealed class MessageBuilderUnitTests
     private const string _contentType = "Test:TestEnvelope";
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    public static TheoryData<string, int> RouteCountRows => new()
+    {
+        { "no route", 0 },
+        { "one route", 1 },
+        { "three routes", 3 },
+    };
+
+    [Theory]
+    [MemberData(nameof(RouteCountRows))]
+    public async Task WithEventPayload_ResolvedLoader_ReturnsTheEventOfTheReceivedMessageForEachRouteAsOneInstance(string row, int routeCount)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithEventPayload(static _ => { }));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+        var message = TestMessages.AReceivedMessage(new TestEvent("1001"));
+        MessageRoute[] routes = [.. Enumerable.Range(1, routeCount).Select(static number => TestRoutes.ARoute($"u{number}"))];
+
+        // Act
+        var result = await scope.ServiceProvider.GetRequiredService<IPayloadLoader<TestEvent, TestEvent>>().LoadAsync(message, routes, Ct);
+
+        // Assert
+        Assert.Equal((row, routeCount, 0), (row, result.Value.Count, result.Value.Count(payload => !ReferenceEquals(payload, message.Event))));
+    }
+
+    [Fact]
+    public async Task WithEventPayload_TwoChannelRegistrations_GivesTheirComposersOneLoaderInstanceInOneScope()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel().AddSecondTestChannel()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .WithEventPayload(static p => p
+                    .AsChannel<TestEnvelope, EventPayloadTestComposer<TestEnvelope>>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope)
+                    .AsChannel<OtherTestEnvelope, EventPayloadTestComposer<OtherTestEnvelope>>(TestChannel.SecondId, "OtherEnvelope", 1, TestJsonContext.Default.OtherTestEnvelope)));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var first = (EventPayloadTestComposer<TestEnvelope>)scope.ServiceProvider.GetRequiredService<IEnvelopeComposer<TestEvent, TestEnvelope>>();
+        var second = (EventPayloadTestComposer<OtherTestEnvelope>)scope.ServiceProvider.GetRequiredService<IEnvelopeComposer<TestEvent, OtherTestEnvelope>>();
+
+        // Assert
+        Assert.Same(first.Loader, second.Loader);
+    }
+
     [Fact]
     public void WithPayload_PayloadBuilder_GivesTheBuilderAndTheServicesOfTheSetup()
     {

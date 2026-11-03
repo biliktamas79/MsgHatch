@@ -125,6 +125,18 @@ public sealed class MessageBuilder<TEvent>
         return this;
     }
 
+    /// <summary>
+    /// Registers the domain event as the payload of the channel registrations of <paramref name="channels"/>, with the
+    /// internal loader <c>EventPayloadLoader</c> and <c>UsePayloadLoader</c> (D139). The loader gives the event of the
+    /// received message for each route, as one instance. The receiver gets each property of the event, so select it only
+    /// when each property is fit for each receiver. A <c>WithPayload</c> call with an own loader for the event type then
+    /// fails the startup validation (D135).
+    /// </summary>
+    /// <param name="channels">The channel registrations of the event, for example <c>p =&gt; p.AsBroker("OrderShipped", 1, json)</c>.</param>
+    /// <returns>This builder.</returns>
+    public MessageBuilder<TEvent> WithEventPayload(Action<PayloadBuilder<TEvent, TEvent>> channels) =>
+        WithPayload<TEvent, EventPayloadLoader<TEvent>>(channels);
+
     private MessageBuilder<TEvent> AddPayloadLoader<TPayload>(Func<IServiceProvider, TenantKey, IPayloadLoader<TEvent, TPayload>> factory)
     {
         TenantServices.Add(

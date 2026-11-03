@@ -206,6 +206,7 @@ public sealed class StartupValidatorUnitTests
         "TwoChannelRegistrationsWithTheSameEnvelopeType",
         "TwoLoaderTypesForOnePayloadType",
         "TwoPayloadRegistrationsWithTwoLoaderTypesForOnePayloadType",
+        "EventPayloadAndAPayloadRegistrationWithAnOwnLoaderForTheEventType",
     ];
 
     [Theory]
@@ -262,6 +263,11 @@ public sealed class StartupValidatorUnitTests
                 .AsChannel<TestEnvelope, PayloadTestComposer>(TestChannel.Id, "First", 1, TestJsonContext.Default.TestEnvelope))
             .WithPayload<TestPayload, OtherTestPayloadLoader>(static p => p
                 .AsChannel<OtherTestEnvelope, OtherPayloadTestComposer>(TestChannel.SecondId, "Second", 1, TestJsonContext.Default.OtherTestEnvelope)),
+        "EventPayloadAndAPayloadRegistrationWithAnOwnLoaderForTheEventType" => m
+            .WithEventPayload(static p => p
+                .AsChannel<TestEnvelope, EventPayloadTestComposer<TestEnvelope>>(TestChannel.Id, "First", 1, TestJsonContext.Default.TestEnvelope))
+            .WithPayload(static (_, _) => Substitute.For<IPayloadLoader<TestEvent, TestEvent>>(), static p => p
+                .AsChannel<OtherTestEnvelope, EventPayloadTestComposer<OtherTestEnvelope>>(TestChannel.SecondId, "Second", 1, TestJsonContext.Default.OtherTestEnvelope)),
         _ => m
             .UsePayloadLoader<TestPayload, TestPayloadLoader>()
             .UsePayloadLoader<TestPayload, OtherTestPayloadLoader>()
