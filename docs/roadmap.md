@@ -541,8 +541,10 @@ Goal: the router with subscriptions on three owner levels inside each tenant, wi
 4. Add `SubscriptionRouter<TEvent>` with the routing procedure of section 4.17, the internal `SubscriptionMessage<TEvent>`, `WithScope`, `UseSubscriptions`, `UseSubscriptionStore`, and `UseRecipientDirectory`, each with its factory overload. `UseSubscriptions` registers `ResolutionTrace` with `AddTraceType` as the trace type `Trace:Subscription` (D98). Add the startup validation rules of the package.
 5. Add `InMemorySubscriptionStore` and `UseInMemorySubscriptionStore`. Add the contract base class `SubscriptionStoreTestsBase<TStore>` with `ISubscriptionStoreTestData` in `tests/MsgHatch.Subscriptions.Tests.Unit/Contracts/` (section 5.5), and its subclass `InMemorySubscriptionStoreUnitTests`.
 6. Add `ISubscriptionManager`, the internal `SubscriptionManager` (section 4.17), and `SubscriptionManagerLoggingWrapper`. `UseSubscriptions` registers them as tenant services.
+7. First give the channel settings a readable language. The resolver takes the language of the channel settings (section 4.17), but `ChannelSettings` had no language member, and `MsgHatch.Subscriptions` does not reference the channel packages. Result (D145): the core interface `ILanguageSettings`, which `EmailChannelSettings` and `SignalRChannelSettings` implement. The owner also decided the static form of `SubscriptionResolver.Resolve` (D146), and an internal `SubscriptionRouter<TEvent>` (D147).
 
 Tests:
+- `EmailChannelSettings` and `SignalRChannelSettings` give their language through `ILanguageSettings` (D145).
 - `SubscriptionResolver`: one data-driven test with one row for each resolution example R1 to R18 of `docs/subscription-domain.md`. The router tests below run R19. Each row asserts the whole list of effective subscriptions. The rows cover the merge for each channel, the mandatory subscription, the fixed subscriptions for the company and for named users, one fixed delivery for each event, the merge of duplicates, and the skip of a named user of another company.
 - `SubscriptionResolver` traces: one data-driven test with one row for each trace example T1 to T8 of the domain document. Each row asserts the whole `ResolutionTrace` or `OptOutDecision`.
 - `SubscriptionOwner`, `Subscription`, `SubscriptionRecipients`, and `NotificationScope` keep the rules of section 4.4, with the rows of the examples V1 to V5 of the domain document.
@@ -564,11 +566,12 @@ Tests:
 - The standard logging wrapper tests for `SubscriptionStoreLoggingWrapper`, `RecipientDirectoryLoggingWrapper`, and `SubscriptionManagerLoggingWrapper`. No log record contains an email address of a test profile.
 
 Commits:
-1. "Add the subscription model and the recipient directory contract"
-2. "Add subscription resolution with merge rules"
-3. "Add the subscription router and its setup"
-4. "Add the in-memory subscription store and its contract test base class"
-5. "Add the subscription management API"
+1. "Give the channel settings a readable language"
+2. "Add the subscription model and the recipient directory contract"
+3. "Add subscription resolution with merge rules"
+4. "Add the subscription router and its setup"
+5. "Add the in-memory subscription store and its contract test base class"
+6. "Add the subscription management API"
 
 Done when: the build has no errors and no warnings, all tests pass, and the examples P1 to P7 run end to end on the in-memory stores.
 

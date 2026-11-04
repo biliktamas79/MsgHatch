@@ -294,6 +294,9 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D142 | Expiry of a received message | Confirmed | The inbox has no expiry of its own. The `ExpiresAtUtc` of an outgoing message is the `CreatedAtUtc` of its received message plus the `Expiry` of its channel registration. So an event that waited one hour in the inbox gives no SignalR update with a new 5 minutes, and an email with no expiry is still sent. `ProcessAsync` and `PreviewAsync` make their received message now, so their expiry does not change. The `ExpiresAtUtc` of a received message stays null, and the startup validation rejects `MsgHatch:Retry:Inbox:Expiry`, so the setting does not stay with no effect. | An expiry of the inbox from `MsgHatch:Retry:Inbox:Expiry`, which fails an expired event before the pipeline. Then no outgoing message exists, also for a channel with no expiry, and one value applies to all message types and channels. Or no expiry rule, so that a stale SignalR update after a long wait in the inbox gets a new 5 minutes. |
 | D143 | JSON columns of a SQL store | Confirmed | `MsgHatchJson` writes and reads only whole messages. A SQL store writes the whole message with `MsgHatchJson`, and the database takes the event or the envelope, the route trace, and the trace discriminator out of that document into their columns, for example with `json_extract` in SQLite. To read a message, one SQL expression puts the columns back into one document, for example `json_object` in SQLite, and `MsgHatchJson` reads it as the closed type. So the domain has no public API for the parts of a message, and each store serializes one time (section 4.11). | Members of `MsgHatchJson` that write and read only the event, the envelope, or the route trace, with a public type for the other columns of a message. |
 | D144 | Claim order | Confirmed | A claim takes and returns the due messages in the order of their `NextTryAtUtc` (section 4.6). Messages with the same `NextTryAtUtc` come in the order of their add: in the in-memory store and the SQL stores always, and in the file store for the adds of one instance in a row (D26). This order is not the event order. The library sets `CreatedAtUtc` and `NextTryAtUtc` to the time of the add, so a backfill that must keep the event order adds the messages in that order. A SQL store keeps the order of the add in an explicit counter column, in SQLite `Sequence INTEGER PRIMARY KEY`, with the old key as a `UNIQUE` constraint. The SQLite documentation says that `VACUUM` can change the `rowid` of a table with no `INTEGER PRIMARY KEY`. SQLite puts the counter at the end of each entry of the due index, so the index gives the claim order with no sort step. | `CreatedAtUtc` in the claim key, which does not hold the event time and adds a sort step to each claim. Or the plain `rowid`, which a `VACUUM` can change. |
+| D145 | Language of channel settings | Confirmed | `MsgHatch.Domain.Routing` has the interface `ILanguageSettings` with `string? Language { get; }`. `EmailChannelSettings` and `SignalRChannelSettings` implement it with their positional `Language`. The subscription router reads the language of the settings through it, because `MsgHatch.Subscriptions` does not reference the channel packages. Settings that do not implement it have no language. The broker settings and the JSON of each settings type do not change (section 4.4). | `public virtual string? Language => null` on `ChannelSettings`, which each settings type with a language overrides. Then each settings type has the member, and the JSON of `BrokerChannelSettings` gets `"language": null`. |
+| D146 | Form of the subscription resolver | Confirmed | `SubscriptionResolver` is a static class. `Resolve(channels, scope, subscriptions, users, companies, defaultLanguage)` takes the channels of the message type, the scope, the subscriptions, the loaded user and company profiles, and `MsgHatchOptions.DefaultLanguage`. It does no I/O. The caller loads the profiles first, as step 4 of the routing procedure says (section 4.17). | A public input record for `Resolve`, which is one more public type to keep stable. Or a singleton in DI, which a test can reach only through a container. |
+| D147 | Visibility of the subscription router | Confirmed | `SubscriptionRouter<TEvent>` is internal. `UseSubscriptions` selects it with `UseRouter`, and the tests reach it through `INotificationService` (D68). Its public constructor takes the internal `SubscriptionMessage<TEvent>`. | A public router that a host selects with `WithRouter` for one message type. Its constructor then needs a public type for the scope function. |
 
 The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3).
 
@@ -466,6 +469,11 @@ public readonly record struct DeliveryTarget(DeliveryTargetKind Kind, string Id)
 
 public abstract record ChannelSettings;
 
+public interface ILanguageSettings
+{
+    string? Language { get; }
+}
+
 [Flags]
 public enum ChannelFeatures { None = 0, Languages = 1, RichText = 2, RawData = 4, GroupDelivery = 8 }
 
@@ -625,7 +633,7 @@ Resolution trace (D92, D98). The subscription router gives each effective subscr
   - `Locked`: a mandatory subscription of a higher level applies to the channel (D88).
   - `Merged`: another subscription gave the same target and channel, and comes first in the merge order (D91).
 - An opt-out that applies gives no delivery. The resolver then records an `OptOutDecision` with the target, the channel, the opt-out, and its own `Skipped` list. So the trace also tells why a target got no message.
-- `SubscriptionResolver.Resolve` returns a `SubscriptionResolution` with the deliveries and the opt-out decisions. An empty `Skipped` list is `Array.Empty<SkippedSubscription>()`, so a trace with nothing skipped allocates nothing more.
+- `SubscriptionResolver.Resolve(channels, scope, subscriptions, users, companies, defaultLanguage)` is static and does no I/O (D146). It returns a `SubscriptionResolution` with the deliveries and the opt-out decisions. An empty `Skipped` list is `Array.Empty<SkippedSubscription>()`, so a trace with nothing skipped allocates nothing more.
 - The trace holds ids, levels, and sources only. It has no address and no payload value, so the logs can contain it (D37).
 
 Delivery (`MsgHatch.Domain.Delivery`):
@@ -776,7 +784,7 @@ public static class EmailChannel
 public enum EmailFormat { Html, PlainText }
 
 public sealed record EmailChannelSettings(string? Language = null, EmailFormat Format = EmailFormat.Html)
-    : ChannelSettings;
+    : ChannelSettings, ILanguageSettings;
 
 public sealed record EmailMessage(
     string To, string Subject, string? HtmlBody, string? TextBody = null,
@@ -798,7 +806,7 @@ public static class SignalRChannel
         ChannelFeatures.Languages | ChannelFeatures.RawData | ChannelFeatures.GroupDelivery);
 }
 
-public sealed record SignalRChannelSettings(string? Language = null) : ChannelSettings;
+public sealed record SignalRChannelSettings(string? Language = null) : ChannelSettings, ILanguageSettings;
 
 public interface ISignalREnvelope
 {
@@ -844,7 +852,7 @@ Channel features (D77):
 | UI notification (SignalR) | yes | no | yes, the payload as JSON | yes, one message to the SignalR group of a company |
 | Broker message | no | no | yes, the payload as it is | yes, one message with the company target |
 
-A null language in channel settings means the UI language of the user, or the default language of the company for a company target.
+A null language in channel settings means the UI language of the user, or the default language of the company for a company target. The language of channel settings is `ILanguageSettings.Language`. Settings that do not implement `ILanguageSettings`, for example `BrokerChannelSettings`, have no language (D145).
 
 Options (D49, D63, D64, D65). Each options class is a `sealed class` with a public parameterless constructor, a `get; set;` property for each setting, the default value in the property initializer, and a `public const string SectionName`. A `[OptionsValidator]` partial class next to it, for example `DispatchOptionsValidator`, validates the attributes. A rule across properties is in `IValidatableObject.Validate`.
 
@@ -1967,7 +1975,7 @@ Routing procedure. `SubscriptionRouter<TEvent>.RouteAsync` does these steps. The
      - A fixed subscription gives one delivery for each event, also when several users of the scope belong to its company.
    - **Merge (D91).** For one target and one channel, the resolver keeps one effective subscription. A fixed subscription applies before an overridable one. Between two fixed subscriptions, the higher level applies. On the same level, a subscription for named users or for the company applies before a mandatory one for the scope users.
    - A subscription for a channel that the message type has not registered is skipped.
-   - The language is the language of the channel settings. If it is null, the language is the UI language of the user, or the default language of the company for a company target. If that is also missing, it is `MsgHatchOptions.DefaultLanguage`.
+   - The language is the language of the channel settings, `ILanguageSettings.Language` (D145). If it is null, the language is the UI language of the user, or the default language of the company for a company target. If that is also missing, it is `MsgHatchOptions.DefaultLanguage`.
    - The address comes from `UserProfile.Addresses` for a user target, and from `CompanyProfile.Addresses` for a company target on a channel without `GroupDelivery`. When the profile has no address for the channel, the route has no address, and the address source is `None`. The email composer then fails that message (section 4.8).
    - The template scope is the text of the company of the target user, or of the target company (D80).
    - The resolver records a `ResolutionTrace` for each effective subscription, and an `OptOutDecision` for each opt-out that applies (section 4.4, D92).

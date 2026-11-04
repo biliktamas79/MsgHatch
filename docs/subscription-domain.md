@@ -92,7 +92,7 @@ Common rules:
 
 ### 2.2 Language, address, and template scope
 
-- **Language.** The language of the channel settings. If it is null: the UI language of the user, or the default language of the company for a company target. If that is also missing: `MsgHatchOptions.DefaultLanguage`.
+- **Language.** The language of the channel settings, `ILanguageSettings.Language` (design D145). If it is null: the UI language of the user, or the default language of the company for a company target. If that is also missing: `MsgHatchOptions.DefaultLanguage`.
 - **Address.** For a user target, the address of the user for the channel, from the directory. For a company target on a channel without group delivery, the address of the company for the channel. When the profile has no address for the channel, the route of that target has no address. The email composer then fails the message to that target with `Errors.ValidationFailed`. The other targets of the event still get their messages.
 - **Template scope.** The company of the target user, or the target company. A company can therefore have its own email templates.
 
