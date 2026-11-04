@@ -493,18 +493,28 @@ Done when: the build has no errors and no warnings, and all tests pass.
 Goal: relational inbox and outbox stores in process (D55).
 
 1. Add `src/MsgHatch.Data.Sqlite` with `SqliteStoreOptions` and its validator, `SqliteInboxStore` and `SqliteOutboxStore` with their two parts, the internal schema helper that runs one time for each connection string, and `UseSqliteStores` (section 4.5). Add `tests/MsgHatch.Data.Sqlite.Tests.Unit` with the subclasses `SqliteInboxStoreUnitTests` and `SqliteOutboxStoreUnitTests`.
+   - A store writes the whole message with `MsgHatchJson`, and `json_extract` puts the event or the envelope, the route trace, and its `$type` into the columns `Content`, `Trace`, and `TraceType`. The claim returns each row as one `json_object` document, which `MsgHatchJson` reads (owner decision, D143).
+   - The claim leases the rows by `rowid`, because two tenants can store one inbox id, and an `Id IN (...)` also leases the row of the other tenant. SQLite gives the rows of `RETURNING` in an arbitrary order, so the store sorts them by `rowid`, the insert order. SQLite 3.53.3 already gives them in this order, so no test turns red without the sort.
+   - A claimed row that the code cannot read stays out of the result. A transient error, for example a newer version, keeps it pending with the lease end as its next try time (section 4.13). A permanent error, for example invalid JSON, sets its status to `Failed`, ends its lease, and writes `{ErrorName}: {message}` into `LastError`.
+   - The tables have no `NOT NULL` constraint, because `INSERT OR IGNORE` also skips a row that breaks one, with no error.
+   - A SQLite failure gives `Errors.Unavailable`, and a down row with an invalid value gives `Errors.SerializationFailed`. So the stores return an error, and do not throw.
+   - `RecordTryAsync` reads whether the id is stored only when its update changes no row, so a message that is not stored gives `Errors.NotFound`.
+   - Each store takes the connection string in its constructor, checks it with `SqliteConnectionStringBuilder`, and has the property `ConnectionString`, so that a test or a second store instance can find the database. The stores use the synchronous API of `Microsoft.Data.Sqlite`, as the file stores do, and do not create the folder of the database file.
+   - The indexes of the delivery management (section 4.19) come with phase 15, which adds the members that use them.
 2. First check the busy wait of the pinned `Microsoft.Data.Sqlite` version: a command on a locked database tries again until its command timeout ends (section 4.5). Result for 10.0.14: the command tries again until its command timeout ends (checked fact below).
 
 Tests:
-- The use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` run on the two SQLite stores, each test on its own database file in its own temporary folder.
+- The use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` run on the two SQLite stores, each test on its own database file in the temporary folder `msghatch-tests`, with `Default Timeout=5` in its connection string (section 5.5).
 - The options tests of `SqliteStoreOptions`. A connection string with `{tenant}` fails, because one database for each tenant has its own setup method (D125).
 - One call of `UseSqliteStores` registers `IInboxStore`, `IOutboxStore`, `IInboxDispatchStore`, and `IOutboxDispatchStore`, each resolved as its logging wrapper around the store of the package. The tenant store of a key and the dispatch store use one store instance.
-- `SqliteOutboxStoreUnitTests`, unique to SQLite:
-  - The stores write times as ISO 8601 text and enum values as text, and an empty text for no tenant. The same message id with two tenants gives two inbox rows.
+- `SqliteOutboxStoreUnitTests` and `SqliteInboxStoreUnitTests`, unique to SQLite:
+  - The stores write times as ISO 8601 text and enum values as text, and an empty text for no tenant. The same message id with two tenants gives two inbox rows. The down row of a channel has its reason and its times as text.
   - A second store instance on the same database file reads the data of the first one. The connection string comes from the test configuration, bound to `SqliteStoreOptions`.
   - A claim with nothing due takes no write lock: it completes while a second connection holds a write transaction (section 4.5).
   - `RecordTryAsync` with a try number that is already recorded changes no row, and the tries stay one JSON array (D27).
   - A second writer completes after the first writer commits, within the command timeout.
+  - A row with invalid JSON in the inbox and in the outbox gets the status `Failed`, and the claim takes the other message. A row with a newer version stays pending, and its lease end is the next due time. A down row with an unknown reason gives `Errors.SerializationFailed`. A database in a folder that does not exist gives `Errors.Unavailable`.
+  - The first operation sets the WAL journal and the schema version 1. A claim of `maxCount` rows gives now as the next due time. Twenty messages with the same due time are claimed in the order of their add. A message of an unregistered type gives `Errors.SerializationFailed`, and the outbox adds nothing of its batch.
 
 Checked facts (2026-11-04) for the SQLite stores:
 
