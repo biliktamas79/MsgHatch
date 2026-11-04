@@ -35,6 +35,21 @@ public sealed class SubscriptionExtensionsUnitTests
     }
 
     [Fact]
+    public async Task UseSubscriptionStoreOfAType_TwoKeys_GivesOneInstanceWithTheKeyOfEachTenant()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(o => o.EnableLogging = false).UseSubscriptionStore<KeyedStore>();
+        await using var provider = services.Build();
+
+        // Act
+        ISubscriptionStore[] stores = [provider.GetRequiredKeyedService<ISubscriptionStore>(_t1), provider.GetRequiredKeyedService<ISubscriptionStore>(_t2)];
+
+        // Assert
+        Assert.Equal([_t1, _t2], stores.Select(static store => ((KeyedStore)store).Key));
+    }
+
+    [Fact]
     public async Task UseInMemorySubscriptionStore_TwoKeys_GivesOneInMemoryStoreForEachKey()
     {
         // Arrange

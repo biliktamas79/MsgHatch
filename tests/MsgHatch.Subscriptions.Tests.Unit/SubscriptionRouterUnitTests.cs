@@ -26,6 +26,8 @@ public sealed partial class SubscriptionRouterUnitTests
     private readonly ConcurrentDictionary<TenantKey, ISubscriptionStore> _stores = new();
     private readonly ConcurrentDictionary<TenantKey, IRecipientDirectory> _directories = new();
 
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     public static TheoryData<string, string[]> CompanyScopeRows => new()
     {
         { "C", ["GetCompanyAsync(c:100)", "GetCompanyUsersAsync(c:100)"] },
@@ -40,6 +42,17 @@ public sealed partial class SubscriptionRouterUnitTests
     };
 
     public static TheoryData<string> FailingServices => ["store", "directory"];
+
+    public static TheoryData<string, string, string> StoredOwnerRows => new()
+    {
+        {
+            "an owner with a property that the code does not know",
+            "{\"level\":\"User\",\"note\":{\"a\":1},\"company\":null,\"user\":\"1\"}",
+            "User 1"
+        },
+        { "an owner that is not a JSON object", "\"User 1\"", "SerializationFailed" },
+        { "a user owner with a company", "{\"level\":\"User\",\"company\":\"100\",\"user\":\"1\"}", "SerializationFailed" },
+    };
 
     [Fact]
     public async Task ProcessAsync_UserScopeWithNoNamedUsers_CallsGetUsersAsyncOneTimeWithTheUsers()
@@ -143,6 +156,41 @@ public sealed partial class SubscriptionRouterUnitTests
     }
 
     [Fact]
+    public async Task ProcessAsync_ErrorOfTheDirectoryForTheCompanyOfAFixedSubscription_FailsTheEventWithThatError()
+    {
+        // Arrange
+        var error = new Error(Errors.Unavailable);
+        var directory = ScenarioDoubles.AScenarioDirectory();
+        directory.GetCompanyAsync(default, Ct).ReturnsForAnyArgs(ErrorOr<CompanyProfile?>.ForError(error));
+        await using var provider = BuildScenarioHost(directory: _ => directory);
+
+        // Act
+        var result = await provider.ProcessAsync(new EventB(["1"]));
+
+        // Assert
+        Assert.Same(error, result.Error);
+    }
+
+    [Theory]
+    [MemberData(nameof(StoredOwnerRows))]
+    public async Task DeserializeOutgoing_OwnerInTheStoredTrace_GivesTheResultOfTheRow(string row, string owner, string expected)
+    {
+        // Arrange
+        await using var provider = BuildScenarioHost();
+        await provider.ProcessAsync(new EventB(["1"]));
+        var json = provider.GetRequiredService<MsgHatchJson>();
+        var stored = provider.GetRequiredService<InMemoryOutboxStore>().GetMessages().Single(static message => message.Target.Id == "1");
+        var text = Encoding.UTF8.GetString(json.Serialize(stored).Value)
+            .Replace("\"owner\":{\"level\":\"User\",\"company\":null,\"user\":\"1\"}", "\"owner\":" + owner, StringComparison.Ordinal);
+
+        // Act
+        var readBack = json.DeserializeOutgoing(Encoding.UTF8.GetBytes(text));
+
+        // Assert
+        Assert.Equal((row, expected), (row, readBack.IsError ? readBack.Error.Type.Name : OwnerText(((ResolutionTrace)readBack.Value.Trace!).Applied.Owner)));
+    }
+
+    [Fact]
     public async Task ProcessAsync_OptOutThatApplies_LogsADebugRecordWithTheOptOut()
     {
         // Arrange
@@ -237,6 +285,8 @@ public sealed partial class SubscriptionRouterUnitTests
         directory.GetUsersAsync(default!, default).ReturnsForAnyArgs(error);
         return directory;
     }
+
+    private static string OwnerText(SubscriptionOwner owner) => $"{owner.Level} {owner.User?.Value}";
 
     private static string TraceText(ResolutionTrace trace) =>
         $"{trace.Applied} {trace.Target} {trace.Language} {trace.Address} {string.Join(", ", trace.Skipped)}";

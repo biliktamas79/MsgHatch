@@ -12,6 +12,7 @@ internal sealed class ResolutionRun
     private static readonly SubscriptionLevel[] _levelOrder = [SubscriptionLevel.Default, SubscriptionLevel.Company, SubscriptionLevel.User];
 
     private readonly IReadOnlyList<ChannelDescriptor> _channels;
+    private readonly Dictionary<ChannelId, ChannelDescriptor> _channelsById;
     private readonly List<Subscription> _subscriptions;
     private readonly IReadOnlyList<UserProfile> _userList;
     private readonly Dictionary<UserId, UserProfile> _users;
@@ -25,6 +26,12 @@ internal sealed class ResolutionRun
         IReadOnlyList<CompanyProfile> companies, string defaultLanguage)
     {
         _channels = channels;
+        _channelsById = new Dictionary<ChannelId, ChannelDescriptor>(channels.Count);
+        foreach (var channel in channels)
+        {
+            _channelsById.TryAdd(channel.Id, channel);
+        }
+
         _subscriptions = InLevelOrder(OfRegisteredChannels(subscriptions));
         _userList = users;
         _users = new Dictionary<UserId, UserProfile>(users.Count);
@@ -439,31 +446,9 @@ internal sealed class ResolutionRun
             ? subscription.Channel is null || IsRegistered(subscription.Channel.Value)
             : subscription is { Channel: { } channel, Settings: not null } && IsRegistered(channel);
 
-    private bool IsRegistered(ChannelId channel)
-    {
-        foreach (var descriptor in _channels)
-        {
-            if (descriptor.Id == channel)
-            {
-                return true;
-            }
-        }
+    private bool IsRegistered(ChannelId channel) => _channelsById.ContainsKey(channel);
 
-        return false;
-    }
-
-    private ChannelDescriptor ChannelOf(Subscription subscription)
-    {
-        foreach (var descriptor in _channels)
-        {
-            if (descriptor.Id == subscription.Channel)
-            {
-                return descriptor;
-            }
-        }
-
-        throw new InvalidOperationException("A subscription of a channel that is not registered passed the channel filter.");
-    }
+    private ChannelDescriptor ChannelOf(Subscription subscription) => _channelsById[subscription.Channel!.Value];
 
     private static List<Subscription> InLevelOrder(List<Subscription> subscriptions)
     {

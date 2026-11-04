@@ -174,11 +174,6 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
 
     private void LogOptOuts(ReceivedMessage<TEvent> message, IReadOnlyList<OptOutDecision> optOuts)
     {
-        if (!_logger.IsEnabled(LogLevel.Debug))
-        {
-            return;
-        }
-
         foreach (var decision in optOuts)
         {
             Log.OptOutApplied(
