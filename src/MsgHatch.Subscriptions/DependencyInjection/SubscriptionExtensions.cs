@@ -67,6 +67,15 @@ public static class SubscriptionExtensions
         return builder.AddTenantService(ServiceLifetime.Singleton, factory, SubscriptionLoggers.Wrap);
     }
 
+    /// <summary>
+    /// Selects <see cref="InMemorySubscriptionStore"/>, with its logging wrapper, for a host with no database. Each tenant
+    /// key has its own instance. It is not durable.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseInMemorySubscriptionStore(this MsgHatchBuilder builder) =>
+        builder.UseSubscriptionStore(static (_, _) => new InMemorySubscriptionStore(), nameof(UseInMemorySubscriptionStore));
+
     /// <summary>Registers the consumer's recipient directory as a scoped tenant service, with its logging wrapper (D76, D126).</summary>
     /// <typeparam name="TDirectory">The directory type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
     /// <param name="builder">The builder.</param>

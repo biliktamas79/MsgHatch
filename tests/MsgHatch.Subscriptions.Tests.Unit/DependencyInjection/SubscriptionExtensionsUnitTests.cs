@@ -35,6 +35,44 @@ public sealed class SubscriptionExtensionsUnitTests
     }
 
     [Fact]
+    public async Task UseInMemorySubscriptionStore_TwoKeys_GivesOneInMemoryStoreForEachKey()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(o => o.EnableLogging = false).UseInMemorySubscriptionStore();
+        await using var provider = services.Build();
+
+        // Act
+        ISubscriptionStore[] stores =
+        [
+            provider.GetRequiredKeyedService<ISubscriptionStore>(_t1), provider.GetRequiredKeyedService<ISubscriptionStore>(_t1),
+            provider.GetRequiredKeyedService<ISubscriptionStore>(_t2),
+        ];
+
+        // Assert
+        Assert.Equal([true, true, false], stores.Select(store => store is InMemorySubscriptionStore && ReferenceEquals(store, stores[0])));
+    }
+
+    [Fact]
+    public async Task UseInMemorySubscriptionStore_AfterUseSubscriptionStore_NamesBothMethods()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseInMemoryStores()
+            .UseSubscriptionStore((_, _) => Substitute.For<ISubscriptionStore>())
+            .UseInMemorySubscriptionStore();
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Equal(
+            ["UseSubscriptionStore and UseInMemorySubscriptionStore select an implementation of ISubscriptionStore."],
+            Assert.IsType<OptionsValidationException>(exception).Failures);
+    }
+
+    [Fact]
     public async Task UseSubscriptionStore_SecondSelection_FailsTheStartupValidationAndNamesBothMethods()
     {
         // Arrange
