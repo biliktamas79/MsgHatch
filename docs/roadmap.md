@@ -581,6 +581,7 @@ Goal: durable subscription stores in files and in SQLite.
 
 1. Add `src/MsgHatch.Subscriptions.Data.FileSystem` with `FileSystemSubscriptionStore` on the `FileStoreOptions` of `MsgHatch.Data.FileSystem` (section 4.5, D59), and `UseFileSubscriptionStore`. Add `tests/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit` with `FileSystemSubscriptionStoreUnitTests`.
 2. Add `src/MsgHatch.Subscriptions.Data.Sqlite` with `SqliteSubscriptionStore` on the `SqliteStoreOptions` of `MsgHatch.Data.Sqlite` (section 4.5, D59), and `UseSqliteSubscriptionStore`. Add `tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit` with `SqliteSubscriptionStoreUnitTests`.
+3. First decide how the subscription data packages share code, and record the decisions in the design. The plan did not settle four choices. Result: `InternalsVisibleTo` from each core data package to its subscription data package (D148), the public `ChannelSettingsJson` in `MsgHatch.Subscriptions` (D149), the core method `ConfigureSharedOptions` for the check of the shared options (D150), and the class fixture `AcmeAndGlobexScenario` for the read group of the store tests (D151).
 
 Tests:
 - The use cases of `SubscriptionStoreTestsBase` run on the file store and on the SQLite store, with the store examples S1 to S13. The shared test scenario of section 4 of `docs/subscription-domain.md` is seeded one time as a named scenario, for a group of tests that only read.
@@ -589,10 +590,17 @@ Tests:
 - `SqliteSubscriptionStoreUnitTests`:
   - A second default subscription with the same message type, channel, and recipient kind gives `Errors.Conflict`, although the default level has no company and no user.
   - The store and `SqliteOutboxStore` share one database file, and each keeps its own schema version.
+- `ChannelSettingsJson` (D149): the settings of each scenario channel go through `Serialize` and `Deserialize` unchanged, with the content type `Settings:{Channel}` and version 1. One data-driven test has a row for each failure: an unregistered channel, settings of another type, a newer version, an unknown content type, a content type that is not a settings type, invalid JSON, and the JSON `null`.
+- `ConfigureSharedOptions` (D150): two setup methods with a value in code for one options class fail the startup validation, and the message names both. One setup method passes. A value from code wins over a configuration section that a later setup method binds.
+- `FileSystemSubscriptionStoreUnitTests`: a change while another caller holds the lock of the owner folder gives `Errors.Unavailable`.
 
 Commits:
-1. "Add the JSON file subscription store"
-2. "Add the SQLite subscription store"
+1. "Record the subscription store decisions in the plan (D148 to D151)"
+2. "Configure the shared options of two setup methods in one place"
+3. "Add the JSON of the channel settings of a subscription"
+4. "Seed the store scenario one time for the read tests"
+5. "Add the JSON file subscription store"
+6. "Add the SQLite subscription store"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
