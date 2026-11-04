@@ -593,6 +593,12 @@ Tests:
 - `ChannelSettingsJson` (D149): the settings of each scenario channel go through `Serialize` and `Deserialize` unchanged, with the content type `Settings:{Channel}` and version 1. One data-driven test has a row for each failure: an unregistered channel, settings of another type, a newer version, an unknown content type, a content type that is not a settings type, invalid JSON, and the JSON `null`.
 - `ConfigureSharedOptions` (D150): two setup methods with a value in code for one options class fail the startup validation, and the message names both. One setup method passes. A value from code wins over a configuration section that a later setup method binds.
 - `FileSystemSubscriptionStoreUnitTests`: a change while another caller holds the lock of the owner folder gives `Errors.Unavailable`.
+- More tests, from breaks of the code that showed gaps:
+  - `SubscriptionStoreTestsBase`: a mandatory default subscription (#3), an opt-out for all channels (#4), and the whole state after an update with new settings and a new `LastModifiedAtUtc` come back unchanged. `GetAsync` of an unknown or a deleted id gives no error.
+  - Both stores: settings of an unregistered channel give `Errors.SerializationFailed`, and the store keeps nothing.
+  - `FileSystemSubscriptionStoreUnitTests`: an update with another owner moves the file to the folder of that owner. A file that a person broke gives the error of its row: invalid JSON, the JSON `null`, a missing property, an owner that does not match its level, and an invalid message type name give `Errors.SerializationFailed`. A newer schema version or settings version gives `Errors.UnsupportedVersion`, also for `FindForDeliveryAsync`.
+  - `SqliteSubscriptionStoreUnitTests`: a second opt-out for all channels of one owner gives `Errors.Conflict`. The store writes the fields as text, with an empty text for no tenant and no user. A row that a person broke gives the error of its row, and a database in a folder that does not exist gives `Errors.Unavailable`.
+  - The setup methods of both stores: a value from code, a value in the configuration section, and no argument after the core setup method each reach the store, and the store resolves as its logging wrapper.
 
 Checked facts (2026-11-04) for the SQLite subscription store:
 
@@ -607,7 +613,10 @@ Commits:
 4. "Seed the store scenario one time for the read tests"
 5. "Add the JSON file subscription store"
 6. "Serve the subscription deliveries from the unique index in the plan"
-7. "Add the SQLite subscription store"
+7. "Test the mandatory flag, the opt-out, and the change time in the store contract"
+8. "Add the SQLite subscription store"
+9. "Test the settings that a subscription store cannot write"
+10. "Record the extra tests of phase 10 in the plan"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
