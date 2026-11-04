@@ -6,4 +6,4 @@ namespace MsgHatch.SignalR;
 /// <param name="Language">
 /// The language, or null for the UI language of the user, or the default language of the company for a company target.
 /// </param>
-public sealed record SignalRChannelSettings(string? Language = null) : ChannelSettings;
+public sealed record SignalRChannelSettings(string? Language = null) : ChannelSettings, ILanguageSettings;

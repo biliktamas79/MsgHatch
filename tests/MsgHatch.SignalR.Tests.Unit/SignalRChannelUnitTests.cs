@@ -32,4 +32,17 @@ public sealed class SignalRChannelUnitTests
         // Assert
         Assert.Null(language);
     }
+
+    [Fact]
+    public void SignalRChannelSettings_LanguageEn_GivesEnThroughILanguageSettings()
+    {
+        // Arrange
+        ChannelSettings settings = new SignalRChannelSettings("en");
+
+        // Act
+        var language = Assert.IsAssignableFrom<ILanguageSettings>(settings).Language;
+
+        // Assert
+        Assert.Equal("en", language);
+    }
 }

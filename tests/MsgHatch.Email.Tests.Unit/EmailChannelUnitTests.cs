@@ -30,4 +30,17 @@ public sealed class EmailChannelUnitTests
         // Assert
         Assert.Equal(((string?)null, EmailFormat.Html), values);
     }
+
+    [Fact]
+    public void EmailChannelSettings_LanguageHu_GivesHuThroughILanguageSettings()
+    {
+        // Arrange
+        ChannelSettings settings = new EmailChannelSettings("hu");
+
+        // Act
+        var language = Assert.IsAssignableFrom<ILanguageSettings>(settings).Language;
+
+        // Assert
+        Assert.Equal("hu", language);
+    }
 }
