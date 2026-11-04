@@ -43,7 +43,7 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
 
     public async ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync(ReceivedMessage<TEvent> message, CancellationToken ct)
     {
-        var channels = ChannelsOf(message.Type);
+        var channels = MessageChannels.Of(_registry, message.Type);
         var scope = _message.Scope(message.Event);
         var profiles = new LoadedProfiles();
         var error = await LoadScopeAsync(scope, channels, profiles, ct);
@@ -69,20 +69,6 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
             channels, scope, subscriptions.Value, profiles.Users, profiles.CompanyProfiles, _defaultLanguage);
         LogOptOuts(message, resolution.OptOuts);
         return ErrorOr<IReadOnlyList<MessageRoute>>.ForValue(resolution.Deliveries);
-    }
-
-    private List<ChannelDescriptor> ChannelsOf(MessageType type)
-    {
-        var channels = new List<ChannelDescriptor>();
-        foreach (var id in _registry.FindMessageType(type)?.Channels ?? [])
-        {
-            if (_registry.FindChannel(id) is { } channel)
-            {
-                channels.Add(channel);
-            }
-        }
-
-        return channels;
     }
 
     private async ValueTask<Error?> LoadScopeAsync(

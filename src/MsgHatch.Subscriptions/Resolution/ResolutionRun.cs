@@ -64,6 +64,37 @@ internal sealed class ResolutionRun
         return Merge();
     }
 
+    public List<Subscription> AppliedToCompany(CompanyId company)
+    {
+        var applied = new List<Subscription>();
+        foreach (var channel in _channels)
+        {
+            var (subscription, _) = ResolveOverridable(company, user: null, channel.Id);
+            if (subscription is not null && !applied.Contains(subscription))
+            {
+                applied.Add(subscription);
+            }
+        }
+
+        foreach (var subscription in _subscriptions)
+        {
+            if (IsFixedForCompany(subscription, company) && !applied.Contains(subscription))
+            {
+                applied.Add(subscription);
+            }
+        }
+
+        return applied;
+    }
+
+    public List<Subscription> AppliedDefaults() => _subscriptions.FindAll(static subscription => subscription.Owner.Level == SubscriptionLevel.Default);
+
+    private static bool IsFixedForCompany(Subscription subscription, CompanyId company) =>
+        subscription.Kind == SubscriptionKind.Channel
+        && (IsOwnedBy(subscription, company)
+            ? subscription.Recipients.Kind != RecipientKind.ScopeUsers
+            : subscription.Owner.Level == SubscriptionLevel.Default && subscription.Recipients.Kind == RecipientKind.Company);
+
     private List<UserProfile> ScopeUsersOf(NotificationScope scope)
     {
         var scopeUsers = new List<UserProfile>();

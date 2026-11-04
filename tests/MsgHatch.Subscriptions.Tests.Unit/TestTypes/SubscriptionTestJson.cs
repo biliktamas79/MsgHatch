@@ -13,6 +13,9 @@ namespace MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 [JsonSerializable(typeof(EventE))]
 [JsonSerializable(typeof(EventG))]
 [JsonSerializable(typeof(Notice))]
+[JsonSerializable(typeof(PagerEvent))]
+[JsonSerializable(typeof(PagerSettings))]
+[JsonSerializable(typeof(PagerEnvelope))]
 [JsonSerializable(typeof(SignalREnvelope<Notice>))]
 [JsonSerializable(typeof(BrokerEnvelope<Notice>))]
 internal sealed partial class SubscriptionTestJson : JsonSerializerContext;

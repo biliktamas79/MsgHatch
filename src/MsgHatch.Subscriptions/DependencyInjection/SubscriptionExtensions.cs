@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Resolution;
 
 namespace MsgHatch.Subscriptions.DependencyInjection;
@@ -9,8 +10,9 @@ namespace MsgHatch.Subscriptions.DependencyInjection;
 public static class SubscriptionExtensions
 {
     /// <summary>
-    /// Selects the subscription router as the router of each message type with no router of its own (D99), and
-    /// registers <see cref="ResolutionTrace"/> as the trace type <c>Trace:Subscription</c> (D98). A message type with the
+    /// Selects the subscription router as the router of each message type with no router of its own (D99). Registers
+    /// <see cref="ResolutionTrace"/> as the trace type <c>Trace:Subscription</c> (D98), and <see cref="ISubscriptionManager"/>
+    /// as a scoped tenant service with its logging wrapper (D53). A message type with the
     /// subscription router needs a scope function from <see cref="WithScope"/>. With the role
     /// <see cref="MsgHatchRoles.Consumer"/>, the host needs a subscription store and a recipient directory.
     /// </summary>
@@ -22,7 +24,11 @@ public static class SubscriptionExtensions
         SubscriptionSetup.Of(builder.Services).UsesSubscriptions = true;
         return builder
             .UseRouter(typeof(SubscriptionRouter<>))
-            .AddTraceType("Subscription", 1, SubscriptionJson.Default.ResolutionTrace);
+            .AddTraceType("Subscription", 1, SubscriptionJson.Default.ResolutionTrace)
+            .AddTenantService<ISubscriptionManager>(
+                ServiceLifetime.Scoped,
+                static (tenantServices, _) => ActivatorUtilities.CreateInstance<SubscriptionManager>(tenantServices),
+                SubscriptionLoggers.Wrap);
     }
 
     /// <summary>Registers the scope function of a message type, which the subscription router needs (D16).</summary>
@@ -36,7 +42,9 @@ public static class SubscriptionExtensions
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(scope);
-        message.Services.AddSingleton(new SubscriptionMessage<TEvent>(scope));
+        var subscriptionMessage = new SubscriptionMessage<TEvent>(scope);
+        message.Services.AddSingleton(subscriptionMessage);
+        message.Services.AddSingleton<ISubscriptionMessage>(subscriptionMessage);
         return message;
     }
 

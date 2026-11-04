@@ -13,7 +13,7 @@ namespace MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 
 /// <summary>
 /// The host of the subscription router tests: the subscription router, the in-memory stores, the embedded test templates,
-/// and the message types A to E of the scenario with their channels, plus the message type G with only SignalR.
+/// and the message types A to E of the scenario with their channels, plus the message type G with only the group channel SignalR.
 /// </summary>
 public static class SubscriptionHost
 {
@@ -27,7 +27,8 @@ public static class SubscriptionHost
             .UseSubscriptionStore((_, key) => store(key))
             .UseRecipientDirectory((_, key) => directory(key))
             .UseEmbeddedTemplates(typeof(SubscriptionHost).Assembly, TemplatePrefix)
-            .AddScenarioMessages();
+            .AddScenarioMessages()
+            .AddGroupOnlyMessage();
 
     public static MsgHatchBuilder AddScenarioMessages(this MsgHatchBuilder builder)
     {
@@ -53,7 +54,14 @@ public static class SubscriptionHost
             .AddMessage("E", 1, json.EventE, m => m
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventE>>(static p => p.AsEmail("EEmail"))
-                .WithPayload<Notice, NoticeLoader<EventE>>(p => p.AsBroker("EEvent", 1, json.BrokerEnvelopeNotice)))
+                .WithPayload<Notice, NoticeLoader<EventE>>(p => p.AsBroker("EEvent", 1, json.BrokerEnvelopeNotice)));
+    }
+
+    public static MsgHatchBuilder AddGroupOnlyMessage(this MsgHatchBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        var json = SubscriptionTestJson.Default;
+        return builder
             .AddMessage("G", 1, json.EventG, m => m
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
                 .WithPayload<Notice, NoticeLoader<EventG>>(p => p.AsSignalR("GUpdate", 1, json.SignalREnvelopeNotice)));

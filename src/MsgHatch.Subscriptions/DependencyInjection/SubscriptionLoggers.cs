@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions.Management;
 
 namespace MsgHatch.Subscriptions.DependencyInjection;
 
@@ -17,6 +18,10 @@ internal static class SubscriptionLoggers
     public static IRecipientDirectory Wrap(IServiceProvider services, TenantKey key, IRecipientDirectory directory) =>
         new RecipientDirectoryLoggingWrapper(
             directory, key, For<RecipientDirectoryLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
+
+    public static ISubscriptionManager Wrap(IServiceProvider services, TenantKey key, ISubscriptionManager manager) =>
+        new SubscriptionManagerLoggingWrapper(
+            manager, key, For<SubscriptionManagerLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
 
     public static ILogger<T> For<T>(IServiceProvider services) => services.GetService<ILogger<T>>() ?? NullLogger<T>.Instance;
 }

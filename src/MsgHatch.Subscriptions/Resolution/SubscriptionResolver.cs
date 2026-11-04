@@ -1,3 +1,4 @@
+using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Subscriptions.Resolution;
@@ -40,4 +41,16 @@ public static class SubscriptionResolver
         ArgumentNullException.ThrowIfNull(defaultLanguage);
         return new ResolutionRun(channels, subscriptions, users, companies, defaultLanguage).Run(scope);
     }
+
+    /// <summary>
+    /// For each channel, the subscription or the opt-out that applies to the scope users of a company, then the fixed
+    /// subscriptions of the company and the default subscriptions for the company (section 4.17, D81).
+    /// </summary>
+    internal static List<Subscription> AppliedToCompany(
+        IReadOnlyList<ChannelDescriptor> channels, IReadOnlyList<Subscription> subscriptions, CompanyId company) =>
+        new ResolutionRun(channels, subscriptions, [], [], defaultLanguage: string.Empty).AppliedToCompany(company);
+
+    /// <summary>The default subscriptions and the default opt-outs of the registered channels (section 4.17, D81).</summary>
+    internal static List<Subscription> AppliedDefaults(IReadOnlyList<ChannelDescriptor> channels, IReadOnlyList<Subscription> subscriptions) =>
+        new ResolutionRun(channels, subscriptions, [], [], defaultLanguage: string.Empty).AppliedDefaults();
 }
