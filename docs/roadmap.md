@@ -493,7 +493,7 @@ Done when: the build has no errors and no warnings, and all tests pass.
 Goal: relational inbox and outbox stores in process (D55).
 
 1. Add `src/MsgHatch.Data.Sqlite` with `SqliteStoreOptions` and its validator, `SqliteInboxStore` and `SqliteOutboxStore` with their two parts, the internal schema helper that runs one time for each connection string, and `UseSqliteStores` (section 4.5). Add `tests/MsgHatch.Data.Sqlite.Tests.Unit` with the subclasses `SqliteInboxStoreUnitTests` and `SqliteOutboxStoreUnitTests`.
-2. First check the busy wait of the pinned `Microsoft.Data.Sqlite` version: a command on a locked database tries again until its command timeout ends (section 4.5).
+2. First check the busy wait of the pinned `Microsoft.Data.Sqlite` version: a command on a locked database tries again until its command timeout ends (section 4.5). Result for 10.0.14: the command tries again until its command timeout ends (checked fact below).
 
 Tests:
 - The use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` run on the two SQLite stores, each test on its own database file in its own temporary folder.
@@ -505,6 +505,13 @@ Tests:
   - A claim with nothing due takes no write lock: it completes while a second connection holds a write transaction (section 4.5).
   - `RecordTryAsync` with a try number that is already recorded changes no row, and the tries stay one JSON array (D27).
   - A second writer completes after the first writer commits, within the command timeout.
+
+Checked facts (2026-11-04) for the SQLite stores:
+
+| Fact | Source |
+|---|---|
+| `Microsoft.Data.Sqlite` 10.0.14, with SQLite 3.53.3, tries a command on a locked database again until the command timeout ends. A new connection has `PRAGMA busy_timeout` 0, so the wait comes from the library. With `Default Timeout=3`, an `INSERT` and a `BeginTransaction(deferred: false)` against a `BEGIN IMMEDIATE` that another connection held failed with `SQLITE_BUSY` (5) after 3.1 seconds. With `CommandTimeout` 1, an `INSERT` failed after 1.1 seconds. When the first writer committed after 1 second, the second `INSERT` and the second `BEGIN IMMEDIATE` completed after 1.1 seconds. In WAL mode, a `SELECT` completed at once while another connection held `BEGIN IMMEDIATE`. Each of 3 runs gave these results. | A probe program with two connections on one database file |
+| `Microsoft.Data.Sqlite` 10.0.14 and `Microsoft.Data.Sqlite.Core` 10.0.14 have the MIT license. Their dependencies `SQLitePCLRaw.bundle_e_sqlite3`, `SQLitePCLRaw.core`, `SQLitePCLRaw.lib.e_sqlite3`, and `SQLitePCLRaw.provider.e_sqlite3` 2.1.13 have Apache-2.0. | The nuspec of each package |
 
 Commits:
 1. "Add SQLite stores for the inbox and the outbox"
