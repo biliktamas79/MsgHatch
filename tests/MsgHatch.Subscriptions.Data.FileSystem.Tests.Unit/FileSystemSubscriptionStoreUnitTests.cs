@@ -25,6 +25,19 @@ public sealed class FileSystemSubscriptionStoreUnitTests(FileSystemAcmeAndGlobex
     };
 
     [Fact]
+    public async Task AddAsync_SettingsOfAnUnregisteredChannel_GivesSerializationFailedAndStoresNothing()
+    {
+        // Arrange
+        var subscription = Scenario.S6 with { Channel = TestSubscriptions.TestChannel, Settings = new TestChannelSettings() };
+
+        // Act
+        var error = await Store.AddAsync(subscription, Ct);
+
+        // Assert
+        Assert.Equal(((int?)415, (Subscription?)null), (CodeOf(error), (await Store.GetAsync(subscription.Id, Ct)).Value));
+    }
+
+    [Fact]
     public async Task AddAsync_UserWithCharactersThatAFileNameCannotHave_StoresTheFileUnderTheEscapedNameAndFindsItAgain()
     {
         // Arrange
