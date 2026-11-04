@@ -75,12 +75,12 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
         NextDue: "SELECT MIN(NextTryAtUtc) FROM MsgHatchOutbox WHERE Status = 'Pending' AND Channel = @channel",
         Lease: $$"""
             UPDATE MsgHatchOutbox SET NextTryAtUtc = @leaseUntilUtc, LeaseUntilUtc = @leaseUntilUtc
-            WHERE rowid IN (
-                SELECT rowid FROM MsgHatchOutbox WHERE Status = 'Pending' AND Channel = @channel AND NextTryAtUtc <= @nowUtc
-                ORDER BY NextTryAtUtc, rowid LIMIT @maxCount)
-            RETURNING rowid, {{_document}}
+            WHERE Sequence IN (
+                SELECT Sequence FROM MsgHatchOutbox WHERE Status = 'Pending' AND Channel = @channel AND NextTryAtUtc <= @nowUtc
+                ORDER BY NextTryAtUtc, Sequence LIMIT @maxCount)
+            RETURNING Sequence, {{_document}}
             """,
-        Fail: "UPDATE MsgHatchOutbox SET Status = 'Failed', LeaseUntilUtc = NULL, LastError = @lastError WHERE rowid = @rowId");
+        Fail: "UPDATE MsgHatchOutbox SET Status = 'Failed', LeaseUntilUtc = NULL, LastError = @lastError WHERE Sequence = @sequence");
 
     private readonly MsgHatchJson _json;
 

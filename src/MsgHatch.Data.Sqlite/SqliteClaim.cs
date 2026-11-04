@@ -7,8 +7,8 @@ namespace MsgHatch.Data.Sqlite;
 
 /// <summary>The SQL statements of the claim of one message table.</summary>
 /// <param name="NextDue">Reads the earliest <c>NextTryAtUtc</c> of the pending rows.</param>
-/// <param name="Lease">Leases the first due rows, and returns the <c>rowid</c> and the document of each leased row.</param>
-/// <param name="Fail">Fails the row of <c>@rowId</c> with the error <c>@lastError</c>.</param>
+/// <param name="Lease">Leases the first due rows, and returns the <c>Sequence</c> and the document of each leased row.</param>
+/// <param name="Fail">Fails the row of <c>@sequence</c> with the error <c>@lastError</c>.</param>
 internal sealed record ClaimStatements(string NextDue, string Lease, string Fail);
 
 /// <summary>
@@ -33,12 +33,12 @@ internal static class SqliteClaim
         using var transaction = connection.BeginTransaction(deferred: false);
         var rows = LeaseDueRows(connection, transaction, statements.Lease, channel, maxCount, now, SqliteValues.Time(leaseUntilUtc));
         var claimed = new List<T>();
-        foreach (var (rowId, document) in rows)
+        foreach (var (sequence, document) in rows)
         {
             var message = read(Encoding.UTF8.GetBytes(document));
             if (message.IsError)
             {
-                SetAside(connection, transaction, statements.Fail, rowId, message.Error!);
+                SetAside(connection, transaction, statements.Fail, sequence, message.Error!);
                 continue;
             }
 
@@ -57,7 +57,7 @@ internal static class SqliteClaim
     }
 
     /// <summary>Gives the leased rows in the order of their insert.</summary>
-    private static List<(long RowId, string Document)> LeaseDueRows(
+    private static List<(long Sequence, string Document)> LeaseDueRows(
         SqliteConnection connection, SqliteTransaction transaction, string sql, string? channel, int maxCount, string now, string leaseUntil)
     {
         using var command = connection.Command(sql, transaction)
@@ -66,18 +66,18 @@ internal static class SqliteClaim
             .With("@nowUtc", now)
             .With("@leaseUntilUtc", leaseUntil);
         using var reader = command.ExecuteReader();
-        var rows = new List<(long RowId, string Document)>();
+        var rows = new List<(long Sequence, string Document)>();
         while (reader.Read())
         {
             rows.Add((reader.GetInt64(0), reader.GetString(1)));
         }
 
         // SQLite gives the rows of RETURNING in an arbitrary order.
-        rows.Sort(static (first, second) => first.RowId.CompareTo(second.RowId));
+        rows.Sort(static (first, second) => first.Sequence.CompareTo(second.Sequence));
         return rows;
     }
 
-    private static void SetAside(SqliteConnection connection, SqliteTransaction transaction, string sql, long rowId, Error error)
+    private static void SetAside(SqliteConnection connection, SqliteTransaction transaction, string sql, long sequence, Error error)
     {
         if (error.Type.IsTransient)
         {
@@ -85,7 +85,7 @@ internal static class SqliteClaim
         }
 
         using var command = connection.Command(sql, transaction)
-            .With("@rowId", rowId)
+            .With("@sequence", sequence)
             .With("@lastError", $"{error.Type.Name}: {error.Message}");
         command.ExecuteNonQuery();
     }

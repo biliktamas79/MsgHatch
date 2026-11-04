@@ -15,15 +15,15 @@ internal static class SqliteSchema
         CREATE TABLE IF NOT EXISTS MsgHatchSchema (Version INTEGER);
         INSERT INTO MsgHatchSchema (Version) SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM MsgHatchSchema);
         CREATE TABLE IF NOT EXISTS MsgHatchInbox (
-            TenantId TEXT, Id TEXT, Status TEXT, TryCount INTEGER, MaxTryCount INTEGER, CreatedAtUtc TEXT,
-            LastTryAtUtc TEXT, NextTryAtUtc TEXT, LeaseUntilUtc TEXT, ExpiresAtUtc TEXT, LastError TEXT,
+            Sequence INTEGER PRIMARY KEY, TenantId TEXT, Id TEXT, Status TEXT, TryCount INTEGER, MaxTryCount INTEGER,
+            CreatedAtUtc TEXT, LastTryAtUtc TEXT, NextTryAtUtc TEXT, LeaseUntilUtc TEXT, ExpiresAtUtc TEXT, LastError TEXT,
             SchemaVersion INTEGER, ContentType TEXT, ContentVersion INTEGER, Flags TEXT, TraceParent TEXT, Content TEXT,
-            PRIMARY KEY (TenantId, Id));
+            UNIQUE (TenantId, Id));
         CREATE INDEX IF NOT EXISTS IX_MsgHatchInbox_Due ON MsgHatchInbox (NextTryAtUtc) WHERE Status = 'Pending';
         CREATE INDEX IF NOT EXISTS IX_MsgHatchInbox_Flags ON MsgHatchInbox (Flags);
         CREATE TABLE IF NOT EXISTS MsgHatchOutbox (
-            Id TEXT PRIMARY KEY, TenantId TEXT, Status TEXT, TryCount INTEGER, MaxTryCount INTEGER, CreatedAtUtc TEXT,
-            LastTryAtUtc TEXT, NextTryAtUtc TEXT, LeaseUntilUtc TEXT, ExpiresAtUtc TEXT, LastError TEXT,
+            Sequence INTEGER PRIMARY KEY, Id TEXT UNIQUE, TenantId TEXT, Status TEXT, TryCount INTEGER, MaxTryCount INTEGER,
+            CreatedAtUtc TEXT, LastTryAtUtc TEXT, NextTryAtUtc TEXT, LeaseUntilUtc TEXT, ExpiresAtUtc TEXT, LastError TEXT,
             SchemaVersion INTEGER, SourceMessageId TEXT, MessageType TEXT, Channel TEXT, TargetKind TEXT, TargetId TEXT,
             ContentType TEXT, ContentVersion INTEGER, Flags TEXT, TraceParent TEXT, TraceType TEXT, Trace TEXT,
             Content TEXT, Tries TEXT DEFAULT '[]');

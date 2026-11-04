@@ -20,7 +20,7 @@ public sealed class SqliteInboxStoreTestData(SqliteInboxStore store) : IInboxSto
                 'expiresAtUtc', ExpiresAtUtc, 'lastError', LastError),
             'tenant', NULLIF(TenantId, ''), 'type', ContentType, 'contentVersion', ContentVersion, 'flags', Flags,
             'traceParent', TraceParent, 'event', json(Content))
-        FROM MsgHatchInbox ORDER BY rowid
+        FROM MsgHatchInbox ORDER BY Sequence
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());

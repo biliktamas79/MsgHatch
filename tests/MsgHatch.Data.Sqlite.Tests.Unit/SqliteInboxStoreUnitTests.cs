@@ -16,7 +16,7 @@ public sealed class SqliteInboxStoreUnitTests()
         static store => new SqliteInboxStoreTestData(store))
 {
     [Fact]
-    public async Task AddAsync_SameIdWithNoTenantAndATenant_WritesTwoRowsWithTheTenantTheTimeAndTheEnumValuesAsText()
+    public async Task AddAsync_SameIdWithNoTenantAndATenant_WritesTwoNumberedRowsWithTheTenantTheTimeAndTheEnumValuesAsText()
     {
         // Arrange
         var ofNoTenant = await AddAsync(AMessage(TenantKey.None));
@@ -28,8 +28,8 @@ public sealed class SqliteInboxStoreUnitTests()
 
         // Assert
         Assert.Equal(
-            [["", id, "Pending", "2030-01-01T00:00:00.0000000Z", "None"], ["t1", id, "Pending", "2030-01-01T00:00:00.0000000Z", "Test"]],
-            TestDatabases.Rows(Store.ConnectionString, "SELECT TenantId, Id, Status, NextTryAtUtc, Flags FROM MsgHatchInbox ORDER BY rowid"));
+            [["1", "", id, "Pending", "2030-01-01T00:00:00.0000000Z", "None"], ["2", "t1", id, "Pending", "2030-01-01T00:00:00.0000000Z", "Test"]],
+            TestDatabases.Rows(Store.ConnectionString, "SELECT Sequence, TenantId, Id, Status, NextTryAtUtc, Flags FROM MsgHatchInbox ORDER BY Sequence"));
     }
 
     [Fact]

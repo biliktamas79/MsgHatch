@@ -38,6 +38,21 @@ public sealed class SqliteOutboxStoreUnitTests()
     }
 
     [Fact]
+    public async Task AddAsync_BatchOfThreeMessages_NumbersTheRowsInTheOrderOfTheBatch()
+    {
+        // Arrange
+        OutgoingMessage[] batch = [AMessage(T1), AMessage(T1), AMessage(T1)];
+
+        // Act
+        await TenantStore(T1).AddAsync(batch, Ct);
+
+        // Assert
+        Assert.Equal(
+            batch.Select(static (message, index) => new[] { $"{index + 1}", message.Delivery.Id.ToString("D") }),
+            TestDatabases.Rows(Store.ConnectionString, "SELECT Sequence, Id FROM MsgHatchOutbox ORDER BY Sequence"));
+    }
+
+    [Fact]
     public async Task SetChannelDownAsync_ReasonErrors_WritesTheReasonAndTheTimesAsText()
     {
         // Act

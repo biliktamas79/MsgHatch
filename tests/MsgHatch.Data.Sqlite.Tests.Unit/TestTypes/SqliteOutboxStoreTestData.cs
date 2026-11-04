@@ -24,7 +24,7 @@ public sealed class SqliteOutboxStoreTestData(SqliteOutboxStore store) : IOutbox
             'target', json_object('kind', TargetKind, 'id', TargetId), 'contentType', ContentType,
             'contentVersion', ContentVersion, 'flags', Flags, 'traceParent', TraceParent, 'trace', json(Trace),
             'envelope', json(Content))
-        FROM MsgHatchOutbox ORDER BY rowid
+        FROM MsgHatchOutbox ORDER BY Sequence
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());

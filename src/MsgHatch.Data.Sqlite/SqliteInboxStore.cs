@@ -50,12 +50,12 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
         NextDue: "SELECT MIN(NextTryAtUtc) FROM MsgHatchInbox WHERE Status = 'Pending'",
         Lease: $$"""
             UPDATE MsgHatchInbox SET NextTryAtUtc = @leaseUntilUtc, LeaseUntilUtc = @leaseUntilUtc
-            WHERE rowid IN (
-                SELECT rowid FROM MsgHatchInbox WHERE Status = 'Pending' AND NextTryAtUtc <= @nowUtc
-                ORDER BY NextTryAtUtc, rowid LIMIT @maxCount)
-            RETURNING rowid, {{_document}}
+            WHERE Sequence IN (
+                SELECT Sequence FROM MsgHatchInbox WHERE Status = 'Pending' AND NextTryAtUtc <= @nowUtc
+                ORDER BY NextTryAtUtc, Sequence LIMIT @maxCount)
+            RETURNING Sequence, {{_document}}
             """,
-        Fail: "UPDATE MsgHatchInbox SET Status = 'Failed', LeaseUntilUtc = NULL, LastError = @lastError WHERE rowid = @rowId");
+        Fail: "UPDATE MsgHatchInbox SET Status = 'Failed', LeaseUntilUtc = NULL, LastError = @lastError WHERE Sequence = @sequence");
 
     private readonly MsgHatchJson _json;
 
