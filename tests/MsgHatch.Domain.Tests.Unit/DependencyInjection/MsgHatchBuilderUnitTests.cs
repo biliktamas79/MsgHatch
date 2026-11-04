@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
@@ -21,6 +22,22 @@ public sealed class MsgHatchBuilderUnitTests
         typeof(ListTestOpenRouter<>),
         typeof(FixedEventTestOpenRouter<>),
     ];
+
+    [Fact]
+    public async Task ConfigureSharedOptions_SectionThatALaterSetupMethodBinds_TheValueFromCodeWins()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["Test:Shared:Value"] = "section" });
+        services.AddMsgHatch().ConfigureSharedOptions<SharedTestOptions>("UseFirstStores", static o => o.Value = "code");
+        services.AddOptions<SharedTestOptions>().BindConfiguration(SharedTestOptions.SectionName);
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<SharedTestOptions>>().Value;
+
+        // Assert
+        Assert.Equal("code", options.Value);
+    }
 
     [Fact]
     public async Task AddExceptionClassifier_TwoClassifiersOfOneClient_RegistersBothInTheirOrder()

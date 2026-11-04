@@ -18,6 +18,8 @@ internal sealed class MsgHatchSetup
 
     public List<ImplementationSelection> Selections { get; } = [];
 
+    public List<ImplementationSelection> SharedOptionsValues { get; } = [];
+
     public HashSet<Type> TenantServiceTypes { get; } = [];
 
     public HashSet<ChannelId> ChannelsWithOptions { get; } = [];

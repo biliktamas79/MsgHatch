@@ -7,7 +7,7 @@ namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
 /// The startup validation of the setup (section 4.7): the outbox stores, one selection for each interface (D62), one
-/// transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
+/// value in code for each shared options class (D150), one transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
 /// registrations and the payload loaders of each message type (D135). With the role
 /// <see cref="MsgHatchRoles.Consumer"/>, a router for each message type (D95), and with the role
 /// <see cref="MsgHatchRoles.Publisher"/>, at least one transport (D105).
@@ -20,7 +20,8 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         string[] failures =
         [
             .. MissingOutboxStores(),
-            .. DuplicateSelections(),
+            .. Duplicates(setup.Selections, "select an implementation of"),
+            .. Duplicates(setup.SharedOptionsValues, "give a value in code to"),
             .. DuplicateTransports(),
             .. DuplicateContentTypes(),
             .. DuplicateMessageTypes(),
@@ -41,12 +42,11 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
             .Where(store => !setup.Selections.Exists(selection => selection.Service == store))
             .Select(static store => $"No setup method selects an {store.Name}, for example UseInMemoryStores.");
 
-    private IEnumerable<string> DuplicateSelections() =>
-        setup.Selections
+    private static IEnumerable<string> Duplicates(List<ImplementationSelection> selections, string effect) =>
+        selections
             .GroupBy(static selection => selection.Service)
             .Where(static group => group.Count() > 1)
-            .Select(static group =>
-                $"{string.Join(" and ", group.Select(static selection => selection.SetupMethod))} select an implementation of {group.Key.Name}.");
+            .Select(group => $"{string.Join(" and ", group.Select(static selection => selection.SetupMethod))} {effect} {group.Key.Name}.");
 
     private IEnumerable<string> DuplicateTransports() =>
         services.GetServices<ITransport>()

@@ -20,13 +20,12 @@ public static class FileStoreExtensions
     public static MsgHatchBuilder UseFileStores(this MsgHatchBuilder builder, Action<FileStoreOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<FileStoreOptions>().BindConfiguration(FileStoreOptions.SectionName);
+        builder.Services.AddOptions<FileStoreOptions>().BindConfiguration(FileStoreOptions.SectionName).ValidateOnStart();
         if (configure is not null)
         {
-            options.Configure(configure);
+            builder.ConfigureSharedOptions(nameof(UseFileStores), configure);
         }
 
-        options.ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FileStoreOptions>, FileStoreOptionsValidator>());
         builder.Services.TryAddSingleton(static services => new FileSystemInboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new FileSystemOutboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));

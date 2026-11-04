@@ -66,6 +66,40 @@ public sealed class StartupValidatorUnitTests
     }
 
     [Fact]
+    public async Task Validate_TwoSetupMethodsWithAValueInCodeForOneSharedOptionsClass_NamesBothSetupMethods()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .ConfigureSharedOptions<SharedTestOptions>("UseFirstStores", static o => o.Value = "first")
+            .ConfigureSharedOptions<SharedTestOptions>("UseSecondStores", static o => o.Value = "second"));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.StartsWith("UseFirstStores and UseSecondStores give ", failure, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Validate_OneSetupMethodWithAValueInCodeForASharedOptionsClass_Succeeds()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .ConfigureSharedOptions<SharedTestOptions>("UseFirstStores", static o => o.Value = "first"));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public async Task Validate_MessageTypeWithNoRouter_ThrowsOptionsValidationException()
     {
         // Arrange

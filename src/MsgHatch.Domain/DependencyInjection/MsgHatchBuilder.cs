@@ -330,6 +330,26 @@ public sealed class MsgHatchBuilder
         return this;
     }
 
+    /// <summary>
+    /// Applies a value in code to an options class that two setup methods share, for example the options of a core
+    /// data package and of its subscription data package (D59, D150). The value wins over each <c>BindConfiguration</c>
+    /// of the options, in each order of the setup calls. A second setup method with a value in code for the same
+    /// options class fails the startup validation, and the message names both methods (D62). The storage packages call it.
+    /// </summary>
+    /// <typeparam name="TOptions">The shared options class.</typeparam>
+    /// <param name="setupMethod">The setup method that gives the value, for example <c>UseSqliteStores</c>.</param>
+    /// <param name="configure">The value in code.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder ConfigureSharedOptions<TOptions>(string setupMethod, Action<TOptions> configure)
+        where TOptions : class
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(setupMethod);
+        ArgumentNullException.ThrowIfNull(configure);
+        Setup.SharedOptionsValues.Add(new ImplementationSelection(typeof(TOptions), setupMethod));
+        Services.PostConfigure(configure);
+        return this;
+    }
+
     private void AddChannelOptions(ChannelId channel)
     {
         if (!Setup.ChannelsWithOptions.Add(channel))

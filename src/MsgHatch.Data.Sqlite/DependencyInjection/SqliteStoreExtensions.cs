@@ -20,13 +20,12 @@ public static class SqliteStoreExtensions
     public static MsgHatchBuilder UseSqliteStores(this MsgHatchBuilder builder, Action<SqliteStoreOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<SqliteStoreOptions>().BindConfiguration(SqliteStoreOptions.SectionName);
+        builder.Services.AddOptions<SqliteStoreOptions>().BindConfiguration(SqliteStoreOptions.SectionName).ValidateOnStart();
         if (configure is not null)
         {
-            options.Configure(configure);
+            builder.ConfigureSharedOptions(nameof(UseSqliteStores), configure);
         }
 
-        options.ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqliteStoreOptions>, SqliteStoreOptionsValidator>());
         builder.Services.TryAddSingleton(static services => new SqliteInboxStore(ConnectionStringOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new SqliteOutboxStore(ConnectionStringOf(services), services.GetRequiredService<MsgHatchJson>()));
