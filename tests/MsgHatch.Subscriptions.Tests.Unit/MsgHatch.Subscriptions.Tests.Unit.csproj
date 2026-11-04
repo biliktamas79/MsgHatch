@@ -2,6 +2,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.SignalR\MsgHatch.SignalR.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Broker\MsgHatch.Broker.csproj" />
   </ItemGroup>
 
   <ItemGroup>
