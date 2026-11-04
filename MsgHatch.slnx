@@ -10,6 +10,7 @@
     <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
     <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
+    <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />
@@ -25,5 +26,6 @@
     <Project Path="tests/MsgHatch.Email.Tests.Unit/MsgHatch.Email.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SignalR.Tests.Unit/MsgHatch.SignalR.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />
   </Folder>
 </Solution>

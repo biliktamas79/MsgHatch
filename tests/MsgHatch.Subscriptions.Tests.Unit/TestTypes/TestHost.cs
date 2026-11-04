@@ -1,0 +1,37 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Time.Testing;
+
+namespace MsgHatch.Subscriptions.Tests.Unit.TestTypes;
+
+/// <summary>
+/// Shared by the tests that need a DI container: the services that a host gives before it calls
+/// <c>AddMsgHatch</c>, which are the configuration, the fake clock, and the fake logging.
+/// </summary>
+public static class TestHost
+{
+    public static readonly DateTimeOffset Start = new(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    public static FakeTimeProvider NewFakeTime() => new(Start);
+
+    public static IServiceCollection CreateServices(TimeProvider? time = null)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton(time ?? NewFakeTime());
+        services.AddLogging(static logging => logging.SetMinimumLevel(LogLevel.Trace).AddFakeLogging());
+        return services;
+    }
+
+    public static ServiceProvider Build(this IServiceCollection services) =>
+        services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+
+    public static IReadOnlyList<FakeLogRecord> LogRecords(this IServiceProvider provider) =>
+        provider.GetFakeLogCollector().GetSnapshot();
+
+    public static bool ContainsText(this FakeLogRecord record, string text) =>
+        record.Message.Contains(text, StringComparison.Ordinal)
+        || (record.StructuredState ?? []).Any(state => state.Value?.Contains(text, StringComparison.Ordinal) == true);
+}
