@@ -101,6 +101,32 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task AddAsync_MandatoryDefaultSubscription_GetAsyncGivesItUnchanged()
+    {
+        // Arrange
+        await Store.AddAsync(Scenario.S3, Ct);
+
+        // Act
+        var stored = await Store.GetAsync(Scenario.S3.Id, Ct);
+
+        // Assert
+        Assert.Equal(Scenario.S3, stored.Value);
+    }
+
+    [Fact]
+    public async Task AddAsync_OptOutForAllChannels_GetAsyncGivesItUnchanged()
+    {
+        // Arrange
+        await Store.AddAsync(Scenario.S4, Ct);
+
+        // Act
+        var stored = await Store.GetAsync(Scenario.S4.Id, Ct);
+
+        // Assert
+        Assert.Equal(Scenario.S4, stored.Value);
+    }
+
+    [Fact]
     public async Task AddAsync_IdsWithSpecialAndAccentedCharacters_QueryAsyncFindsEachIdUnchanged_S10()
     {
         // Arrange

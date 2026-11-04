@@ -20,6 +20,24 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task UpdateAsync_NewSettingsAndChangeTime_GetAsyncGivesTheWholeNewState()
+    {
+        // Arrange
+        await Store.AddAsync(Scenario.S6, Ct);
+        var changed = Scenario.S6 with
+        {
+            Revision = 2, Settings = new EmailChannelSettings("hu", EmailFormat.Html), LastModifiedAtUtc = Scenario.S6.CreatedAtUtc.AddHours(1),
+        };
+        Assert.Null(await Store.UpdateAsync(changed, 1, Ct));
+
+        // Act
+        var stored = await Store.GetAsync(Scenario.S6.Id, Ct);
+
+        // Assert
+        Assert.Equal(changed, stored.Value);
+    }
+
+    [Fact]
     public async Task UpdateAsync_OldExpectedRevision_GivesConflict_S4()
     {
         // Arrange
