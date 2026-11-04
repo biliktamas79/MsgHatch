@@ -594,13 +594,20 @@ Tests:
 - `ConfigureSharedOptions` (D150): two setup methods with a value in code for one options class fail the startup validation, and the message names both. One setup method passes. A value from code wins over a configuration section that a later setup method binds.
 - `FileSystemSubscriptionStoreUnitTests`: a change while another caller holds the lock of the owner folder gives `Errors.Unavailable`.
 
+Checked facts (2026-11-04) for the SQLite subscription store:
+
+| Fact | Source |
+|---|---|
+| With `Microsoft.Data.Sqlite` 10.0.14, `EXPLAIN QUERY PLAN` of the query of `FindForDeliveryAsync` on the seeded scenario gave `SEARCH MsgHatchSubscription USING INDEX IX_MsgHatchSubscription_Delivery (TenantId=? AND MessageType=?)`. After `DROP INDEX IX_MsgHatchSubscription_Delivery`, it gave the same search with `UX_MsgHatchSubscription_Owner`, the unique index of `(TenantId, MessageType, Level, CompanyId, UserId, Channel, Recipients)`. So the second index of the plan adds only write cost, and the table has no second index (section 4.5). | A probe test on the schema of the store, after `ANALYZE` |
+
 Commits:
 1. "Record the subscription store decisions in the plan (D148 to D151)"
 2. "Configure the shared options of two setup methods in one place"
 3. "Add the JSON of the channel settings of a subscription"
 4. "Seed the store scenario one time for the read tests"
 5. "Add the JSON file subscription store"
-6. "Add the SQLite subscription store"
+6. "Serve the subscription deliveries from the unique index in the plan"
+7. "Add the SQLite subscription store"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
