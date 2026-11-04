@@ -181,7 +181,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
 
     private Error? RecordTry(OutgoingMessage message, PublishTry publishTry, DateTime? nextTryAtUtc)
     {
-        var status = StatusAfter(publishTry.Outcome, nextTryAtUtc);
+        var status = publishTry.StatusAfter(nextTryAtUtc);
         using var connection = SqliteSchema.Open(ConnectionString);
         using var command = connection.Command(_recordTry)
             .With("@id", SqliteValues.Id(message.Delivery.Id))
@@ -195,7 +195,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
             .With("@errorMessage", publishTry.ErrorMessage)
             .With("@status", status.ToString())
             .With("@nextTryAtUtc", status == DeliveryStatus.Pending ? SqliteValues.Time(nextTryAtUtc) : null)
-            .With("@lastError", ErrorTextOf(publishTry));
+            .With("@lastError", publishTry.ErrorText());
         if (command.ExecuteNonQuery() > 0)
         {
             return null;
@@ -276,18 +276,6 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
             row.IsDBNull(4) ? null : row.GetInt32(4),
             row.IsDBNull(5) ? null : row.GetString(5),
             row.IsDBNull(6) ? null : row.GetString(6));
-
-    private static DeliveryStatus StatusAfter(PublishOutcome outcome, DateTime? nextTryAtUtc) => outcome switch
-    {
-        PublishOutcome.Succeeded or PublishOutcome.Suppressed => DeliveryStatus.Done,
-        PublishOutcome.TransientError when nextTryAtUtc is not null => DeliveryStatus.Pending,
-        _ => DeliveryStatus.Failed,
-    };
-
-    private static string? ErrorTextOf(PublishTry publishTry) =>
-        publishTry.ErrorName is null ? null
-        : publishTry.ErrorMessage is null ? publishTry.ErrorName
-        : $"{publishTry.ErrorName}: {publishTry.ErrorMessage}";
 
     private sealed class TenantStore(SqliteOutboxStore store, TenantKey key) : IOutboxStore
     {

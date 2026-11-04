@@ -194,7 +194,7 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
 
     private static DeliveryState AfterTry(DeliveryState delivery, PublishTry publishTry, DateTime? nextTryAtUtc)
     {
-        var status = StatusAfter(publishTry.Outcome, nextTryAtUtc);
+        var status = publishTry.StatusAfter(nextTryAtUtc);
         return delivery with
         {
             Status = status,
@@ -202,21 +202,9 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
             LastTryAtUtc = publishTry.FinishedAtUtc,
             NextTryAtUtc = status == DeliveryStatus.Pending ? nextTryAtUtc!.Value : delivery.NextTryAtUtc,
             LeaseUntilUtc = null,
-            LastError = ErrorTextOf(publishTry),
+            LastError = publishTry.ErrorText(),
         };
     }
-
-    private static DeliveryStatus StatusAfter(PublishOutcome outcome, DateTime? nextTryAtUtc) => outcome switch
-    {
-        PublishOutcome.Succeeded or PublishOutcome.Suppressed => DeliveryStatus.Done,
-        PublishOutcome.TransientError when nextTryAtUtc is not null => DeliveryStatus.Pending,
-        _ => DeliveryStatus.Failed,
-    };
-
-    private static string? ErrorTextOf(PublishTry publishTry) =>
-        publishTry.ErrorName is null ? null
-        : publishTry.ErrorMessage is null ? publishTry.ErrorName
-        : $"{publishTry.ErrorName}: {publishTry.ErrorMessage}";
 
     private List<PublishTry> TriesOf(Guid id)
     {

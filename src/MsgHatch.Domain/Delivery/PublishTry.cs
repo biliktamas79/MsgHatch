@@ -12,4 +12,30 @@ namespace MsgHatch.Domain.Delivery;
 /// <param name="ErrorMessage">The text of the error, or null.</param>
 public sealed record PublishTry(
     Guid OutgoingMessageId, int TryNumber, DateTime StartedAtUtc, DateTime FinishedAtUtc,
-    PublishOutcome Outcome, string? ProviderMessageId, int? ErrorCode, string? ErrorName, string? ErrorMessage);
+    PublishOutcome Outcome, string? ProviderMessageId, int? ErrorCode, string? ErrorName, string? ErrorMessage)
+{
+    /// <summary>
+    /// Gives the status of the stored message after this try (section 4.5): <see cref="DeliveryStatus.Done"/> for
+    /// <see cref="PublishOutcome.Succeeded"/> and <see cref="PublishOutcome.Suppressed"/>,
+    /// <see cref="DeliveryStatus.Pending"/> for a <see cref="PublishOutcome.TransientError"/> with a next try time, and
+    /// <see cref="DeliveryStatus.Failed"/> for all other outcomes.
+    /// </summary>
+    /// <param name="nextTryAtUtc">The time of the next try, or null for no next try.</param>
+    /// <returns>The status.</returns>
+    public DeliveryStatus StatusAfter(DateTime? nextTryAtUtc) => Outcome switch
+    {
+        PublishOutcome.Succeeded or PublishOutcome.Suppressed => DeliveryStatus.Done,
+        PublishOutcome.TransientError when nextTryAtUtc is not null => DeliveryStatus.Pending,
+        _ => DeliveryStatus.Failed,
+    };
+
+    /// <summary>
+    /// Gives the <c>LastError</c> text of this try: <c>{ErrorName}: {ErrorMessage}</c>, only the error name when the try
+    /// has no error message, or null when the try has no error.
+    /// </summary>
+    /// <returns>The text, or null.</returns>
+    public string? ErrorText() =>
+        ErrorName is null ? null
+        : ErrorMessage is null ? ErrorName
+        : $"{ErrorName}: {ErrorMessage}";
+}

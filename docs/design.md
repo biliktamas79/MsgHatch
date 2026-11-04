@@ -1400,8 +1400,8 @@ Contract rules of the core:
 - `IBrokerClient.PublishAsync` publishes `Payload` with its run-time type and all `Headers`. The broker transport builds the headers (phase 6), so a client adds no header of its own. It can also give `MessageId` and `Tenant` to the matching fields of its library (D134).
 - `IOutboxDispatchStore.RecordTryAsync` changes the stored message of `message` in one atomic operation:
   1. It adds the publish try.
-  2. It sets `TryCount` to the try number, `LastTryAtUtc` to the finish time, and `LastError` to `"{ErrorName}: {ErrorMessage}"`, or to null for a success.
-  3. It sets the status: `Done` for `Succeeded` and `Suppressed`, `Failed` for `PermanentError`, `Expired`, or a `TransientError` with a null `nextTryAtUtc`, and `Pending` with the new `NextTryAtUtc` for a `TransientError` with a next try time. The outcome `Cancelled` comes only from `CancelAsync` (section 4.19).
+  2. It sets `TryCount` to the try number, `LastTryAtUtc` to the finish time, and `LastError` to `"{ErrorName}: {ErrorMessage}"`, or to null for a success. `PublishTry.ErrorText()` gives this text, and only the error name for a try with no error message.
+  3. It sets the status: `Done` for `Succeeded` and `Suppressed`, `Failed` for `PermanentError`, `Expired`, or a `TransientError` with a null `nextTryAtUtc`, and `Pending` with the new `NextTryAtUtc` for a `TransientError` with a next try time. `PublishTry.StatusAfter(nextTryAtUtc)` gives this status, so each store uses one rule. The outcome `Cancelled` comes only from `CancelAsync` (section 4.19).
   4. It ends the lease.
 - `RecordTryAsync` changes nothing when the stored `TryCount` is not the try number minus 1. So a dispatcher can repeat the call after a store failure, and a try is never recorded two times.
 - `IInboxDispatchStore.CompleteAsync` and `FailAsync` add 1 to `TryCount` of the stored message of `message`, set `LastTryAtUtc`, and end the lease. `FailAsync` with `nextTryAtUtc` null marks the message as failed permanently.
