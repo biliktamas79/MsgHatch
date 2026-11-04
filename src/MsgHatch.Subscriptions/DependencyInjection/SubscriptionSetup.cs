@@ -14,6 +14,8 @@ internal sealed class SubscriptionSetup
 
     public List<string> DirectorySelections { get; } = [];
 
+    public bool UsesSubscriptions { get; set; }
+
     public static SubscriptionSetup Of(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(SubscriptionSetup))?.ImplementationInstance as SubscriptionSetup
         ?? Add(services);

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MsgHatch.Domain.Delivery;
 
 namespace MsgHatch.Subscriptions;
 
@@ -114,4 +115,11 @@ internal static partial class Log
         Message = "Recipient directory read of a company of tenant {Tenant} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void GetCompanyFailed(
         ILogger logger, LogLevel level, string? tenant, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1118, Level = LogLevel.Debug,
+        Message = "Subscription router applied opt-out {SubscriptionId} at level {Level} on channel {Channel} for message {MessageId} of {MessageType} of tenant {Tenant} with flags {MessageFlags}")]
+    public static partial void OptOutApplied(
+        ILogger logger, Guid messageId, string messageType, string channel, Guid subscriptionId, SubscriptionLevel level, string? tenant,
+        MessageFlags messageFlags);
 }

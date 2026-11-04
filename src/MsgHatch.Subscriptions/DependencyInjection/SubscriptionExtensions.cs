@@ -1,12 +1,45 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions.Resolution;
 
 namespace MsgHatch.Subscriptions.DependencyInjection;
 
 /// <summary>The setup methods of the subscription router package (section 4.7, D97).</summary>
 public static class SubscriptionExtensions
 {
+    /// <summary>
+    /// Selects the subscription router as the router of each message type with no router of its own (D99), and
+    /// registers <see cref="ResolutionTrace"/> as the trace type <c>Trace:Subscription</c> (D98). A message type with the
+    /// subscription router needs a scope function from <see cref="WithScope"/>. With the role
+    /// <see cref="MsgHatchRoles.Consumer"/>, the host needs a subscription store and a recipient directory.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseSubscriptions(this MsgHatchBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        SubscriptionSetup.Of(builder.Services).UsesSubscriptions = true;
+        return builder
+            .UseRouter(typeof(SubscriptionRouter<>))
+            .AddTraceType("Subscription", 1, SubscriptionJson.Default.ResolutionTrace);
+    }
+
+    /// <summary>Registers the scope function of a message type, which the subscription router needs (D16).</summary>
+    /// <typeparam name="TEvent">The type of the domain event.</typeparam>
+    /// <param name="message">The builder of the message type.</param>
+    /// <param name="scope">
+    /// The scope of an event, for example <c>e =&gt; NotificationScope.ForUsers(e.CustomerIds)</c>. It must not throw.
+    /// </param>
+    /// <returns>The builder of the message type.</returns>
+    public static MessageBuilder<TEvent> WithScope<TEvent>(this MessageBuilder<TEvent> message, Func<TEvent, NotificationScope> scope)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(scope);
+        message.Services.AddSingleton(new SubscriptionMessage<TEvent>(scope));
+        return message;
+    }
+
     /// <summary>
     /// Registers a subscription store as a singleton tenant service, with its logging wrapper (D116, D126). A host calls
     /// it only for its own store.

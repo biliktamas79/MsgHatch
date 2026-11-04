@@ -5,11 +5,16 @@
     <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.SignalR\MsgHatch.SignalR.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Broker\MsgHatch.Broker.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.SourceGeneration\MsgHatch.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="TemplateFiles\*" LogicalName="MsgHatch.Subscriptions.Tests.Unit.TemplateFiles.%(Filename)%(Extension)" WithCulture="false" />
   </ItemGroup>
 
 </Project>
