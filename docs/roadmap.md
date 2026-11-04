@@ -556,7 +556,7 @@ Tests:
   - The pipeline examples P1 to P7 of `docs/subscription-domain.md`: each example asserts the whole list of outgoing messages in the in-memory outbox, with their targets, channels, languages, and resolution traces.
   - An `Error` from `FindForDeliveryAsync` or from the directory fails the event.
   - A message type with the subscription router and no `WithScope` fails the startup validation with an `OptionsValidationException`. A message type with its own router and no `WithScope` passes it.
-- The use cases of `SubscriptionStoreTestsBase`, run by `InMemorySubscriptionStoreUnitTests`, with the store examples S1 to S12 of `docs/subscription-domain.md`.
+- The use cases of `SubscriptionStoreTestsBase`, run by `InMemorySubscriptionStoreUnitTests`, with the store examples S1 to S13 of `docs/subscription-domain.md`.
 - Subscription management tests, with the examples M1 to M22 of `docs/subscription-domain.md`, on the in-memory store and a substitute for `IRecipientDirectory`:
   - `GetChannelsAsync` lists each registered channel with its features.
   - `GetMessageTypesAsync` gives the applied subscriptions with their levels for a user, for a company, and with no filter, and only the message types with a scope function. A user subscription that a fixed subscription hides is not in the result. An opt-out that applies is in the result.
@@ -583,7 +583,7 @@ Goal: durable subscription stores in files and in SQLite.
 2. Add `src/MsgHatch.Subscriptions.Data.Sqlite` with `SqliteSubscriptionStore` on the `SqliteStoreOptions` of `MsgHatch.Data.Sqlite` (section 4.5, D59), and `UseSqliteSubscriptionStore`. Add `tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit` with `SqliteSubscriptionStoreUnitTests`.
 
 Tests:
-- The use cases of `SubscriptionStoreTestsBase` run on the file store and on the SQLite store, with the store examples S1 to S12. The shared test scenario of section 4 of `docs/subscription-domain.md` is seeded one time as a named scenario, for a group of tests that only read.
+- The use cases of `SubscriptionStoreTestsBase` run on the file store and on the SQLite store, with the store examples S1 to S13. The shared test scenario of section 4 of `docs/subscription-domain.md` is seeded one time as a named scenario, for a group of tests that only read.
 - `UseSqliteSubscriptionStore()` with no argument uses the `SqliteStoreOptions` that `UseSqliteStores` sets. A connection string in both `UseSqliteStores` and `UseSqliteSubscriptionStore` fails the startup validation, and the message names both methods (D62).
 - `FileSystemSubscriptionStoreUnitTests`: a subscription for the user `"auth0|abc"` is stored under an escaped folder name, and is found again.
 - `SqliteSubscriptionStoreUnitTests`:

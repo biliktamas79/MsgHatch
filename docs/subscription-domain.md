@@ -313,8 +313,9 @@ Each example runs on each subscription store, through `SubscriptionStoreTestsBas
 | S8 | The scenario | `FindForDeliveryAsync` with B, the company Acme, and the users 1 and 2 | #2, #4, #6, and #10 |
 | S9 | The scenario | `FindForDeliveryAsync` with A, no companies, and no users | #1 |
 | S10 | An empty store | `AddAsync` for the user `"auth0|abc"` and for the company `"Ődön-Űr"`, then `QueryAsync` with each id | Each subscription is found with its id unchanged. |
-| S11 | An empty store | `AddAsync` of #4 and of #10. Then `AddAsync` of a second subscription for Acme, B, `Email`, recipients company. Then `AddAsync` of #11, and `GetAsync` of its id. | Success two times, because #4 and #10 differ in their recipient kind. Then `Errors.Conflict`. Then #11 with its named user 2 unchanged. |
+| S11 | An empty store | `AddAsync` of #4 and of #10. Then `AddAsync` of a second subscription for Acme, B, `Email`, recipients company. Then `AddAsync` of #11, and `GetAsync` of its id. | Success two times, because #4 and #10 differ in their channel and in their recipient kind: #4 is an opt-out for all channels. Then `Errors.Conflict`. Then #11 with its named user 2 unchanged. |
 | S12 | The empty stores of the keys `TenantKey.None` and `"t2"`, on one storage | `AddAsync` of #6 to the first store, and of a copy of #6 with a new id to the store of `"t2"`. Then `FindForDeliveryAsync` with B and the user 1 on each store. | Success two times, because the two stores are apart. Then only #6. Then only the copy. |
+| S13 | An empty store | `AddAsync` of #10, then `AddAsync` of a copy of #10 with a new id and the recipients scope users | Success two times, because the two subscriptions differ only in their recipient kind. |
 
 ### 5.7 Directory
 
