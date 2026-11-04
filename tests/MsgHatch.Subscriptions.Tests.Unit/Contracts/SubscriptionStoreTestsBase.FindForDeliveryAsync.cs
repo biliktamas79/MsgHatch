@@ -8,11 +8,8 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
     [Fact]
     public async Task FindForDeliveryAsync_BForAcmeAndUsers1And2_GivesTheDefaultsAndTheSubscriptionsOfTheOwners_S8()
     {
-        // Arrange
-        await SeedScenarioAsync();
-
         // Act
-        var subscriptions = await Store.FindForDeliveryAsync(new MessageType("B"), [Scenario.Acme], [new UserId("1"), new UserId("2")], Ct);
+        var subscriptions = await SeededStore.FindForDeliveryAsync(new MessageType("B"), [Scenario.Acme], [new UserId("1"), new UserId("2")], Ct);
 
         // Assert
         Assert.Equal("#10, #2, #4, #6", Labels(subscriptions));
@@ -21,11 +18,8 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
     [Fact]
     public async Task FindForDeliveryAsync_ANoCompaniesAndNoUsers_GivesTheDefaults_S9()
     {
-        // Arrange
-        await SeedScenarioAsync();
-
         // Act
-        var subscriptions = await Store.FindForDeliveryAsync(new MessageType("A"), [], [], Ct);
+        var subscriptions = await SeededStore.FindForDeliveryAsync(new MessageType("A"), [], [], Ct);
 
         // Assert
         Assert.Equal("#1", Labels(subscriptions));
@@ -34,11 +28,8 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
     [Fact]
     public async Task FindForDeliveryAsync_DForGlobexAndUser1_GivesNoSubscriptionOfAcmeOrOfUser2()
     {
-        // Arrange
-        await SeedScenarioAsync();
-
         // Act
-        var subscriptions = await Store.FindForDeliveryAsync(new MessageType("D"), [Scenario.Globex], [new UserId("1")], Ct);
+        var subscriptions = await SeededStore.FindForDeliveryAsync(new MessageType("D"), [Scenario.Globex], [new UserId("1")], Ct);
 
         // Assert
         Assert.Equal("#8, #9", Labels(subscriptions));
