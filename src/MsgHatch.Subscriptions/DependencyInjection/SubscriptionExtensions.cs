@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Management;
@@ -60,7 +61,8 @@ public static class SubscriptionExtensions
         builder.UseSubscriptionStore(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TStore>(tenantServices));
 
     /// <summary>
-    /// Registers a subscription store with a factory, for example for a test substitute. The store packages call it.
+    /// Registers a subscription store with a factory, for example for a test substitute. The store packages call it. It
+    /// also registers <see cref="ChannelSettingsJson"/>, which a store uses for the channel settings (D149).
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="factory">The factory of the store of one tenant key. Its service provider gives the tenant services of that key.</param>
@@ -72,6 +74,7 @@ public static class SubscriptionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(factory);
         SubscriptionSetup.Of(builder.Services).StoreSelections.Add(setupMethod ?? nameof(UseSubscriptionStore));
+        builder.Services.TryAddSingleton<ChannelSettingsJson>();
         return builder.AddTenantService(ServiceLifetime.Singleton, factory, SubscriptionLoggers.Wrap);
     }
 

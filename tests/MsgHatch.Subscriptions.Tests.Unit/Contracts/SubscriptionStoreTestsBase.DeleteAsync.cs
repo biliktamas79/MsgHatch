@@ -15,7 +15,7 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
         var stored = await Store.GetAsync(Scenario.S6.Id, Ct);
 
         // Assert
-        Assert.Null(stored.Value);
+        Assert.Equal((null, null), (stored.Error, stored.Value));
     }
 
     [Fact]
@@ -41,6 +41,6 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
         var stored = await Store.GetAsync(Scenario.LabelId(44), Ct);
 
         // Assert
-        Assert.Null(stored.Value);
+        Assert.Equal((null, null), (stored.Error, stored.Value));
     }
 }

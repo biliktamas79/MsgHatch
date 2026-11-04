@@ -4,4 +4,8 @@
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="MsgHatch.Subscriptions.Data.FileSystem" />
+  </ItemGroup>
+
 </Project>

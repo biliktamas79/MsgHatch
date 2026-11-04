@@ -20,13 +20,7 @@ public static class FileStoreExtensions
     public static MsgHatchBuilder UseFileStores(this MsgHatchBuilder builder, Action<FileStoreOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddOptions<FileStoreOptions>().BindConfiguration(FileStoreOptions.SectionName).ValidateOnStart();
-        if (configure is not null)
-        {
-            builder.ConfigureSharedOptions(nameof(UseFileStores), configure);
-        }
-
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FileStoreOptions>, FileStoreOptionsValidator>());
+        AddOptions(builder, nameof(UseFileStores), configure);
         builder.Services.TryAddSingleton(static services => new FileSystemInboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new FileSystemOutboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));
         return builder
@@ -43,6 +37,20 @@ public static class FileStoreExtensions
     public static MsgHatchBuilder UseFileStores(this MsgHatchBuilder builder, string rootPath) =>
         builder.UseFileStores(o => o.RootPath = rootPath);
 
-    private static string RootPathOf(IServiceProvider services) =>
+    /// <summary>
+    /// Registers the shared <see cref="FileStoreOptions"/> of a setup method of the file stores (D59): the binding of the
+    /// section <c>MsgHatch:FileStores</c>, the validation, and a value in code through <c>ConfigureSharedOptions</c> (D150).
+    /// </summary>
+    internal static void AddOptions(MsgHatchBuilder builder, string setupMethod, Action<FileStoreOptions>? configure)
+    {
+        builder.Services.AddOptions<FileStoreOptions>().BindConfiguration(FileStoreOptions.SectionName).ValidateOnStart();
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FileStoreOptions>, FileStoreOptionsValidator>());
+        if (configure is not null)
+        {
+            builder.ConfigureSharedOptions(setupMethod, configure);
+        }
+    }
+
+    internal static string RootPathOf(IServiceProvider services) =>
         services.GetRequiredService<IOptions<FileStoreOptions>>().Value.RootPath;
 }

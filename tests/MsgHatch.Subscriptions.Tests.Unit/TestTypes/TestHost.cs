@@ -16,10 +16,11 @@ public static class TestHost
 
     public static FakeTimeProvider NewFakeTime() => new(Start);
 
-    public static IServiceCollection CreateServices(TimeProvider? time = null)
+    public static IServiceCollection CreateServices(TimeProvider? time = null, IReadOnlyDictionary<string, string?>? configuration = null)
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder().AddInMemoryCollection(configuration ?? new Dictionary<string, string?>()).Build());
         services.AddSingleton(time ?? NewFakeTime());
         services.AddLogging(static logging => logging.SetMinimumLevel(LogLevel.Trace).AddFakeLogging());
         return services;
