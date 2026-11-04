@@ -29,6 +29,10 @@
     <PackageVersion Include="WolverineFx" Version="6.61.0" />
   </ItemGroup>
 
+  <ItemGroup Label="MsgHatch.Data.Sqlite">
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+  </ItemGroup>
+
   <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration">
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.61.0" />
   </ItemGroup>

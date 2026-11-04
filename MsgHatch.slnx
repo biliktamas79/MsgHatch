@@ -3,6 +3,7 @@
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
     <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
     <Project Path="src/MsgHatch.Data.FileSystem/MsgHatch.Data.FileSystem.csproj" />
+    <Project Path="src/MsgHatch.Data.Sqlite/MsgHatch.Data.Sqlite.csproj" />
     <Project Path="src/MsgHatch.Domain/MsgHatch.Domain.csproj" />
     <Project Path="src/MsgHatch.Email.AmazonSES/MsgHatch.Email.AmazonSES.csproj" />
     <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
@@ -15,6 +16,7 @@
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Data.Sqlite.Tests.Unit/MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Integration/MsgHatch.Email.AmazonSES.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Unit/MsgHatch.Email.AmazonSES.Tests.Unit.csproj" />
