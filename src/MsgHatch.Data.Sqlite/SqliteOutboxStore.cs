@@ -73,11 +73,13 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
 
     private static readonly ClaimStatements _claim = new(
         NextDue: "SELECT MIN(NextTryAtUtc) FROM MsgHatchOutbox WHERE Status = 'Pending' AND Channel = @channel",
+        Due: """
+            SELECT Sequence FROM MsgHatchOutbox WHERE Status = 'Pending' AND Channel = @channel AND NextTryAtUtc <= @nowUtc
+            ORDER BY NextTryAtUtc, Sequence LIMIT @maxCount
+            """,
         Lease: $$"""
             UPDATE MsgHatchOutbox SET NextTryAtUtc = @leaseUntilUtc, LeaseUntilUtc = @leaseUntilUtc
-            WHERE Sequence IN (
-                SELECT Sequence FROM MsgHatchOutbox WHERE Status = 'Pending' AND Channel = @channel AND NextTryAtUtc <= @nowUtc
-                ORDER BY NextTryAtUtc, Sequence LIMIT @maxCount)
+            WHERE Sequence IN (SELECT value FROM json_each(@sequences))
             RETURNING Sequence, {{_document}}
             """,
         Fail: "UPDATE MsgHatchOutbox SET Status = 'Failed', LeaseUntilUtc = NULL, LastError = @lastError WHERE Sequence = @sequence");

@@ -48,11 +48,13 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
 
     private static readonly ClaimStatements _claim = new(
         NextDue: "SELECT MIN(NextTryAtUtc) FROM MsgHatchInbox WHERE Status = 'Pending'",
+        Due: """
+            SELECT Sequence FROM MsgHatchInbox WHERE Status = 'Pending' AND NextTryAtUtc <= @nowUtc
+            ORDER BY NextTryAtUtc, Sequence LIMIT @maxCount
+            """,
         Lease: $$"""
             UPDATE MsgHatchInbox SET NextTryAtUtc = @leaseUntilUtc, LeaseUntilUtc = @leaseUntilUtc
-            WHERE Sequence IN (
-                SELECT Sequence FROM MsgHatchInbox WHERE Status = 'Pending' AND NextTryAtUtc <= @nowUtc
-                ORDER BY NextTryAtUtc, Sequence LIMIT @maxCount)
+            WHERE Sequence IN (SELECT value FROM json_each(@sequences))
             RETURNING Sequence, {{_document}}
             """,
         Fail: "UPDATE MsgHatchInbox SET Status = 'Failed', LeaseUntilUtc = NULL, LastError = @lastError WHERE Sequence = @sequence");

@@ -38,6 +38,24 @@ public abstract partial class InboxStoreTestsBase<TStore>
         Assert.Equal(expected, result.Value.Messages.Count);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task ClaimDueAsync_FirstAddedMessageIsDueLater_TakesAndReturnsTheMessagesInTheOrderOfTheirDueTime(int maxCount)
+    {
+        // Arrange
+        var dueLater = await AddAsync(AMessage(T1, nextTryAtUtc: Now.AddSeconds(-1)));
+        var dueFirst = await AddAsync(AMessage(T1, nextTryAtUtc: Now.AddSeconds(-2)));
+
+        // Act
+        var result = await ClaimAsync(maxCount);
+
+        // Assert
+        Assert.Equal(
+            new[] { dueFirst.Delivery.Id, dueLater.Delivery.Id }.Take(maxCount),
+            result.Value.Messages.Select(static message => message.Delivery.Id));
+    }
+
     [Fact]
     public async Task ClaimDueAsync_MessageThatIsNotDueYet_ClaimsNothingAndGivesItsTimeAsNextDue()
     {
