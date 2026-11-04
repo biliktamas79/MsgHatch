@@ -8,4 +8,8 @@
     <PackageReference Include="Microsoft.Data.Sqlite" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="MsgHatch.Subscriptions.Data.Sqlite" />
+  </ItemGroup>
+
 </Project>

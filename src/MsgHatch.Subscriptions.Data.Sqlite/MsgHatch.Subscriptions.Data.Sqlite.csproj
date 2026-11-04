@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.Sqlite\MsgHatch.Data.Sqlite.csproj" />
+  </ItemGroup>
+
+</Project>

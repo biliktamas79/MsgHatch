@@ -20,13 +20,7 @@ public static class SqliteStoreExtensions
     public static MsgHatchBuilder UseSqliteStores(this MsgHatchBuilder builder, Action<SqliteStoreOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddOptions<SqliteStoreOptions>().BindConfiguration(SqliteStoreOptions.SectionName).ValidateOnStart();
-        if (configure is not null)
-        {
-            builder.ConfigureSharedOptions(nameof(UseSqliteStores), configure);
-        }
-
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqliteStoreOptions>, SqliteStoreOptionsValidator>());
+        AddOptions(builder, nameof(UseSqliteStores), configure);
         builder.Services.TryAddSingleton(static services => new SqliteInboxStore(ConnectionStringOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new SqliteOutboxStore(ConnectionStringOf(services), services.GetRequiredService<MsgHatchJson>()));
         return builder
@@ -43,6 +37,20 @@ public static class SqliteStoreExtensions
     public static MsgHatchBuilder UseSqliteStores(this MsgHatchBuilder builder, string connectionString) =>
         builder.UseSqliteStores(o => o.ConnectionString = connectionString);
 
-    private static string ConnectionStringOf(IServiceProvider services) =>
+    /// <summary>
+    /// Registers the shared <see cref="SqliteStoreOptions"/> of a setup method of the SQLite stores (D59): the binding of
+    /// the section <c>MsgHatch:Sqlite</c>, the validation, and a value in code through <c>ConfigureSharedOptions</c> (D150).
+    /// </summary>
+    internal static void AddOptions(MsgHatchBuilder builder, string setupMethod, Action<SqliteStoreOptions>? configure)
+    {
+        builder.Services.AddOptions<SqliteStoreOptions>().BindConfiguration(SqliteStoreOptions.SectionName).ValidateOnStart();
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqliteStoreOptions>, SqliteStoreOptionsValidator>());
+        if (configure is not null)
+        {
+            builder.ConfigureSharedOptions(setupMethod, configure);
+        }
+    }
+
+    internal static string ConnectionStringOf(IServiceProvider services) =>
         services.GetRequiredService<IOptions<SqliteStoreOptions>>().Value.ConnectionString;
 }

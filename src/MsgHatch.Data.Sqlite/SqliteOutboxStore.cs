@@ -114,7 +114,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
             ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
             : SqliteFailures.Run(() =>
             {
-                using var connection = SqliteSchema.Open(ConnectionString);
+                using var connection = SqliteSchema.Core.Open(ConnectionString);
                 return ErrorOr<ClaimResult<OutgoingMessage>>.ForValue(ReadDown(connection, channel) is { } down
                     ? new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down)
                     : SqliteClaim.Run(
@@ -138,7 +138,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct) =>
         ValueTask.FromResult(SqliteFailures.Run(() =>
         {
-            using var connection = SqliteSchema.Open(ConnectionString);
+            using var connection = SqliteSchema.Core.Open(ConnectionString);
             using var command = connection.Command(_downChannels);
             using var reader = command.ExecuteReader();
             var downs = new List<ChannelDown>();
@@ -182,7 +182,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
     private Error? RecordTry(OutgoingMessage message, PublishTry publishTry, DateTime? nextTryAtUtc)
     {
         var status = publishTry.StatusAfter(nextTryAtUtc);
-        using var connection = SqliteSchema.Open(ConnectionString);
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
         using var command = connection.Command(_recordTry)
             .With("@id", SqliteValues.Id(message.Delivery.Id))
             .With("@tryNumber", publishTry.TryNumber)
@@ -227,7 +227,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
 
         return SqliteFailures.Run(() =>
         {
-            using var connection = SqliteSchema.Open(ConnectionString);
+            using var connection = SqliteSchema.Core.Open(ConnectionString);
             using var transaction = connection.BeginTransaction(deferred: false);
             foreach (var (message, document) in documents)
             {
@@ -255,7 +255,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
 
     private int Execute(string sql, Func<SqliteCommand, SqliteCommand> withValues)
     {
-        using var connection = SqliteSchema.Open(ConnectionString);
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
         using var command = withValues(connection.Command(sql));
         return command.ExecuteNonQuery();
     }

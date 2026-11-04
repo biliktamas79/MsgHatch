@@ -4,13 +4,16 @@ using Microsoft.Data.Sqlite;
 namespace MsgHatch.Data.Sqlite;
 
 /// <summary>
-/// The schema of the SQLite stores (section 4.5, D55, D56). The first connection to a database in the process sets the
-/// WAL journal and creates the tables, one time for each connection string. The table and column names are the C#
-/// property names, and the schema version is 1.
+/// The schema of a SQLite store (section 4.5, D55, D56). The first connection to a database in the process runs the
+/// create script of the schema, one time for each connection string. <see cref="Core"/> is the schema of the inbox and
+/// the outbox: it sets the WAL journal and creates the tables, with the table and column names of the C# properties and
+/// the schema version 1. A store with tables of its own, for example the subscription store, has its own schema with
+/// its own version table, so the stores can share one database file.
 /// </summary>
-internal static class SqliteSchema
+/// <param name="create">The create script. Each statement in it can run again with no change.</param>
+internal sealed class SqliteSchema(string create)
 {
-    private const string _create = """
+    public static readonly SqliteSchema Core = new("""
         PRAGMA journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS MsgHatchSchema (Version INTEGER);
         INSERT INTO MsgHatchSchema (Version) SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM MsgHatchSchema);
@@ -32,12 +35,12 @@ internal static class SqliteSchema
         CREATE TABLE IF NOT EXISTS MsgHatchChannelDown (
             Channel TEXT PRIMARY KEY, Reason TEXT, SinceUtc TEXT, NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT,
             Note TEXT);
-        """;
+        """);
 
-    private static readonly ConcurrentDictionary<string, bool> _created = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _created = new(StringComparer.Ordinal);
 
     /// <summary>Opens a connection from the pool of <c>Microsoft.Data.Sqlite</c>, and creates the schema at the first one.</summary>
-    public static SqliteConnection Open(string connectionString)
+    public SqliteConnection Open(string connectionString)
     {
         var connection = new SqliteConnection(connectionString);
         try
@@ -53,14 +56,14 @@ internal static class SqliteSchema
         }
     }
 
-    private static void CreateOnce(SqliteConnection connection, string connectionString)
+    private void CreateOnce(SqliteConnection connection, string connectionString)
     {
         if (_created.ContainsKey(connectionString))
         {
             return;
         }
 
-        using var command = connection.Command(_create);
+        using var command = connection.Command(create);
         command.ExecuteNonQuery();
         _created.TryAdd(connectionString, true);
     }

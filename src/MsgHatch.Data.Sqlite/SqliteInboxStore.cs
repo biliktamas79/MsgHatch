@@ -89,7 +89,7 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
             ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
             : SqliteFailures.Run(() =>
             {
-                using var connection = SqliteSchema.Open(ConnectionString);
+                using var connection = SqliteSchema.Core.Open(ConnectionString);
                 return ErrorOr<ClaimResult<ReceivedMessage>>.ForValue(SqliteClaim.Run(
                     connection, _claim, channel: null, maxCount, nowUtc, nowUtc + lease, document => _json.DeserializeReceived(document)));
             }));
@@ -111,7 +111,7 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) =>
         ValueTask.FromResult(SqliteFailures.Run(() =>
         {
-            using var connection = SqliteSchema.Open(ConnectionString);
+            using var connection = SqliteSchema.Core.Open(ConnectionString);
             using var command = connection.Command(_deleteTestData);
             return ErrorOr<int>.ForValue(command.ExecuteNonQuery());
         }));
@@ -121,7 +121,7 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
         ArgumentNullException.ThrowIfNull(message);
         return SqliteFailures.Run(() =>
         {
-            using var connection = SqliteSchema.Open(ConnectionString);
+            using var connection = SqliteSchema.Core.Open(ConnectionString);
             using var command = withValues(connection.Command(sql)
                 .With("@tenantId", SqliteValues.Tenant(message.Tenant))
                 .With("@id", SqliteValues.Id(message.Delivery.Id)));
@@ -145,7 +145,7 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
 
         return SqliteFailures.Run(() =>
         {
-            using var connection = SqliteSchema.Open(ConnectionString);
+            using var connection = SqliteSchema.Core.Open(ConnectionString);
             using var command = connection.Command(_insert)
                 .With("@tenantId", SqliteValues.Tenant(message.Tenant))
                 .WithDelivery(message.Delivery)

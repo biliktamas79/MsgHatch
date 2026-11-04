@@ -11,7 +11,9 @@ namespace MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 /// </summary>
 public static class ScenarioContentTypes
 {
-    public static readonly ChannelSettingsJson SettingsJson = new(ARegistry());
+    public static readonly IContentTypeRegistry Registry = ARegistry();
+
+    public static readonly ChannelSettingsJson SettingsJson = new(Registry);
 
     private static IContentTypeRegistry ARegistry()
     {
