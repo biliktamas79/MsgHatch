@@ -10,6 +10,7 @@
     <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
     <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
+    <Project Path="src/MsgHatch.Subscriptions.Caching.Hybrid/MsgHatch.Subscriptions.Caching.Hybrid.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Data.FileSystem/MsgHatch.Subscriptions.Data.FileSystem.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Data.Sqlite/MsgHatch.Subscriptions.Data.Sqlite.csproj" />
     <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
@@ -28,6 +29,7 @@
     <Project Path="tests/MsgHatch.Email.Tests.Unit/MsgHatch.Email.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SignalR.Tests.Unit/MsgHatch.SignalR.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />
