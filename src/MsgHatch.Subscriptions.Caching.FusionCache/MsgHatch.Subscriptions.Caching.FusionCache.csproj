@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ZiggyCreatures.FusionCache" />
+  </ItemGroup>
+
+</Project>
