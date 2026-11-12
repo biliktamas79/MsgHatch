@@ -11,13 +11,14 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
+using MsgHatch.Subscriptions.Verification;
 using NSubstitute;
 
 namespace MsgHatch.Subscriptions.AspNetCore.Tests.Unit.TestTypes;
 
 /// <summary>
 /// A web application on a <see cref="TestServer"/> with the subscription endpoints, the message types A to E of the
-/// scenario, and a manager substitute for <see cref="TenantKey.None"/> and one for the tenant <c>t2</c>. A request with
+/// scenario, and a manager substitute and a verifier substitute for <see cref="TenantKey.None"/> and for the tenant <c>t2</c>. A request with
 /// the header <see cref="UserHeader"/> has a signed-in user with that id, and the header <see cref="TenantHeader"/> gives
 /// the tenant of that user.
 /// </summary>
@@ -30,11 +31,14 @@ public sealed class EndpointHost : IAsyncDisposable
 
     private readonly WebApplication _app;
 
-    private EndpointHost(WebApplication app, ISubscriptionManager manager, ISubscriptionManager t2Manager)
+    private EndpointHost(
+        WebApplication app, ISubscriptionManager manager, ISubscriptionManager t2Manager, IRoutingVerifier verifier, IRoutingVerifier t2Verifier)
     {
         _app = app;
         Manager = manager;
         T2Manager = t2Manager;
+        Verifier = verifier;
+        T2Verifier = t2Verifier;
         Client = app.GetTestClient();
     }
 
@@ -43,6 +47,12 @@ public sealed class EndpointHost : IAsyncDisposable
 
     /// <summary>The manager of the tenant <see cref="T2"/>.</summary>
     public ISubscriptionManager T2Manager { get; }
+
+    /// <summary>The routing verifier of <see cref="TenantKey.None"/>.</summary>
+    public IRoutingVerifier Verifier { get; }
+
+    /// <summary>The routing verifier of the tenant <see cref="T2"/>.</summary>
+    public IRoutingVerifier T2Verifier { get; }
 
     public HttpClient Client { get; }
 
@@ -57,11 +67,15 @@ public sealed class EndpointHost : IAsyncDisposable
         var t2Manager = Substitute.For<ISubscriptionManager>();
         builder.Services.AddKeyedSingleton(TenantKey.None, manager);
         builder.Services.AddKeyedSingleton(TenantKey.For(T2), t2Manager);
+        var verifier = Substitute.For<IRoutingVerifier>();
+        var t2Verifier = Substitute.For<IRoutingVerifier>();
+        builder.Services.AddKeyedSingleton(TenantKey.None, verifier);
+        builder.Services.AddKeyedSingleton(TenantKey.For(T2), t2Verifier);
         var app = builder.Build();
         app.Use(SignInFromHeaders);
         app.MapMsgHatchSubscriptions(configure: configure);
         await app.StartAsync(Ct);
-        return new EndpointHost(app, manager, t2Manager);
+        return new EndpointHost(app, manager, t2Manager, verifier, t2Verifier);
     }
 
     /// <summary>The <c>/me</c> options of the tests: the user and the tenant of the claims that the headers give.</summary>

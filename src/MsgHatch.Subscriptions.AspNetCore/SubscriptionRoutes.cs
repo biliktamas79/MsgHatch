@@ -10,6 +10,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Subscriptions.Management;
+using MsgHatch.Subscriptions.Verification;
 
 namespace MsgHatch.Subscriptions.AspNetCore;
 
@@ -31,6 +32,32 @@ internal sealed class SubscriptionRoutes(
         group.MapPost(string.Empty, (Delegate)CreateAsync);
         group.MapPut("/{id:guid}", UpdateAsync);
         group.MapDelete("/{id:guid}", DeleteAsync);
+    }
+
+    /// <summary>Maps <c>POST /verification</c>, only on the group with no <c>/me</c> (D163).</summary>
+    public static void MapVerificationTo(RouteGroupBuilder group) => group.MapPost("/verification", (Delegate)VerifyAsync);
+
+    private static async Task<IResult> VerifyAsync(HttpContext context)
+    {
+        if (!context.Request.HasJsonContentType())
+        {
+            return UnsupportedMediaType();
+        }
+
+        var tenant = RequestValues.Optional(context.Request.Query["tenantId"], TenantId.Create);
+        var request = RequestValues.VerificationRequestOf(await ReadAsync(context, _json.RoutingVerificationBody));
+        var error = tenant.Error ?? request.Error;
+        if (error is not null)
+        {
+            return Problem(error);
+        }
+
+        var verifier = context.RequestServices.GetRequiredKeyedService<IRoutingVerifier>(TenantKey.For(tenant.Value));
+        var registry = context.RequestServices.GetRequiredService<IContentTypeRegistry>();
+        return Json(
+            await verifier.VerifyAsync(request.Value, context.RequestAborted),
+            report => RoutingVerificationResponse.From(report, registry),
+            _json.RoutingVerificationResponse);
     }
 
     private Task<IResult> GetChannelsAsync(HttpContext context) =>
@@ -74,7 +101,7 @@ internal sealed class SubscriptionRoutes(
                 return UnsupportedMediaType();
             }
 
-            var draft = caller.DraftOf(await ReadRequestAsync(context));
+            var draft = caller.DraftOf(await ReadAsync(context, _json.SubscriptionRequest));
             if (draft.IsError)
             {
                 return Problem(draft.Error);
@@ -99,7 +126,7 @@ internal sealed class SubscriptionRoutes(
                 return UnsupportedMediaType();
             }
 
-            var request = await ReadRequestAsync(context);
+            var request = await ReadAsync(context, _json.SubscriptionRequest);
             var draft = caller.DraftOf(request);
             if (draft.IsError)
             {
@@ -144,11 +171,12 @@ internal sealed class SubscriptionRoutes(
     private static ISubscriptionManager ManagerOf(HttpContext context, TenantId? tenant) =>
         context.RequestServices.GetRequiredKeyedService<ISubscriptionManager>(TenantKey.For(tenant));
 
-    private static async Task<ErrorOr<SubscriptionRequest>> ReadRequestAsync(HttpContext context)
+    private static async Task<ErrorOr<T>> ReadAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo)
+        where T : class
     {
         try
         {
-            return await context.Request.ReadFromJsonAsync(_json.SubscriptionRequest, context.RequestAborted) is { } request
+            return await context.Request.ReadFromJsonAsync(typeInfo, context.RequestAborted) is { } request
                 ? request
                 : new Error(Errors.ValidationFailed, "The body is the JSON null.");
         }

@@ -1,5 +1,6 @@
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions.Verification;
 
 namespace MsgHatch.Subscriptions.AspNetCore;
 
@@ -58,7 +59,31 @@ internal static class RequestValues
         };
     }
 
+    public static ErrorOr<RoutingVerificationRequest> VerificationRequestOf(ErrorOr<RoutingVerificationBody> read)
+    {
+        if (read.IsError)
+        {
+            return read.Error;
+        }
+
+        var body = read.Value;
+        if (body.TestUsers is null || body.Languages is null || body.Languages.Any(string.IsNullOrWhiteSpace))
+        {
+            return new Error(Errors.ValidationFailed, "A verification needs the test users and the languages, and no language is empty.");
+        }
+
+        var users = UsersOf(body.TestUsers);
+        var type = Optional(body.MessageType, MessageTypeOf);
+        return users.Error ?? type.Error ?? (ErrorOr<RoutingVerificationRequest>)new RoutingVerificationRequest(users.Value, body.Languages, type.Value);
+    }
+
     private static ErrorOr<SubscriptionRecipients?> NamedUsersOf(IReadOnlyList<string> users)
+    {
+        var ids = UsersOf(users);
+        return ids.IsError ? ids.Error : SubscriptionRecipients.ForUsers(ids.Value);
+    }
+
+    private static ErrorOr<UserId[]> UsersOf(IReadOnlyList<string> users)
     {
         var ids = new UserId[users.Count];
         for (var index = 0; index < users.Count; index++)
@@ -72,7 +97,7 @@ internal static class RequestValues
             ids[index] = id.Value;
         }
 
-        return SubscriptionRecipients.ForUsers(ids);
+        return ids;
     }
 
     private static ErrorOr<T> NameOf<T>(string name, Func<string, T> create)

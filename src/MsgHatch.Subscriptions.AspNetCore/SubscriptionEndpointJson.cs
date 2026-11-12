@@ -14,4 +14,6 @@ namespace MsgHatch.Subscriptions.AspNetCore;
 [JsonSerializable(typeof(IReadOnlyList<SubscriptionResponse>))]
 [JsonSerializable(typeof(IReadOnlyList<MessageTypeResponse>))]
 [JsonSerializable(typeof(IReadOnlyList<ChannelResponse>))]
+[JsonSerializable(typeof(RoutingVerificationBody))]
+[JsonSerializable(typeof(RoutingVerificationResponse))]
 internal sealed partial class SubscriptionEndpointJson : JsonSerializerContext;

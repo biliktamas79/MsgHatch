@@ -30,11 +30,12 @@ internal static class SettingsJson
         }
     }
 
-    public static JsonElement Write(IContentTypeRegistry registry, ChannelSettings settings)
+    /// <summary>Writes a value of a registered content type, for example channel settings or a route trace.</summary>
+    public static JsonElement Write(IContentTypeRegistry registry, object value)
     {
-        var type = settings.GetType();
+        var type = value.GetType();
         var newest = registry.Entries.Where(entry => entry.ClrType == type).MaxBy(static entry => entry.Version)
-            ?? throw new InvalidOperationException($"{type.Name} is not a registered settings type.");
-        return JsonSerializer.SerializeToElement(settings, newest.ContentJsonTypeInfo);
+            ?? throw new InvalidOperationException($"{type.Name} is not a registered content type.");
+        return JsonSerializer.SerializeToElement(value, newest.ContentJsonTypeInfo);
     }
 }

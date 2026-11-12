@@ -10,7 +10,8 @@ public static class SubscriptionEndpoints
 {
     /// <summary>
     /// Maps the minimal API endpoints of <see cref="ISubscriptionManager"/>: the channels, the message types, and the list,
-    /// read, create, update, and delete of the subscriptions. Each route takes the optional query parameter
+    /// read, create, update, and delete of the subscriptions. It also maps <c>POST {prefix}/verification</c> of
+    /// <see cref="Verification.IRoutingVerifier"/>, only with no <c>/me</c> (D163). Each route takes the optional query parameter
     /// <c>tenantId</c>, and uses the manager of <see cref="TenantKey.For"/> that tenant, or of <see cref="TenantKey.None"/>.
     /// With <see cref="SubscriptionEndpointOptions.CurrentUser"/>, the same endpoints also exist under <c>{prefix}/me</c>
     /// for the user-level subscriptions of the signed-in user (D154). The library adds no authorization, so the consumer
@@ -35,6 +36,7 @@ public static class SubscriptionEndpoints
 
         var group = routes.MapGroup(prefix);
         new SubscriptionRoutes(signedInUser: null, signedInTenant: null).MapTo(group);
+        SubscriptionRoutes.MapVerificationTo(group);
         if (options.CurrentUser is { } currentUser)
         {
             new SubscriptionRoutes(currentUser, options.CurrentTenant).MapTo(group.MapGroup("/me"));
