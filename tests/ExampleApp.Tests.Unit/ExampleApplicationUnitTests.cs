@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Tests.Unit.TestTypes;
 using static ExampleApp.Tests.Unit.TestTypes.ExampleHost;
 
 namespace ExampleApp.Tests.Unit;
@@ -16,6 +17,7 @@ namespace ExampleApp.Tests.Unit;
 /// The whole web app on a <c>TestServer</c>: its startup work (D157), its dispatch loops with no poll (D102), its
 /// startup validation, and the sign-in with a token in the form of <c>dotnet user-jwts</c> (D158).
 /// </summary>
+[Collection(SequentialTelemetry.Name)]
 public sealed class ExampleApplicationUnitTests : IDisposable
 {
     private const string _issuer = "dotnet-user-jwts";
