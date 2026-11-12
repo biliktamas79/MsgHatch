@@ -27,15 +27,15 @@ internal sealed class MessageRouterLoggingWrapper<TEvent>(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.RouteFailed(
-                logger, level, message.Type.Name, message.Delivery.Id, key.Tenant?.Value, message.Flags, elapsedMs,
+            logger.RouteFailed(
+                level, message.Type.Name, message.Delivery.Id, key.Tenant?.Value, message.Flags, elapsedMs,
                 result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var routeCount = result.Value.Count;
-            Log.RouteSucceeded(
-                logger, message.Type.Name, routeCount, message.Delivery.Id, key.Tenant?.Value, message.Flags, elapsedMs);
+            logger.RouteSucceeded(
+                message.Type.Name, routeCount, message.Delivery.Id, key.Tenant?.Value, message.Flags, elapsedMs);
         }
     }
 }

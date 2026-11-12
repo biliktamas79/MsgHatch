@@ -195,7 +195,7 @@ public sealed partial class NotificationServiceUnitTests
         var context = AContext(_tenant);
         await using var provider = _doubles.Build(_time);
         await ProcessAsync(provider, context);
-        var firstIds = _doubles.Stored.Select(static m => m.Delivery.Id).ToArray();
+        Guid[] firstIds = [.. _doubles.Stored.Select(static m => m.Delivery.Id)];
         _doubles.Stored.Clear();
 
         // Act
@@ -213,7 +213,7 @@ public sealed partial class NotificationServiceUnitTests
         var context = AContext(_tenant);
         await using var provider = _doubles.Build(_time);
         await ProcessAsync(provider, context);
-        var firstIds = _doubles.Stored.Select(static m => m.Delivery.Id).ToArray();
+        Guid[] firstIds = [.. _doubles.Stored.Select(static m => m.Delivery.Id)];
         _doubles.Stored.Clear();
 
         // Act

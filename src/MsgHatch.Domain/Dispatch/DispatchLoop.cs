@@ -33,7 +33,7 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
     {
         var queue = Channel.CreateBounded<T>(new BoundedChannelOptions(options.QueueCapacity) { SingleWriter = true });
         _queue = queue;
-        var workers = Enumerable.Range(0, options.MaxDegreeOfParallelism).Select(_ => WorkAsync(queue.Reader, ct)).ToArray();
+        Task[] workers = [.. Enumerable.Range(0, options.MaxDegreeOfParallelism).Select(_ => WorkAsync(queue.Reader, ct))];
         await ClaimUntilCancelledAsync(queue, ct);
         queue.Writer.TryComplete();
         await Task.WhenAll(workers);

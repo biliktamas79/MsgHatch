@@ -83,13 +83,15 @@ public sealed class InMemoryInboxStore : IInboxDispatchStore
 
     private ClaimResult<ReceivedMessage> Claim(int maxCount, DateTime nowUtc, DateTime leaseUntilUtc)
     {
-        var due = _messages
-            .Select(static (message, position) => (message, position))
-            .Where(item => item.message.Delivery.Status == DeliveryStatus.Pending && item.message.Delivery.NextTryAtUtc <= nowUtc)
-            .OrderBy(static item => item.message.Delivery.NextTryAtUtc)
-            .Take(maxCount)
-            .Select(static item => item.position)
-            .ToArray();
+        int[] due =
+        [
+            .. _messages
+                .Select(static (message, position) => (message, position))
+                .Where(item => item.message.Delivery.Status == DeliveryStatus.Pending && item.message.Delivery.NextTryAtUtc <= nowUtc)
+                .OrderBy(static item => item.message.Delivery.NextTryAtUtc)
+                .Take(maxCount)
+                .Select(static item => item.position),
+        ];
         foreach (var position in due)
         {
             var message = _messages[position];

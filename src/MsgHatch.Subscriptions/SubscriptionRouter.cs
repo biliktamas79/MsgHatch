@@ -176,8 +176,8 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
     {
         foreach (var decision in optOuts)
         {
-            Log.OptOutApplied(
-                _logger, message.Delivery.Id, message.Type.Name, decision.Channel.Name, decision.OptOut.Id, decision.OptOut.Owner.Level,
+            _logger.OptOutApplied(
+                message.Delivery.Id, message.Type.Name, decision.Channel.Name, decision.OptOut.Id, decision.OptOut.Owner.Level,
                 message.Tenant?.Value, message.Flags);
         }
     }

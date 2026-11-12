@@ -25,13 +25,13 @@ internal sealed class SubscriptionStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.FindForDeliveryFailed(
-                logger, level, type.Name, companies.Count, users.Count, Tenant, elapsedMs,
+            logger.FindForDeliveryFailed(
+                level, type.Name, companies.Count, users.Count, Tenant, elapsedMs,
                 result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.FindForDeliverySucceeded(logger, result.Value.Count, type.Name, companies.Count, users.Count, Tenant, elapsedMs);
+            logger.FindForDeliverySucceeded(result.Value.Count, type.Name, companies.Count, users.Count, Tenant, elapsedMs);
         }
 
         return result;
@@ -46,13 +46,13 @@ internal sealed class SubscriptionStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.QueryFailed(
-                logger, level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+            logger.QueryFailed(
+                level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
                 result.Error.Message);
         }
         else
         {
-            Log.QuerySucceeded(logger, result.Value.Count, Tenant, elapsedMs);
+            logger.QuerySucceeded(result.Value.Count, Tenant, elapsedMs);
         }
 
         return result;
@@ -67,13 +67,13 @@ internal sealed class SubscriptionStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetFailed(
-                logger, level, id, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+            logger.GetFailed(
+                level, id, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
                 result.Error.Message);
         }
         else
         {
-            Log.GetSucceeded(logger, id, Tenant, result.Value is not null, elapsedMs);
+            logger.GetSucceeded(id, Tenant, result.Value is not null, elapsedMs);
         }
 
         return result;
@@ -87,13 +87,13 @@ internal sealed class SubscriptionStoreLoggingWrapper(
         var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
         if (error is null)
         {
-            Log.AddSucceeded(logger, subscription.Id, subscription.Type.Name, subscription.Owner.Level, Tenant, elapsedMs);
+            logger.AddSucceeded(subscription.Id, subscription.Type.Name, subscription.Owner.Level, Tenant, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.AddFailed(
-                logger, level, subscription.Id, subscription.Type.Name, subscription.Owner.Level, Tenant,
+            logger.AddFailed(
+                level, subscription.Id, subscription.Type.Name, subscription.Owner.Level, Tenant,
                 elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
 
@@ -108,13 +108,13 @@ internal sealed class SubscriptionStoreLoggingWrapper(
         var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
         if (error is null)
         {
-            Log.UpdateSucceeded(logger, subscription.Id, subscription.Revision, Tenant, elapsedMs);
+            logger.UpdateSucceeded(subscription.Id, subscription.Revision, Tenant, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.UpdateFailed(
-                logger, level, subscription.Id, expectedRevision, Tenant, elapsedMs, error.Type.Code,
+            logger.UpdateFailed(
+                level, subscription.Id, expectedRevision, Tenant, elapsedMs, error.Type.Code,
                 error.Type.Name, error.Message);
         }
 
@@ -129,13 +129,13 @@ internal sealed class SubscriptionStoreLoggingWrapper(
         var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
         if (error is null)
         {
-            Log.DeleteSucceeded(logger, id, Tenant, elapsedMs);
+            logger.DeleteSucceeded(id, Tenant, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.DeleteFailed(
-                logger, level, id, Tenant, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+            logger.DeleteFailed(
+                level, id, Tenant, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
 
         return error;

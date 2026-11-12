@@ -106,7 +106,7 @@ public sealed class AmazonSimpleEmailServiceClient(
     private Error AccountErrorOf(Exception exception)
     {
         var reason = exception.GetType().Name;
-        Log.AccountCannotSend(_logger, reason);
+        _logger.AccountCannotSend(reason);
         return SesError(Errors.Unavailable, exception);
     }
 

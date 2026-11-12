@@ -53,11 +53,11 @@ internal sealed class InboxDispatchStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.ClaimFailed(logger, level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.ClaimFailed(level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.ClaimSucceeded(logger, result.Value.Messages.Count, elapsedMs);
+            logger.ClaimSucceeded(result.Value.Messages.Count, elapsedMs);
         }
     }
 
@@ -65,14 +65,14 @@ internal sealed class InboxDispatchStoreLoggingWrapper(
     {
         if (error is null)
         {
-            Log.RecordSucceeded(
-                logger, operation, message.Delivery.Id, message.Type.Name, message.Tenant?.Value, message.Flags, elapsedMs);
+            logger.RecordSucceeded(
+                operation, message.Delivery.Id, message.Type.Name, message.Tenant?.Value, message.Flags, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.RecordFailed(
-                logger, level, operation, message.Delivery.Id, message.Type.Name, message.Tenant?.Value, message.Flags,
+            logger.RecordFailed(
+                level, operation, message.Delivery.Id, message.Type.Name, message.Tenant?.Value, message.Flags,
                 elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
@@ -82,11 +82,11 @@ internal sealed class InboxDispatchStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.DeleteTestDataFailed(logger, level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.DeleteTestDataFailed(level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.DeleteTestDataSucceeded(logger, result.Value, elapsedMs);
+            logger.DeleteTestDataSucceeded(result.Value, elapsedMs);
         }
     }
 }

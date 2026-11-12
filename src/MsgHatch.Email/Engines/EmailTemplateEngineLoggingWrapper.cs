@@ -28,13 +28,13 @@ internal sealed class EmailTemplateEngineLoggingWrapper<TPayload>(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.PrepareFailed(
-                logger, level, request.Type.Name, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
+            logger.PrepareFailed(
+                level, request.Type.Name, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
                 result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.PrepareSucceeded(logger, request.Type.Name, key.Tenant?.Value, elapsedMs);
+            logger.PrepareSucceeded(request.Type.Name, key.Tenant?.Value, elapsedMs);
         }
     }
 }

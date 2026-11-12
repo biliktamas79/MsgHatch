@@ -93,8 +93,8 @@ internal sealed class OutboxChannelWork(
     }
 
     private void LogException(OutgoingMessage message, Exception exception) =>
-        Log.OutgoingMessageFailed(
-            logger, message.Delivery.Id, message.Channel.Name, message.Tenant?.Value, message.Flags, Errors.Exception.Code,
+        logger.OutgoingMessageFailed(
+            message.Delivery.Id, message.Channel.Name, message.Tenant?.Value, message.Flags, Errors.Exception.Code,
             Errors.Exception.Name, exception);
 
     private async ValueTask CheckWhenDueAsync(ChannelDown down, CancellationToken ct)
@@ -118,7 +118,7 @@ internal sealed class OutboxChannelWork(
         var up = await store.SetChannelUpAsync(transport.Channel, ChannelDownReason.Errors, ct);
         if (up is { IsSuccess: true, Value: true })
         {
-            Log.ChannelUp(logger, transport.Channel.Name, (nowUtc - down.SinceUtc).TotalSeconds);
+            logger.ChannelUp(transport.Channel.Name, (nowUtc - down.SinceUtc).TotalSeconds);
         }
     }
 
@@ -290,7 +290,7 @@ internal sealed class OutboxChannelWork(
         _down = down;
         if (wrote.Value)
         {
-            Log.ChannelDown(logger, transport.Channel.Name, lastTry.ErrorCode, lastTry.ErrorName);
+            logger.ChannelDown(transport.Channel.Name, lastTry.ErrorCode, lastTry.ErrorName);
         }
     }
 

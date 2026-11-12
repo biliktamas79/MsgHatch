@@ -38,7 +38,7 @@ internal sealed class SubscriptionStoreCachingWrapper(
             await ReadAsync(type, SubscriptionOwner.ForUser(user), found, missing, ct);
         }
 
-        Log.FindForDeliveryCached(logger, 1 + companies.Count + users.Count - missing.Count, missing.Count, type.Name, key.Tenant?.Value);
+        logger.FindForDeliveryCached(1 + companies.Count + users.Count - missing.Count, missing.Count, type.Name, key.Tenant?.Value);
         return missing.Count == 0 ? found : await ReadMissingOwnersAsync(type, missing, found, ct);
     }
 
@@ -148,5 +148,5 @@ internal sealed class SubscriptionStoreCachingWrapper(
     }
 
     private void LogBackendFailure(string operation, Error error) =>
-        Log.BackendFailed(logger, operation, key.Tenant?.Value, error.Type.Code, error.Type.Name, error.Message);
+        logger.BackendFailed(operation, key.Tenant?.Value, error.Type.Code, error.Type.Name, error.Message);
 }

@@ -30,15 +30,15 @@ internal sealed class PayloadLoaderLoggingWrapper<TEvent, TPayload>(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.LoadFailed(
-                logger, level, message.Type.Name, routeCount, message.Delivery.Id, key.Tenant?.Value, message.Flags,
+            logger.LoadFailed(
+                level, message.Type.Name, routeCount, message.Delivery.Id, key.Tenant?.Value, message.Flags,
                 elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var payloadCount = result.Value.Count;
-            Log.LoadSucceeded(
-                logger, message.Type.Name, payloadCount, routeCount, message.Delivery.Id, key.Tenant?.Value, message.Flags,
+            logger.LoadSucceeded(
+                message.Type.Name, payloadCount, routeCount, message.Delivery.Id, key.Tenant?.Value, message.Flags,
                 elapsedMs);
         }
     }

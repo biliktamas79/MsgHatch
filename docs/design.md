@@ -1974,7 +1974,7 @@ The cache backends (phase 11):
 
 ### 4.16 Log events
 
-Each namespace has one `internal static partial class Log` with `[LoggerMessage]` methods. Structured property names are PascalCase, for example `{MessageType}`. Each area has its own event id range:
+Each namespace has one `internal static partial class Log` with `[LoggerMessage]` extension methods of `ILogger`, so a caller writes `logger.AddFailed(...)`. Structured property names are PascalCase, for example `{MessageType}`. Each area has its own event id range:
 
 | Area | Event ids |
 |---|---|
@@ -2578,6 +2578,7 @@ P:Microsoft.Extensions.Configuration.IConfiguration.Item(System.String);Use a ty
 - A naming rule for type parameters: the prefix `T`.
 - `dotnet_diagnostic.CA2007.severity = none`, because the library has no synchronization context to avoid.
 - `dotnet_diagnostic.RS0030.severity = error`, so that a banned API stops the build in each project, also where warnings are not errors.
+- `dotnet_diagnostic.IDE0305.severity = error`, so that a LINQ `ToArray()` or `ToList()` that a collection expression can replace stops the build.
 
 ### 5.3 Naming and code conventions
 
@@ -2596,6 +2597,8 @@ These conventions apply to all code:
 - A UTC time property or parameter ends with `Utc`. A point in time ends with `AtUtc`, for example `CreatedAtUtc` and `LastTryAtUtc`. A bound of a range or of a state ends with `FromUtc`, `ToUtc`, `UntilUtc`, `SinceUtc`, or `BeforeUtc`, for example `CreatedFromUtc`, `LeaseUntilUtc`, `SinceUtc`, and `finishedBeforeUtc`.
 - Error types are `static readonly ErrorType` fields of `Errors`, in the namespace `MsgHatch.Domain.Failures`.
 - Wrappers are `<Service>LoggingWrapper` and `<Service>CachingWrapper`.
+- A log method is a source-generated `[LoggerMessage]` extension method of `ILogger` in a static partial class, so a caller writes `logger.SendFailed(...)` and does not pass the logger.
+- A sequence becomes an array or a list through a collection expression, for example `[.. items.Select(...)]`, not through a LINQ `ToArray()` or `ToList()`. The `ToArray()` of a span, a memory, a list, or a stream is not LINQ, and stays.
 - Options classes end with `Options` (D49). Each setting is a property of an options class, with data validation attributes, a source-generated validator, and a configuration section (D63 to D65). No code reads an `IConfiguration` value through an indexer.
 - The public API has XML documentation. Other comments are only for facts about an external system that the code cannot express, for example an SDK limit. Intent goes into small functions with clear names. A `ponytail:` comment marks a deliberate limit and its upgrade path.
 - All text in the code is English.

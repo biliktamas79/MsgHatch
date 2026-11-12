@@ -11,11 +11,11 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 1134, Level = LogLevel.Debug,
         Message = "Subscription cache had {HitCount} hits and {MissCount} misses of the owners of {MessageType} of tenant {Tenant}")]
-    public static partial void FindForDeliveryCached(ILogger logger, int hitCount, int missCount, string messageType, string? tenant);
+    public static partial void FindForDeliveryCached(this ILogger logger, int hitCount, int missCount, string messageType, string? tenant);
 
     [LoggerMessage(
         EventId = 1135, Level = LogLevel.Warning,
         Message = "Subscription cache backend {Operation} of tenant {Tenant} failed: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void BackendFailed(
-        ILogger logger, string operation, string? tenant, int errorCode, string errorName, string? errorMessage);
+        this ILogger logger, string operation, string? tenant, int errorCode, string errorName, string? errorMessage);
 }

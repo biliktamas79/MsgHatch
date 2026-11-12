@@ -91,6 +91,8 @@ dotnet test tests/MsgHatch.Data.EntityFrameworkCore.Tests.Integration
 - Build only what the current phase lists. Do not add code that a later phase removes or renames.
 - Make one commit for each concern, with the code and its tests. Commit and push only when the owner asks. At the end of a phase, push `main` and add the annotated tag `phase-N`.
 - Expected failures are `ErrorOr<T>` or `Error?` values. Do not add custom exception types.
+- Write each log method as a source-generated `[LoggerMessage]` extension method of `ILogger`, and call it as `logger.EventName(...)`.
+- Turn a sequence into an array or a list with a collection expression, for example `[.. items]`, not with a LINQ `ToArray()` or `ToList()`. `.editorconfig` sets IDE0305 to error.
 - Read the time only through `TimeProvider`. The analyzer rule `RS0030` blocks the direct clock APIs.
 - Read each setting only through a typed options class with data validation attributes and a source-generated validator. The analyzer rule `RS0030` blocks the `IConfiguration` indexer.
 - A logging wrapper never logs a channel address, a payload value, rendered text, or a domain event. A span attribute or a metric tag never holds them either, and the metrics have no tenant tag.

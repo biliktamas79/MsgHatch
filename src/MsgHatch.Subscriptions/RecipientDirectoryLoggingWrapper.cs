@@ -24,13 +24,13 @@ internal sealed class RecipientDirectoryLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetUsersFailed(
-                logger, level, users.Count, Tenant, elapsedMs, result.Error.Type.Code,
+            logger.GetUsersFailed(
+                level, users.Count, Tenant, elapsedMs, result.Error.Type.Code,
                 result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.GetUsersSucceeded(logger, result.Value.Count, users.Count, Tenant, elapsedMs);
+            logger.GetUsersSucceeded(result.Value.Count, users.Count, Tenant, elapsedMs);
         }
 
         return result;
@@ -45,13 +45,13 @@ internal sealed class RecipientDirectoryLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetCompanyUsersFailed(
-                logger, level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+            logger.GetCompanyUsersFailed(
+                level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
                 result.Error.Message);
         }
         else
         {
-            Log.GetCompanyUsersSucceeded(logger, result.Value.Count, Tenant, elapsedMs);
+            logger.GetCompanyUsersSucceeded(result.Value.Count, Tenant, elapsedMs);
         }
 
         return result;
@@ -66,13 +66,13 @@ internal sealed class RecipientDirectoryLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetCompanyFailed(
-                logger, level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+            logger.GetCompanyFailed(
+                level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
                 result.Error.Message);
         }
         else
         {
-            Log.GetCompanySucceeded(logger, Tenant, result.Value is not null, elapsedMs);
+            logger.GetCompanySucceeded(Tenant, result.Value is not null, elapsedMs);
         }
 
         return result;

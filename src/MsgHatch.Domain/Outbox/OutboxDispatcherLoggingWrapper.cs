@@ -14,9 +14,9 @@ internal sealed class OutboxDispatcherLoggingWrapper(
 {
     public async ValueTask RunAsync(CancellationToken ct)
     {
-        Log.DispatcherStarted(logger);
+        logger.DispatcherStarted();
         await inner.RunAsync(ct);
-        Log.DispatcherStopped(logger);
+        logger.DispatcherStopped();
     }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
@@ -33,12 +33,12 @@ internal sealed class OutboxDispatcherLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.DispatchPendingFailed(logger, level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.DispatchPendingFailed(level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var summary = result.Value;
-            Log.DispatchPendingSucceeded(logger, summary.Claimed, summary.Succeeded, summary.Retried, summary.Failed, elapsedMs);
+            logger.DispatchPendingSucceeded(summary.Claimed, summary.Succeeded, summary.Retried, summary.Failed, elapsedMs);
         }
     }
 }

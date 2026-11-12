@@ -37,14 +37,14 @@ internal sealed class TransportLoggingWrapper(ITransport inner, ILogger<Transpor
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.SendFailed(
-                logger, level, message.Delivery.Id, message.Type.Name, message.Channel.Name, message.Tenant?.Value,
+            logger.SendFailed(
+                level, message.Delivery.Id, message.Type.Name, message.Channel.Name, message.Tenant?.Value,
                 message.Flags, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.SendSucceeded(
-                logger, message.Delivery.Id, message.Type.Name, message.Channel.Name, message.Tenant?.Value, message.Flags,
+            logger.SendSucceeded(
+                message.Delivery.Id, message.Type.Name, message.Channel.Name, message.Tenant?.Value, message.Flags,
                 elapsedMs);
         }
     }
@@ -53,12 +53,12 @@ internal sealed class TransportLoggingWrapper(ITransport inner, ILogger<Transpor
     {
         if (error is null)
         {
-            Log.CheckHealthSucceeded(logger, Channel.Name, elapsedMs);
+            logger.CheckHealthSucceeded(Channel.Name, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.CheckHealthFailed(logger, level, Channel.Name, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+            logger.CheckHealthFailed(level, Channel.Name, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
 }

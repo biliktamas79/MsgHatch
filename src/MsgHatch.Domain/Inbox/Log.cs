@@ -10,66 +10,66 @@ internal static partial class Log
         EventId = 1200, Level = LogLevel.Debug,
         Message = "Inbox AddAsync stored message {MessageId} of {MessageType} of tenant {Tenant} with flags {MessageFlags} in {ElapsedMs} ms")]
     public static partial void AddSucceeded(
-        ILogger logger, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags, double elapsedMs);
+        this ILogger logger, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags, double elapsedMs);
 
     [LoggerMessage(
         EventId = 1201,
         Message = "Inbox AddAsync of message {MessageId} of {MessageType} of tenant {Tenant} with flags {MessageFlags} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void AddFailed(
-        ILogger logger, LogLevel level, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags,
+        this ILogger logger, LogLevel level, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags,
         double elapsedMs, int errorCode, string errorName, string? errorMessage);
 
     [LoggerMessage(
         EventId = 1202, Level = LogLevel.Debug,
         Message = "Inbox ClaimDueAsync claimed {Count} messages in {ElapsedMs} ms")]
-    public static partial void ClaimSucceeded(ILogger logger, int count, double elapsedMs);
+    public static partial void ClaimSucceeded(this ILogger logger, int count, double elapsedMs);
 
     [LoggerMessage(
         EventId = 1203,
         Message = "Inbox ClaimDueAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void ClaimFailed(
-        ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+        this ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 
     [LoggerMessage(
         EventId = 1204, Level = LogLevel.Debug,
         Message = "Inbox {Operation} recorded message {MessageId} of {MessageType} of tenant {Tenant} with flags {MessageFlags} in {ElapsedMs} ms")]
     public static partial void RecordSucceeded(
-        ILogger logger, string operation, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags,
+        this ILogger logger, string operation, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags,
         double elapsedMs);
 
     [LoggerMessage(
         EventId = 1205,
         Message = "Inbox {Operation} of message {MessageId} of {MessageType} of tenant {Tenant} with flags {MessageFlags} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void RecordFailed(
-        ILogger logger, LogLevel level, string operation, Guid messageId, string messageType, string? tenant,
+        this ILogger logger, LogLevel level, string operation, Guid messageId, string messageType, string? tenant,
         MessageFlags messageFlags, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 
     [LoggerMessage(
         EventId = 1206, Level = LogLevel.Debug,
         Message = "Inbox DeleteTestDataAsync deleted {Count} messages in {ElapsedMs} ms")]
-    public static partial void DeleteTestDataSucceeded(ILogger logger, int count, double elapsedMs);
+    public static partial void DeleteTestDataSucceeded(this ILogger logger, int count, double elapsedMs);
 
     [LoggerMessage(
         EventId = 1207,
         Message = "Inbox DeleteTestDataAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void DeleteTestDataFailed(
-        ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+        this ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 
     [LoggerMessage(EventId = 1208, Level = LogLevel.Information, Message = "Inbox processor started its loop")]
-    public static partial void ProcessorStarted(ILogger logger);
+    public static partial void ProcessorStarted(this ILogger logger);
 
     [LoggerMessage(EventId = 1209, Level = LogLevel.Information, Message = "Inbox processor stopped its loop")]
-    public static partial void ProcessorStopped(ILogger logger);
+    public static partial void ProcessorStopped(this ILogger logger);
 
     [LoggerMessage(
         EventId = 1210, Level = LogLevel.Debug,
         Message = "Inbox ProcessPendingAsync claimed {Claimed} messages: {Succeeded} succeeded, {Retried} retried, and {Failed} failed in {ElapsedMs} ms")]
     public static partial void ProcessPendingSucceeded(
-        ILogger logger, int claimed, int succeeded, int retried, int failed, double elapsedMs);
+        this ILogger logger, int claimed, int succeeded, int retried, int failed, double elapsedMs);
 
     [LoggerMessage(
         EventId = 1211,
         Message = "Inbox ProcessPendingAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void ProcessPendingFailed(
-        ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+        this ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 }

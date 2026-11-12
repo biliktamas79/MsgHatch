@@ -19,7 +19,7 @@ public sealed class ExceptionClassifiersUnitTests
     public void Classify_ClassifiersInTheirOrder_GivesTheFirstErrorTypeThatIsNotNull(string row, ErrorType?[] results, int? expectedCode)
     {
         // Arrange
-        var classifiers = results.Select(AClassifier).ToArray();
+        IExceptionClassifier<TestClient>[] classifiers = [.. results.Select(AClassifier)];
 
         // Act
         var type = classifiers.Classify(new IOException());

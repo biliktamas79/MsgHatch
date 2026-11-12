@@ -24,13 +24,13 @@ internal sealed class OutboxStoreLoggingWrapper(
         var flags = messages.Count > 0 ? messages[0].Flags : MessageFlags.None;
         if (error is null)
         {
-            Log.AddSucceeded(logger, messages.Count, key.Tenant?.Value, flags, elapsedMs);
+            logger.AddSucceeded(messages.Count, key.Tenant?.Value, flags, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.AddFailed(
-                logger, level, messages.Count, key.Tenant?.Value, flags, elapsedMs,
+            logger.AddFailed(
+                level, messages.Count, key.Tenant?.Value, flags, elapsedMs,
                 error.Type.Code, error.Type.Name, error.Message);
         }
     }

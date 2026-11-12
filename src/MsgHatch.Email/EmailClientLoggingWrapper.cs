@@ -35,12 +35,12 @@ internal sealed class EmailClientLoggingWrapper(IEmailClient inner, ILogger<Emai
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.SendFailed(
-                logger, level, messageId, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.SendFailed(
+                level, messageId, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.SendSucceeded(logger, messageId, elapsedMs);
+            logger.SendSucceeded(messageId, elapsedMs);
         }
     }
 
@@ -48,12 +48,12 @@ internal sealed class EmailClientLoggingWrapper(IEmailClient inner, ILogger<Emai
     {
         if (error is null)
         {
-            Log.CheckHealthSucceeded(logger, elapsedMs);
+            logger.CheckHealthSucceeded(elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.CheckHealthFailed(logger, level, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+            logger.CheckHealthFailed(level, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
 }

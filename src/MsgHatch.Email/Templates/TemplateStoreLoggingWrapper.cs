@@ -27,14 +27,14 @@ internal sealed class TemplateStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.FindFailed(
-                logger, level, lookup.Type.Name, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
+            logger.FindFailed(
+                level, lookup.Type.Name, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
                 result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var partCount = result.Value?.Parts.Count ?? 0;
-            Log.FindSucceeded(logger, lookup.Type.Name, partCount, key.Tenant?.Value, elapsedMs);
+            logger.FindSucceeded(lookup.Type.Name, partCount, key.Tenant?.Value, elapsedMs);
         }
     }
 }

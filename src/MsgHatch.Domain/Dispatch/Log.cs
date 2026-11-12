@@ -10,23 +10,23 @@ internal static partial class Log
         EventId = 1400, Level = LogLevel.Error,
         Message = "Dispatch of outgoing message {OutgoingMessageId} on {Channel} of tenant {Tenant} with flags {MessageFlags} failed with an exception: {ErrorCode} {ErrorName}")]
     public static partial void OutgoingMessageFailed(
-        ILogger logger, Guid outgoingMessageId, string channel, string? tenant, MessageFlags messageFlags, int errorCode,
+        this ILogger logger, Guid outgoingMessageId, string channel, string? tenant, MessageFlags messageFlags, int errorCode,
         string errorName, Exception exception);
 
     [LoggerMessage(
         EventId = 1401, Level = LogLevel.Error,
         Message = "Processing of received message {MessageId} of {MessageType} of tenant {Tenant} with flags {MessageFlags} failed with an exception: {ErrorCode} {ErrorName}")]
     public static partial void ReceivedMessageFailed(
-        ILogger logger, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags, int errorCode,
+        this ILogger logger, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags, int errorCode,
         string errorName, Exception exception);
 
     [LoggerMessage(
         EventId = 1402, Level = LogLevel.Error,
         Message = "Channel {Channel} is down for all its publishers after transient errors in a row: {ErrorCode} {ErrorName}")]
-    public static partial void ChannelDown(ILogger logger, string channel, int? errorCode, string? errorName);
+    public static partial void ChannelDown(this ILogger logger, string channel, int? errorCode, string? errorName);
 
     [LoggerMessage(
         EventId = 1403, Level = LogLevel.Information,
         Message = "Channel {Channel} is up again after a health check, after {DownSeconds} seconds down")]
-    public static partial void ChannelUp(ILogger logger, string channel, double downSeconds);
+    public static partial void ChannelUp(this ILogger logger, string channel, double downSeconds);
 }

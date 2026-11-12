@@ -82,13 +82,13 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.ClaimFailed(
-                logger, level, channel.Name, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.ClaimFailed(
+                level, channel.Name, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var (count, down) = (result.Value.Messages.Count, result.Value.Down?.Reason);
-            Log.ClaimSucceeded(logger, count, channel.Name, down, elapsedMs);
+            logger.ClaimSucceeded(count, channel.Name, down, elapsedMs);
         }
     }
 
@@ -96,15 +96,15 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
     {
         if (error is null)
         {
-            Log.RecordTrySucceeded(
-                logger, publishTry.TryNumber, publishTry.Outcome, message.Delivery.Id, message.Channel.Name,
+            logger.RecordTrySucceeded(
+                publishTry.TryNumber, publishTry.Outcome, message.Delivery.Id, message.Channel.Name,
                 message.Tenant?.Value, message.Flags, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.RecordTryFailed(
-                logger, level, publishTry.TryNumber, publishTry.Outcome, message.Delivery.Id, message.Channel.Name,
+            logger.RecordTryFailed(
+                level, publishTry.TryNumber, publishTry.Outcome, message.Delivery.Id, message.Channel.Name,
                 message.Tenant?.Value, message.Flags, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
@@ -114,13 +114,13 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.DeleteTestDataFailed(
-                logger, level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+            logger.DeleteTestDataFailed(
+                level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
                 result.Error.Message);
         }
         else
         {
-            Log.DeleteTestDataSucceeded(logger, result.Value, elapsedMs);
+            logger.DeleteTestDataSucceeded(result.Value, elapsedMs);
         }
     }
 
@@ -129,12 +129,12 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetDownChannelsFailed(
-                logger, level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.GetDownChannelsFailed(
+                level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.GetDownChannelsSucceeded(logger, result.Value.Count, elapsedMs);
+            logger.GetDownChannelsSucceeded(result.Value.Count, elapsedMs);
         }
     }
 
@@ -143,13 +143,13 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.ChannelStateChangeFailed(
-                logger, level, operation, channel.Name, reason, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+            logger.ChannelStateChangeFailed(
+                level, operation, channel.Name, reason, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
                 result.Error.Message);
         }
         else
         {
-            Log.ChannelStateChangeSucceeded(logger, operation, channel.Name, reason, result.Value, elapsedMs);
+            logger.ChannelStateChangeSucceeded(operation, channel.Name, reason, result.Value, elapsedMs);
         }
     }
 }

@@ -14,9 +14,9 @@ internal sealed class InboxProcessorLoggingWrapper(
 {
     public async ValueTask RunAsync(CancellationToken ct)
     {
-        Log.ProcessorStarted(logger);
+        logger.ProcessorStarted();
         await inner.RunAsync(ct);
-        Log.ProcessorStopped(logger);
+        logger.ProcessorStopped();
     }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
@@ -33,12 +33,12 @@ internal sealed class InboxProcessorLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.ProcessPendingFailed(logger, level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.ProcessPendingFailed(level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var summary = result.Value;
-            Log.ProcessPendingSucceeded(logger, summary.Claimed, summary.Succeeded, summary.Retried, summary.Failed, elapsedMs);
+            logger.ProcessPendingSucceeded(summary.Claimed, summary.Succeeded, summary.Retried, summary.Failed, elapsedMs);
         }
     }
 }

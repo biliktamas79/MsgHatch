@@ -23,13 +23,13 @@ internal sealed class InboxStoreLoggingWrapper(
     {
         if (error is null)
         {
-            Log.AddSucceeded(logger, message.Delivery.Id, message.Type.Name, key.Tenant?.Value, message.Flags, elapsedMs);
+            logger.AddSucceeded(message.Delivery.Id, message.Type.Name, key.Tenant?.Value, message.Flags, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.AddFailed(
-                logger, level, message.Delivery.Id, message.Type.Name, key.Tenant?.Value, message.Flags, elapsedMs,
+            logger.AddFailed(
+                level, message.Delivery.Id, message.Type.Name, key.Tenant?.Value, message.Flags, elapsedMs,
                 error.Type.Code, error.Type.Name, error.Message);
         }
     }

@@ -41,7 +41,7 @@ public sealed class PlaceholderPayloadGenerator : IIncrementalGenerator
     }
 
     private static string HintNameOf(INamedTypeSymbol type) =>
-        new string(type.ToDisplayString().Select(static c => char.IsLetterOrDigit(c) || c == '.' ? c : '_').ToArray()) + ".PlaceholderWriter.g.cs";
+        new string([.. type.ToDisplayString().Select(static c => char.IsLetterOrDigit(c) || c == '.' ? c : '_')]) + ".PlaceholderWriter.g.cs";
 
     private sealed record PayloadOutput(string HintName, string? Source, Location? NotPartialLocation, string TypeName)
     {

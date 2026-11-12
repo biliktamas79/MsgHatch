@@ -95,7 +95,8 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
         {
             var deleted = _messages.RemoveAll(static message => message.Flags.HasFlag(MessageFlags.Test));
             _ids.IntersectWith(_messages.Select(static message => message.Delivery.Id));
-            foreach (var id in _tries.Keys.Where(id => !_ids.Contains(id)).ToArray())
+            Guid[] orphanTries = [.. _tries.Keys.Where(id => !_ids.Contains(id))];
+            foreach (var id in orphanTries)
             {
                 _tries.Remove(id);
             }
@@ -164,13 +165,15 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
 
     private ClaimResult<OutgoingMessage> Claim(ChannelId channel, int maxCount, DateTime nowUtc, DateTime leaseUntilUtc)
     {
-        var due = _messages
-            .Select(static (message, position) => (message, position))
-            .Where(item => IsPendingOn(item.message, channel) && item.message.Delivery.NextTryAtUtc <= nowUtc)
-            .OrderBy(static item => item.message.Delivery.NextTryAtUtc)
-            .Take(maxCount)
-            .Select(static item => item.position)
-            .ToArray();
+        int[] due =
+        [
+            .. _messages
+                .Select(static (message, position) => (message, position))
+                .Where(item => IsPendingOn(item.message, channel) && item.message.Delivery.NextTryAtUtc <= nowUtc)
+                .OrderBy(static item => item.message.Delivery.NextTryAtUtc)
+                .Take(maxCount)
+                .Select(static item => item.position),
+        ];
         foreach (var position in due)
         {
             var message = _messages[position];

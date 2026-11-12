@@ -208,7 +208,7 @@ internal sealed class NotificationPipeline(
     {
         var outcomes = new ErrorOr<OutgoingMessage>[routes.Count];
         var checkedRoutes = Check(registration, routes, outcomes);
-        foreach (var group in RouteGrouping.ByChannel(checkedRoutes.Select(static route => route.Route).ToArray()))
+        foreach (var group in RouteGrouping.ByChannel((MessageRoute[])[.. checkedRoutes.Select(static route => route.Route)]))
         {
             var channel = checkedRoutes[group.Positions.Span[0]].Channel;
             var messages = await channel.ComposeAsync(services, key, received, group.Routes, defaults, ct);
@@ -294,7 +294,7 @@ internal sealed class NotificationPipeline(
             var error = await signal.NotifyAsync(topic, ct);
             if (error is not null)
             {
-                Log.NotifyFailed(Loggers.For<NotificationPipeline>(services), topic.Name, error.Type.Code, error.Type.Name, error.Message);
+                Loggers.For<NotificationPipeline>(services).NotifyFailed(topic.Name, error.Type.Code, error.Type.Name, error.Message);
             }
         }
     }

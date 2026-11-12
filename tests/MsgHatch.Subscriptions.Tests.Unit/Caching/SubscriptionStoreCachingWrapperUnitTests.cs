@@ -471,7 +471,7 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     private static (string Key, string Names, string[] Tags, TimeSpan Expiration)[] SetCalls(ISubscriptionCacheBackend backend) =>
     [
         .. CallsOf(backend, nameof(ISubscriptionCacheBackend.SetAsync)).Select(static arguments => (
-            (string)arguments[0]!, Names((IReadOnlyList<Subscription>)arguments[1]!), ((IReadOnlyList<string>)arguments[2]!).ToArray(),
+            (string)arguments[0]!, Names((IReadOnlyList<Subscription>)arguments[1]!), (string[])[.. (IReadOnlyList<string>)arguments[2]!],
             (TimeSpan)arguments[3]!)),
     ];
 

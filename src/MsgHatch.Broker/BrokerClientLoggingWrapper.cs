@@ -40,12 +40,12 @@ internal sealed class BrokerClientLoggingWrapper(IBrokerClient inner, ILogger<Br
         if (result.IsError)
         {
             var level = LevelOf(result.Error);
-            Log.PublishFailed(
-                logger, level, messageId, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.PublishFailed(
+                level, messageId, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.PublishSucceeded(logger, messageId, elapsedMs);
+            logger.PublishSucceeded(messageId, elapsedMs);
         }
     }
 
@@ -53,12 +53,12 @@ internal sealed class BrokerClientLoggingWrapper(IBrokerClient inner, ILogger<Br
     {
         if (error is null)
         {
-            Log.CheckHealthSucceeded(logger, elapsedMs);
+            logger.CheckHealthSucceeded(elapsedMs);
         }
         else
         {
             var level = LevelOf(error);
-            Log.CheckHealthFailed(logger, level, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+            logger.CheckHealthFailed(level, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
 }

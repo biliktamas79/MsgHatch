@@ -48,8 +48,8 @@ internal sealed class InboxWork(
         }
         catch (Exception exception)
         {
-            Log.ReceivedMessageFailed(
-                logger, message.Delivery.Id, message.Type.Name, message.Tenant?.Value, message.Flags, Errors.Exception.Code,
+            logger.ReceivedMessageFailed(
+                message.Delivery.Id, message.Type.Name, message.Tenant?.Value, message.Flags, Errors.Exception.Code,
                 Errors.Exception.Name, exception);
             return ItemResult.None;
         }

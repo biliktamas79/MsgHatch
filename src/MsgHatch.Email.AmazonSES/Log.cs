@@ -8,5 +8,5 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 2100, Level = LogLevel.Critical,
         Message = "Amazon SES refuses each email of the account: {Reason}. An administrator must act.")]
-    public static partial void AccountCannotSend(ILogger logger, string reason);
+    public static partial void AccountCannotSend(this ILogger logger, string reason);
 }

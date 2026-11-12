@@ -8,5 +8,5 @@ internal static partial class Log
     [LoggerMessage(
         EventId = 3000, Level = LogLevel.Critical,
         Message = "Resend refuses each email of the API key: {Reason}. An administrator must act.")]
-    public static partial void ApiKeyCannotSend(ILogger logger, string reason);
+    public static partial void ApiKeyCannotSend(this ILogger logger, string reason);
 }

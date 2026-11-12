@@ -44,14 +44,14 @@ internal sealed class NotificationServiceLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.PreviewFailed(
-                logger, level, context.MessageId, eventType, context.Tenant?.Value, elapsedMs, result.Error.Type.Code,
+            logger.PreviewFailed(
+                level, context.MessageId, eventType, context.Tenant?.Value, elapsedMs, result.Error.Type.Code,
                 result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var routeCount = result.Value.Count;
-            Log.PreviewSucceeded(logger, context.MessageId, eventType, context.Tenant?.Value, routeCount, elapsedMs);
+            logger.PreviewSucceeded(context.MessageId, eventType, context.Tenant?.Value, routeCount, elapsedMs);
         }
     }
 
@@ -60,13 +60,13 @@ internal sealed class NotificationServiceLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.AcceptFailed(
-                logger, level, context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs,
+            logger.AcceptFailed(
+                level, context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs,
                 result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.AcceptSucceeded(logger, context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs);
+            logger.AcceptSucceeded(context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs);
         }
     }
 
@@ -75,15 +75,15 @@ internal sealed class NotificationServiceLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.ProcessFailed(
-                logger, level, context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs,
+            logger.ProcessFailed(
+                level, context.MessageId, eventType, context.Tenant?.Value, context.Flags, elapsedMs,
                 result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
             var (stored, failed) = (result.Value.Stored, result.Value.Failed);
-            Log.ProcessSucceeded(
-                logger, context.MessageId, eventType, context.Tenant?.Value, context.Flags, stored, failed, elapsedMs);
+            logger.ProcessSucceeded(
+                context.MessageId, eventType, context.Tenant?.Value, context.Flags, stored, failed, elapsedMs);
         }
     }
 }

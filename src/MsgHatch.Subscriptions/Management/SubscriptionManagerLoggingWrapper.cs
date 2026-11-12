@@ -25,11 +25,11 @@ internal sealed class SubscriptionManagerLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetChannelsFailed(logger, level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.GetChannelsFailed(level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.GetChannelsSucceeded(logger, result.Value.Count, Tenant, elapsedMs);
+            logger.GetChannelsSucceeded(result.Value.Count, Tenant, elapsedMs);
         }
 
         return result;
@@ -44,11 +44,11 @@ internal sealed class SubscriptionManagerLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetMessageTypesFailed(logger, level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.GetMessageTypesFailed(level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.GetMessageTypesSucceeded(logger, result.Value.Count, Tenant, elapsedMs);
+            logger.GetMessageTypesSucceeded(result.Value.Count, Tenant, elapsedMs);
         }
 
         return result;
@@ -63,11 +63,11 @@ internal sealed class SubscriptionManagerLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetSubscriptionsFailed(logger, level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.GetSubscriptionsFailed(level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.GetSubscriptionsSucceeded(logger, result.Value.Count, Tenant, elapsedMs);
+            logger.GetSubscriptionsSucceeded(result.Value.Count, Tenant, elapsedMs);
         }
 
         return result;
@@ -82,12 +82,12 @@ internal sealed class SubscriptionManagerLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.GetSubscriptionFailed(
-                logger, level, id, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.GetSubscriptionFailed(
+                level, id, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.GetSubscriptionSucceeded(logger, id, Tenant, elapsedMs);
+            logger.GetSubscriptionSucceeded(id, Tenant, elapsedMs);
         }
 
         return result;
@@ -102,13 +102,13 @@ internal sealed class SubscriptionManagerLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.CreateFailed(
-                logger, level, draft.Type.Name, draft.Owner.Level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+            logger.CreateFailed(
+                level, draft.Type.Name, draft.Owner.Level, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
                 result.Error.Message);
         }
         else
         {
-            Log.CreateSucceeded(logger, result.Value.Id, draft.Type.Name, draft.Owner.Level, Tenant, elapsedMs);
+            logger.CreateSucceeded(result.Value.Id, draft.Type.Name, draft.Owner.Level, Tenant, elapsedMs);
         }
 
         return result;
@@ -123,12 +123,12 @@ internal sealed class SubscriptionManagerLoggingWrapper(
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
-            Log.UpdateFailed(
-                logger, level, id, expectedRevision, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+            logger.UpdateFailed(
+                level, id, expectedRevision, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            Log.UpdateSucceeded(logger, id, result.Value.Revision, Tenant, elapsedMs);
+            logger.UpdateSucceeded(id, result.Value.Revision, Tenant, elapsedMs);
         }
 
         return result;
@@ -142,12 +142,12 @@ internal sealed class SubscriptionManagerLoggingWrapper(
         var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
         if (error is null)
         {
-            Log.DeleteSucceeded(logger, id, Tenant, elapsedMs);
+            logger.DeleteSucceeded(id, Tenant, elapsedMs);
         }
         else
         {
             var level = ErrorLogLevels.For(error);
-            Log.DeleteFailed(logger, level, id, Tenant, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+            logger.DeleteFailed(level, id, Tenant, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
 
         return error;

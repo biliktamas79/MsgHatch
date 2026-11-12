@@ -196,7 +196,7 @@ public sealed class FileSystemInboxStoreUnitTests()
 
     private async Task<Guid[]> AddInOrderAsync(int count)
     {
-        var messages = Enumerable.Range(0, count).Select(_ => AMessage(T1)).ToArray();
+        ReceivedMessage<TestEvent>[] messages = [.. Enumerable.Range(0, count).Select(_ => AMessage(T1))];
         foreach (var message in messages)
         {
             await AddAsync(message);

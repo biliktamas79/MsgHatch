@@ -148,7 +148,7 @@ public sealed class ResendEmailClient(
     private Error ApiKeyErrorOf(HttpStatusCode status, string? name)
     {
         var reason = name ?? ((int)status).ToString(CultureInfo.InvariantCulture);
-        Log.ApiKeyCannotSend(_logger, reason);
+        _logger.ApiKeyCannotSend(reason);
         return ResendError(Errors.Unavailable, status, name);
     }
 
