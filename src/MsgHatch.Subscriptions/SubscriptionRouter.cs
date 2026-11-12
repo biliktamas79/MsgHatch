@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -43,8 +44,18 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
 
     public async ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync(ReceivedMessage<TEvent> message, CancellationToken ct)
     {
-        var channels = MessageChannels.Of(_registry, message.Type);
-        var scope = _scope(message.Event);
+        var resolution = await ResolveAsync(
+            message.Event, message.Type, new MessageContext(message.Delivery.Id, message.Tenant, message.Flags), ct);
+        return resolution.IsError ? resolution.Error : ErrorOr<IReadOnlyList<MessageRoute>>.ForValue(resolution.Value.Deliveries);
+    }
+
+    /// <summary>The routing procedure with the opt-out decisions, which the routing verifier needs for its rows (section 4.18).</summary>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    internal async ValueTask<ErrorOr<SubscriptionResolution>> ResolveAsync(
+        TEvent domainEvent, MessageType type, MessageContext context, CancellationToken ct)
+    {
+        var channels = MessageChannels.Of(_registry, type);
+        var scope = _scope(domainEvent);
         var profiles = new LoadedProfiles();
         var error = await LoadScopeAsync(scope, channels, profiles, ct);
         if (error is not null)
@@ -53,7 +64,7 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
         }
 
         var companies = profiles.Companies(scope);
-        var subscriptions = await _store.FindForDeliveryAsync(message.Type, companies, profiles.ScopeUsers, ct);
+        var subscriptions = await _store.FindForDeliveryAsync(type, companies, profiles.ScopeUsers, ct);
         if (subscriptions.IsError)
         {
             return subscriptions.Error;
@@ -67,8 +78,8 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
 
         var resolution = SubscriptionResolver.Resolve(
             channels, scope, subscriptions.Value, profiles.Users, profiles.CompanyProfiles, _defaultLanguage);
-        LogOptOuts(message, resolution.OptOuts);
-        return ErrorOr<IReadOnlyList<MessageRoute>>.ForValue(resolution.Deliveries);
+        LogOptOuts(type, context, resolution.OptOuts);
+        return resolution;
     }
 
     private async ValueTask<Error?> LoadScopeAsync(
@@ -172,13 +183,13 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
         return [.. distinct];
     }
 
-    private void LogOptOuts(ReceivedMessage<TEvent> message, IReadOnlyList<OptOutDecision> optOuts)
+    private void LogOptOuts(MessageType type, MessageContext context, IReadOnlyList<OptOutDecision> optOuts)
     {
         foreach (var decision in optOuts)
         {
             _logger.OptOutApplied(
-                message.Delivery.Id, message.Type.Name, decision.Channel.Name, decision.OptOut.Id, decision.OptOut.Owner.Level,
-                message.Tenant?.Value, message.Flags);
+                context.MessageId, type.Name, decision.Channel.Name, decision.OptOut.Id, decision.OptOut.Owner.Level,
+                context.Tenant?.Value, context.Flags);
         }
     }
 

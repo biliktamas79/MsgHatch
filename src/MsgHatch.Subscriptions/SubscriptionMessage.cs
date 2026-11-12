@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions.Verification;
 
 namespace MsgHatch.Subscriptions;
 
@@ -18,6 +20,11 @@ internal sealed class SubscriptionMessage<TEvent> : ISubscriptionMessage
     public Type EventType => typeof(TEvent);
 
     public bool HasScope => Scope is not null;
+
+    public bool HasTestCases => TestCases.Count > 0;
+
+    public ValueTask<Error?> VerifyAsync(RoutingVerifier verifier, VerificationRun run, MessageType type, CancellationToken ct) =>
+        verifier.VerifyTestCasesAsync(this, type, run, ct);
 
     /// <summary>Gives the subscription data of the message type, and registers it at the first call.</summary>
     public static SubscriptionMessage<TEvent> Of(IServiceCollection services) =>

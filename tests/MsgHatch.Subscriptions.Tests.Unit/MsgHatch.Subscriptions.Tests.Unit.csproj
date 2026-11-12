@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="TemplateFiles\*" LogicalName="MsgHatch.Subscriptions.Tests.Unit.TemplateFiles.%(Filename)%(Extension)" WithCulture="false" />
+    <EmbeddedResource Include="TemplateFilesHungarianA\*" LogicalName="MsgHatch.Subscriptions.Tests.Unit.TemplateFilesHungarianA.%(Filename)%(Extension)" WithCulture="false" />
   </ItemGroup>
 
 </Project>

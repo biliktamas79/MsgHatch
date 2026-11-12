@@ -20,39 +20,52 @@ public static class SubscriptionHost
     public const string TemplatePrefix = "MsgHatch.Subscriptions.Tests.Unit.TemplateFiles";
 
     public static MsgHatchBuilder AddScenarioHost(
-        this IServiceCollection services, Func<TenantKey, ISubscriptionStore> store, Func<TenantKey, IRecipientDirectory> directory) =>
+        this IServiceCollection services,
+        Func<TenantKey, ISubscriptionStore> store,
+        Func<TenantKey, IRecipientDirectory> directory,
+        string testEventTypes = "ABCDE",
+        string templatePrefix = TemplatePrefix) =>
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .UseSubscriptions()
             .UseInMemoryStores()
             .UseSubscriptionStore((_, key) => store(key))
             .UseRecipientDirectory((_, key) => directory(key))
-            .UseEmbeddedTemplates(typeof(SubscriptionHost).Assembly, TemplatePrefix)
-            .AddScenarioMessages()
+            .UseEmbeddedTemplates(typeof(SubscriptionHost).Assembly, templatePrefix)
+            .AddScenarioMessages(testEventTypes)
             .AddGroupOnlyMessage();
 
-    public static MsgHatchBuilder AddScenarioMessages(this MsgHatchBuilder builder)
+    /// <summary>
+    /// Registers the message types A to E of the scenario. Each type of <paramref name="testEventTypes"/> gets the test case
+    /// <c>basic</c> with a user scope of the test user (section 5.8 of <c>docs/subscription-domain.md</c>).
+    /// </summary>
+    public static MsgHatchBuilder AddScenarioMessages(this MsgHatchBuilder builder, string testEventTypes = "ABCDE")
     {
         ArgumentNullException.ThrowIfNull(builder);
         var json = SubscriptionTestJson.Default;
         return builder
-            .AddMessage("A", 1, json.EventA, static m => m
+            .AddMessage("A", 1, json.EventA, m => m
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
+                .WithBasicTestEvent(testEventTypes, "A", static users => new EventA(users))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventA>>(static p => p.AsEmail("AEmail")))
-            .AddMessage("B", 1, json.EventB, static m => m
+            .AddMessage("B", 1, json.EventB, m => m
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
+                .WithBasicTestEvent(testEventTypes, "B", static users => new EventB(users))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventB>>(static p => p.AsEmail("BEmail")))
             .AddMessage("C", 1, json.EventC, m => m
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
+                .WithBasicTestEvent(testEventTypes, "C", static users => new EventC(users))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventC>>(static p => p.AsEmail("CEmail"))
                 .WithPayload<Notice, NoticeLoader<EventC>>(p => p.AsSignalR("CUpdate", 1, json.SignalREnvelopeNotice)))
             .AddMessage("D", 1, json.EventD, m => m
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
+                .WithBasicTestEvent(testEventTypes, "D", static users => new EventD(users))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventD>>(static p => p.AsEmail("DEmail"))
                 .WithPayload<Notice, NoticeLoader<EventD>>(p => p
                     .AsSignalR("DUpdate", 1, json.SignalREnvelopeNotice)
                     .AsBroker("DEvent", 1, json.BrokerEnvelopeNotice)))
             .AddMessage("E", 1, json.EventE, m => m
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
+                .WithBasicTestEvent(testEventTypes, "E", static users => new EventE(users))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventE>>(static p => p.AsEmail("EEmail"))
                 .WithPayload<Notice, NoticeLoader<EventE>>(p => p.AsBroker("EEvent", 1, json.BrokerEnvelopeNotice)));
     }
@@ -66,6 +79,10 @@ public static class SubscriptionHost
                 .WithScope(static e => ScenarioEvents.ScopeOf(e.Users, e.Company))
                 .WithPayload<Notice, NoticeLoader<EventG>>(p => p.AsSignalR("GUpdate", 1, json.SignalREnvelopeNotice)));
     }
+
+    private static MessageBuilder<TEvent> WithBasicTestEvent<TEvent>(
+        this MessageBuilder<TEvent> message, string testEventTypes, string type, Func<string[], TEvent> create) =>
+        testEventTypes.Contains(type, StringComparison.Ordinal) ? message.WithTestEvent("basic", user => create([user.Value])) : message;
 
     public static async Task<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
         this IServiceProvider provider, TEvent domainEvent, TenantId? tenant = null, Guid? messageId = null)

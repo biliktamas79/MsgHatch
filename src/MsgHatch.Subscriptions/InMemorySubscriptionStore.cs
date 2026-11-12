@@ -12,6 +12,14 @@ public sealed class InMemorySubscriptionStore : ISubscriptionStore
     private readonly Lock _lock = new();
     private readonly List<Subscription> _subscriptions = [];
 
+    /// <summary>Makes an empty store.</summary>
+    public InMemorySubscriptionStore()
+    {
+    }
+
+    /// <summary>Makes a store with the subscriptions of one query of a routing verification, with no conflict check (section 4.18).</summary>
+    internal InMemorySubscriptionStore(IReadOnlyList<Subscription> subscriptions) => _subscriptions.AddRange(subscriptions);
+
     /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<Subscription>>> FindForDeliveryAsync(
         MessageType type, IReadOnlyList<CompanyId> companies, IReadOnlyList<UserId> users, CancellationToken ct)

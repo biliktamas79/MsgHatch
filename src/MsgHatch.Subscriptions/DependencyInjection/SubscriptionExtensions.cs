@@ -6,6 +6,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Caching;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Resolution;
+using MsgHatch.Subscriptions.Verification;
 
 namespace MsgHatch.Subscriptions.DependencyInjection;
 
@@ -15,7 +16,7 @@ public static class SubscriptionExtensions
     /// <summary>
     /// Selects the subscription router as the router of each message type with no router of its own (D99). Registers
     /// <see cref="ResolutionTrace"/> as the trace type <c>Trace:Subscription</c> (D98), and <see cref="ISubscriptionManager"/>
-    /// as a scoped tenant service with its logging wrapper (D53). A message type with the
+    /// and <see cref="IRoutingVerifier"/> as scoped tenant services, each with its logging wrapper (D53, D85). A message type with the
     /// subscription router needs a scope function from <see cref="WithScope"/>. With the role
     /// <see cref="MsgHatchRoles.Consumer"/>, the host needs a subscription store and a recipient directory.
     /// </summary>
@@ -31,6 +32,10 @@ public static class SubscriptionExtensions
             .AddTenantService<ISubscriptionManager>(
                 ServiceLifetime.Scoped,
                 static (tenantServices, _) => ActivatorUtilities.CreateInstance<SubscriptionManager>(tenantServices),
+                SubscriptionLoggers.Wrap)
+            .AddTenantService<IRoutingVerifier>(
+                ServiceLifetime.Scoped,
+                static (tenantServices, _) => ActivatorUtilities.CreateInstance<RoutingVerifier>(tenantServices),
                 SubscriptionLoggers.Wrap);
     }
 

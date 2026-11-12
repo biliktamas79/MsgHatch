@@ -7,7 +7,8 @@ namespace MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 
 /// <summary>
 /// Substitutes for the subscription store and the recipient directory that answer from given data, and the calls that
-/// they received in the form <c>FindForDeliveryAsync(A; c:100; u:1,2)</c>.
+/// they received in the form <c>FindForDeliveryAsync(A; c:100; u:1,2)</c>. <c>QueryAsync</c> of the store reads only the
+/// message type filter of the query.
 /// </summary>
 public static class ScenarioDoubles
 {
@@ -16,6 +17,8 @@ public static class ScenarioDoubles
         var store = Substitute.For<ISubscriptionStore>();
         store.FindForDeliveryAsync(default, default!, default!, default).ReturnsForAnyArgs(call =>
             ValueTask.FromResult(ErrorOr<IReadOnlyList<Subscription>>.ForValue(Scenario.SubscriptionsOf(call.ArgAt<MessageType>(0).Name, subscriptions))));
+        store.QueryAsync(default!, default).ReturnsForAnyArgs(call => ValueTask.FromResult(ErrorOr<IReadOnlyList<Subscription>>.ForValue(
+            call.ArgAt<SubscriptionQuery>(0).Type is { } type ? Scenario.SubscriptionsOf(type.Name, subscriptions) : subscriptions)));
         return store;
     }
 
