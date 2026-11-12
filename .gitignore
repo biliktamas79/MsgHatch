@@ -419,3 +419,6 @@ FodyWeavers.xsd
 
 # Local settings with secrets, for example the AWS credentials of the SES integration tests
 appsettings.Local.json
+
+# The SQLite file of the example app (D157)
+msghatch-example.db*

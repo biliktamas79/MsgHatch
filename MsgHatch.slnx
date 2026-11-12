@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/ExampleApp/ExampleApp.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
     <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
@@ -18,6 +21,7 @@
     <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ExampleApp.Tests.Unit/ExampleApp.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />

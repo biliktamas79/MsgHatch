@@ -1,0 +1,1 @@
+C értesítés: {{Text}}
