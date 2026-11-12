@@ -7,7 +7,11 @@ using ExampleApp.Tests.Unit.TestTypes;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Broker;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using static ExampleApp.Tests.Unit.TestTypes.ExampleHost;
 
@@ -58,6 +62,31 @@ public sealed class ExampleApplicationUnitTests : IDisposable
                 "client2@acme.example | Notification E: The weekly summary is ready.",
             ],
             emails.Select(static email => $"{email.Field("To")} | {email.Field("Subject")}").Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task Build_BrokerSubscriptionForD_GivesEachBrokerMessageToTheWolverineHandlerOfTheLocalQueue()
+    {
+        // Arrange
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.Services.SeedScenarioAsync(TenantKey.None);
+        var broker = new SubscriptionDraft(
+            SubscriptionOwner.Default, new MessageType("D"), SubscriptionKind.Channel, BrokerChannel.Id, new BrokerChannelSettings());
+        await using (var scope = example.App.Services.CreateAsyncScope())
+        {
+            Assert.False((await ExampleProcess.ManagerOf(scope.ServiceProvider, TenantKey.None).CreateAsync(broker, Ct)).IsError);
+        }
+
+        await ExampleStartup.RunAsync(example.App.Services, Ct);
+
+        // Act
+        await example.App.StartAsync(Ct);
+
+        // Assert
+        var messages = await example.App.Services.WaitForLogsAsync(ExampleLoggerExtensions.BrokerMessageReceivedId, count: 2);
+        Assert.Equal(
+            ["D: A contract changed.", "D: A contract changed."],
+            messages.Select(static message => $"{message.Field("Type")}: {message.Field("Text")}"));
     }
 
     [Fact]

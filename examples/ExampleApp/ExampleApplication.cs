@@ -1,5 +1,4 @@
 using ExampleApp.Channels;
-using ExampleApp.Notices;
 using System.Security.Claims;
 using JasperFx.CodeGeneration;
 using MsgHatch.Broker.Wolverine.DependencyInjection;
@@ -23,9 +22,6 @@ public static class ExampleApplication
 
     /// <summary>The route of the SignalR hub.</summary>
     public const string HubRoute = "/hubs/notifications";
-
-    /// <summary>The local Wolverine queue of the broker messages, so the example needs no broker server.</summary>
-    public const string BrokerQueue = "broker-messages";
 
     /// <summary>Registers the services of the example, and maps its endpoints.</summary>
     /// <param name="builder">The builder of the web app.</param>
@@ -66,9 +62,9 @@ public static class ExampleApplication
 
     private static void ConfigureWolverine(WolverineOptions options)
     {
+        // Wolverine routes each message type with a local handler to a local queue by convention, so the Notice of the broker needs no route.
         options.Discovery.DisableConventionalDiscovery().IncludeType<BrokerMessageLogger>();
         options.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
         options.Durability.UseSyncRetryBlock = true;
-        options.PublishMessage<Notice>().ToLocalQueue(BrokerQueue);
     }
 }
