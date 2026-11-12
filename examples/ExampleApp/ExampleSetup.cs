@@ -45,7 +45,10 @@ public static class ExampleSetup
             .UseEmbeddedTemplates(typeof(ExampleSetup).Assembly, TemplatePrefix)
             .AddExampleMessages();
 
-    /// <summary>Registers the message types A to E of the subscription example, and the password reset F.</summary>
+    /// <summary>
+    /// Registers the message types A to E of the subscription example, each with the test case <c>basic</c> for the routing
+    /// verification, and the password reset F.
+    /// </summary>
     /// <param name="builder">The MsgHatch builder.</param>
     /// <returns>The builder.</returns>
     public static MsgHatchBuilder AddExampleMessages(this MsgHatchBuilder builder)
@@ -55,22 +58,27 @@ public static class ExampleSetup
         return builder
             .AddMessage("A", 1, json.EventA, static m => m
                 .WithScope(ScopeOf)
+                .WithTestEvent("basic", static user => new EventA(TestUserOf(user), null, "A test of the routing."))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventA>>(static p => p.AsEmail("AEmail")))
             .AddMessage("B", 1, json.EventB, static m => m
                 .WithScope(ScopeOf)
+                .WithTestEvent("basic", static user => new EventB(TestUserOf(user), null, "A test of the routing."))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventB>>(static p => p.AsEmail("BEmail")))
             .AddMessage("C", 1, json.EventC, m => m
                 .WithScope(ScopeOf)
+                .WithTestEvent("basic", static user => new EventC(TestUserOf(user), null, "A test of the routing."))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventC>>(static p => p.AsEmail("CEmail"))
                 .WithPayload<Notice, NoticeLoader<EventC>>(p => p.AsSignalR("CUpdate", 1, json.SignalREnvelopeNotice)))
             .AddMessage("D", 1, json.EventD, m => m
                 .WithScope(ScopeOf)
+                .WithTestEvent("basic", static user => new EventD(TestUserOf(user), null, "A test of the routing."))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventD>>(static p => p.AsEmail("DEmail"))
                 .WithPayload<Notice, NoticeLoader<EventD>>(p => p
                     .AsSignalR("DUpdate", 1, json.SignalREnvelopeNotice)
                     .AsBroker("DEvent", 1, json.BrokerEnvelopeNotice)))
             .AddMessage("E", 1, json.EventE, m => m
                 .WithScope(ScopeOf)
+                .WithTestEvent("basic", static user => new EventE(TestUserOf(user), null, "A test of the routing."))
                 .WithPayload<NoticeEmail, NoticeEmailLoader<EventE>>(static p => p.AsEmail("EEmail"))
                 .WithPayload<Notice, NoticeLoader<EventE>>(p => p.AsBroker("EEvent", 1, json.BrokerEnvelopeNotice)))
             .AddMessage("F", 1, json.PasswordReset, static m => m
@@ -90,6 +98,8 @@ public static class ExampleSetup
         exampleEvent.CompanyId is { } company
             ? NotificationScope.ForCompany(CompanyId.From(company))
             : NotificationScope.ForUsers(UsersOf(exampleEvent));
+
+    private static int[] TestUserOf(UserId user) => user.TryAs<int>(out var id) ? [id] : [];
 
     private static UserId[] UsersOf(IExampleEvent exampleEvent) => [.. (exampleEvent.UserIds ?? []).Select(static user => UserId.From(user))];
 }

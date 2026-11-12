@@ -1,3 +1,4 @@
+using ExampleApp.Channels;
 using ExampleApp.Notices;
 using ExampleApp.PasswordResets;
 using ExampleApp.Recipients;
@@ -6,6 +7,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Subscriptions.Management;
+using MsgHatch.Subscriptions.Verification;
 
 namespace ExampleApp.Startup;
 
@@ -53,6 +55,45 @@ public static class ExampleStartup
         foreach (var draft in ExampleScenario.Subscriptions)
         {
             ThrowIfFailed((await manager.CreateAsync(draft, ct)).Error);
+        }
+    }
+
+    /// <summary>
+    /// Runs the routing verification with the test users Client 1 and Client 3 and the languages <c>en</c> and <c>hu</c>,
+    /// and logs the report (section 4.18, D162). The app calls it at startup in the <c>Development</c> environment.
+    /// </summary>
+    /// <param name="services">The services of the app.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The report.</returns>
+    public static async Task<RoutingVerificationReport> VerifyRoutingAsync(IServiceProvider services, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        await using var scope = services.CreateAsyncScope();
+        var report = await scope.ServiceProvider.GetRequiredService<IRoutingVerifier>()
+            .VerifyAsync(new RoutingVerificationRequest([UserId.From(1), UserId.From(3)], ["en", "hu"]), ct);
+        ThrowIfFailed(report.Error);
+        LogReport(services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ExampleStartup).FullName!), report.Value);
+        return report.Value;
+    }
+
+    /// <summary>Logs the counts of a report, each failed row as a warning, and each skipped row (D162).</summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="report">The report.</param>
+    public static void LogReport(ILogger logger, RoutingVerificationReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        logger.RoutingVerified(report.Passed, report.Failed, report.Skipped);
+        foreach (var check in report.Checks)
+        {
+            if (check.Outcome == RoutingCheckOutcome.Failed)
+            {
+                logger.RoutingCheckFailed(
+                    check.Type.Name, check.TestCase, check.Owner?.Level, check.Channel?.Name, check.Language, check.ErrorCode, check.ErrorName);
+            }
+            else if (check.Outcome == RoutingCheckOutcome.Skipped)
+            {
+                logger.RoutingCheckSkipped(check.Type.Name, check.TestCase, check.Owner?.Level, check.Channel?.Name, check.Language);
+            }
         }
     }
 
