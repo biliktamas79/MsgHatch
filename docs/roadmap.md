@@ -632,7 +632,7 @@ Tests:
 - Caching wrapper tests, with substitutes for `ISubscriptionStore` and `ISubscriptionCacheBackend`:
   - With a miss for all owners, the wrapper calls the inner `FindForDeliveryAsync` one time with all companies and users, and calls `SetAsync` for the defaults, each company, and each user. An owner with no subscription gets an empty list.
   - With a hit for some owners, the wrapper calls the inner store with only the missing companies and users, and returns all subscriptions whole. With a hit for all owners, the inner store receives no call.
-  - The wrappers of two keys give different cache keys and tags for the same company id (D114).
+  - The wrappers of two keys give different cache keys and tags for the same company id (D114). A tenant id, a company id, and a user id with `:` are percent-encoded in each key and tag (D153).
   - With the defaults in the cache and a miss for one user, the inner store returns the default subscriptions too. The wrapper ignores these rows, and calls `SetAsync` only for the user.
   - `SetAsync` receives the configured expiration, the tenant tag, and the owner tag. After an `Error` from the inner store, `SetAsync` receives no call.
   - A successful `AddAsync`, `UpdateAsync`, or `DeleteAsync` removes the owner tag of that subscription. A failed one removes nothing.
