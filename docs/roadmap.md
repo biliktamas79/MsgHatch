@@ -625,7 +625,7 @@ Done when: the build has no errors and no warnings, and all tests pass.
 Goal: the subscription cache, with HybridCache and FusionCache as backends (D38, D39).
 
 1. Add `ISubscriptionCache`, `ISubscriptionCacheBackend`, `SubscriptionCacheOptions` with `SubscriptionCacheOptionsValidator`, `SubscriptionStoreCachingWrapper`, and `UseSubscriptionCache<TBackend>` with its factory overload to `MsgHatch.Subscriptions` (section 4.15). `UseSubscriptionCache` registers the caching wrapper and `ISubscriptionCache` as tenant services. Add the contract base class `SubscriptionCacheBackendTestsBase<TBackend>` with `ISubscriptionCacheBackendTestData` in `tests/MsgHatch.Subscriptions.Tests.Unit/Contracts/`.
-2. Add `src/MsgHatch.Subscriptions.Caching.Hybrid` with `HybridCacheSubscriptionBackend` and `UseHybridSubscriptionCache` (sections 4.7 and 4.15). First check the names of the `HybridCacheEntryFlags` values in the package version. Add `tests/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit` with `HybridCacheSubscriptionBackendUnitTests`.
+2. Add `src/MsgHatch.Subscriptions.Caching.Hybrid` with `HybridCacheSubscriptionBackend`, its entry type `HybridCacheSubscriptionEntry` (D152), and `UseHybridSubscriptionCache` (sections 4.7 and 4.15). First check the names of the `HybridCacheEntryFlags` values in the package version. Add `tests/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit` with `HybridCacheSubscriptionBackendUnitTests`.
 3. Add `src/MsgHatch.Subscriptions.Caching.FusionCache` with `FusionCacheSubscriptionBackend` and `UseFusionSubscriptionCache`. The backend gets its cache from `IFusionCacheProvider.GetCache("MsgHatch.Subscriptions")`. Add `tests/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit` with `FusionCacheSubscriptionBackendUnitTests`.
 
 Tests:
@@ -642,6 +642,20 @@ Tests:
 - The options tests of `SubscriptionCacheOptions`. `KeyPrefix` gets a value with a space and a value with an accented character. Configuration binding: a value in the section `MsgHatch:SubscriptionCache` reaches the options, and a value from the `Action` of the setup method wins over it.
 - The use cases of `SubscriptionCacheBackendTestsBase`, run by both backend subclasses, each on a real in-memory cache: a set value with two subscriptions is read back whole, a miss gives null and stores no entry, and a removed tag removes the values of that tag while the values of another tag stay.
 - `UseHybridSubscriptionCache` and `UseFusionSubscriptionCache` alone register all parts. `UseFusionSubscriptionCache` does not change the default FusionCache of the host.
+
+Checked facts (2026-11-04 and 2026-11-05) for the cache packages, with a probe program on `Microsoft.Extensions.Caching.Hybrid` 10.11.0 and `ZiggyCreatures.FusionCache` 2.9.0:
+
+| Fact | Source |
+|---|---|
+| `HybridCacheEntryFlags` has the values `None`, `DisableLocalCacheRead`, `DisableLocalCacheWrite`, `DisableLocalCache`, `DisableDistributedCacheRead`, `DisableDistributedCacheWrite`, `DisableDistributedCache`, `DisableUnderlyingData`, and `DisableCompression`. | `Enum.GetNames` in the probe |
+| `GetOrCreateAsync` with a factory that returns null and the flags `DisableLocalCacheWrite` and `DisableDistributedCacheWrite` stores nothing: a second call runs its factory again. | Probe |
+| HybridCache with no distributed cache serializes a value of `IReadOnlyList<Subscription>` or `Subscription[]` in memory. The read fails with `NotSupportedException`, because `ChannelSettings` is abstract. So the plan premise that only a distributed level needs a serializer is false (D152). | Probe |
+| A sealed type with `[ImmutableObject(true)]` comes back from HybridCache as the same instance, with no serializer. | Probe |
+| HybridCache with only `Expiration` also ends the local entry at that time. | Probe, an entry of 1 second read after 1.5 seconds |
+| HybridCache uses the `TimeProvider` of the DI container for the tags. With a `FakeTimeProvider` that does not move, a value set again after `RemoveByTagAsync` stays invalid. A test that sets a value again after a tag removal moves the fake clock. | Probe, with the system clock and with a `FakeTimeProvider` |
+| `AddHybridCache` keeps a `HybridCache` that the host registered before it. | Probe |
+| HybridCache does not cache a key with the control character U+001F or U+001E. FusionCache caches it. | Probe |
+| `AddFusionCache("MsgHatch.Subscriptions")` alone registers no default `IFusionCache`. With the default cache of the host, the two caches do not share entries. FusionCache gives the same instance back with no serializer, and shows a value that is set again after `RemoveByTagAsync`. | Probe |
 
 Commits:
 1. "Add the subscription caching wrapper and the cache backend contract"
