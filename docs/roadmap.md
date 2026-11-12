@@ -811,10 +811,15 @@ Tests:
 - In `ExampleApp.Tests.Unit`: the verification of the subscription example on the SQLite stores gives no `Failed` row.
 
 Commits:
-1. "Add routing verification types and test events"
-2. "Add the routing verifier"
-3. "Add the routing verification endpoint"
-4. "Add routing verification to the example app"
+1. "Record the decisions of the routing verification in the plan (D160 to D163)"
+2. "Count the skipped list of an opt-out decision as used in the plan"
+3. "Add routing verification types and test events"
+4. "Leave the subscriptions of a message type with no test event out of the skipped rows in the plan"
+5. "Base the missing template example X4 on the default language fallback in the plan"
+6. "Add the routing verifier"
+7. "Add the routing verification endpoint"
+8. "Add routing verification to the example app"
+9. "Record the commits of phase 14 in the plan"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
