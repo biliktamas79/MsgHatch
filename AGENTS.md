@@ -4,16 +4,31 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The repository contains the plan only. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 13 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, and the benchmarks.
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D156), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D159), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
 
 `docs/subscription-domain.md` describes the subscription domain of `MsgHatch.Subscriptions`: the three owner levels, the recipients, the merge rules, the resolution trace, the domain actions, and the numbered examples (for example `R7`, `M15`, or `T3`). A test of the subscription domain takes its rows from these examples, and names the example in each row.
+
+`docs/stores.md` explains the formats, the publish tries, the claims, the tenant field, and the versioning of the file and SQLite stores, and what a store for another storage must do. Read it before you change a store or add one.
+
+`examples/ExampleApp` is the subscription example of section 1.1 of the design as a web app, with its use cases in the folders `Notices`, `PasswordResets`, `Recipients`, `Channels`, and `Startup`. `tests/ExampleApp.Tests.Unit` tests it on SQLite files.
+
+## Projects
+
+| Area | Projects in `src/` |
+|---|---|
+| Core | `MsgHatch.Domain`, `MsgHatch.SourceGeneration` |
+| Channels | `MsgHatch.Email`, `MsgHatch.Email.AmazonSES`, `MsgHatch.Email.Resend`, `MsgHatch.SignalR`, `MsgHatch.Broker`, `MsgHatch.Broker.Wolverine` |
+| Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite` |
+| Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
+
+Phases 15 to 19 add `MsgHatch.AspNetCore`, the EF Core stores, and the MongoDB stores.
 
 ## Commands
 
@@ -49,10 +64,20 @@ From phase 6 on, the Wolverine integration tests need a RabbitMQ broker, for exa
 dotnet test tests/MsgHatch.Broker.Wolverine.Tests.Integration
 ```
 
-From phase 13 on, the benchmarks run in the Release configuration:
+From phase 13 on, the benchmarks run in the Release configuration. Run one project at a time, because each run builds the project again. Section 4.11 of the design records the results:
 
 ```bash
 dotnet run -c Release --project tests/MsgHatch.Domain.Tests.Performance
+dotnet run -c Release --project tests/MsgHatch.Email.Tests.Performance
+dotnet run -c Release --project tests/MsgHatch.Subscriptions.Tests.Performance
+```
+
+The example app needs no server, no cloud account, and no network. Its SQLite file `msghatch-example.db` is in the working folder of the app, and git ignores it. A token for the user `"1"` comes from `dotnet user-jwts` (D158):
+
+```bash
+dotnet user-jwts create --project examples/ExampleApp --name 1
+dotnet run --project examples/ExampleApp
+dotnet test tests/ExampleApp.Tests.Unit
 ```
 
 From phase 18 on, the integration tests need a container runtime, for example Docker:

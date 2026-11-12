@@ -3,7 +3,7 @@ A flexible and extensible .NET library that can generate and handle various mess
 
 MsgHatch turns domain events into messages, and delivers them by email, as real-time UI updates with SignalR, or through a message broker such as RabbitMQ, Amazon SQS, or Kafka with Wolverine. A router decides who gets each message on which channel. The optional package `MsgHatch.Subscriptions` is a router with managed subscriptions.
 
-**Status:** planning. The development follows the [roadmap](docs/roadmap.md) of phases. Each phase ends in a tested and working state. The [design](docs/design.md) holds the requirements, the decisions, and the architecture. No package is released yet.
+**Status:** in development. The development follows the [roadmap](docs/roadmap.md) of phases. Each phase ends in a tested and working state. Phases 0 to 13 are done. The [design](docs/design.md) holds the requirements, the decisions, and the architecture. The [store guide](docs/stores.md) explains the stores. No package is released yet.
 
 ## Message flow
 1. **Trigger.** A domain event arrives. Its type is the message type. An event from a source that is not a resilient broker goes into the inbox first.
@@ -33,28 +33,77 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 - Errors as values (`ErrorOr<T>`), async APIs with cancellation, and `TimeProvider` for all times.
 - Traces and metrics for OpenTelemetry through the .NET APIs, with no extra package. A send in a publisher process links to the trace of its event.
 
-## Planned packages
-| Package | Content |
-|---|---|
-| `MsgHatch.Domain` | The routing contract, the pipeline, the inbox, the outbox, and the dispatch loops |
-| `MsgHatch.Email` | The email channel, the template engine interface, and the placeholder engine |
-| `MsgHatch.Email.AmazonSES` | The Amazon SES email client |
-| `MsgHatch.SignalR` | Real-time UI updates |
-| `MsgHatch.Broker` | The broker channel and the broker client contract |
-| `MsgHatch.Broker.Wolverine` | Message brokers through Wolverine |
-| `MsgHatch.Data.FileSystem` | The JSON file stores for the inbox and the outbox |
-| `MsgHatch.Data.Sqlite` | The SQLite stores for the inbox and the outbox |
-| `MsgHatch.Data.EntityFrameworkCore` | The EF Core stores, with SQL Server as the first provider |
-| `MsgHatch.Data.MongoDb` | The MongoDB stores |
-| `MsgHatch.AspNetCore` | HTTP endpoints for delivery management and registry administration |
-| `MsgHatch.Subscriptions` | The router with subscriptions on three levels, its management API, and the routing verification |
-| `MsgHatch.Subscriptions.Data.FileSystem` | The JSON file subscription store |
-| `MsgHatch.Subscriptions.Data.Sqlite` | The SQLite subscription store |
-| `MsgHatch.Subscriptions.Data.EntityFrameworkCore` | The EF Core subscription store |
-| `MsgHatch.Subscriptions.Data.MongoDb` | The MongoDB subscription store |
-| `MsgHatch.Subscriptions.Caching.Hybrid` | The HybridCache backend of the subscription cache |
-| `MsgHatch.Subscriptions.Caching.FusionCache` | The FusionCache backend of the subscription cache |
-| `MsgHatch.Subscriptions.AspNetCore` | HTTP endpoints for subscription management |
+## Packages
+| Package | Content | Phase |
+|---|---|---|
+| `MsgHatch.Domain` | The routing contract, the pipeline, the inbox, the outbox, and the dispatch loops | 1, done |
+| `MsgHatch.Email` | The email channel, the template engine interface, and the placeholder engine | 3, done |
+| `MsgHatch.Email.AmazonSES` | The Amazon SES email client | 4, done |
+| `MsgHatch.Email.Resend` | The Resend email client | 4, done |
+| `MsgHatch.SignalR` | Real-time UI updates | 5, done |
+| `MsgHatch.Broker` | The broker channel and the broker client contract | 6, done |
+| `MsgHatch.Broker.Wolverine` | Message brokers through Wolverine | 6, done |
+| `MsgHatch.Data.FileSystem` | The JSON file stores for the inbox and the outbox | 7, done |
+| `MsgHatch.Data.Sqlite` | The SQLite stores for the inbox and the outbox | 8, done |
+| `MsgHatch.Subscriptions` | The router with subscriptions on three levels, and its management API | 9, done |
+| `MsgHatch.Subscriptions.Data.FileSystem` | The JSON file subscription store | 10, done |
+| `MsgHatch.Subscriptions.Data.Sqlite` | The SQLite subscription store | 10, done |
+| `MsgHatch.Subscriptions.Caching.Hybrid` | The HybridCache backend of the subscription cache | 11, done |
+| `MsgHatch.Subscriptions.Caching.FusionCache` | The FusionCache backend of the subscription cache | 11, done |
+| `MsgHatch.Subscriptions.AspNetCore` | HTTP endpoints for subscription management | 12, done |
+| `MsgHatch.AspNetCore` | HTTP endpoints for delivery management and registry administration | 15 and 16, planned |
+| `MsgHatch.Data.EntityFrameworkCore` | The EF Core stores, with SQL Server as the first provider | 18, planned |
+| `MsgHatch.Subscriptions.Data.EntityFrameworkCore` | The EF Core subscription store | 18, planned |
+| `MsgHatch.Data.MongoDb` | The MongoDB stores | 19, planned |
+| `MsgHatch.Subscriptions.Data.MongoDb` | The MongoDB subscription store | 19, planned |
+
+Phase 14 adds the routing verification to `MsgHatch.Subscriptions`.
+
+## Example app
+`examples/ExampleApp` runs the subscription example of the design end to end, with no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, keeps all data in one SQLite file, and maps the subscription endpoints. A caller signs in with a local JWT from `dotnet user-jwts`:
+
+```bash
+dotnet user-jwts create --project examples/ExampleApp --name 1
+```
+
+```bash
+dotnet run --project examples/ExampleApp
+```
+
+Then call `GET http://localhost:5080/api/subscriptions/me` with the token as a bearer token. The response holds the subscriptions of the user `"1"`.
+
+## Commands
+Build, and run the unit tests of one project:
+
+```bash
+dotnet build MsgHatch.slnx
+```
+
+```bash
+dotnet test tests/MsgHatch.Domain.Tests.Unit
+```
+
+The coverage report of all unit tests, with PowerShell 7. It fails when the line coverage is less than 90 %:
+
+```bash
+pwsh ./coverage.ps1
+```
+
+The benchmarks, in the Release configuration, one project at a time:
+
+```bash
+dotnet run -c Release --project tests/MsgHatch.Domain.Tests.Performance
+```
+
+```bash
+dotnet run -c Release --project tests/MsgHatch.Email.Tests.Performance
+```
+
+```bash
+dotnet run -c Release --project tests/MsgHatch.Subscriptions.Tests.Performance
+```
+
+`AGENTS.md` lists the integration tests and the local settings that they need.
 
 ## License
 Apache License 2.0. See [LICENSE](LICENSE).
