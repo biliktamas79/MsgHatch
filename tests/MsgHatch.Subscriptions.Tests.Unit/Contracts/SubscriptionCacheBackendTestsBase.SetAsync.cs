@@ -31,6 +31,22 @@ public abstract partial class SubscriptionCacheBackendTestsBase<TBackend>
         Assert.Equal((false, 0), (result.IsError, result.Value?.Count));
     }
 
+    [Theory]
+    [MemberData(nameof(SubscriptionCacheBackendTestRows.ExpirationRows), MemberType = typeof(SubscriptionCacheBackendTestRows))]
+    public async Task SetAsync_ExpirationOfOneMinute_KeepsTheEntryUntilItEnds(int secondsLater, bool expectedCached)
+    {
+        // Arrange
+        const string key = "msghatch:sub:t:t1:A:u:5";
+        await Backend.SetAsync(key, TwoSubscriptions, [TenantTag], TimeSpan.FromMinutes(1), Ct);
+        TestData.Advance(TimeSpan.FromSeconds(secondsLater));
+
+        // Act
+        var cached = await IsCachedAsync(key);
+
+        // Assert
+        Assert.Equal((secondsLater, expectedCached), (secondsLater, cached));
+    }
+
     [Fact]
     public async Task SetAsync_NewEntry_GivesNoError()
     {

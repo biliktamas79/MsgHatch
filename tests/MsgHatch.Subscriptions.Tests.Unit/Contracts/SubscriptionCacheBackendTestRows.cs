@@ -9,4 +9,10 @@ public static class SubscriptionCacheBackendTestRows
         { "msghatch:sub:t:t1", [false, false, true] },
         { "msghatch:sub:t:t3", [true, true, true] },
     };
+
+    public static TheoryData<int, bool> ExpirationRows => new()
+    {
+        { 59, true },
+        { 61, false },
+    };
 }

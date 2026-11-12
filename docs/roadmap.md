@@ -645,7 +645,7 @@ Tests:
 - Extra tests that the implementation added:
   - The caching wrapper: `QueryAsync` and `GetAsync` use no cache. A read error before `DeleteAsync` stops the delete, and an unknown id removes no tag. It logs the hits and misses of each call at the Debug level, and each backend error at the Warning level with the tenant.
   - The setup: both orders of `UseSubscriptionStore` and `UseSubscriptionCache` give the same wrapper order. With `EnableLogging` false, the cache stays on. The type overload gives one singleton backend. An invalid `KeyPrefix` fails the startup validation. A second cache selection fails it too, and the message names both methods (D62).
-  - The backend contract: an empty list comes back as an empty list, not null. An entry with two tags goes with each of them.
+  - The backend contract: an empty list comes back as an empty list, not null. An entry with two tags goes with each of them. An entry with an expiration of 1 minute is in the cache 59 seconds later, and not 61 seconds later. Each test data moves the fake clock of the `MemoryCache` of its library. The FusionCache test data starts that clock at the system time, because FusionCache calculates the end of an entry with the system clock.
   - Each backend: an exception of its cache library gives `Errors.Unavailable`, and a cancellation gives `Errors.OperationCancelled`. `UseHybridSubscriptionCache` keeps a `HybridCache` of the host, and gives its second callback to HybridCache. The second callback of `UseFusionSubscriptionCache` changes only the named FusionCache.
 
 Checked facts (2026-11-04 and 2026-11-05) for the cache packages, with a probe program on `Microsoft.Extensions.Caching.Hybrid` 10.11.0 and `ZiggyCreatures.FusionCache` 2.9.0:
@@ -661,6 +661,8 @@ Checked facts (2026-11-04 and 2026-11-05) for the cache packages, with a probe p
 | `AddHybridCache` keeps a `HybridCache` that the host registered before it. | Probe |
 | HybridCache does not cache a key with the control character U+001F or U+001E. FusionCache caches it. | Probe |
 | `AddFusionCache("MsgHatch.Subscriptions")` alone registers no default `IFusionCache`. With the default cache of the host, the two caches do not share entries. FusionCache gives the same instance back with no serializer, and shows a value that is set again after `RemoveByTagAsync`. | Probe |
+| Neither library ends an entry by the `TimeProvider` of the DI container: with a `FakeTimeProvider` moved 2 minutes forward, an entry of 1 minute is still in each cache. `FusionCacheOptions` has no clock option. | Probe (2026-11-12) |
+| Both libraries keep a local entry in a `MemoryCache`, and `MemoryCacheOptions.Clock` (`ISystemClock`, not obsolete) ends it. HybridCache uses the `IMemoryCache` of DI, and a fake clock at 2030-01-01 works. FusionCache takes its own `MemoryCache` through `WithMemoryCache`, but it calculates the end time with the system clock, so the fake clock must start at the system time. | Probe (2026-11-12): an entry of 1 minute is there after 59 seconds and gone after 61 seconds |
 
 Commits:
 1. "Keep the HybridCache entries without a serializer in the plan (D152)"
