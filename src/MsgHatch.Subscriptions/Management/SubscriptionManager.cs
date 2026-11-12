@@ -25,7 +25,8 @@ internal sealed class SubscriptionManager(
 {
     private const int _maxNamedUsers = 100;
 
-    private readonly HashSet<Type> _scopedEventTypes = [.. scopedMessages.Select(static message => message.EventType)];
+    private readonly HashSet<Type> _scopedEventTypes =
+        [.. scopedMessages.Where(static message => message.HasScope).Select(static message => message.EventType)];
 
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDescriptor>>> GetChannelsAsync(CancellationToken ct) =>
         ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDescriptor>>.ForValue(registry.Channels));

@@ -1,9 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Subscriptions.DependencyInjection;
+using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Resolution;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 using NSubstitute;
@@ -78,6 +80,95 @@ public sealed class UseSubscriptionsUnitTests
         // Assert
         Assert.Equal([("Trace:Subscription", 1, "Trace:Subscription@1")], entries.Select(static entry => (entry.ContentType, entry.Version, entry.Discriminator)));
     }
+
+    [Theory]
+    [InlineData("WithScope, then WithTestEvent")]
+    [InlineData("WithTestEvent, then WithScope")]
+    public async Task Validate_WithScopeAndWithTestEventInEachOrder_Passes(string order)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        ARoutingHost(services).AddMessage("A", 1, SubscriptionTestJson.Default.EventA, m =>
+        {
+            if (order.StartsWith("WithScope", StringComparison.Ordinal))
+            {
+                m.WithScope(ScopeOfA).WithTestEvent("basic", ATestEvent);
+            }
+            else
+            {
+                m.WithTestEvent("basic", ATestEvent).WithScope(ScopeOfA);
+            }
+        });
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Validate_SubscriptionRouterAndOnlyWithTestEvent_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        ARoutingHost(services).AddMessage("A", 1, SubscriptionTestJson.Default.EventA, static m => m.WithTestEvent("basic", ATestEvent));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    [Fact]
+    public async Task GetMessageTypesAsync_TestEventOfAMessageTypeWithItsOwnRouter_ListsOnlyTheMessageTypeWithAScopeFunction()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
+            .UseInMemoryStores()
+            .UseSubscriptions()
+            .UseInMemorySubscriptionStore()
+            .UseRecipientDirectory(static (_, _) => Substitute.For<IRecipientDirectory>())
+            .AddMessage("A", 1, SubscriptionTestJson.Default.EventA, static m => m.WithScope(ScopeOfA))
+            .AddMessage("F", 1, SubscriptionTestJson.Default.Notice, static m => m
+                .WithRouter(static (_, _) => Substitute.For<IMessageRouter<Notice>>())
+                .WithTestEvent("basic", static _ => new Notice("F")));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var states = await scope.ServiceProvider.GetRequiredService<ISubscriptionManager>()
+            .GetMessageTypesAsync(new MessageTypeQuery(), TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(["A"], states.Value.Select(static state => state.Type.Name));
+    }
+
+    [Theory]
+    [InlineData("null test case", null, true, nameof(ArgumentNullException), "testCase")]
+    [InlineData("test case of only whitespace", " ", true, nameof(ArgumentException), "testCase")]
+    [InlineData("null function", "basic", false, nameof(ArgumentNullException), "create")]
+    public void WithTestEvent_InvalidArgument_Throws(string row, string? testCase, bool withFunction, string exceptionType, string parameter)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        Func<UserId, EventA>? create = withFunction ? ATestEvent : null;
+
+        // Act
+        var exception = Record.Exception(() =>
+            services.AddMsgHatch().AddMessage("A", 1, SubscriptionTestJson.Default.EventA, m => m.WithTestEvent(testCase!, create!)));
+
+        // Assert
+        Assert.Equal((row, exceptionType, parameter), (row, exception?.GetType().Name, (exception as ArgumentException)?.ParamName));
+    }
+
+    private static NotificationScope ScopeOfA(EventA e) => ScenarioEvents.ScopeOf(e.Users, e.Company);
+
+    private static EventA ATestEvent(UserId user) => new([user.Value]);
 
     private static MsgHatchBuilder ARoutingHost(IServiceCollection services) =>
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)

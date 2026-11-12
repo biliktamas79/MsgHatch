@@ -45,9 +45,27 @@ public static class SubscriptionExtensions
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(scope);
-        var subscriptionMessage = new SubscriptionMessage<TEvent>(scope);
-        message.Services.AddSingleton(subscriptionMessage);
-        message.Services.AddSingleton<ISubscriptionMessage>(subscriptionMessage);
+        SubscriptionMessage<TEvent>.Of(message.Services).Scope = scope;
+        return message;
+    }
+
+    /// <summary>
+    /// Registers one test case of a message type for the routing verification (section 4.18). Several test cases give the
+    /// variations of the test messages, for example a long name, accented characters, or optional fields that are null.
+    /// </summary>
+    /// <typeparam name="TEvent">The type of the domain event.</typeparam>
+    /// <param name="message">The builder of the message type.</param>
+    /// <param name="testCase">The name of the test case, for example <c>basic</c>. It is in each row of the report.</param>
+    /// <param name="create">
+    /// Makes the test event for one test user, so that the payload loader loads the real data of that user. It must not throw.
+    /// </param>
+    /// <returns>The builder of the message type.</returns>
+    public static MessageBuilder<TEvent> WithTestEvent<TEvent>(this MessageBuilder<TEvent> message, string testCase, Func<UserId, TEvent> create)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentException.ThrowIfNullOrWhiteSpace(testCase);
+        ArgumentNullException.ThrowIfNull(create);
+        SubscriptionMessage<TEvent>.Of(message.Services).TestCases.Add((testCase, create));
         return message;
     }
 

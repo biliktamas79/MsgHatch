@@ -18,7 +18,7 @@ namespace MsgHatch.Subscriptions;
 /// <typeparam name="TEvent">The type of the domain event.</typeparam>
 internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
 {
-    private readonly SubscriptionMessage<TEvent> _message;
+    private readonly Func<TEvent, NotificationScope> _scope;
     private readonly ISubscriptionStore _store;
     private readonly IRecipientDirectory _directory;
     private readonly IMessageRegistry _registry;
@@ -33,7 +33,7 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
         SubscriptionMessage<TEvent>? message = null,
         ILogger<SubscriptionRouter<TEvent>>? logger = null)
     {
-        _message = message ?? throw new InvalidOperationException("The message type has no scope function. Register one with WithScope.");
+        _scope = message?.Scope ?? throw new InvalidOperationException("The message type has no scope function. Register one with WithScope.");
         _store = store;
         _directory = directory;
         _registry = registry;
@@ -44,7 +44,7 @@ internal sealed class SubscriptionRouter<TEvent> : IMessageRouter<TEvent>
     public async ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync(ReceivedMessage<TEvent> message, CancellationToken ct)
     {
         var channels = MessageChannels.Of(_registry, message.Type);
-        var scope = _message.Scope(message.Event);
+        var scope = _scope(message.Event);
         var profiles = new LoadedProfiles();
         var error = await LoadScopeAsync(scope, channels, profiles, ct);
         if (error is not null)
