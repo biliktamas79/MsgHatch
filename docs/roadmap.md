@@ -687,9 +687,33 @@ Tests, on a `TestServer` with an `ISubscriptionManager` substitute:
 - `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, and `Errors.Conflict` gives 409, each with a `ProblemDetails`.
 - The `settings` of an email draft deserialize as `EmailChannelSettings`, and an unknown channel gives 400.
 - The `/me` routes take the user id from the signed-in user and the tenant from `CurrentTenant`, and a subscription of another owner gives 404 there.
+- More tests, from the decisions D154 to D156 and from breaks of the code that showed gaps:
+  - Each route with `tenantId` calls only the manager of that tenant, and each route with no `tenantId` only the manager of `TenantKey.None`. An invalid `tenantId`, `messageType`, `companyId`, `userId`, or `level` gives 400 and calls no manager, also an empty value, a level as a number, and a level in lower case.
+  - The response JSON of a channel, a message type state, and a subscription, compared whole. A `PUT` gives the id, the revision, and the draft to the manager. A `DELETE` gives 204, and a manager error gives its problem.
+  - A body that is not JSON gives 415 (D156). One data-driven test has a row for each invalid body: invalid JSON, the JSON `null`, an empty body, a missing or invalid message type, kind, or level, an undefined enum number, owner ids that do not match the level, an invalid id or channel name, an unknown channel with settings, settings with no channel, invalid settings JSON, users for recipients other than named users, and an empty named user. A `PUT` with no revision gives 400. Each row calls no manager.
+  - The draft rows: the email and SignalR settings, a mandatory company subscription for named users, a company subscription for the company, a default opt-out with the scope users, and an opt-out with the settings `null`, with and without a channel.
+  - Settings of a type that the content type registry does not know throw `InvalidOperationException`.
+  - The `/me` routes (D154): no `CurrentUser` maps no `/me` route, and `CurrentTenant` with no `CurrentUser` throws `ArgumentException`. A signed-in user with no user id gives 403 on each route and calls no manager. With no `CurrentTenant`, the routes use `TenantKey.None`. The owner fields of a body and the owner filters of a query are ignored. An unknown id and another owner give the same 404 body for a read, an update, and a delete. A manager error other than `Errors.NotFound` stays.
+
+Checked facts (2026-11-12) for the endpoints, with `Microsoft.AspNetCore.TestHost` 10.0.14 and the shared framework `Microsoft.AspNetCore.App` 10:
+
+| Fact | Source |
+|---|---|
+| `Microsoft.AspNetCore.TestHost` 10.0.14 has the license expression MIT, no package dependency, and only the framework reference `Microsoft.AspNetCore.App`. | The `.nuspec` of the pinned version on nuget.org |
+| `MapGet` and `MapPost` with a method that has only an `HttpContext` parameter select the `RequestDelegate` overload, which drops the returned `IResult`. The analyzer rule ASP0016 stops the build. A cast to `Delegate` selects the route handler overload. | Build |
+| The string enum converter writes the flags value `Languages \| RichText` of `ChannelFeatures` as `"Languages, RichText"` (D155). | Test of `GET {prefix}/channels` |
+| A keyed registration with the exact key `TenantKey.None` or `TenantKey.For(t2)` wins over the `KeyedService.AnyKey` registration of `UseSubscriptions`. So a test replaces the manager of one key. | Tests of the tenant selection |
+| A query parameter with an empty value, for example `?companyId=`, binds to a `string?` parameter as an empty text, not as null. | A break that read an empty text as null made 3 rows fail |
+| `System.Text.Json` reads the JSON `null` of a `JsonElement?` property as null, not as an element of the kind `Null`. So the endpoints need no check of the kind. | A break that removed that check made no test fail, also the row with `"settings": null` and no channel |
+| `RespectNullableAnnotations` changes no result of the request type, because a `null` id or name gives the same 400 through the check of that value. So `SubscriptionEndpointJson` does not set it. | A break that removed the option made no test fail |
+| `ReadFromJsonAsync` with the JSON type information of a context with `RespectRequiredConstructorParameters` throws `JsonException` for a missing required property, invalid JSON, and an empty body. | Rows of the invalid body test |
+| A `TestServer` gives an exception of an endpoint to the caller of `HttpClient.SendAsync`. | Test of settings of an unregistered type |
 
 Commits:
-1. "Add HTTP endpoints for subscription management"
+1. "Record the decisions of the subscription endpoints in the plan (D154 to D156)"
+2. "Name the content type registry as a need of the subscription endpoints in the plan"
+3. "Add HTTP endpoints for subscription management"
+4. "Record the checked facts and the extra tests of phase 12 in the plan"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
