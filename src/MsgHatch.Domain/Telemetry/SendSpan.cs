@@ -20,7 +20,7 @@ internal readonly struct SendSpan : IDisposable
 
     public static SendSpan Start(OutgoingMessage message, int tryNumber)
     {
-        var activity = TraceParents.StartInANewTrace($"send {message.Channel.Name}", ActivityKind.Client, message.TraceParent);
+        var activity = TraceParents.StartInANewTrace("send", message.Channel.Name, ActivityKind.Client, message.TraceParent);
         if (activity is { IsAllDataRequested: true })
         {
             activity.SetTag(TelemetryNames.MessagingSystem, TelemetryNames.System);

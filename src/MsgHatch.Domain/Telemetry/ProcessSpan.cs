@@ -43,7 +43,7 @@ internal readonly struct ProcessSpan : IDisposable
     public static ProcessSpan StartForReceived(ReceivedMessage received)
     {
         var callerTraceParent = TraceParents.Current();
-        var activity = TraceParents.StartInANewTrace($"process {received.Type.Name}", ActivityKind.Consumer, received.TraceParent);
+        var activity = TraceParents.StartInANewTrace("process", received.Type.Name, ActivityKind.Consumer, received.TraceParent);
         if (activity is { IsAllDataRequested: true })
         {
             SetStartAttributes(activity, received.Type, new MessageContext(received.Delivery.Id, received.Tenant, received.Flags));

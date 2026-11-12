@@ -13,8 +13,11 @@ internal static class TraceParents
     public static ActivityLink[]? LinksTo(string? traceParent) =>
         traceParent is not null && ActivityContext.TryParse(traceParent, traceState: null, out var context) ? [new ActivityLink(context)] : null;
 
-    /// <summary>Starts a span in a new trace, with a link to the trace context of a message (D132).</summary>
-    public static Activity? StartInANewTrace(string name, ActivityKind kind, string? linkedTraceParent)
+    /// <summary>
+    /// Starts the span <c>{operation} {destination}</c> in a new trace, with a link to the trace context of a message
+    /// (D132). It builds the name only for a listener, so a span with no listener allocates nothing (section 4.11).
+    /// </summary>
+    public static Activity? StartInANewTrace(string operation, string destination, ActivityKind kind, string? linkedTraceParent)
     {
         if (!TelemetryNames.Source.HasListeners())
         {
@@ -22,6 +25,6 @@ internal static class TraceParents
         }
 
         Activity.Current = null;
-        return TelemetryNames.Source.StartActivity(name, kind, parentContext: default, tags: null, links: LinksTo(linkedTraceParent));
+        return TelemetryNames.Source.StartActivity($"{operation} {destination}", kind, parentContext: default, tags: null, links: LinksTo(linkedTraceParent));
     }
 }
