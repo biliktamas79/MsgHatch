@@ -41,6 +41,10 @@
     <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.9.0" />
   </ItemGroup>
 
+  <ItemGroup Label="MsgHatch.Subscriptions.AspNetCore.Tests.Unit">
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
+  </ItemGroup>
+
   <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration">
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.61.0" />
   </ItemGroup>

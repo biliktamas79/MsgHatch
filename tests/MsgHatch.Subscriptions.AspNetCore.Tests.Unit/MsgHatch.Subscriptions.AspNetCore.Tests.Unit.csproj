@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.AspNetCore\MsgHatch.Subscriptions.AspNetCore.csproj" />
+    <ProjectReference Include="..\MsgHatch.Subscriptions.Tests.Unit\MsgHatch.Subscriptions.Tests.Unit.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+</Project>
