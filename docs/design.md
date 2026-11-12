@@ -1539,7 +1539,7 @@ Setup methods of `MsgHatch.Subscriptions` and its packages (D97):
 
 Shared options (D59). A subscription store package uses the options class of its core package, for example `SqliteStoreOptions`. Its setup method with a value in code sets the same options as the core setup method. If both methods give a value in code, the startup validation fails, and its message names both methods (D62). So the outbox and the subscriptions of one technology always use one storage, and a value never changes the other one with no warning. Each of the two methods binds the configuration section, and gives its value in code through `ConfigureSharedOptions` (D150).
 
-`MsgHatch.Subscriptions.AspNetCore` needs no setup method, because its endpoints need only `ISubscriptionManager` and `IRoutingVerifier`. `IEndpointRouteBuilder.MapMsgHatchSubscriptions(prefix, configure?)` maps the HTTP endpoints of section 4.17 on the web application.
+`MsgHatch.Subscriptions.AspNetCore` needs no setup method, because its endpoints need only `ISubscriptionManager`, `IRoutingVerifier`, and `IContentTypeRegistry`, which `AddMsgHatch` registers. The registry gives the JSON type information of the `settings` object of a body (section 4.17). `IEndpointRouteBuilder.MapMsgHatchSubscriptions(prefix, configure?)` maps the HTTP endpoints of section 4.17 on the web application.
 
 `MsgHatch.AspNetCore` needs no setup method either, because its endpoints need only `IDeliveryManager`, `IMessageRegistry`, and `IRegistryWriter`. `MapMsgHatchDelivery(prefix)` and `MapMsgHatchDeliveryContent(prefix)` map the HTTP endpoints of section 4.19, and `MapMsgHatchRegistry(prefix)` the endpoints of section 4.20.
 
