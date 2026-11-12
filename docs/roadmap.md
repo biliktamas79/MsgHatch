@@ -729,11 +729,11 @@ Goal: the subscription example end to end, the allocation budget, and the store 
    - The subscription cache on FusionCache in memory.
    - JSON samples of the example event and payload types, with a golden-file test for each sample (section 4.13).
    - Embedded email templates in English and Hungarian.
-   - A log email client that writes each email to the log, a SignalR hub, and the subscription endpoints with `MapMsgHatchSubscriptions`, including the `/me` routes.
+   - A log email client that writes each email to the log, a SignalR hub, and the subscription endpoints with `MapMsgHatchSubscriptions`, including the `/me` routes. A caller signs in with a JWT bearer token from `dotnet user-jwts` (D158).
    - The broker channel through `UseWolverineBroker`, on a local queue of Wolverine, with a Wolverine handler that writes each broker message to the log. So the example needs no broker server.
    - OpenTelemetry with `AddSource(MsgHatchTelemetry.SourceName)` and `AddMeter(MsgHatchTelemetry.MeterName)`, and the OTLP exporter (D131).
    - `MsgHatchWorker : BackgroundService` starts `RunAsync` for the inbox and the outbox in one process, with the in-process dispatch signal and `EnablePolling` false (D101, D102).
-   - At startup, the app writes the users and the companies of the shared test scenario (section 4 of `docs/subscription-domain.md`) into the example directory, and its subscriptions through `ISubscriptionManager`. Then it accepts one event of each message type A to F, and one event of the type C with the scope company Acme.
+   - At startup, the app writes the users and the companies of the shared test scenario (section 4 of `docs/subscription-domain.md`) into the example directory, and its subscriptions through `ISubscriptionManager`, only when the example directory has no user (D157). Then it accepts one event of each message type A to F, and one event of the type C with the scope company Acme, at each start.
 2. Add `tests/ExampleApp.Tests.Unit`, on a temporary SQLite database file for each test class. It checks the parts of the contracts that a substitute cannot check:
    - The contract base class `RecipientDirectoryTestsBase<TDirectory>` with `IRecipientDirectoryTestData`, in `tests/MsgHatch.Subscriptions.Tests.Unit/Contracts/`, and its subclass `ExampleRecipientDirectoryUnitTests`, with the directory examples U1 to U4 of `docs/subscription-domain.md`.
    - The whole subscription example of section 1.1 gives the effective result of section 1.1, through the SQLite stores and the example directory.
