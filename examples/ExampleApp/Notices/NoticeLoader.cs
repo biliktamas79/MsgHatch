@@ -3,7 +3,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 
-namespace ExampleApp;
+namespace ExampleApp.Notices;
 
 /// <summary>Gives one <see cref="Notice"/> for all routes, because its data does not depend on the target.</summary>
 /// <typeparam name="TEvent">The example event.</typeparam>

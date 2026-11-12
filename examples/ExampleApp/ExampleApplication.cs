@@ -1,3 +1,5 @@
+using ExampleApp.Channels;
+using ExampleApp.Notices;
 using System.Security.Claims;
 using JasperFx.CodeGeneration;
 using MsgHatch.Broker.Wolverine.DependencyInjection;

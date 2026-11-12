@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ExampleApp;
+namespace ExampleApp.Notices;
 
 /// <summary>The payload of the SignalR and broker messages of the example. The outbox stores it in the envelope.</summary>
 /// <param name="Type">The name of the message type.</param>

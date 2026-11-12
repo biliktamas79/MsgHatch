@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ExampleApp;
+namespace ExampleApp.PasswordResets;
 
 /// <summary>The domain event of the message type F: a password reset, which <see cref="PasswordResetRouter"/> routes.</summary>
 /// <param name="UserId">The user who asked for the reset.</param>

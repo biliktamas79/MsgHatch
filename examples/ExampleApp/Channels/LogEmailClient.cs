@@ -2,7 +2,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Email;
 
-namespace ExampleApp;
+namespace ExampleApp.Channels;
 
 /// <summary>
 /// The email client of the example. It writes each email to the log, in place of an email provider, so the example

@@ -3,7 +3,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 
-namespace ExampleApp;
+namespace ExampleApp.PasswordResets;
 
 /// <summary>Gives the reset link of a password reset. The link holds the message id, so a second try sends the same link.</summary>
 public sealed class PasswordResetEmailLoader : IPayloadLoader<PasswordReset, PasswordResetEmail>

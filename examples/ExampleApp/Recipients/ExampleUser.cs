@@ -1,4 +1,4 @@
-namespace ExampleApp;
+namespace ExampleApp.Recipients;
 
 /// <summary>One row of the table <c>Users</c> of <see cref="ExampleRecipientDirectory"/>.</summary>
 /// <param name="Id">The id of the user.</param>

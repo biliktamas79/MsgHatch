@@ -4,7 +4,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Email;
 
-namespace ExampleApp;
+namespace ExampleApp.PasswordResets;
 
 /// <summary>
 /// The router of the message type F (section 4.6). It sends each password reset by email to the one user of the event,

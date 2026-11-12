@@ -1,6 +1,6 @@
 using MsgHatch.Email.Placeholders;
 
-namespace ExampleApp;
+namespace ExampleApp.Notices;
 
 /// <summary>The payload of the email templates of the message types A to E.</summary>
 /// <param name="Text">The text of the notification.</param>

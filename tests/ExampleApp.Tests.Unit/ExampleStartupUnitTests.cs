@@ -1,3 +1,4 @@
+using ExampleApp.Startup;
 using Microsoft.Extensions.DependencyInjection;
 using ExampleApp.Tests.Unit.TestTypes;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;

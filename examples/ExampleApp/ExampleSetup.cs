@@ -1,3 +1,6 @@
+using ExampleApp.Notices;
+using ExampleApp.PasswordResets;
+using ExampleApp.Recipients;
 using MsgHatch.Broker.DependencyInjection;
 using MsgHatch.Data.Sqlite.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;

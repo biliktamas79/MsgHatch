@@ -1,10 +1,13 @@
+using ExampleApp.Notices;
+using ExampleApp.PasswordResets;
+using ExampleApp.Recipients;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Subscriptions.Management;
 
-namespace ExampleApp;
+namespace ExampleApp.Startup;
 
 /// <summary>
 /// The startup work of the example (D157): it writes the shared scenario only into an empty directory, and then accepts

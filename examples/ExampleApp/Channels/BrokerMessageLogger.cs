@@ -1,4 +1,6 @@
-namespace ExampleApp;
+using ExampleApp.Notices;
+
+namespace ExampleApp.Channels;
 
 /// <summary>
 /// The Wolverine handler of the local broker queue of the example. It writes each broker message to the log, in place of

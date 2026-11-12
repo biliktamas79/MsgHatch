@@ -1,9 +1,10 @@
+using ExampleApp.Recipients;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email;
 using MsgHatch.SignalR;
 using MsgHatch.Subscriptions;
 
-namespace ExampleApp;
+namespace ExampleApp.Startup;
 
 /// <summary>
 /// The shared test scenario "Acme and Globex" of section 4 of <c>docs/subscription-domain.md</c>: its companies, its

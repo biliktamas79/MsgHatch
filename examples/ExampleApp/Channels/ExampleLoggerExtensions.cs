@@ -1,4 +1,4 @@
-namespace ExampleApp;
+namespace ExampleApp.Channels;
 
 /// <summary>
 /// The log events of the example, 9000 to 9099, as source-generated extension methods of <see cref="ILogger"/>. A

@@ -1,4 +1,4 @@
-namespace ExampleApp;
+namespace ExampleApp.Notices;
 
 /// <summary>
 /// The shape of the example events A to E: a user scope or a company scope, and a text. The interface belongs to the

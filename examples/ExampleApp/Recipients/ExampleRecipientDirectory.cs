@@ -6,7 +6,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Email;
 using MsgHatch.Subscriptions;
 
-namespace ExampleApp;
+namespace ExampleApp.Recipients;
 
 /// <summary>
 /// The recipient directory of the example (D76), on the SQLite file of the stores. The table <c>Companies</c> holds the
