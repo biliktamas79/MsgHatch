@@ -642,6 +642,11 @@ Tests:
 - The options tests of `SubscriptionCacheOptions`. `KeyPrefix` gets a value with a space and a value with an accented character. Configuration binding: a value in the section `MsgHatch:SubscriptionCache` reaches the options, and a value from the `Action` of the setup method wins over it.
 - The use cases of `SubscriptionCacheBackendTestsBase`, run by both backend subclasses, each on a real in-memory cache: a set value with two subscriptions is read back whole, a miss gives null and stores no entry, and a removed tag removes the values of that tag while the values of another tag stay.
 - `UseHybridSubscriptionCache` and `UseFusionSubscriptionCache` alone register all parts. `UseFusionSubscriptionCache` does not change the default FusionCache of the host.
+- Extra tests that the implementation added:
+  - The caching wrapper: `QueryAsync` and `GetAsync` use no cache. A read error before `DeleteAsync` stops the delete, and an unknown id removes no tag. It logs the hits and misses of each call at the Debug level, and each backend error at the Warning level with the tenant.
+  - The setup: both orders of `UseSubscriptionStore` and `UseSubscriptionCache` give the same wrapper order. With `EnableLogging` false, the cache stays on. The type overload gives one singleton backend. An invalid `KeyPrefix` fails the startup validation. A second cache selection fails it too, and the message names both methods (D62).
+  - The backend contract: an empty list comes back as an empty list, not null. An entry with two tags goes with each of them.
+  - Each backend: an exception of its cache library gives `Errors.Unavailable`, and a cancellation gives `Errors.OperationCancelled`. `UseHybridSubscriptionCache` keeps a `HybridCache` of the host, and gives its second callback to HybridCache. The second callback of `UseFusionSubscriptionCache` changes only the named FusionCache.
 
 Checked facts (2026-11-04 and 2026-11-05) for the cache packages, with a probe program on `Microsoft.Extensions.Caching.Hybrid` 10.11.0 and `ZiggyCreatures.FusionCache` 2.9.0:
 
@@ -658,9 +663,12 @@ Checked facts (2026-11-04 and 2026-11-05) for the cache packages, with a probe p
 | `AddFusionCache("MsgHatch.Subscriptions")` alone registers no default `IFusionCache`. With the default cache of the host, the two caches do not share entries. FusionCache gives the same instance back with no serializer, and shows a value that is set again after `RemoveByTagAsync`. | Probe |
 
 Commits:
-1. "Add the subscription caching wrapper and the cache backend contract"
-2. "Add the HybridCache subscription cache backend"
-3. "Add the FusionCache subscription cache backend"
+1. "Keep the HybridCache entries without a serializer in the plan (D152)"
+2. "Percent-encode the ids in the subscription cache keys in the plan (D153)"
+3. "Add the subscription caching wrapper and the cache backend contract"
+4. "Add the HybridCache subscription cache backend"
+5. "Add the FusionCache subscription cache backend"
+6. "Record the extra tests of phase 11 in the plan"
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
