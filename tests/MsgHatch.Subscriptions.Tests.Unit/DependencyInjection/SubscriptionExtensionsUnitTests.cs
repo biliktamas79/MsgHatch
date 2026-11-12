@@ -8,7 +8,7 @@ using NSubstitute;
 
 namespace MsgHatch.Subscriptions.Tests.Unit.DependencyInjection;
 
-public sealed class SubscriptionExtensionsUnitTests
+public sealed partial class SubscriptionExtensionsUnitTests
 {
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
     private static readonly TenantKey _t2 = TenantKey.For(new TenantId("t2"));

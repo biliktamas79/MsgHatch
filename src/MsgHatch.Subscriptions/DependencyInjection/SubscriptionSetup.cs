@@ -14,6 +14,8 @@ internal sealed class SubscriptionSetup
 
     public List<string> DirectorySelections { get; } = [];
 
+    public List<string> CacheSelections { get; } = [];
+
     public bool UsesSubscriptions { get; set; }
 
     public static SubscriptionSetup Of(IServiceCollection services) =>

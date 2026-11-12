@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions.Caching;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Resolution;
 
@@ -73,9 +75,58 @@ public static class SubscriptionExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(factory);
-        SubscriptionSetup.Of(builder.Services).StoreSelections.Add(setupMethod ?? nameof(UseSubscriptionStore));
+        var setup = SubscriptionSetup.Of(builder.Services);
+        setup.StoreSelections.Add(setupMethod ?? nameof(UseSubscriptionStore));
         builder.Services.TryAddSingleton<ChannelSettingsJson>();
-        return builder.AddTenantService(ServiceLifetime.Singleton, factory, SubscriptionLoggers.Wrap);
+        return builder.AddTenantService(
+            ServiceLifetime.Singleton,
+            (tenantServices, key) => WithTheCacheOfTheSetup(setup, tenantServices, key, factory(tenantServices, key)),
+            SubscriptionLoggers.Wrap);
+    }
+
+    /// <summary>
+    /// Selects a cache backend, and turns on the subscription cache: <see cref="ISubscriptionCache"/> as a singleton tenant
+    /// service, and the caching wrapper between the logging wrapper and the subscription store (section 4.15, D38, D40).
+    /// The options bind from the section <c>MsgHatch:SubscriptionCache</c>, and a value from code wins. The cache packages
+    /// call it. A host calls it only for its own backend.
+    /// </summary>
+    /// <typeparam name="TBackend">The backend type, a thread-safe singleton for all tenants.</typeparam>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">An optional change of the options in code.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseSubscriptionCache<TBackend>(this MsgHatchBuilder builder, Action<SubscriptionCacheOptions>? configure = null)
+        where TBackend : class, ISubscriptionCacheBackend =>
+        builder.UseSubscriptionCache(static services => ActivatorUtilities.CreateInstance<TBackend>(services), configure);
+
+    /// <summary>Selects a cache backend with a factory, for example for a test substitute. The cache packages call it.</summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="factory">The factory of the backend, a thread-safe singleton for all tenants.</param>
+    /// <param name="configure">An optional change of the options in code.</param>
+    /// <param name="setupMethod">The setup method of a cache package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseSubscriptionCache(
+        this MsgHatchBuilder builder,
+        Func<IServiceProvider, ISubscriptionCacheBackend> factory,
+        Action<SubscriptionCacheOptions>? configure = null,
+        string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(factory);
+        SubscriptionSetup.Of(builder.Services).CacheSelections.Add(setupMethod ?? nameof(UseSubscriptionCache));
+        var options = builder.Services.AddOptions<SubscriptionCacheOptions>().BindConfiguration(SubscriptionCacheOptions.SectionName);
+        if (configure is not null)
+        {
+            options.Configure(configure);
+        }
+
+        options.ValidateOnStart();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<SubscriptionCacheOptions>, SubscriptionCacheOptionsValidator>());
+        builder.Services.AddSingleton(factory);
+        return builder.AddTenantService<ISubscriptionCache>(
+            ServiceLifetime.Singleton,
+            static (tenantServices, key) => new SubscriptionCache(
+                tenantServices.GetRequiredService<ISubscriptionCacheBackend>(), SubscriptionCacheKeys.For(tenantServices, key)));
     }
 
     /// <summary>
@@ -107,4 +158,16 @@ public static class SubscriptionExtensions
         SubscriptionSetup.Of(builder.Services).DirectorySelections.Add(nameof(UseRecipientDirectory));
         return builder.AddTenantService(ServiceLifetime.Scoped, factory, SubscriptionLoggers.Wrap);
     }
+
+    private static ISubscriptionStore WithTheCacheOfTheSetup(
+        SubscriptionSetup setup, IServiceProvider tenantServices, TenantKey key, ISubscriptionStore store) =>
+        setup.CacheSelections.Count == 0
+            ? store
+            : new SubscriptionStoreCachingWrapper(
+                store,
+                tenantServices.GetRequiredService<ISubscriptionCacheBackend>(),
+                SubscriptionCacheKeys.For(tenantServices, key),
+                tenantServices.GetRequiredService<IOptions<SubscriptionCacheOptions>>().Value.Expiration,
+                key,
+                SubscriptionLoggers.For<SubscriptionStoreCachingWrapper>(tenantServices));
 }

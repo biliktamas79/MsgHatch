@@ -1,12 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Subscriptions.Caching;
 
 namespace MsgHatch.Subscriptions.DependencyInjection;
 
 /// <summary>
-/// The startup validation of the subscriptions setup (section 4.7): one selection of the subscription store and one of
-/// the recipient directory (D62), and with <c>UseSubscriptions</c> and the role <see cref="MsgHatchRoles.Consumer"/>, a
+/// The startup validation of the subscriptions setup (section 4.7): at most one selection of the subscription store, of
+/// the recipient directory, and of the cache backend (D62), and with <c>UseSubscriptions</c> and the role <see cref="MsgHatchRoles.Consumer"/>, a
 /// subscription store and a recipient directory.
 /// </summary>
 internal sealed class SubscriptionSetupValidator(IServiceProvider services, SubscriptionSetup setup) : IValidateOptions<SubscriptionSetupCheck>
@@ -19,6 +20,7 @@ internal sealed class SubscriptionSetupValidator(IServiceProvider services, Subs
         [
             .. DuplicateSelections(setup.StoreSelections, nameof(ISubscriptionStore)),
             .. DuplicateSelections(setup.DirectorySelections, nameof(IRecipientDirectory)),
+            .. DuplicateSelections(setup.CacheSelections, nameof(ISubscriptionCacheBackend)),
             .. routes ? MissingStoreOrDirectory() : [],
         ];
         return failures.Length == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
