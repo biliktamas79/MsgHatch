@@ -1,8 +1,6 @@
-using System.Globalization;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
-using MsgHatch.Domain.Routing;
 using MsgHatch.Email.Placeholders;
 using MsgHatch.Email.Templates;
 
@@ -11,7 +9,7 @@ namespace MsgHatch.Email.Engines;
 /// <summary>
 /// The placeholder engine (D45, section 4.10). It selects a template with the fallback of D123, parses and binds it one
 /// time for each <see cref="TemplateKey"/>, and replaces each <c>{{PropertyName}}</c> with a payload property. A
-/// render completes synchronously.
+/// render completes synchronously. A lookup that hits the cache of the prepared templates allocates nothing (section 4.11).
 /// </summary>
 /// <typeparam name="TPayload">The payload type, with the placeholder writer of the source generator.</typeparam>
 public sealed class PlaceholderEmailEngine<TPayload> : IEmailTemplateEngine<TPayload>
@@ -38,22 +36,7 @@ public sealed class PlaceholderEmailEngine<TPayload> : IEmailTemplateEngine<TPay
             return source.Error;
         }
 
-        var parsed = ParsedTemplateCache<TPayload>.GetOrParse(source.Value);
-        return parsed.IsError ? parsed.Error : ErrorOr<IEmailTemplate<TPayload>>.ForValue(new Template(parsed.Value));
-    }
-
-    private sealed class Template(ParsedTemplate parsed) : IEmailTemplate<TPayload>
-    {
-        public ValueTask<ErrorOr<RenderedEmail>> RenderAsync(TPayload payload, MessageRoute route, CultureInfo culture, CancellationToken ct)
-        {
-            using var output = new PooledCharBufferWriter();
-            using var value = new PooledCharBufferWriter();
-            var writer = TPayload.Writer;
-            var rendered = new RenderedEmail(
-                PlaceholderRenderer.Render(parsed.Subject, payload, writer, culture, output, value),
-                PlaceholderRenderer.Render(parsed.Html, payload, writer, culture, output, value),
-                parsed.Text is null ? null : PlaceholderRenderer.Render(parsed.Text, payload, writer, culture, output, value));
-            return ValueTask.FromResult(ErrorOr<RenderedEmail>.ForValue(rendered));
-        }
+        var template = ParsedTemplateCache<TPayload>.GetOrParse(source.Value);
+        return template.IsError ? template.Error : ErrorOr<IEmailTemplate<TPayload>>.ForValue(template.Value);
     }
 }
