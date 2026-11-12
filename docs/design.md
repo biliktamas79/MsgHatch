@@ -1804,7 +1804,38 @@ The target is zero allocation in the MsgHatch hot path. Some allocations stay, b
 
 The library does not serialize in the pipeline. Each store serializes one time, with its own serializer.
 
-Unit tests prove the "does not allocate" claims for code with no dependencies with `GC.GetAllocatedBytesForCurrentThread()`. This covers `ErrorOr`, the generated writers, and `DeterministicId`. NSubstitute allocates when it records a call, so code with a substitute in its path cannot get an allocation test. Phase 13 measures the template cache, rendering, the dispatcher loop, and the full budget with BenchmarkDotNet.
+Unit tests prove the "does not allocate" claims for code with no dependencies with `GC.GetAllocatedBytesForCurrentThread()`. This covers `ErrorOr`, the generated writers, and `DeterministicId`. NSubstitute allocates when it records a call, so code with a substitute in its path cannot get an allocation test. In the Debug configuration of the unit tests, the compiler makes each async state machine a class, so an async method cannot get an allocation test either. Phase 13 measures the template cache, rendering, the dispatcher loop, and the full budget with BenchmarkDotNet.
+
+Measured budget (phase 13). The three projects `tests/*.Tests.Performance` ran on 2026-11-12, after the fixes of D159:
+- BenchmarkDotNet 0.15.8 with `MemoryDiagnoser`, the default job, and for the email engine a fixed job of 1,024 invocations, 5 warmups, and 20 iterations. The fixed job bounds the template versions of the run with no cache hit, because the cache keeps each version. Its times have a larger error.
+- .NET 10.0.15 (SDK 10.0.404), Release, X64 RyuJIT x86-64-v4, on an AMD Ryzen AI 7 350 with 8 physical and 16 logical cores, Windows 11 build 26300.
+- `Allocated` counts the bytes of all threads, because BenchmarkDotNet 0.15.8 reads `GC.GetTotalAllocatedBytes`. So the result of `RunAsync` includes its send workers.
+- Each router, composer, loader, store, transport, and cache backend of the benchmarks gives a result that it made before the measurement, so it allocates nothing.
+
+| Benchmark | Allocated | Mean | Budget line | Result |
+|---|---|---|---|---|
+| Placeholder engine, `PrepareAsync` with a hit of the template cache | 0 B | 395 ns | Template parsing on a cache hit | Holds (328 B before D159) |
+| Placeholder engine, `PrepareAsync` with no cache hit (one parse) | 1,544 B | 1.50 µs | None: a parse allocates its template | Measured |
+| Placeholder engine, `RenderAsync` of one email | 368 B | 660 ns | The rendered email strings | Holds |
+| `EmailComposer.ComposeAsync` of one email | 1,448 B | 2.45 µs | Each event and each message | Holds (1,776 B before D159) |
+| `EmbeddedResourceTemplateStore.FindAsync` with a hit of its source cache | 0 B | 21.5 ns | A template store lookup with a cache hit | Holds |
+| `DeterministicId.Create` | 0 B | 265 ns | `DeterministicId` does not allocate | Holds |
+| `ProcessAsync`, 1 route, in-memory stores | 3.28 KB | 1.61 µs | Each event and each message | Open (see below) |
+| `ProcessAsync`, 100 routes | 78.24 KB | 37.3 µs | Each event and each message | Open: about 770 B for each route |
+| `ProcessAsync`, 10,000 routes | 7,592 KB | 8.33 ms | Each event and each message | Open: about 770 B for each route |
+| `DispatchPendingAsync`, batch of 100 messages | 255 B for each message | 645 ns for each message | Each send: the publish try | Open (295 B before D159) |
+| `RunAsync`, batch of 100 messages that a signal wakes | 243 B for each message | 840 ns for each message | Each send: the publish try. Each wait does not allocate. | Open (307 B before D159) |
+| A call through a logging wrapper with Debug off | 0 B | 71 ns (0.7 ns with no wrapper) | The call itself does not allocate | Holds |
+| `SubscriptionResolver.Resolve`, 1 user | 3.08 KB | 419 ns | None | Measured |
+| `SubscriptionResolver.Resolve`, 100 users | 171.17 KB | 19.6 µs | None | Measured: about 1.7 KB for each user |
+| `SubscriptionResolver.Resolve`, 10,000 users | 17,606 KB | 18.8 ms | None | Measured: about 1.76 KB for each user |
+| Subscription lookup with a cache hit for the defaults, one company, and one user | 448 B | 196 ns (1.6 ns with no cache) | The string cache keys and the work of the backend | Open (see below) |
+
+The open items, which a follow-up item of the roadmap attributes and reduces (D159):
+- The pipeline allocates about 770 B for each route: the outgoing message (about 250 B), two result arrays, a list and a copy of the routes, a set of the targets, and the groups by channel. Each one is a list of the event or the message, so the budget lines hold. But three copies of the routes and the set are avoidable, and about 150 B for each route are not attributed.
+- A send allocates the publish try (about 104 B) and about 150 B that are not attributed.
+- A cache hit for 3 owners builds 3 keys, each with an owner part string first, and also allocates the result list and an empty list of the missing owners. The keys are in the budget line. The owner part strings and the empty list are avoidable.
+- The resolution allocates about 1.7 KB for each user, for the routes and the resolution traces. No budget line covers it yet.
 
 ### 4.12 Error handling
 

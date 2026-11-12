@@ -749,12 +749,48 @@ Goal: the subscription example end to end, the allocation budget, and the store 
 5. Write `docs/stores.md` with the file stores and the SQLite stores. For each storage kind, it explains the message format, the publish tries, the claim pattern, the two store parts and the tenant field, and the versioning rules. Phases 18 and 19 add their sections.
 6. Update `README.md` and `AGENTS.md` with the commands and the package list.
 
+The implementation also did these items, on the request of the owner or from a measurement:
+- The files of the example app are in use-case folders: `Notices` (the message types A to E), `PasswordResets` (F), `Recipients`, `Channels`, and `Startup`. The folder names are plural, because the folder is the namespace. The log methods of the example are `[LoggerMessage]` extension methods of `ILogger`.
+- `MsgHatchWorker` runs the inbox loop for the role `Consumer` and the outbox loops for the role `Publisher`, so the same worker serves one process and separate processes.
+- The example directory keeps its tables `Companies` and `Users` on the SQLite file of the stores, with a `TenantId` column.
+- The fixes of D159: a hit of the email template cache allocates nothing, and a span with no listener builds no name.
+
+Tests that the implementation added:
+- `tests/ExampleApp.Tests.Unit` starts in the commit of the example app: the golden files of `EventA` to `EventE`, `PasswordReset`, and `Notice` (the email payloads are not stored, so they have no sample), the startup work with two starts on one file (D157), and the whole web app on a `TestServer`: the 7 emails of the startup events, the `/me` route with a token of the user `"1"` (D158) and with no token (401), and the 2 broker messages of a default broker subscription for D through the Wolverine handler.
+- The directory tests seed the scenario for each of their 4 tests, not one time.
+- The classes with a `TracerProvider` are in the collection `Telemetry`.
+- The test project references `Microsoft.AspNetCore.TestHost`, `MsgHatch.Data.Sqlite.Tests.Unit` for the temporary database files and the fake clock that records its waits, and `MsgHatch.Subscriptions.Tests.Unit` for the contract base class and the scenario.
+
+Checked facts (2026-11-12) for phase 13:
+
+| Fact | Source |
+|---|---|
+| `OpenTelemetry` 1.21.0 (published 2026-11-11) depends on `System.Diagnostics.DiagnosticSource` 11.0.0 for `net10.0`. 1.20.1 has no package dependency for `net10.0`. So the example pins the OpenTelemetry packages at 1.20.1. | The `.nuspec` of both versions on nuget.org |
+| From Wolverine 6.0, `WolverineFx` has no runtime compiler. A handler in the default `TypeLoadMode.Dynamic` needs `WolverineFx.RuntimeCompilation` 6.61.0, which brings `JasperFx.RuntimeCompiler` 5.0.1 and Roslyn 5.0.0. | The Wolverine documentation of the code generation, and a break with no package that made the broker test fail |
+| Wolverine 6.61.0 routes a message type with a local handler to a local queue by convention. An explicit `ToLocalQueue` route changes no result. | A break that removed the route made no test fail |
+| `AddJwtBearer()` with no argument reads `Authentication:Schemes:Bearer`: `ValidIssuer`, `ValidAudiences`, and `SigningKeys` with `Issuer` and a base64 `Value`, the form of `dotnet user-jwts`. The handler maps the claim `sub` to `ClaimTypes.NameIdentifier`. | The test of the `/me` route with a token. A break that read the claim `sub` made it fail. |
+| BenchmarkDotNet 0.15.8 counts the allocated bytes with `GC.GetTotalAllocatedBytes`, so a result includes the bytes of all threads. | The assembly references only `GetTotalAllocatedBytes` |
+| `DispatchPendingAsync` completes asynchronously. `GetAwaiter().GetResult()` on its pooled `ValueTask` throws `InvalidOperationException`, so the benchmark awaits it. | A benchmark run |
+| `AddMsgHatch` binds its options to `IConfiguration`, so a container with no host needs an `IConfiguration`. | The first benchmark run, which failed in each setup |
+| `BackgroundService.Dispose` cancels the loops but does not wait for them. `StopAsync` waits. A test that deletes the database file after a worker stops it with `StopAsync`. | The two-host test, which failed to delete its file in a full run |
+| On .NET 10 in Release, a lookup of `EmbeddedResourceTemplateStore` with a hit allocates 0 B. | The benchmark of section 4.11 |
+
+The example app was not started with `dotnet run`, because the rules of the phase allow only the unit tests and the benchmarks. The unit tests start it on a `TestServer`, with its startup validation, Wolverine, and the JWT sign-in.
+
 Commits:
-1. "Add the example web app"
-2. "Add example store tests"
-3. "Add performance test projects"
-4. "Add the store implementation guide"
-5. "Update README and AGENTS.md"
+1. "Record the decisions of the example app in the plan (D157, D158)"
+2. "Name the Wolverine runtime compiler as a package of the example in the plan"
+3. "Add the example web app"
+4. "Group the files of the example app by use case"
+5. "Add example store tests"
+6. "Add performance test projects"
+7. "Test the broker messages of the example app"
+8. "Add the store implementation guide"
+9. "Record the decision on the budget breaks in the plan (D159)"
+10. "Update README and AGENTS.md"
+11. "Allocate nothing on a hit of the email template cache"
+12. "Build the span name only for a listener"
+13. "Record the measured allocation budget and the checked facts of phase 13 in the plan"
 
 Done when: the build has no errors and no warnings, all tests pass, and the benchmark results are in section 4.11.
 
@@ -968,3 +1004,4 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
   - The phase checks the SDK call of the `Publish` action, and the size limit of a message with its attributes, in the pinned version.
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
 - More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
+- The open allocations of section 4.11 (D159): an allocation profile, for example an EventPipe trace with `GcVerbose`, attributes the bytes that phase 13 did not attribute, and the phase removes the avoidable ones: the three copies of the routes and the set of the targets in the pipeline, about 150 B for each send, and the owner part strings and the empty list of a subscription cache hit. It also gives the resolution a budget line, because it allocates about 1.7 KB for each user.
