@@ -2,12 +2,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Outbox;
+using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
 /// The startup validation of the setup (section 4.7): the outbox stores, one selection for each interface (D62), one
-/// value in code for each shared options class (D150), one transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
+/// value in code for each shared options class (D150), a registry settings store for the stored registry (section 4.20),
+/// one transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
 /// registrations and the payload loaders of each message type (D135). With the role
 /// <see cref="MsgHatchRoles.Consumer"/>, a router for each message type (D95), and with the role
 /// <see cref="MsgHatchRoles.Publisher"/>, at least one transport (D105).
@@ -20,6 +22,7 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         string[] failures =
         [
             .. MissingOutboxStores(),
+            .. MissingRegistrySettingsStore(),
             .. Duplicates(setup.Selections, "select an implementation of"),
             .. Duplicates(setup.SharedOptionsValues, "give a value in code to"),
             .. DuplicateTransports(),
@@ -41,6 +44,13 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         new[] { typeof(IOutboxStore), typeof(IOutboxDispatchStore) }
             .Where(store => !setup.Selections.Exists(selection => selection.Service == store))
             .Select(static store => $"No setup method selects an {store.Name}, for example UseInMemoryStores.");
+
+    private IEnumerable<string> MissingRegistrySettingsStore() =>
+        IsSelected(typeof(IRegistryWriter)) && !IsSelected(typeof(IRegistrySettingsStore))
+            ? ["UseStoredRegistry needs a registry settings store, for example UseInMemoryStores, UseFileStores, or UseSqliteStores."]
+            : [];
+
+    private bool IsSelected(Type service) => setup.Selections.Exists(selection => selection.Service == service);
 
     private static IEnumerable<string> Duplicates(List<ImplementationSelection> selections, string effect) =>
         selections

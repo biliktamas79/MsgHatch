@@ -184,6 +184,29 @@ public sealed class MsgHatchBuilder
     }
 
     /// <summary>
+    /// Selects the stored registry as <see cref="IMessageRegistry"/> and <see cref="IRegistryWriter"/> (D118, section
+    /// 4.20): the registrations of the code with the entries of the registered <see cref="IRegistrySettingsStore"/> on
+    /// top. The writer has its logging wrapper. The options bind from the section <c>MsgHatch:Registry</c>.
+    /// </summary>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseStoredRegistry()
+    {
+        Setup.Select(typeof(IRegistryWriter), nameof(UseStoredRegistry));
+        Services.AddOptions<RegistryOptions>().BindConfiguration(RegistryOptions.SectionName).ValidateOnStart();
+        Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RegistryOptions>, RegistryOptionsValidator>());
+        Services.TryAddSingleton(services => new StoredRegistry(
+            new InMemoryMessageRegistry(Setup.Channels, Setup.Messages.Select(static message => message.Descriptor)),
+            services.GetRequiredService<IRegistrySettingsStore>(), services.GetRequiredService<IOptions<RegistryOptions>>(),
+            services.GetRequiredService<TimeProvider>(), Loggers.For<StoredRegistry>(services)));
+        Services.Replace(ServiceDescriptor.Singleton<IMessageRegistry>(static services => services.GetRequiredService<StoredRegistry>()));
+        Services.AddSingleton(static services => Loggers.Wrap<IRegistryWriter>(
+            services, services.GetRequiredService<StoredRegistry>(),
+            static (services, inner) => new RegistryWriterLoggingWrapper(
+                inner, Loggers.For<RegistryWriterLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        return this;
+    }
+
+    /// <summary>
     /// Registers the registry settings store as a singleton, with its logging wrapper (section 4.20). The storage
     /// packages call it. The settings belong to the whole system, so the store is not a tenant service (D114).
     /// </summary>

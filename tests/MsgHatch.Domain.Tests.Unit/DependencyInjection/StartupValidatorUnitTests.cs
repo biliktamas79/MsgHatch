@@ -66,6 +66,58 @@ public sealed class StartupValidatorUnitTests
     }
 
     [Fact]
+    public async Task Validate_StoredRegistryWithAStore_Succeeds()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseStoredRegistry()
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id)));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Validate_StoredRegistryWithNoRegistrySettingsStore_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel()
+            .UseOutboxStore(static (_, _) => Substitute.For<IOutboxStore>())
+            .UseOutboxDispatchStore(static _ => Substitute.For<IOutboxDispatchStore>())
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .UseStoredRegistry();
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.StartsWith("UseStoredRegistry ", failure, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Validate_RefreshIntervalOutsideTheRange_ThrowsOptionsValidationException()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:Registry:RefreshInterval"] = "00:00:00" });
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseStoredRegistry()
+            .UseTransport(static _ => TestTransports.For(TestChannel.Id)));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Equal(typeof(RegistryOptions), Assert.IsType<OptionsValidationException>(exception).OptionsType);
+    }
+
+    [Fact]
     public async Task Validate_SecondRegistrySettingsStore_NamesBothSetupMethods()
     {
         // Arrange

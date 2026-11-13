@@ -27,4 +27,32 @@ internal static partial class Log
     public static partial void StoreChangeFailed(
         this ILogger logger, LogLevel level, string operation, string entry, int? revision, double elapsedMs, int errorCode,
         string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 2904, Level = LogLevel.Debug,
+        Message = "Registry GetEntriesAsync gave {ChannelCount} channel entries and {MessageTypeCount} message type entries in {ElapsedMs} ms")]
+    public static partial void WriterReadSucceeded(this ILogger logger, int channelCount, int messageTypeCount, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 2905,
+        Message = "Registry GetEntriesAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void WriterReadFailed(
+        this ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 2906, Level = LogLevel.Information,
+        Message = "Registry {Operation} of {Entry} completed with the revision {Revision} in {ElapsedMs} ms")]
+    public static partial void WriterChangeSucceeded(this ILogger logger, string operation, string entry, int? revision, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 2907,
+        Message = "Registry {Operation} of {Entry} with the expected revision {Revision} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void WriterChangeFailed(
+        this ILogger logger, LogLevel level, string operation, string entry, int? revision, double elapsedMs, int errorCode,
+        string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 2908, Level = LogLevel.Warning,
+        Message = "Registry read of the settings store failed, so the registry keeps its last snapshot: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void RefreshFailed(this ILogger logger, int errorCode, string errorName, string? errorMessage);
 }
