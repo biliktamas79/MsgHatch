@@ -331,7 +331,7 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 
 ## 4. EF Core stores
 
-`MsgHatch.Data.EntityFrameworkCore` keeps the inbox, the outbox, the down states, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them. `MsgHatch.Subscriptions.Data.EntityFrameworkCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(connectionString))`.
+`MsgHatch.Data.EFCore` keeps the inbox, the outbox, the down states, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(connectionString))`.
 
 ### 4.1 Model and tables
 

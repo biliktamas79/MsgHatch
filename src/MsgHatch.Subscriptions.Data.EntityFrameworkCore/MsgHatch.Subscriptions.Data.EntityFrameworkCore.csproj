@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <ItemGroup>
-    <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
-    <ProjectReference Include="..\MsgHatch.Data.EntityFrameworkCore\MsgHatch.Data.EntityFrameworkCore.csproj" />
-  </ItemGroup>
-
-</Project>

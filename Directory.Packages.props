@@ -33,7 +33,7 @@
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
   </ItemGroup>
 
-  <ItemGroup Label="MsgHatch.Data.EntityFrameworkCore">
+  <ItemGroup Label="MsgHatch.Data.EFCore">
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
   </ItemGroup>
 

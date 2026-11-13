@@ -953,14 +953,14 @@ Done when: the build has no errors and no warnings, and all tests pass.
 
 Goal: the inbox, outbox, registry settings, and subscription stores on EF Core, with SQL Server as the first provider (D120).
 
-1. Add `src/MsgHatch.Data.EntityFrameworkCore` with `EntityFrameworkStoreOptions` and its validator, `MsgHatchDbContext`, `EntityFrameworkInboxStore`, `EntityFrameworkOutboxStore`, `EntityFrameworkRegistrySettingsStore`, and `UseEntityFrameworkStores` (sections 4.5 and 4.7):
+1. Add `src/MsgHatch.Data.EFCore` with `EntityFrameworkStoreOptions` and its validator, `MsgHatchDbContext`, `EntityFrameworkInboxStore`, `EntityFrameworkOutboxStore`, `EntityFrameworkRegistrySettingsStore`, and `UseEntityFrameworkStores` (sections 4.5 and 4.7):
    - The model maps the columns of section 4.5, in the schema of `EntityFrameworkStoreOptions.Schema`, with the same indexes. The partial claim index is a filtered index with `WHERE Status = 'Pending'` (D104).
    - Each store is a singleton, and makes one `DbContext` for each operation through the pooled `IDbContextFactory<MsgHatchDbContext>` (D130).
    - The claim is one raw SQL statement through `FromSql`, because LINQ cannot express it. For SQL Server, a subquery selects the `Sequence` of the first due rows with `TOP (@max)`, `ORDER BY NextTryAtUtc, Sequence`, and the hints `ROWLOCK, READPAST, UPDLOCK`, and an `UPDATE` of these rows with an `OUTPUT` clause sets the lease (D120). An `UPDATE` of a CTE puts a sort for the Halloween protection under the `TOP`, so it locks each due row, and a parallel claim gets fewer messages. Phase 18 found this on SQL Server 2025 CU7. `Sequence` is an identity column. The store sorts the `OUTPUT` rows by the old `NextTryAtUtc` from `deleted` and by `Sequence` (D144). The store selects the statement by the provider of the context. A provider with no statement fails the startup validation with an `OptionsValidationException` that names the provider, and a store call on it gives `Errors.NotFound` (D175). The startup validation of MsgHatch reports an `OptionsValidationException`, not an `Error`.
    - `RecordTryAsync` is one `UPDATE` that appends the try to the JSON column `Tries` with `JSON_MODIFY`, with `WHERE Id = @id AND TryCount = @tryNumber - 1` (D27).
    - The package creates no schema. The host creates it with its own EF Core migrations, and the tests use `EnsureCreatedAsync`.
-2. Add `src/MsgHatch.Subscriptions.Data.EntityFrameworkCore` with `EntityFrameworkSubscriptionStore` and `UseEntityFrameworkSubscriptionStore`.
-3. Add `tests/MsgHatch.Data.EntityFrameworkCore.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EntityFrameworkCore.Tests.Integration`, with Testcontainers for SQL Server (D124). From D180, the tests use the SQL Server of `SqlServerIntegration:ConnectionString` in the git-ignored `appsettings.Local.json`, for example the local container dev-mssql, and Testcontainers only with no value. They drop the databases with the name prefix of their test project at the start and at the end of a run.
+2. Add `src/MsgHatch.Subscriptions.Data.EFCore` with `EntityFrameworkSubscriptionStore` and `UseEntityFrameworkSubscriptionStore`.
+3. Add `tests/MsgHatch.Data.EFCore.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration`, with Testcontainers for SQL Server (D124). From D180, the tests use the SQL Server of `SqlServerIntegration:ConnectionString` in the git-ignored `appsettings.Local.json`, for example the local container dev-mssql, and Testcontainers only with no value. They drop the databases with the name prefix of their test project at the start and at the end of a run.
 4. Add the EF Core sections to `docs/stores.md`.
 
 Tests:
@@ -1000,6 +1000,8 @@ Commits:
 8. "Record phase 18 as done in README and AGENTS.md"
 9. "Record the server decision of the EF Core integration tests (D180)"
 10. "Run the EF Core integration tests on a configured SQL Server"
+11. "Record the rename of the EF Core packages (D181)"
+12. "Rename the EF Core projects and namespaces to EFCore"
 
 Commit 5 also adds the EF Core rules to section 4.5 of the design and the EF Core section to `docs/stores.md`, and commit 6 adds the subscription part of that section.
 

@@ -6,7 +6,7 @@
     <Project Path="src/MsgHatch.AspNetCore/MsgHatch.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
     <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
-    <Project Path="src/MsgHatch.Data.EntityFrameworkCore/MsgHatch.Data.EntityFrameworkCore.csproj" />
+    <Project Path="src/MsgHatch.Data.EFCore/MsgHatch.Data.EFCore.csproj" />
     <Project Path="src/MsgHatch.Data.FileSystem/MsgHatch.Data.FileSystem.csproj" />
     <Project Path="src/MsgHatch.Data.Sqlite/MsgHatch.Data.Sqlite.csproj" />
     <Project Path="src/MsgHatch.Domain/MsgHatch.Domain.csproj" />
@@ -18,7 +18,7 @@
     <Project Path="src/MsgHatch.Subscriptions.AspNetCore/MsgHatch.Subscriptions.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Caching.FusionCache/MsgHatch.Subscriptions.Caching.FusionCache.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Caching.Hybrid/MsgHatch.Subscriptions.Caching.Hybrid.csproj" />
-    <Project Path="src/MsgHatch.Subscriptions.Data.EntityFrameworkCore/MsgHatch.Subscriptions.Data.EntityFrameworkCore.csproj" />
+    <Project Path="src/MsgHatch.Subscriptions.Data.EFCore/MsgHatch.Subscriptions.Data.EFCore.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Data.FileSystem/MsgHatch.Subscriptions.Data.FileSystem.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Data.Sqlite/MsgHatch.Subscriptions.Data.Sqlite.csproj" />
     <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
@@ -29,7 +29,7 @@
     <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Data.EntityFrameworkCore.Tests.Integration/MsgHatch.Data.EntityFrameworkCore.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.Tests.Integration/MsgHatch.Data.EFCore.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.Sqlite.Tests.Unit/MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Domain.Tests.Performance/MsgHatch.Domain.Tests.Performance.csproj" />
@@ -45,7 +45,7 @@
     <Project Path="tests/MsgHatch.Subscriptions.AspNetCore.Tests.Unit/MsgHatch.Subscriptions.AspNetCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Subscriptions.Data.EntityFrameworkCore.Tests.Integration/MsgHatch.Subscriptions.Data.EntityFrameworkCore.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Performance/MsgHatch.Subscriptions.Tests.Performance.csproj" />

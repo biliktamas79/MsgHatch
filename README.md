@@ -52,8 +52,8 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 | `MsgHatch.Subscriptions.Caching.FusionCache` | The FusionCache backend of the subscription cache | 11, done |
 | `MsgHatch.Subscriptions.AspNetCore` | HTTP endpoints for subscription management | 12, done |
 | `MsgHatch.AspNetCore` | HTTP endpoints for delivery management and registry administration | 15, done; 16, done |
-| `MsgHatch.Data.EntityFrameworkCore` | The EF Core stores, with SQL Server as the first provider | 18, done |
-| `MsgHatch.Subscriptions.Data.EntityFrameworkCore` | The EF Core subscription store | 18, done |
+| `MsgHatch.Data.EFCore` | The EF Core stores, with SQL Server as the first provider | 18, done |
+| `MsgHatch.Subscriptions.Data.EFCore` | The EF Core subscription store | 18, done |
 | `MsgHatch.Data.MongoDb` | The MongoDB stores | 19, planned |
 | `MsgHatch.Subscriptions.Data.MongoDb` | The MongoDB subscription store | 19, planned |
 
