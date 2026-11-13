@@ -4,11 +4,11 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 15 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, and the delivery management.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 16 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, and the registry administration.
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D167), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D171), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -28,7 +28,7 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite` |
 | Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 
-Phases 16 to 19 add the registry administration, a store for each tenant, the EF Core stores, and the MongoDB stores.
+Phases 17 to 19 add a store for each tenant, the EF Core stores, and the MongoDB stores.
 
 ## Commands
 
@@ -72,11 +72,12 @@ dotnet run -c Release --project tests/MsgHatch.Email.Tests.Performance
 dotnet run -c Release --project tests/MsgHatch.Subscriptions.Tests.Performance
 ```
 
-The example app needs no server, no cloud account, and no network. Its SQLite file `msghatch-example.db` is in the working folder of the app, and git ignores it. A token for the user `"1"` comes from `dotnet user-jwts` (D158). The delivery endpoints need the roles `DeliveryAdmin` and `DeliveryContent` (D165):
+The example app needs no server, no cloud account, and no network. Its SQLite file `msghatch-example.db` is in the working folder of the app, and git ignores it. A token for the user `"1"` comes from `dotnet user-jwts` (D158). The delivery endpoints need the roles `DeliveryAdmin` and `DeliveryContent` (D165), and the registry endpoints need the role `RegistryAdmin` (D170):
 
 ```bash
 dotnet user-jwts create --project examples/ExampleApp --name 1
 dotnet user-jwts create --project examples/ExampleApp --name 1 --role DeliveryAdmin --role DeliveryContent
+dotnet user-jwts create --project examples/ExampleApp --name 1 --role RegistryAdmin
 dotnet run --project examples/ExampleApp
 dotnet test tests/ExampleApp.Tests.Unit
 ```
