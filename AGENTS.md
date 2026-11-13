@@ -4,11 +4,11 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 17 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, and a store for each tenant.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 18 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, and the EF Core stores on SQL Server.
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D174), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D179), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -25,10 +25,10 @@ Read the current phase in the roadmap, and the design sections that it refers to
 |---|---|
 | Core | `MsgHatch.Domain`, `MsgHatch.SourceGeneration`, `MsgHatch.AspNetCore` |
 | Channels | `MsgHatch.Email`, `MsgHatch.Email.AmazonSES`, `MsgHatch.Email.Resend`, `MsgHatch.SignalR`, `MsgHatch.Broker`, `MsgHatch.Broker.Wolverine` |
-| Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite` |
-| Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
+| Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite`, `MsgHatch.Data.EntityFrameworkCore` |
+| Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EntityFrameworkCore`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 
-Phases 18 and 19 add the EF Core stores and the MongoDB stores.
+Phase 19 adds the MongoDB stores.
 
 ## Commands
 
@@ -82,10 +82,11 @@ dotnet run --project examples/ExampleApp
 dotnet test tests/ExampleApp.Tests.Unit
 ```
 
-From phase 18 on, the integration tests need a container runtime, for example Docker:
+From phase 18 on, the EF Core integration tests need a container runtime, for example Docker. Testcontainers starts SQL Server from the image `mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04`, and pulls the image only when it is missing. A machine with no image of the Ryuk container of Testcontainers sets `TESTCONTAINERS_RYUK_DISABLED=true` for its run (D177):
 
 ```bash
 dotnet test tests/MsgHatch.Data.EntityFrameworkCore.Tests.Integration
+dotnet test tests/MsgHatch.Subscriptions.Data.EntityFrameworkCore.Tests.Integration
 ```
 
 ## Rules for each phase
