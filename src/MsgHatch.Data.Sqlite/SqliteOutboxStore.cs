@@ -7,6 +7,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
+using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Data.Sqlite;
 
@@ -71,6 +72,16 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
             'contentVersion', ContentVersion, 'flags', Flags, 'traceParent', TraceParent,
             'trace', IIF(json_valid(Trace), json(Trace), Trace), 'envelope', IIF(json_valid(Content), json(Content), Content))
         """;
+
+    private const string _get = $"SELECT {_document}, Tries FROM MsgHatchOutbox WHERE TenantId = @tenantId AND Id = @id";
+
+    private static readonly string _query = SqliteManagement.Outbox.QueryOf(
+        "SourceMessageId, TenantId, MessageType, Channel, TargetKind, TargetId, ContentType, ContentVersion, Flags",
+        extraFilters: """
+            AND (@channel IS NULL OR Channel = @channel)
+            AND (@targetKind IS NULL OR (TargetKind = @targetKind AND TargetId = @targetId))
+            AND (@sourceMessageId IS NULL OR SourceMessageId = @sourceMessageId)
+            """);
 
     private static readonly ClaimStatements _claim = new(
         NextDue: "SELECT MIN(NextTryAtUtc) FROM MsgHatchOutbox WHERE Status = 'Pending' AND Channel = @channel",
@@ -292,9 +303,63 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
             row.IsDBNull(5) ? null : row.GetString(5),
             row.IsDBNull(6) ? null : row.GetString(6));
 
+    private MessagePage<OutgoingMessageSummary> Query(TenantKey key, OutboxQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
+        using var command = SqliteManagement.WithFilters(
+                connection.Command(_query), key, query.Ids, query.Status, query.Type, query.CreatedFromUtc, query.CreatedToUtc,
+                query.DueBeforeUtc, query.IncludeTest, query.After, query.Limit)
+            .With("@channel", query.Channel?.Name)
+            .With("@targetKind", query.Target?.Kind.ToString())
+            .With("@targetId", query.Target?.Id)
+            .With("@sourceMessageId", query.SourceMessageId is { } source ? SqliteValues.Id(source) : null);
+        return SqliteManagement.Page(command, query.Limit, SummaryOf, static summary => summary.Delivery);
+    }
+
+    private ErrorOr<OutgoingMessageHistory?> Get(TenantKey key, Guid id)
+    {
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
+        using var command = connection.Command(_get).With("@tenantId", SqliteValues.Tenant(key.Tenant)).With("@id", SqliteValues.Id(id));
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return ErrorOr<OutgoingMessageHistory?>.ForValue(null);
+        }
+
+        var message = _json.DeserializeOutgoing(Encoding.UTF8.GetBytes(reader.GetString(0)));
+        var tries = MsgHatchJson.DeserializeTries(id, Encoding.UTF8.GetBytes(reader.GetString(1)));
+        return message.Error ?? tries.Error ?? (ErrorOr<OutgoingMessageHistory?>)new OutgoingMessageHistory(message.Value, tries.Value);
+    }
+
+    private static OutgoingMessageSummary SummaryOf(SqliteDataReader row) =>
+        new(
+            SqliteValues.DeliveryOf(row), Guid.Parse(row.GetString(10)), SqliteValues.ParseTenant(row.GetString(11)),
+            new MessageType(row.GetString(12)), new ChannelId(row.GetString(13)),
+            new DeliveryTarget(Enum.Parse<DeliveryTargetKind>(row.GetString(14)), row.GetString(15)), row.GetString(16),
+            row.GetInt32(17), Enum.Parse<MessageFlags>(row.GetString(18)));
+
     private sealed class TenantStore(SqliteOutboxStore store, TenantKey key) : IOutboxStore
     {
         public ValueTask<Error?> AddAsync(IReadOnlyList<OutgoingMessage> messages, CancellationToken ct) =>
             ValueTask.FromResult(store.Add(key, messages));
+
+        public ValueTask<ErrorOr<MessagePage<OutgoingMessageSummary>>> QueryAsync(OutboxQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() => ErrorOr<MessagePage<OutgoingMessageSummary>>.ForValue(store.Query(key, query))));
+
+        public ValueTask<ErrorOr<OutgoingMessageHistory?>> GetAsync(Guid id, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() => store.Get(key, id)));
+
+        public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() =>
+                ErrorOr<IReadOnlyList<MessageCount>>.ForValue(SqliteManagement.Outbox.Count(store.ConnectionString, query, key))));
+
+        public ValueTask<ErrorOr<int>> RetryAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() =>
+                ErrorOr<int>.ForValue(SqliteManagement.Outbox.Retry(store.ConnectionString, key, ids, nowUtc, addedTries))));
+
+        public ValueTask<ErrorOr<int>> CancelAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() =>
+                ErrorOr<int>.ForValue(SqliteManagement.Outbox.Cancel(store.ConnectionString, key, ids, nowUtc))));
     }
 }

@@ -32,6 +32,17 @@ public sealed record PublishTry(
     };
 
     /// <summary>
+    /// Makes the try that a cancel records (D110): the outcome <see cref="PublishOutcome.Cancelled"/>, the cancel time as
+    /// its start and finish time, and no provider message id and no error fields.
+    /// </summary>
+    /// <param name="outgoingMessageId">The id of the outgoing message.</param>
+    /// <param name="tryNumber">The next try number of the message.</param>
+    /// <param name="nowUtc">The time of the cancel.</param>
+    /// <returns>The try.</returns>
+    public static PublishTry Cancel(Guid outgoingMessageId, int tryNumber, DateTime nowUtc) =>
+        new(outgoingMessageId, tryNumber, nowUtc, nowUtc, PublishOutcome.Cancelled, ProviderMessageId: null, ErrorCode: null, ErrorName: null, ErrorMessage: null);
+
+    /// <summary>
     /// Gives the <c>LastError</c> text of this try: <c>{ErrorName}: {ErrorMessage}</c>, only the error name when the try
     /// has no error message, or null when the try has no error.
     /// </summary>

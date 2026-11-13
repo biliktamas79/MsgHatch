@@ -83,4 +83,17 @@ internal static partial class Log
         Message = "Inbox {Operation} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void ManagementFailed(
         this ILogger logger, LogLevel level, string operation, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1214, Level = LogLevel.Debug,
+        Message = "Inbox {Operation} of tenant {Tenant} gave the count {Count} in {ElapsedMs} ms")]
+    public static partial void TenantManagementSucceeded(
+        this ILogger logger, string operation, string? tenant, int count, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1215,
+        Message = "Inbox {Operation} of tenant {Tenant} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void TenantManagementFailed(
+        this ILogger logger, LogLevel level, string operation, string? tenant, double elapsedMs, int errorCode, string errorName,
+        string? errorMessage);
 }

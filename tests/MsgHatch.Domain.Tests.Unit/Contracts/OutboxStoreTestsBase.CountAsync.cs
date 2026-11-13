@@ -82,6 +82,21 @@ public abstract partial class OutboxStoreTestsBase<TStore>
         Assert.Equal(expected, Assert.Single(counts.Value).Count);
     }
 
+    [Fact]
+    public async Task CountAsync_TenantStore_CountsOnlyTheMessagesOfItsTenant()
+    {
+        // Arrange
+        await AddAsync(AMessage(T1));
+        await AddAsync(AMessage(T1, nextTryAtUtc: Now.AddMinutes(1)));
+        await AddAsync(AMessage(T2));
+
+        // Act
+        var counts = await TenantStore(T1).CountAsync(new TrafficQuery(), Ct);
+
+        // Assert
+        Assert.Equal([new MessageCount(_type, TestChannel.Id, DeliveryStatus.Pending, Test: false, 2, Now)], counts.Value);
+    }
+
     protected static OutgoingMessage<TestEnvelope> Finished(OutgoingMessage<TestEnvelope> message, DeliveryStatus status, DateTime? lastTryAtUtc) =>
         message with { Delivery = message.Delivery with { Status = status, LastTryAtUtc = lastTryAtUtc } };
 

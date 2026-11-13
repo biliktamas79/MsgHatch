@@ -53,6 +53,18 @@ public sealed class PerfOutboxStore : IOutboxStore, IOutboxDispatchStore
 
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) => ValueTask.FromResult(ErrorOr<int>.ForValue(0));
 
+    public ValueTask<ErrorOr<MessagePage<OutgoingMessageSummary>>> QueryAsync(OutboxQuery query, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<MessagePage<OutgoingMessageSummary>>.ForValue(new MessagePage<OutgoingMessageSummary>([], Next: null)));
+
+    public ValueTask<ErrorOr<OutgoingMessageHistory?>> GetAsync(Guid id, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<OutgoingMessageHistory?>.ForValue(null));
+
+    public ValueTask<ErrorOr<int>> RetryAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<int>.ForValue(0));
+
+    public ValueTask<ErrorOr<int>> CancelAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<int>.ForValue(0));
+
     public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
         ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue([]));
 

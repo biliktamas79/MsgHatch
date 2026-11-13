@@ -197,6 +197,61 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
         }
     }
 
+    private MessagePage<OutgoingMessageSummary> Query(TenantKey key, OutboxQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        lock (_lock)
+        {
+            return MessagePage.Of(
+                _messages.Where(message => message.Tenant == key.Tenant && query.Matches(message)),
+                static message => message.Delivery, OutgoingMessageSummary.Of, query.After, query.Limit);
+        }
+    }
+
+    private OutgoingMessageHistory? Get(TenantKey key, Guid id)
+    {
+        lock (_lock)
+        {
+            return _messages.Find(message => message.Delivery.Id == id && message.Tenant == key.Tenant) is { } message
+                ? new OutgoingMessageHistory(message, _tries.TryGetValue(id, out var tries) ? [.. tries] : [])
+                : null;
+        }
+    }
+
+    /// <summary>Changes each message of the tenant with one of the ids, when the change gives a new message.</summary>
+    private int Change(TenantKey key, IReadOnlyList<Guid> ids, Func<OutgoingMessage, OutgoingMessage?> change)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        lock (_lock)
+        {
+            var changed = 0;
+            for (var position = 0; position < _messages.Count; position++)
+            {
+                var message = _messages[position];
+                if (message.Tenant == key.Tenant && ids.Contains(message.Delivery.Id) && change(message) is { } result)
+                {
+                    _messages[position] = result;
+                    changed++;
+                }
+            }
+
+            return changed;
+        }
+    }
+
+    /// <summary>Cancels a message, and records the cancel as a publish try with the next try number (D110).</summary>
+    private OutgoingMessage? Cancelled(OutgoingMessage message, DateTime nowUtc)
+    {
+        if (message.Delivery.CancelledAt(nowUtc) is not { } cancelled)
+        {
+            return null;
+        }
+
+        var tryNumber = message.Delivery.TryCount + 1;
+        TriesOf(message.Delivery.Id).Add(PublishTry.Cancel(message.Delivery.Id, tryNumber, nowUtc));
+        return message with { Delivery = cancelled with { TryCount = tryNumber, LastTryAtUtc = nowUtc } };
+    }
+
     private IReadOnlyList<MessageCount> Count(TrafficQuery query, TenantKey? tenant)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -288,5 +343,21 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
     {
         public ValueTask<Error?> AddAsync(IReadOnlyList<OutgoingMessage> messages, CancellationToken ct) =>
             ValueTask.FromResult(store.Add(key, messages));
+
+        public ValueTask<ErrorOr<MessagePage<OutgoingMessageSummary>>> QueryAsync(OutboxQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<MessagePage<OutgoingMessageSummary>>.ForValue(store.Query(key, query)));
+
+        public ValueTask<ErrorOr<OutgoingMessageHistory?>> GetAsync(Guid id, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<OutgoingMessageHistory?>.ForValue(store.Get(key, id)));
+
+        public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue(store.Count(query, key)));
+
+        public ValueTask<ErrorOr<int>> RetryAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<int>.ForValue(store.Change(
+                key, ids, message => message.Delivery.RetriedAt(nowUtc, addedTries) is { } delivery ? message with { Delivery = delivery } : null)));
+
+        public ValueTask<ErrorOr<int>> CancelAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<int>.ForValue(store.Change(key, ids, message => store.Cancelled(message, nowUtc))));
     }
 }

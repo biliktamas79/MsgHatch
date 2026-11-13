@@ -77,6 +77,19 @@ internal sealed class MessageFiles
         return claimed;
     }
 
+    /// <summary>
+    /// Runs a change of the files of one instance while no claim of the instance runs, so a retry or a cancel never
+    /// moves a file that a claim moves at the same time.
+    /// </summary>
+    public T WhileNoClaimRuns<T>(Func<T> change)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        lock (_claimLock)
+        {
+            return change();
+        }
+    }
+
     /// <summary>The earliest due time in <c>pending</c> and <c>claimed</c> of the folders, so it includes the lease ends.</summary>
     public static DateTime? NextDueAtUtc(IReadOnlyList<string> folders) =>
         DueFolderFiles(folders).Select(static file => (DateTime?)file.DueAtUtc).Min();

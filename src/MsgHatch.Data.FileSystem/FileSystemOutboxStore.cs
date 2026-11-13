@@ -25,6 +25,7 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
     private readonly MessageFiles _files = new();
     private readonly string _root;
     private readonly string _testRoot;
+    private readonly string[] _roots;
 
     /// <summary>Makes the store on a folder.</summary>
     /// <param name="rootPath">The root folder of the file stores. The outbox is under <c>{rootPath}/outbox</c>.</param>
@@ -37,6 +38,7 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
         _json = json;
         _root = Path.Combine(rootPath, "outbox");
         _testRoot = Path.Combine(rootPath, "test", "outbox");
+        _roots = [_root, _testRoot];
     }
 
     /// <summary>The root folder of the file stores.</summary>
@@ -129,9 +131,91 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
         return new ClaimResult<OutgoingMessage>(claimed, MessageFiles.NextDueAtUtc(folders));
     }
 
+    private MessagePage<OutgoingMessageSummary> Query(TenantKey key, OutboxQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return MessagePage.Of(
+            ReadEach(query.IncludeTest ? _roots : [_root], query.Status is { } status ? [status] : Enum.GetValues<DeliveryStatus>())
+                .Select(static file => file.Message)
+                .Where(message => message.Tenant == key.Tenant && query.Matches(message)),
+            static message => message.Delivery, OutgoingMessageSummary.Of, query.After, query.Limit);
+    }
+
+    private ErrorOr<OutgoingMessageHistory?> Get(TenantKey key, Guid id)
+    {
+        if (PathOf(id) is not { } path)
+        {
+            return ErrorOr<OutgoingMessageHistory?>.ForValue(null);
+        }
+
+        var content = File.ReadAllBytes(path);
+        var message = _json.DeserializeOutgoing(content);
+        if (message.IsError)
+        {
+            return message.Error;
+        }
+
+        if (message.Value.Tenant != key.Tenant)
+        {
+            return ErrorOr<OutgoingMessageHistory?>.ForValue(null);
+        }
+
+        var tries = OutboxFile.ReadTries(id, content);
+        return tries.IsError ? tries.Error : new OutgoingMessageHistory(message.Value, tries.Value);
+    }
+
+    /// <summary>
+    /// Changes each readable message of the tenant with one of the ids, when the change gives a new message and maybe a
+    /// new try. It moves the file into the folder of its new status.
+    /// </summary>
+    private int Change(TenantKey key, IReadOnlyList<Guid> ids, Func<OutgoingMessage, (OutgoingMessage Message, PublishTry? NewTry)?> change)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        return _files.WhileNoClaimRuns(() =>
+        {
+            var changed = 0;
+            foreach (var path in ids.Select(PathOf).OfType<string>())
+            {
+                var oldContent = File.ReadAllBytes(path);
+                var stored = _json.DeserializeOutgoing(oldContent);
+                if (stored.IsSuccess && stored.Value.Tenant == key.Tenant && change(stored.Value) is { } result
+                    && OutboxFile.Write(_json, result.Message, oldContent, result.NewTry) is { IsSuccess: true } content)
+                {
+                    MessageFiles.Replace(path, result.Message.Delivery, content.Value);
+                    changed++;
+                }
+            }
+
+            return changed;
+        });
+    }
+
+    private string? PathOf(Guid id) =>
+        _roots
+            .Where(Directory.Exists)
+            .SelectMany(Directory.EnumerateDirectories)
+            .Select(folder => MessageFiles.Find(folder, MessageFiles.KeyOf(id, tenant: null)))
+            .FirstOrDefault(static path => path is not null);
+
+    private static (OutgoingMessage Message, PublishTry? NewTry)? Retried(OutgoingMessage message, DateTime nowUtc, int addedTries) =>
+        message.Delivery.RetriedAt(nowUtc, addedTries) is { } delivery ? (message with { Delivery = delivery }, null) : null;
+
+    /// <summary>Cancels a message, and records the cancel as a publish try with the next try number (D110).</summary>
+    private static (OutgoingMessage Message, PublishTry? NewTry)? Cancelled(OutgoingMessage message, DateTime nowUtc)
+    {
+        if (message.Delivery.CancelledAt(nowUtc) is not { } cancelled)
+        {
+            return null;
+        }
+
+        var tryNumber = message.Delivery.TryCount + 1;
+        return (message with { Delivery = cancelled with { TryCount = tryNumber, LastTryAtUtc = nowUtc } },
+            PublishTry.Cancel(message.Delivery.Id, tryNumber, nowUtc));
+    }
+
     private IReadOnlyList<MessageCount> Count(TrafficQuery query, TenantKey? tenant) =>
         MessageCount.Of(
-            ReadEach(query.IncludeTest ? [_root, _testRoot] : [_root], query.Status is { } status ? [status] : Enum.GetValues<DeliveryStatus>())
+            ReadEach(query.IncludeTest ? _roots : [_root], query.Status is { } status ? [status] : Enum.GetValues<DeliveryStatus>())
                 .Select(static file => file.Message)
                 .Where(message => (tenant is null || message.Tenant == tenant.Value.Tenant) && query.Matches(message.Delivery, message.Flags))
                 .Select(static message => (message.Type, (ChannelId?)message.Channel, message.Delivery, message.Flags)));
@@ -140,7 +224,7 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
     {
         (string Root, string Path, OutgoingMessage Message)[] purged =
         [
-            .. ReadEach([_root, _testRoot], MessageFiles.FinishedStatuses)
+            .. ReadEach(_roots, MessageFiles.FinishedStatuses)
                 .Where(file => file.Message.Delivery.FinishedBefore(finishedBeforeUtc))
                 .OrderBy(static file => file.Message.Delivery.FinishedAtUtc())
                 .Take(maxCount),
@@ -343,5 +427,24 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
     {
         public ValueTask<Error?> AddAsync(IReadOnlyList<OutgoingMessage> messages, CancellationToken ct) =>
             ValueTask.FromResult(store.Add(key, messages));
+
+        public ValueTask<ErrorOr<MessagePage<OutgoingMessageSummary>>> QueryAsync(OutboxQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => ErrorOr<MessagePage<OutgoingMessageSummary>>.ForValue(store.Query(key, query))));
+
+        public ValueTask<ErrorOr<OutgoingMessageHistory?>> GetAsync(Guid id, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => store.Get(key, id)));
+
+        public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct)
+        {
+            ArgumentNullException.ThrowIfNull(query);
+            return ValueTask.FromResult(FileFailures.Run(() => ErrorOr<IReadOnlyList<MessageCount>>.ForValue(store.Count(query, key))));
+        }
+
+        public ValueTask<ErrorOr<int>> RetryAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => ErrorOr<int>.ForValue(
+                store.Change(key, ids, message => Retried(message, nowUtc, addedTries)))));
+
+        public ValueTask<ErrorOr<int>> CancelAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => ErrorOr<int>.ForValue(store.Change(key, ids, message => Cancelled(message, nowUtc)))));
     }
 }

@@ -5,6 +5,7 @@ using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Persistence;
 
 namespace MsgHatch.Data.Sqlite;
@@ -45,6 +46,10 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
             'type', ContentType, 'contentVersion', ContentVersion, 'flags', Flags, 'traceParent', TraceParent,
             'event', IIF(json_valid(Content), json(Content), Content))
         """;
+
+    private const string _get = $"SELECT {_document} FROM MsgHatchInbox WHERE TenantId = @tenantId AND Id = @id";
+
+    private static readonly string _query = SqliteManagement.Inbox.QueryOf("TenantId, ContentType, ContentVersion, Flags", extraFilters: string.Empty);
 
     private static readonly ClaimStatements _claim = new(
         NextDue: "SELECT MIN(NextTryAtUtc) FROM MsgHatchInbox WHERE Status = 'Pending'",
@@ -166,9 +171,51 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
         });
     }
 
+    private MessagePage<ReceivedMessageSummary> Query(TenantKey key, InboxQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
+        using var command = SqliteManagement.WithFilters(
+            connection.Command(_query), key, query.Ids, query.Status, query.Type, query.CreatedFromUtc, query.CreatedToUtc,
+            query.DueBeforeUtc, query.IncludeTest, query.After, query.Limit);
+        return SqliteManagement.Page(command, query.Limit, SummaryOf, static summary => summary.Delivery);
+    }
+
+    private ErrorOr<ReceivedMessage?> Get(TenantKey key, Guid id)
+    {
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
+        using var command = connection.Command(_get).With("@tenantId", SqliteValues.Tenant(key.Tenant)).With("@id", SqliteValues.Id(id));
+        return command.ExecuteScalar() is string document
+            ? _json.DeserializeReceived(Encoding.UTF8.GetBytes(document)).ThenIfSuccess(static message => ErrorOr<ReceivedMessage?>.ForValue(message))
+            : ErrorOr<ReceivedMessage?>.ForValue(null);
+    }
+
+    private static ReceivedMessageSummary SummaryOf(SqliteDataReader row) =>
+        new(
+            SqliteValues.DeliveryOf(row), SqliteValues.ParseTenant(row.GetString(10)), new MessageType(row.GetString(11)),
+            row.GetInt32(12), Enum.Parse<MessageFlags>(row.GetString(13)));
+
     private sealed class TenantStore(SqliteInboxStore store, TenantKey key) : IInboxStore
     {
         public ValueTask<Error?> AddAsync(ReceivedMessage message, CancellationToken ct) =>
             ValueTask.FromResult(store.Add(key, message));
+
+        public ValueTask<ErrorOr<MessagePage<ReceivedMessageSummary>>> QueryAsync(InboxQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() => ErrorOr<MessagePage<ReceivedMessageSummary>>.ForValue(store.Query(key, query))));
+
+        public ValueTask<ErrorOr<ReceivedMessage?>> GetAsync(Guid id, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() => store.Get(key, id)));
+
+        public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() =>
+                ErrorOr<IReadOnlyList<MessageCount>>.ForValue(SqliteManagement.Inbox.Count(store.ConnectionString, query, key))));
+
+        public ValueTask<ErrorOr<int>> RetryAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() =>
+                ErrorOr<int>.ForValue(SqliteManagement.Inbox.Retry(store.ConnectionString, key, ids, nowUtc, addedTries))));
+
+        public ValueTask<ErrorOr<int>> CancelAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, CancellationToken ct) =>
+            ValueTask.FromResult(SqliteFailures.Run(() =>
+                ErrorOr<int>.ForValue(SqliteManagement.Inbox.Cancel(store.ConnectionString, key, ids, nowUtc))));
     }
 }

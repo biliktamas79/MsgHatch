@@ -39,6 +39,27 @@ internal static class SqliteValues
 
     public static string Tenant(TenantId? tenant) => tenant?.Value ?? string.Empty;
 
+    public static TenantId? ParseTenant(string text) => text.Length == 0 ? null : new TenantId(text);
+
+    /// <summary>The ids as a JSON array of texts, for <c>json_each</c>. An id in the format <c>D</c> has no character to escape.</summary>
+    public static string Ids(IReadOnlyList<Guid> ids) => $"[{string.Join(',', ids.Select(static id => $"\"{Id(id)}\""))}]";
+
+    /// <summary>Reads the delivery state from the first ten columns, in the order of <see cref="DeliveryColumns"/>.</summary>
+    public static DeliveryState DeliveryOf(SqliteDataReader row) =>
+        new(
+            Guid.Parse(row.GetString(0)),
+            Enum.Parse<DeliveryStatus>(row.GetString(1)),
+            row.GetInt32(2),
+            row.GetInt32(3),
+            ParseTime(row.GetString(4)),
+            TimeOrNull(row, 5),
+            ParseTime(row.GetString(6)),
+            TimeOrNull(row, 7),
+            TimeOrNull(row, 8),
+            row.IsDBNull(9) ? null : row.GetString(9));
+
+    private static DateTime? TimeOrNull(SqliteDataReader row, int column) => row.IsDBNull(column) ? null : ParseTime(row.GetString(column));
+
     public static SqliteCommand Command(this SqliteConnection connection, string sql, SqliteTransaction? transaction = null)
     {
         var command = connection.CreateCommand();

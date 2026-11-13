@@ -193,7 +193,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
             new(new MessageType("TestEvent"), TestChannel.Id, DeliveryStatus.Done, Test: true, 1, null),
         ];
         var inner = AStoreOf(error: null);
-        inner.CountAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue(rows)));
+        inner.CountAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue(rows)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
 
@@ -209,7 +209,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     {
         // Arrange
         var inner = AStoreOf(error: null);
-        inner.PurgeAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(7)));
+        inner.PurgeAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(7)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
 

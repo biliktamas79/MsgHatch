@@ -108,7 +108,7 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
     {
         // Arrange
         var inner = AStoreOf(error: null);
-        inner.PurgeAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(7)));
+        inner.PurgeAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(7)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IInboxDispatchStore>();
 

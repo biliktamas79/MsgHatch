@@ -24,6 +24,7 @@ internal sealed class SqliteSchema(string create)
             UNIQUE (TenantId, Id));
         CREATE INDEX IF NOT EXISTS IX_MsgHatchInbox_Due ON MsgHatchInbox (NextTryAtUtc) WHERE Status = 'Pending';
         CREATE INDEX IF NOT EXISTS IX_MsgHatchInbox_Flags ON MsgHatchInbox (Flags);
+        CREATE INDEX IF NOT EXISTS IX_MsgHatchInbox_Created ON MsgHatchInbox (TenantId, CreatedAtUtc, Id);
         CREATE TABLE IF NOT EXISTS MsgHatchOutbox (
             Sequence INTEGER PRIMARY KEY, Id TEXT UNIQUE, TenantId TEXT, Status TEXT, TryCount INTEGER, MaxTryCount INTEGER,
             CreatedAtUtc TEXT, LastTryAtUtc TEXT, NextTryAtUtc TEXT, LeaseUntilUtc TEXT, ExpiresAtUtc TEXT, LastError TEXT,
@@ -32,6 +33,9 @@ internal sealed class SqliteSchema(string create)
             Content TEXT, Tries TEXT DEFAULT '[]');
         CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Due ON MsgHatchOutbox (Channel, NextTryAtUtc) WHERE Status = 'Pending';
         CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Flags ON MsgHatchOutbox (Flags);
+        CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Created ON MsgHatchOutbox (TenantId, CreatedAtUtc, Id);
+        CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Target ON MsgHatchOutbox (TenantId, TargetKind, TargetId, CreatedAtUtc);
+        CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Source ON MsgHatchOutbox (SourceMessageId);
         CREATE TABLE IF NOT EXISTS MsgHatchChannelDown (
             Channel TEXT PRIMARY KEY, Reason TEXT, SinceUtc TEXT, NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT,
             Note TEXT);

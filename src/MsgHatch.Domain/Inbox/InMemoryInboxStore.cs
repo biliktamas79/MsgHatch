@@ -2,6 +2,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 
 namespace MsgHatch.Domain.Inbox;
 
@@ -105,6 +106,57 @@ public sealed class InMemoryInboxStore : IInboxDispatchStore
         }
     }
 
+    private MessagePage<ReceivedMessageSummary> Query(TenantKey key, InboxQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        lock (_lock)
+        {
+            return MessagePage.Of(
+                _messages.Where(message => message.Tenant == key.Tenant && query.Matches(message)),
+                static message => message.Delivery, ReceivedMessageSummary.Of, query.After, query.Limit);
+        }
+    }
+
+    private ReceivedMessage? Get(TenantKey key, Guid id)
+    {
+        lock (_lock)
+        {
+            return _messages.Find(message => KeyOf(message) == (key.Tenant, id));
+        }
+    }
+
+    private IReadOnlyList<MessageCount> Count(TenantKey key, TrafficQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        lock (_lock)
+        {
+            return MessageCount.Of(_messages
+                .Where(message => message.Tenant == key.Tenant && query.Matches(message.Delivery, message.Flags))
+                .Select(static message => (message.Type, (ChannelId?)null, message.Delivery, message.Flags)));
+        }
+    }
+
+    /// <summary>Changes the delivery state of each message of the tenant with one of the ids, when the change gives a new state.</summary>
+    private int Change(TenantKey key, IReadOnlyList<Guid> ids, Func<DeliveryState, DeliveryState?> change)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        lock (_lock)
+        {
+            var changed = 0;
+            for (var position = 0; position < _messages.Count; position++)
+            {
+                var message = _messages[position];
+                if (message.Tenant == key.Tenant && ids.Contains(message.Delivery.Id) && change(message.Delivery) is { } delivery)
+                {
+                    _messages[position] = message with { Delivery = delivery };
+                    changed++;
+                }
+            }
+
+            return changed;
+        }
+    }
+
     private ClaimResult<ReceivedMessage> Claim(int maxCount, DateTime nowUtc, DateTime leaseUntilUtc)
     {
         int[] due =
@@ -173,5 +225,20 @@ public sealed class InMemoryInboxStore : IInboxDispatchStore
     {
         public ValueTask<Error?> AddAsync(ReceivedMessage message, CancellationToken ct) =>
             ValueTask.FromResult(store.Add(key, message));
+
+        public ValueTask<ErrorOr<MessagePage<ReceivedMessageSummary>>> QueryAsync(InboxQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<MessagePage<ReceivedMessageSummary>>.ForValue(store.Query(key, query)));
+
+        public ValueTask<ErrorOr<ReceivedMessage?>> GetAsync(Guid id, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<ReceivedMessage?>.ForValue(store.Get(key, id)));
+
+        public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue(store.Count(key, query)));
+
+        public ValueTask<ErrorOr<int>> RetryAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<int>.ForValue(store.Change(key, ids, delivery => delivery.RetriedAt(nowUtc, addedTries))));
+
+        public ValueTask<ErrorOr<int>> CancelAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, CancellationToken ct) =>
+            ValueTask.FromResult(ErrorOr<int>.ForValue(store.Change(key, ids, delivery => delivery.CancelledAt(nowUtc))));
     }
 }

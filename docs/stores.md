@@ -65,13 +65,18 @@ The dispatch loops claim the due messages (D103, D144):
 - A store returns an `Error` for each expected failure, and does not throw (section 4.12). A busy or missing storage gives `Errors.Unavailable`. A record that the code cannot read gives `Errors.SerializationFailed`.
 - Each record keeps its `MessageFlags`. `DeleteTestDataAsync` deletes each message with `MessageFlags.Test` of all tenants, with its tries, and keeps each other message (D82).
 
-### 1.7 Purge and counts
+### 1.7 Delivery management
 
-The delivery management of section 4.19 of the design uses these members of the dispatch stores:
+The delivery management of section 4.19 of the design uses these members of the tenant stores and the dispatch stores (D108):
+
+- `QueryAsync` of a tenant store gives a page of summaries of the messages of its tenant, newest first: `CreatedAtUtc` descending, then `Id` descending (D112). An id compares as `Guid.CompareTo`, which is the order of its text in the format `D`. A summary has no content, so a SQL store reads only columns.
+- `GetAsync` gives the whole message of its tenant, and for the outbox all its tries in the order of their numbers. An unknown id, or an id of another tenant, gives null.
+- `RetryAsync` and `CancelAsync` change only the messages of its tenant, each in one atomic operation, and return the number of changed messages. The rules are in `DeliveryState.RetriedAt` and `DeliveryState.CancelledAt` (D110, D111). The cancel of an outgoing message records the try of `PublishTry.Cancel` with the next try number, and keeps `LastError`.
+- `CountAsync` of a tenant store counts only its tenant.
 
 - `PurgeAsync` deletes up to `maxCount` finished messages of all tenants, with their tries (D128). A finished message has the status `Done`, `Failed`, or `Cancelled`, and its finish time is `LastTryAtUtc`, or `CreatedAtUtc` for a message with no try. The library stores delete the messages that finished first. A purge also deletes what records the key of a message, so a purged id is a new message when it comes again.
 - `IOutboxDispatchStore.CountAsync` counts the messages of all tenants that match a `TrafficQuery`: one `MessageCount` for each message type, channel, status, and test flag (D164). `CreatedFromUtc` is included, and `CreatedToUtc` is not. With `IncludeTest` false, it gives no row of the test messages. `OldestDueAtUtc` is set only in a row of the status `Pending`.
-- A store that reads the messages into memory can use `TrafficQuery.Matches`, `DeliveryState.FinishedBefore`, and `MessageCount.Of`, so it follows the same rules as the library stores.
+- A store that reads the messages into memory can use `InboxQuery.Matches`, `OutboxQuery.Matches`, `TrafficQuery.Matches`, `MessagePage.Of`, `DeliveryState.FinishedBefore`, and `MessageCount.Of`, so it follows the same rules as the library stores. `MsgHatchJson.DeserializeTries` reads the JSON array of the tries.
 
 ### 1.8 Versioning
 
@@ -147,7 +152,8 @@ The file holds the message as `MsgHatchJson` writes it. Section 4.5 of the desig
 - The tenant is the property `tenant` of the message document, and a part of the key of a received message.
 - Before it renames a new file into `pending`, a store creates the marker `ids/{tenantFolder}/{id}` with `FileMode.CreateNew`. A marker that already exists means that the key is stored, so `AddAsync` ignores the message.
 - A test message goes under `{RootPath}/test/inbox` or `{RootPath}/test/outbox`. `DeleteTestDataAsync` deletes the `test` folder of its store.
-- A purge and a count read each file of the matching status folders, and skip a file that the code cannot read (D167). A purge deletes the file and the marker of its key.
+- A query, a purge, and a count read each file of the matching status folders, and skip a file that the code cannot read (D167). A purge deletes the file and the marker of its key.
+- A retry and a cancel run while no claim of the same store instance runs. They write the file through a temporary file into the folder of its new status, for example `failed` to `pending` for a retry, or `pending` to `cancelled` for a cancel.
 
 ### 2.6 Subscription store
 
@@ -181,6 +187,8 @@ The table and column names are the C# property names (D56):
 
 - The partial index `(NextTryAtUtc) WHERE Status = 'Pending'` of the inbox and `(Channel, NextTryAtUtc) WHERE Status = 'Pending'` of the outbox hold only the backlog and the claimed messages (D104).
 - An index on `Flags` serves `DeleteTestDataAsync`.
+- The index `(TenantId, CreatedAtUtc, Id)` of each message table serves the pages of a query. The indexes `(TenantId, TargetKind, TargetId, CreatedAtUtc)` and `(SourceMessageId)` of the outbox serve the filters of a target and of an event. They come with `CREATE INDEX IF NOT EXISTS`, so the schema version stays 1.
+- A query is one `SELECT` with `ORDER BY CreatedAtUtc DESC, Id DESC LIMIT @limit`, and the cursor in the `WHERE` clause. A retry and a cancel are each one `UPDATE` of the rows of the ids, and the cancel of the outbox adds its try with `json_insert`.
 - A purge is one `DELETE` of the finished rows, in the order of their finish time, with `LIMIT @maxCount`. A count is one `SELECT` with `GROUP BY MessageType, Channel, Status, Flags = 'Test'`.
 - `Sequence` keeps the add order. The SQLite documentation says that `VACUUM` can change the `rowid` of a table with no `INTEGER PRIMARY KEY` (D144).
 - Enum values are text. Times are ISO 8601 text in UTC, for example `2026-10-31T08:00:00.0000000Z` (D57).
@@ -248,7 +256,7 @@ A consumer can write a store for another storage. Do these steps:
 1. Implement the dispatch store and its method `For(TenantKey key)`, or two classes on one storage.
 2. Keep the tenant, the flags, the versions, and the tries of each message in fields that a query can read.
 3. Write and read each message with `MsgHatchJson`, and each subscription setting with `ChannelSettingsJson`.
-4. Make `ClaimDueAsync` and `RecordTryAsync` atomic in your storage.
+4. Make `ClaimDueAsync`, `RecordTryAsync`, `RetryAsync`, and `CancelAsync` atomic in your storage.
 5. Register the store with `UseInboxStore`, `UseOutboxStore`, `UseInboxDispatchStore`, and `UseOutboxDispatchStore`, or with `UseSubscriptionStore`.
 6. Add one subclass of each contract base class, for example `OutboxStoreTestsBase<TStore>` and `SubscriptionStoreTestsBase<TStore>` (section 5.5 of the design).
 7. Keep a schema version in your storage, and a golden-file sample for each released version of your own types.

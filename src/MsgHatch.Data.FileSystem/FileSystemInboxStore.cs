@@ -3,6 +3,7 @@ using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Persistence;
 
 namespace MsgHatch.Data.FileSystem;
@@ -102,6 +103,61 @@ public sealed class FileSystemInboxStore : IInboxDispatchStore
         return purged.Length;
     }
 
+    private MessagePage<ReceivedMessageSummary> Query(TenantKey key, InboxQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return MessagePage.Of(
+            ReadTenant(key, query.IncludeTest, query.Status).Where(query.Matches),
+            static message => message.Delivery, ReceivedMessageSummary.Of, query.After, query.Limit);
+    }
+
+    private ErrorOr<ReceivedMessage?> Get(TenantKey key, Guid id) =>
+        PathOf(key, id) is { } path
+            ? _json.DeserializeReceived(File.ReadAllBytes(path)).ThenIfSuccess(static message => ErrorOr<ReceivedMessage?>.ForValue(message))
+            : ErrorOr<ReceivedMessage?>.ForValue(null);
+
+    private IReadOnlyList<MessageCount> Count(TenantKey key, TrafficQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return MessageCount.Of(ReadTenant(key, query.IncludeTest, query.Status)
+            .Where(message => query.Matches(message.Delivery, message.Flags))
+            .Select(static message => (message.Type, (ChannelId?)null, message.Delivery, message.Flags)));
+    }
+
+    /// <summary>
+    /// Changes the delivery state of each readable message of the tenant with one of the ids, when the change gives a
+    /// new state. It moves the file into the folder of its new status.
+    /// </summary>
+    private int Change(TenantKey key, IReadOnlyList<Guid> ids, Func<DeliveryState, DeliveryState?> change)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        return _files.WhileNoClaimRuns(() =>
+        {
+            var changed = 0;
+            foreach (var path in ids.Select(id => PathOf(key, id)).OfType<string>())
+            {
+                var stored = _json.DeserializeReceived(File.ReadAllBytes(path));
+                if (stored.IsSuccess && change(stored.Value.Delivery) is { } delivery
+                    && _json.Serialize(stored.Value with { Delivery = delivery }) is { IsSuccess: true } content)
+                {
+                    MessageFiles.Replace(path, delivery, content.Value);
+                    changed++;
+                }
+            }
+
+            return changed;
+        });
+    }
+
+    private string? PathOf(TenantKey key, Guid id) =>
+        _folders.Select(root => MessageFiles.Find(root, MessageFiles.KeyOf(id, key.Tenant))).FirstOrDefault(static path => path is not null);
+
+    private IEnumerable<ReceivedMessage> ReadTenant(TenantKey key, bool includeTest, DeliveryStatus? status) =>
+        (includeTest ? _folders : [_root])
+            .SelectMany(root => ReadEach(root, status is { } value ? [value] : Enum.GetValues<DeliveryStatus>()))
+            .Select(static file => file.Message)
+            .Where(message => message.Tenant == key.Tenant);
+
     private IEnumerable<(string Path, ReceivedMessage Message)> ReadEach(string root, IEnumerable<DeliveryStatus> statuses) =>
         MessageFiles.ReadEach(MessageFiles.FilesOf(root, statuses), content => _json.DeserializeReceived(content));
 
@@ -195,5 +251,21 @@ public sealed class FileSystemInboxStore : IInboxDispatchStore
     {
         public ValueTask<Error?> AddAsync(ReceivedMessage message, CancellationToken ct) =>
             ValueTask.FromResult(store.Add(key, message));
+
+        public ValueTask<ErrorOr<MessagePage<ReceivedMessageSummary>>> QueryAsync(InboxQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => ErrorOr<MessagePage<ReceivedMessageSummary>>.ForValue(store.Query(key, query))));
+
+        public ValueTask<ErrorOr<ReceivedMessage?>> GetAsync(Guid id, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => store.Get(key, id)));
+
+        public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => ErrorOr<IReadOnlyList<MessageCount>>.ForValue(store.Count(key, query))));
+
+        public ValueTask<ErrorOr<int>> RetryAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => ErrorOr<int>.ForValue(
+                store.Change(key, ids, delivery => delivery.RetriedAt(nowUtc, addedTries)))));
+
+        public ValueTask<ErrorOr<int>> CancelAsync(IReadOnlyList<Guid> ids, DateTime nowUtc, CancellationToken ct) =>
+            ValueTask.FromResult(FileFailures.Run(() => ErrorOr<int>.ForValue(store.Change(key, ids, delivery => delivery.CancelledAt(nowUtc)))));
     }
 }

@@ -115,6 +115,41 @@ public sealed class MsgHatchJson
         }
     }
 
+    /// <summary>
+    /// Reads the JSON array of the publish tries of one outgoing message, as a file store and a SQL store keep it
+    /// (section 4.5): one object for each try with <c>tryNumber</c>, <c>startedAtUtc</c>, <c>finishedAtUtc</c>,
+    /// <c>outcome</c>, <c>providerMessageId</c>, <c>errorCode</c>, <c>errorName</c>, and <c>errorMessage</c>.
+    /// </summary>
+    /// <param name="outgoingMessageId">The id of the outgoing message.</param>
+    /// <param name="utf8Json">The UTF-8 JSON of the array.</param>
+    /// <returns>The tries in the order of the array, or <see cref="Errors.SerializationFailed"/> for invalid JSON.</returns>
+    public static ErrorOr<IReadOnlyList<PublishTry>> DeserializeTries(Guid outgoingMessageId, ReadOnlySpan<byte> utf8Json)
+    {
+        try
+        {
+            var reader = new Utf8JsonReader(utf8Json);
+            using var document = JsonDocument.ParseValue(ref reader);
+            return ErrorOr<IReadOnlyList<PublishTry>>.ForValue(
+                [.. document.RootElement.EnumerateArray().Select(publishTry => ReadTry(outgoingMessageId, publishTry))]);
+        }
+        catch (Exception exception) when (IsReadOrWriteFailure(exception))
+        {
+            return SerializationFailed(exception);
+        }
+    }
+
+    private static PublishTry ReadTry(Guid outgoingMessageId, JsonElement publishTry) =>
+        new(
+            outgoingMessageId,
+            publishTry.GetProperty("tryNumber").GetInt32(),
+            publishTry.GetProperty("startedAtUtc").GetDateTime(),
+            publishTry.GetProperty("finishedAtUtc").GetDateTime(),
+            Enum.Parse<PublishOutcome>(publishTry.GetProperty("outcome").GetString()!),
+            publishTry.GetProperty("providerMessageId").GetString(),
+            publishTry.GetProperty("errorCode") is { ValueKind: JsonValueKind.Number } errorCode ? errorCode.GetInt32() : null,
+            publishTry.GetProperty("errorName").GetString(),
+            publishTry.GetProperty("errorMessage").GetString());
+
     private ErrorOr<ReceivedMessage> ReadReceived(JsonElement root)
     {
         var schemaVersion = ReadSchemaVersion(root);

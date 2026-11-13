@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Text;
 using System.Text.Json;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
@@ -21,6 +22,18 @@ internal static class OutboxFile
     /// <returns>The UTF-8 JSON, or the error of the serializer.</returns>
     public static ErrorOr<byte[]> Write(MsgHatchJson json, OutgoingMessage message, byte[]? oldContent, PublishTry? newTry) =>
         json.Serialize(message).ThenIfSuccess(messageJson => ErrorOr<byte[]>.ForValue(WithTries(messageJson, oldContent, newTry)));
+
+    /// <summary>Reads the publish tries of the file of a message, in the order of their record.</summary>
+    /// <param name="outgoingMessageId">The id of the message.</param>
+    /// <param name="content">The file.</param>
+    /// <returns>The tries, or the error of the reader.</returns>
+    public static ErrorOr<IReadOnlyList<PublishTry>> ReadTries(Guid outgoingMessageId, byte[] content)
+    {
+        using var file = JsonDocument.Parse(content);
+        return file.RootElement.TryGetProperty("tries", out var tries)
+            ? MsgHatchJson.DeserializeTries(outgoingMessageId, Encoding.UTF8.GetBytes(tries.GetRawText()))
+            : ErrorOr<IReadOnlyList<PublishTry>>.ForValue([]);
+    }
 
     private static byte[] WithTries(byte[] messageJson, byte[]? oldContent, PublishTry? newTry)
     {

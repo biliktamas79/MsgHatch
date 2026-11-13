@@ -4,6 +4,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
@@ -105,6 +106,119 @@ public sealed class InboxStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Same(inner, store);
+    }
+
+    public static TheoryData<string> ManagementMembers =>
+    [
+        nameof(IInboxStore.QueryAsync), nameof(IInboxStore.GetAsync), nameof(IInboxStore.CountAsync), nameof(IInboxStore.RetryAsync), nameof(IInboxStore.CancelAsync),
+    ];
+
+    [Theory]
+    [MemberData(nameof(ManagementMembers))]
+    public async Task ManagementMember_TransientError_ReturnsTheSameErrorAndLogsAWarningWithItsEventId(string member)
+    {
+        // Arrange
+        var expected = new Error(Errors.Unavailable);
+        await using var provider = BuildWith(AManagedStore(expected));
+        var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+
+        // Act
+        var error = await CallAsync(store, member);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((expected, LogLevel.Warning, 1215), (error, record.Level, record.Id.Id));
+    }
+
+    [Theory]
+    [MemberData(nameof(ManagementMembers))]
+    public async Task ManagementMember_PermanentError_LogsAnErrorWithItsEventId(string member)
+    {
+        // Arrange
+        await using var provider = BuildWith(AManagedStore(new Error(Errors.ValidationFailed)));
+        var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+
+        // Act
+        await CallAsync(store, member);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((LogLevel.Error, 1215), (record.Level, record.Id.Id));
+    }
+
+    [Theory]
+    [MemberData(nameof(ManagementMembers))]
+    public async Task ManagementMember_Success_LogsTheTenantOfTheKeyWithItsEventId(string member)
+    {
+        // Arrange
+        await using var provider = BuildWith(AManagedStore(error: null));
+        var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+
+        // Act
+        var error = await CallAsync(store, member);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal(((Error?)null, LogLevel.Debug, 1214, "t1"), (error, record.Level, record.Id.Id, record.GetStructuredStateValue("Tenant")));
+    }
+
+    [Fact]
+    public async Task RetryAsync_InnerCount_ReturnsTheCountUnchanged()
+    {
+        // Arrange
+        var inner = AManagedStore(error: null);
+        inner.RetryAsync(default!, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(4)));
+        await using var provider = BuildWith(inner);
+        var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+
+        // Act
+        var changed = await store.RetryAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, 3, Ct);
+
+        // Assert
+        Assert.Equal(4, changed.Value);
+    }
+
+    [Fact]
+    public async Task GetAsync_InnerResult_ReturnsTheSameResult()
+    {
+        // Arrange
+        var expected = (ReceivedMessage)AMessage();
+        var inner = AManagedStore(error: null);
+        inner.GetAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<ReceivedMessage?>.ForValue(expected)));
+        await using var provider = BuildWith(inner);
+        var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+
+        // Act
+        var result = await store.GetAsync(Guid.NewGuid(), Ct);
+
+        // Assert
+        Assert.Same(expected, result.Value);
+    }
+
+    private static async Task<Error?> CallAsync(IInboxStore store, string member) => member switch
+    {
+        nameof(IInboxStore.QueryAsync) => (await store.QueryAsync(new InboxQuery(), Ct)).Error,
+        nameof(IInboxStore.GetAsync) => (await store.GetAsync(Guid.NewGuid(), Ct)).Error,
+        nameof(IInboxStore.CountAsync) => (await store.CountAsync(new TrafficQuery(), Ct)).Error,
+        nameof(IInboxStore.RetryAsync) => (await store.RetryAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, 3, Ct)).Error,
+        _ => (await store.CancelAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, Ct)).Error,
+    };
+
+    private static IInboxStore AManagedStore(Error? error)
+    {
+        var store = Substitute.For<IInboxStore>();
+        store.QueryAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(error is null
+            ? ErrorOr<MessagePage<ReceivedMessageSummary>>.ForValue(new MessagePage<ReceivedMessageSummary>([], Next: null))
+            : ErrorOr<MessagePage<ReceivedMessageSummary>>.ForError(error)));
+        store.GetAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult(
+            error is null ? ErrorOr<ReceivedMessage?>.ForValue(null) : ErrorOr<ReceivedMessage?>.ForError(error)));
+        store.CountAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(error is null
+            ? ErrorOr<IReadOnlyList<MessageCount>>.ForValue([])
+            : ErrorOr<IReadOnlyList<MessageCount>>.ForError(error)));
+        var changed = ValueTask.FromResult(error is null ? ErrorOr<int>.ForValue(0) : ErrorOr<int>.ForError(error));
+        store.RetryAsync(default!, default, default, default).ReturnsForAnyArgs(changed);
+        store.CancelAsync(default!, default, default).ReturnsForAnyArgs(changed);
+        return store;
     }
 
     private static IInboxStore AStore(Error? error)
