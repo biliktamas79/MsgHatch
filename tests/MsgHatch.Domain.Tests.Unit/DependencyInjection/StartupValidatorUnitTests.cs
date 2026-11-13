@@ -66,6 +66,23 @@ public sealed class StartupValidatorUnitTests
     }
 
     [Fact]
+    public async Task Validate_SecondRegistrySettingsStore_NamesBothSetupMethods()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .UseRegistrySettingsStore(static _ => Substitute.For<IRegistrySettingsStore>()));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.StartsWith("UseInMemoryStores and UseRegistrySettingsStore select ", failure, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Validate_TwoSetupMethodsWithAValueInCodeForOneSharedOptionsClass_NamesBothSetupMethods()
     {
         // Arrange

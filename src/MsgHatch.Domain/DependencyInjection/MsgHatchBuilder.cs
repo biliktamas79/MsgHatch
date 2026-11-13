@@ -161,14 +161,17 @@ public sealed class MsgHatchBuilder
     }
 
     /// <summary>
-    /// Selects the in-memory stores, with their two parts and their logging wrappers, for a host with no database
-    /// (D119). They are not durable.
+    /// Selects the in-memory stores, with their two parts and their logging wrappers, and the in-memory registry
+    /// settings store, for a host with no database (D119). They are not durable.
     /// </summary>
     /// <returns>This builder.</returns>
     public MsgHatchBuilder UseInMemoryStores()
     {
         Services.TryAddSingleton<InMemoryInboxStore>();
         Services.TryAddSingleton<InMemoryOutboxStore>();
+        Services.TryAddSingleton<InMemoryRegistrySettingsStore>();
+        UseRegistrySettingsStore(
+            static services => services.GetRequiredService<InMemoryRegistrySettingsStore>(), nameof(UseInMemoryStores));
         AddInboxStore(
             static (tenantServices, key) => tenantServices.GetRequiredService<InMemoryInboxStore>().For(key),
             nameof(UseInMemoryStores));
@@ -178,6 +181,31 @@ public sealed class MsgHatchBuilder
             nameof(UseInMemoryStores));
         return AddOutboxDispatchStore(
             static services => services.GetRequiredService<InMemoryOutboxStore>(), nameof(UseInMemoryStores));
+    }
+
+    /// <summary>
+    /// Registers the registry settings store as a singleton, with its logging wrapper (section 4.20). The storage
+    /// packages call it. The settings belong to the whole system, so the store is not a tenant service (D114).
+    /// </summary>
+    /// <typeparam name="TStore">The store type.</typeparam>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseRegistrySettingsStore<TStore>()
+        where TStore : class, IRegistrySettingsStore =>
+        UseRegistrySettingsStore(static services => ActivatorUtilities.CreateInstance<TStore>(services));
+
+    /// <summary>Registers the registry settings store with a factory, for example for a test substitute.</summary>
+    /// <param name="factory">The factory of the store.</param>
+    /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseRegistrySettingsStore(Func<IServiceProvider, IRegistrySettingsStore> factory, string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        Setup.Select(typeof(IRegistrySettingsStore), setupMethod ?? nameof(UseRegistrySettingsStore));
+        Services.AddSingleton(services => Loggers.Wrap(
+            services, factory(services),
+            static (services, inner) => new RegistrySettingsStoreLoggingWrapper(
+                inner, Loggers.For<RegistrySettingsStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        return this;
     }
 
     /// <summary>Registers an inbox tenant store as a tenant service, with its logging wrapper (D127).</summary>

@@ -217,6 +217,38 @@ public sealed class MsgHatchBuilderUnitTests
     }
 
     [Fact]
+    public async Task UseRegistrySettingsStore_StoreType_CreatesOneStoreOfThatType()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false).UseRegistrySettingsStore<InMemoryRegistrySettingsStore>();
+        await using var provider = services.Build();
+        var first = provider.GetRequiredService<IRegistrySettingsStore>();
+
+        // Act
+        var second = provider.GetRequiredService<IRegistrySettingsStore>();
+
+        // Assert
+        Assert.IsType<InMemoryRegistrySettingsStore>(first);
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public async Task UseInMemoryStores_NoOtherStore_RegistersTheInMemoryRegistrySettingsStore()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false).UseInMemoryStores();
+        await using var provider = services.Build();
+
+        // Act
+        var store = provider.GetRequiredService<IRegistrySettingsStore>();
+
+        // Assert
+        Assert.Same(provider.GetRequiredService<InMemoryRegistrySettingsStore>(), store);
+    }
+
+    [Fact]
     public async Task AddTenantService_ServiceOfAPackage_GivesTheInstanceOfEachKeyAndTheInstanceOfNoneWithNoKey()
     {
         // Arrange
