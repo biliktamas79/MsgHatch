@@ -20,6 +20,7 @@ public static class OutboxStoreTestRows
         PublishOutcome.TransientError,
         PublishOutcome.PermanentError,
         PublishOutcome.Expired,
+        PublishOutcome.Cancelled,
     ];
 
     public static TheoryData<PublishOutcome, bool, DeliveryStatus> OutcomeRows => new()
@@ -30,5 +31,6 @@ public static class OutboxStoreTestRows
         { PublishOutcome.TransientError, false, DeliveryStatus.Failed },
         { PublishOutcome.PermanentError, false, DeliveryStatus.Failed },
         { PublishOutcome.Expired, false, DeliveryStatus.Failed },
+        { PublishOutcome.Cancelled, false, DeliveryStatus.Cancelled },
     };
 }

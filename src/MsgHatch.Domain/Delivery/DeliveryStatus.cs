@@ -11,4 +11,7 @@ public enum DeliveryStatus
 
     /// <summary>The item failed, and gets no more tries.</summary>
     Failed,
+
+    /// <summary>A person cancelled the item, and it gets no more tries (D110).</summary>
+    Cancelled,
 }

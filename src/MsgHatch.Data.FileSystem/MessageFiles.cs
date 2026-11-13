@@ -6,7 +6,7 @@ namespace MsgHatch.Data.FileSystem;
 
 /// <summary>
 /// The folder helper of the two file stores (section 4.5, D26). A message folder has the status folders
-/// <c>pending</c>, <c>claimed</c>, <c>done</c>, and <c>failed</c>. A file name is
+/// <c>pending</c>, <c>claimed</c>, <c>done</c>, <c>failed</c>, and <c>cancelled</c>. A file name is
 /// <c>{dueAtUtc:yyyyMMddHHmmssfff}_{sequence}_{key}.json</c>. The sequence counts the files of one instance with the
 /// same due time, so a sort by name keeps the insert order of the messages with the same due time. A marker
 /// <c>ids/{tenantFolder}/{id}</c> under the root of a store records each stored key.
@@ -18,7 +18,7 @@ internal sealed class MessageFiles
     private const string _timeFormat = "yyyyMMddHHmmssfff";
     private const string _jsonPattern = "*.json";
     private static readonly string[] _dueFolders = [_pending, _claimed];
-    private static readonly string[] _statusFolders = [_pending, _claimed, "done", "failed"];
+    private static readonly string[] _statusFolders = [_pending, _claimed, "done", "failed", "cancelled"];
 
     private readonly Lock _lock = new();
     private readonly Lock _claimLock = new();
@@ -26,14 +26,15 @@ internal sealed class MessageFiles
     private int _sequence;
 
     /// <summary>
-    /// Adds a message file to <c>pending</c> when its key has no marker yet. The file goes to a temporary file first.
-    /// Then the marker is created with <see cref="FileMode.CreateNew"/>, and a rename gives the file its name.
+    /// Adds a message file to the folder of its status, for a new message <c>pending</c>, when its key has no marker
+    /// yet. The file goes to a temporary file first. Then the marker is created with <see cref="FileMode.CreateNew"/>,
+    /// and a rename gives the file its name.
     /// </summary>
     /// <returns>False when the key is already stored.</returns>
     // ponytail: a crash between the marker and the rename loses the message, use a database store when a crash must not lose one
-    public bool Add(string marker, string folder, DateTime dueAtUtc, string key, byte[] content)
+    public bool Add(string marker, string folder, DeliveryState delivery, string key, byte[] content)
     {
-        var path = Path.Combine(folder, _pending, NewName(dueAtUtc, key));
+        var path = Path.Combine(folder, StatusFolderOf(delivery.Status), NewName(delivery.NextTryAtUtc, key));
         var temporary = WriteTemporary(path, content);
         if (!TryCreateMarker(marker))
         {
@@ -209,6 +210,7 @@ internal sealed class MessageFiles
     {
         DeliveryStatus.Done => "done",
         DeliveryStatus.Failed => "failed",
+        DeliveryStatus.Cancelled => "cancelled",
         _ => _pending,
     };
 

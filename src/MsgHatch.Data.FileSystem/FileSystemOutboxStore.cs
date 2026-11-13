@@ -161,7 +161,7 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
                 var root = RootOf(message.Flags);
                 _files.Add(
                     MessageFiles.MarkerOf(root, message.Tenant, message.Delivery.Id), Path.Combine(root, message.Channel.Name),
-                    message.Delivery.NextTryAtUtc, MessageFiles.KeyOf(message.Delivery.Id, tenant: null), content.Value);
+                    message.Delivery, MessageFiles.KeyOf(message.Delivery.Id, tenant: null), content.Value);
             }
 
             return null;

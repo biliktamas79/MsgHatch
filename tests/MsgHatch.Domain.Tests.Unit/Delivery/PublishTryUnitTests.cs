@@ -13,6 +13,7 @@ public sealed class PublishTryUnitTests
     [InlineData(PublishOutcome.TransientError, false, DeliveryStatus.Failed)]
     [InlineData(PublishOutcome.PermanentError, true, DeliveryStatus.Failed)]
     [InlineData(PublishOutcome.Expired, true, DeliveryStatus.Failed)]
+    [InlineData(PublishOutcome.Cancelled, false, DeliveryStatus.Cancelled)]
     public void StatusAfter_Outcome_GivesTheStatusOfTheRecordRule(PublishOutcome outcome, bool hasNextTry, DeliveryStatus expected)
     {
         // Arrange

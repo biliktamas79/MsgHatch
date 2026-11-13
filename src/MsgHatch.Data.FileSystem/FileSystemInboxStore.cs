@@ -141,7 +141,7 @@ public sealed class FileSystemInboxStore : IInboxDispatchStore
         return FileFailures.Run(() =>
         {
             _files.Add(
-                MessageFiles.MarkerOf(root, message.Tenant, message.Delivery.Id), root, message.Delivery.NextTryAtUtc,
+                MessageFiles.MarkerOf(root, message.Tenant, message.Delivery.Id), root, message.Delivery,
                 MessageFiles.KeyOf(message.Delivery.Id, message.Tenant), content.Value);
             return null;
         });

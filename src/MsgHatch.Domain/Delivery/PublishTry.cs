@@ -17,7 +17,8 @@ public sealed record PublishTry(
     /// <summary>
     /// Gives the status of the stored message after this try (section 4.5): <see cref="DeliveryStatus.Done"/> for
     /// <see cref="PublishOutcome.Succeeded"/> and <see cref="PublishOutcome.Suppressed"/>,
-    /// <see cref="DeliveryStatus.Pending"/> for a <see cref="PublishOutcome.TransientError"/> with a next try time, and
+    /// <see cref="DeliveryStatus.Pending"/> for a <see cref="PublishOutcome.TransientError"/> with a next try time,
+    /// <see cref="DeliveryStatus.Cancelled"/> for <see cref="PublishOutcome.Cancelled"/> (D166), and
     /// <see cref="DeliveryStatus.Failed"/> for all other outcomes.
     /// </summary>
     /// <param name="nextTryAtUtc">The time of the next try, or null for no next try.</param>
@@ -26,6 +27,7 @@ public sealed record PublishTry(
     {
         PublishOutcome.Succeeded or PublishOutcome.Suppressed => DeliveryStatus.Done,
         PublishOutcome.TransientError when nextTryAtUtc is not null => DeliveryStatus.Pending,
+        PublishOutcome.Cancelled => DeliveryStatus.Cancelled,
         _ => DeliveryStatus.Failed,
     };
 

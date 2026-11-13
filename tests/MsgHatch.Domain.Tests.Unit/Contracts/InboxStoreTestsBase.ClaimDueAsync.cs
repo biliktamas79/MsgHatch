@@ -193,6 +193,21 @@ public abstract partial class InboxStoreTestsBase<TStore>
         Assert.Equal((0, (DateTime?)null), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
     }
 
+    [Fact]
+    public async Task ClaimDueAsync_CancelledMessage_IsNeverClaimed()
+    {
+        // Arrange
+        var message = AMessage(T1);
+        await AddAsync(message with { Delivery = message.Delivery with { Status = DeliveryStatus.Cancelled } });
+        Time.Advance(TimeSpan.FromDays(1));
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Equal((0, (DateTime?)null), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
+    }
+
     [Theory]
     [InlineData(59, 0)]
     [InlineData(60, 1)]

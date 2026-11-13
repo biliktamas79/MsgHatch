@@ -17,4 +17,7 @@ public enum PublishOutcome
 
     /// <summary>The test message was not sent, because the test delivery of its channel is <c>Suppress</c> (D83).</summary>
     Suppressed,
+
+    /// <summary>A person cancelled the message before its next try (D110). Only <c>CancelAsync</c> of a store records it.</summary>
+    Cancelled,
 }

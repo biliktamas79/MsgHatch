@@ -105,7 +105,7 @@ Each persisted contract is backward compatible and has a version number (D24, se
 ```
 
 - The outbox has a folder for each channel, so a claim reads only the files of its channel (D104).
-- The status folder of a file is its status: `pending`, `claimed`, `done`, or `failed`.
+- The status folder of a file is its status: `pending`, `claimed`, `done`, `failed`, or `cancelled`. An add writes a file into the folder of its status, so a message that is added as `Cancelled` is never claimed.
 - `{tenantFolder}` is `no-tenant` for no tenant, and `tenants/{tenant name}` for a tenant.
 
 ### 2.2 Message format
