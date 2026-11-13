@@ -2176,7 +2176,7 @@ public readonly record struct DeliveryActionResult(int Matched, int Changed);
 ```
 
 Rules of the types:
-- A query matches the messages of the tenant of the store that match all given filters. A null filter matches each value. With `IncludeTest` false, a query leaves out the messages with `MessageFlags.Test`.
+- A query matches the messages of the tenant of the store that match all given filters. A null filter matches each value. `CreatedFromUtc` is included, and `CreatedToUtc` is not. With `IncludeTest` false, a query leaves out the messages with `MessageFlags.Test`.
 - `DueBeforeUtc` matches the pending messages whose `NextTryAtUtc` is before it. With the current time minus some minutes, it finds the stuck messages: due, but not sent.
 - A page has the messages in the order newest first: `CreatedAtUtc` descending, then `Id` descending. `After` is the cursor of the last message of the previous page, and the next page starts after that message. `Next` is the cursor of the last message of the page, or null when the page has fewer messages than `Limit`. This paging stays correct while the messages change (D112).
 - A summary has no content: no event, no envelope, no address, and no payload value. `DeliveryState.LastError` can contain the error message of a provider.

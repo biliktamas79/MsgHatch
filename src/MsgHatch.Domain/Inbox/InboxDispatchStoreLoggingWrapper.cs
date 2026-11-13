@@ -48,6 +48,15 @@ internal sealed class InboxDispatchStoreLoggingWrapper(
         return result;
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.PurgeAsync(finishedBeforeUtc, maxCount, ct);
+        LogManagement(nameof(PurgeAsync), result.Error, result.IsError ? 0 : result.Value, time.GetElapsedTime(started).TotalMilliseconds);
+        return result;
+    }
+
     private void LogClaim(ErrorOr<ClaimResult<ReceivedMessage>> result, double elapsedMs)
     {
         if (result.IsError)
@@ -74,6 +83,19 @@ internal sealed class InboxDispatchStoreLoggingWrapper(
             logger.RecordFailed(
                 level, operation, message.Delivery.Id, message.Type.Name, message.Tenant?.Value, message.Flags,
                 elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+        }
+    }
+
+    private void LogManagement(string operation, Error? error, int count, double elapsedMs)
+    {
+        if (error is null)
+        {
+            logger.ManagementSucceeded(operation, count, elapsedMs);
+        }
+        else
+        {
+            var level = ErrorLogLevels.For(error);
+            logger.ManagementFailed(level, operation, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
 

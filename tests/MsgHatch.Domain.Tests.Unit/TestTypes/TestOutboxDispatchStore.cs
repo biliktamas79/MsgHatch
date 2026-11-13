@@ -3,6 +3,7 @@ using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
+using MsgHatch.Domain.Management;
 
 namespace MsgHatch.Domain.Tests.Unit.TestTypes;
 
@@ -18,6 +19,12 @@ public sealed class TestOutboxDispatchStore : IOutboxDispatchStore
         ValueTask.FromResult<Error?>(null);
 
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) => ValueTask.FromResult(ErrorOr<int>.ForValue(0));
+
+    public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue([]));
+
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<int>.ForValue(0));
 
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct) =>
         ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([]));

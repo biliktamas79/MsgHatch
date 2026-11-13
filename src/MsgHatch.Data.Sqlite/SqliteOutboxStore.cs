@@ -4,6 +4,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 
@@ -129,6 +130,20 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
         ArgumentNullException.ThrowIfNull(publishTry);
         return ValueTask.FromResult(SqliteFailures.Run(() => RecordTry(message, publishTry, nextTryAtUtc)));
     }
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return ValueTask.FromResult(SqliteFailures.Run(() =>
+            ErrorOr<IReadOnlyList<MessageCount>>.ForValue(SqliteManagement.Outbox.Count(ConnectionString, query, tenant: null))));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct) =>
+        ValueTask.FromResult(maxCount < 1
+            ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
+            : SqliteFailures.Run(() => ErrorOr<int>.ForValue(SqliteManagement.Outbox.Purge(ConnectionString, finishedBeforeUtc, maxCount))));
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) =>

@@ -108,6 +108,12 @@ public sealed class SqliteInboxStore : IInboxDispatchStore
             .With("@lastError", error)));
 
     /// <inheritdoc />
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct) =>
+        ValueTask.FromResult(maxCount < 1
+            ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
+            : SqliteFailures.Run(() => ErrorOr<int>.ForValue(SqliteManagement.Inbox.Purge(ConnectionString, finishedBeforeUtc, maxCount))));
+
+    /// <inheritdoc />
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) =>
         ValueTask.FromResult(SqliteFailures.Run(() =>
         {

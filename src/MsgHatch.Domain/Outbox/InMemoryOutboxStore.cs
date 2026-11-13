@@ -2,6 +2,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 
 namespace MsgHatch.Domain.Outbox;
 
@@ -106,6 +107,39 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
     }
 
     /// <inheritdoc />
+    public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue(Count(query, tenant: null)));
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct)
+    {
+        if (maxCount < 1)
+        {
+            return ValueTask.FromResult<ErrorOr<int>>(new Error(Errors.ValidationFailed, "maxCount is less than 1."));
+        }
+
+        lock (_lock)
+        {
+            HashSet<Guid> purged =
+            [
+                .. _messages
+                    .Where(message => message.Delivery.FinishedBefore(finishedBeforeUtc))
+                    .OrderBy(static message => message.Delivery.FinishedAtUtc())
+                    .Take(maxCount)
+                    .Select(static message => message.Delivery.Id),
+            ];
+            _messages.RemoveAll(message => purged.Contains(message.Delivery.Id));
+            _ids.ExceptWith(purged);
+            foreach (var id in purged)
+            {
+                _tries.Remove(id);
+            }
+
+            return ValueTask.FromResult(ErrorOr<int>.ForValue(purged.Count));
+        }
+    }
+
+    /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct)
     {
         lock (_lock)
@@ -160,6 +194,17 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
             }
 
             return ValueTask.FromResult(ErrorOr<bool>.ForValue(due));
+        }
+    }
+
+    private IReadOnlyList<MessageCount> Count(TrafficQuery query, TenantKey? tenant)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        lock (_lock)
+        {
+            return MessageCount.Of(_messages
+                .Where(message => (tenant is null || message.Tenant == tenant.Value.Tenant) && query.Matches(message.Delivery, message.Flags))
+                .Select(static message => (message.Type, (ChannelId?)message.Channel, message.Delivery, message.Flags)));
         }
     }
 

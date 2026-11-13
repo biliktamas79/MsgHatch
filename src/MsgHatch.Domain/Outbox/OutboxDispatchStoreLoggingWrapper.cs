@@ -4,6 +4,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 
 namespace MsgHatch.Domain.Outbox;
 
@@ -37,6 +38,24 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
         var started = time.GetTimestamp();
         var result = await inner.DeleteTestDataAsync(ct);
         LogDeleteTestData(result, time.GetElapsedTime(started).TotalMilliseconds);
+        return result;
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.CountAsync(query, ct);
+        LogManagement(nameof(CountAsync), result.Error, result.IsError ? 0 : result.Value.Count, time.GetElapsedTime(started).TotalMilliseconds);
+        return result;
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.PurgeAsync(finishedBeforeUtc, maxCount, ct);
+        LogManagement(nameof(PurgeAsync), result.Error, result.IsError ? 0 : result.Value, time.GetElapsedTime(started).TotalMilliseconds);
         return result;
     }
 
@@ -121,6 +140,19 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
         else
         {
             logger.DeleteTestDataSucceeded(result.Value, elapsedMs);
+        }
+    }
+
+    private void LogManagement(string operation, Error? error, int count, double elapsedMs)
+    {
+        if (error is null)
+        {
+            logger.ManagementSucceeded(operation, count, elapsedMs);
+        }
+        else
+        {
+            var level = ErrorLogLevels.For(error);
+            logger.ManagementFailed(level, operation, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
 

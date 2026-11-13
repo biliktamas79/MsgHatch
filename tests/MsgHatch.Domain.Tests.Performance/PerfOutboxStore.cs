@@ -4,6 +4,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
+using MsgHatch.Domain.Management;
 
 namespace MsgHatch.Domain.Tests.Performance;
 
@@ -51,6 +52,12 @@ public sealed class PerfOutboxStore : IOutboxStore, IOutboxDispatchStore
     public ValueTask<Error?> RecordTryAsync(OutgoingMessage message, PublishTry publishTry, DateTime? nextTryAtUtc, CancellationToken ct) => _none;
 
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) => ValueTask.FromResult(ErrorOr<int>.ForValue(0));
+
+    public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue([]));
+
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<int>.ForValue(0));
 
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct) => _noDownChannels;
 

@@ -49,4 +49,17 @@ public interface IInboxDispatchStore
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The number of deleted messages, or the error.</returns>
     ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Deletes up to <paramref name="maxCount"/> finished messages of all tenants (D128). A finished message has the
+    /// status <see cref="DeliveryStatus.Done"/>, <see cref="DeliveryStatus.Failed"/>, or <see cref="DeliveryStatus.Cancelled"/>,
+    /// and a finish time before <paramref name="finishedBeforeUtc"/>. The finish time is <c>LastTryAtUtc</c>, or
+    /// <c>CreatedAtUtc</c> for a message with no try. It never deletes a pending message. A purged id is a new message
+    /// when it comes again.
+    /// </summary>
+    /// <param name="finishedBeforeUtc">The time before which a message must finish.</param>
+    /// <param name="maxCount">The maximum number of messages. A value less than 1 gives <see cref="Errors.ValidationFailed"/>.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The number of deleted messages, or the error.</returns>
+    ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct);
 }

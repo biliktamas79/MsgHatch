@@ -3,6 +3,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 
@@ -69,6 +70,19 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
         ValueTask.FromResult(FileFailures.Run(() => ErrorOr<int>.ForValue(MessageFiles.DeleteRoot(_testRoot))));
 
     /// <inheritdoc />
+    public ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return ValueTask.FromResult(FileFailures.Run(() => ErrorOr<IReadOnlyList<MessageCount>>.ForValue(Count(query, tenant: null))));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct) =>
+        ValueTask.FromResult(maxCount < 1
+            ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
+            : FileFailures.Run(() => ErrorOr<int>.ForValue(Purge(finishedBeforeUtc, maxCount))));
+
+    /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct) =>
         ValueTask.FromResult(FileFailures.Run(() => ErrorOr<IReadOnlyList<ChannelDown>>.ForValue(
         [
@@ -114,6 +128,38 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
 
         return new ClaimResult<OutgoingMessage>(claimed, MessageFiles.NextDueAtUtc(folders));
     }
+
+    private IReadOnlyList<MessageCount> Count(TrafficQuery query, TenantKey? tenant) =>
+        MessageCount.Of(
+            ReadEach(query.IncludeTest ? [_root, _testRoot] : [_root], query.Status is { } status ? [status] : Enum.GetValues<DeliveryStatus>())
+                .Select(static file => file.Message)
+                .Where(message => (tenant is null || message.Tenant == tenant.Value.Tenant) && query.Matches(message.Delivery, message.Flags))
+                .Select(static message => (message.Type, (ChannelId?)message.Channel, message.Delivery, message.Flags)));
+
+    private int Purge(DateTime finishedBeforeUtc, int maxCount)
+    {
+        (string Root, string Path, OutgoingMessage Message)[] purged =
+        [
+            .. ReadEach([_root, _testRoot], MessageFiles.FinishedStatuses)
+                .Where(file => file.Message.Delivery.FinishedBefore(finishedBeforeUtc))
+                .OrderBy(static file => file.Message.Delivery.FinishedAtUtc())
+                .Take(maxCount),
+        ];
+        foreach (var (root, path, message) in purged)
+        {
+            MessageFiles.DeletePurged(path, MessageFiles.MarkerOf(root, message.Tenant, message.Delivery.Id));
+        }
+
+        return purged.Length;
+    }
+
+    /// <summary>Reads each readable message file of the given statuses in the channel folders of the roots (D167).</summary>
+    private IEnumerable<(string Root, string Path, OutgoingMessage Message)> ReadEach(
+        IEnumerable<string> roots, IEnumerable<DeliveryStatus> statuses) =>
+        from root in roots
+        from folder in Directory.Exists(root) ? Directory.EnumerateDirectories(root) : []
+        from file in MessageFiles.ReadEach(MessageFiles.FilesOf(folder, statuses), content => _json.DeserializeOutgoing(content))
+        select (root, file.Path, file.Message);
 
     private Error? RecordTry(OutgoingMessage message, PublishTry publishTry, DateTime? nextTryAtUtc)
     {

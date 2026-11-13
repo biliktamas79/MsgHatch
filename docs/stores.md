@@ -65,7 +65,15 @@ The dispatch loops claim the due messages (D103, D144):
 - A store returns an `Error` for each expected failure, and does not throw (section 4.12). A busy or missing storage gives `Errors.Unavailable`. A record that the code cannot read gives `Errors.SerializationFailed`.
 - Each record keeps its `MessageFlags`. `DeleteTestDataAsync` deletes each message with `MessageFlags.Test` of all tenants, with its tries, and keeps each other message (D82).
 
-### 1.7 Versioning
+### 1.7 Purge and counts
+
+The delivery management of section 4.19 of the design uses these members of the dispatch stores:
+
+- `PurgeAsync` deletes up to `maxCount` finished messages of all tenants, with their tries (D128). A finished message has the status `Done`, `Failed`, or `Cancelled`, and its finish time is `LastTryAtUtc`, or `CreatedAtUtc` for a message with no try. The library stores delete the messages that finished first. A purge also deletes what records the key of a message, so a purged id is a new message when it comes again.
+- `IOutboxDispatchStore.CountAsync` counts the messages of all tenants that match a `TrafficQuery`: one `MessageCount` for each message type, channel, status, and test flag (D164). `CreatedFromUtc` is included, and `CreatedToUtc` is not. With `IncludeTest` false, it gives no row of the test messages. `OldestDueAtUtc` is set only in a row of the status `Pending`.
+- A store that reads the messages into memory can use `TrafficQuery.Matches`, `DeliveryState.FinishedBefore`, and `MessageCount.Of`, so it follows the same rules as the library stores.
+
+### 1.8 Versioning
 
 Each persisted contract is backward compatible and has a version number (D24, section 4.13):
 
@@ -139,6 +147,7 @@ The file holds the message as `MsgHatchJson` writes it. Section 4.5 of the desig
 - The tenant is the property `tenant` of the message document, and a part of the key of a received message.
 - Before it renames a new file into `pending`, a store creates the marker `ids/{tenantFolder}/{id}` with `FileMode.CreateNew`. A marker that already exists means that the key is stored, so `AddAsync` ignores the message.
 - A test message goes under `{RootPath}/test/inbox` or `{RootPath}/test/outbox`. `DeleteTestDataAsync` deletes the `test` folder of its store.
+- A purge and a count read each file of the matching status folders, and skip a file that the code cannot read (D167). A purge deletes the file and the marker of its key.
 
 ### 2.6 Subscription store
 
@@ -172,6 +181,7 @@ The table and column names are the C# property names (D56):
 
 - The partial index `(NextTryAtUtc) WHERE Status = 'Pending'` of the inbox and `(Channel, NextTryAtUtc) WHERE Status = 'Pending'` of the outbox hold only the backlog and the claimed messages (D104).
 - An index on `Flags` serves `DeleteTestDataAsync`.
+- A purge is one `DELETE` of the finished rows, in the order of their finish time, with `LIMIT @maxCount`. A count is one `SELECT` with `GROUP BY MessageType, Channel, Status, Flags = 'Test'`.
 - `Sequence` keeps the add order. The SQLite documentation says that `VACUUM` can change the `rowid` of a table with no `INTEGER PRIMARY KEY` (D144).
 - Enum values are text. Times are ISO 8601 text in UTC, for example `2026-10-31T08:00:00.0000000Z` (D57).
 - The tables have no `NOT NULL` constraint, because `INSERT OR IGNORE` also skips a row that breaks a `NOT NULL` constraint, with no error.

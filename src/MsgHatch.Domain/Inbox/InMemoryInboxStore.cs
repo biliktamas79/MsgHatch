@@ -81,6 +81,30 @@ public sealed class InMemoryInboxStore : IInboxDispatchStore
         }
     }
 
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct)
+    {
+        if (maxCount < 1)
+        {
+            return ValueTask.FromResult<ErrorOr<int>>(new Error(Errors.ValidationFailed, "maxCount is less than 1."));
+        }
+
+        lock (_lock)
+        {
+            HashSet<(TenantId? Tenant, Guid Id)> purged =
+            [
+                .. _messages
+                    .Where(message => message.Delivery.FinishedBefore(finishedBeforeUtc))
+                    .OrderBy(static message => message.Delivery.FinishedAtUtc())
+                    .Take(maxCount)
+                    .Select(static message => KeyOf(message)),
+            ];
+            _messages.RemoveAll(message => purged.Contains(KeyOf(message)));
+            _keys.ExceptWith(purged);
+            return ValueTask.FromResult(ErrorOr<int>.ForValue(purged.Count));
+        }
+    }
+
     private ClaimResult<ReceivedMessage> Claim(int maxCount, DateTime nowUtc, DateTime leaseUntilUtc)
     {
         int[] due =

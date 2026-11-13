@@ -98,4 +98,15 @@ internal static partial class Log
         Message = "Outbox DispatchPendingAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void DispatchPendingFailed(
         this ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1316, Level = LogLevel.Debug,
+        Message = "Outbox {Operation} gave the count {Count} in {ElapsedMs} ms")]
+    public static partial void ManagementSucceeded(this ILogger logger, string operation, int count, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1317,
+        Message = "Outbox {Operation} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void ManagementFailed(
+        this ILogger logger, LogLevel level, string operation, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 }

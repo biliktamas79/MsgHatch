@@ -22,6 +22,7 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
         { nameof(IInboxDispatchStore.CompleteAsync), 1205 },
         { nameof(IInboxDispatchStore.FailAsync), 1205 },
         { nameof(IInboxDispatchStore.DeleteTestDataAsync), 1207 },
+        { nameof(IInboxDispatchStore.PurgeAsync), 1213 },
     };
 
     public static TheoryData<string, int> SucceededEventRows => new()
@@ -30,6 +31,7 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
         { nameof(IInboxDispatchStore.CompleteAsync), 1204 },
         { nameof(IInboxDispatchStore.FailAsync), 1204 },
         { nameof(IInboxDispatchStore.DeleteTestDataAsync), 1206 },
+        { nameof(IInboxDispatchStore.PurgeAsync), 1212 },
     };
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -102,6 +104,22 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
     }
 
     [Fact]
+    public async Task PurgeAsync_InnerCount_ReturnsTheCountUnchanged()
+    {
+        // Arrange
+        var inner = AStoreOf(error: null);
+        inner.PurgeAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(7)));
+        await using var provider = BuildWith(inner);
+        var store = provider.GetRequiredService<IInboxDispatchStore>();
+
+        // Act
+        var purged = await store.PurgeAsync(TestMessages.CreatedAtUtc, 10, Ct);
+
+        // Assert
+        Assert.Equal(7, purged.Value);
+    }
+
+    [Fact]
     public async Task CompleteAsync_TestMessageOfATenant_LogsTheTenantAndTheTestFlagAndNoEvent()
     {
         // Arrange
@@ -142,7 +160,8 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
             nameof(IInboxDispatchStore.ClaimDueAsync) => (await store.ClaimDueAsync(1, now, TimeSpan.FromSeconds(30), Ct)).Error,
             nameof(IInboxDispatchStore.CompleteAsync) => await store.CompleteAsync(AMessage(), now, Ct),
             nameof(IInboxDispatchStore.FailAsync) => await store.FailAsync(AMessage(), "Unavailable", now, now.AddSeconds(5), Ct),
-            _ => (await store.DeleteTestDataAsync(Ct)).Error,
+            nameof(IInboxDispatchStore.DeleteTestDataAsync) => (await store.DeleteTestDataAsync(Ct)).Error,
+            _ => (await store.PurgeAsync(now, 10, Ct)).Error,
         };
     }
 
@@ -155,6 +174,8 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
         store.CompleteAsync(default!, default, default).ReturnsForAnyArgs(ValueTask.FromResult(error));
         store.FailAsync(default!, default!, default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(error));
         store.DeleteTestDataAsync(default).ReturnsForAnyArgs(ValueTask.FromResult(
+            error is null ? ErrorOr<int>.ForValue(0) : ErrorOr<int>.ForError(error)));
+        store.PurgeAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(
             error is null ? ErrorOr<int>.ForValue(0) : ErrorOr<int>.ForError(error)));
         return store;
     }

@@ -72,4 +72,15 @@ internal static partial class Log
         Message = "Inbox ProcessPendingAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void ProcessPendingFailed(
         this ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1212, Level = LogLevel.Debug,
+        Message = "Inbox {Operation} gave the count {Count} in {ElapsedMs} ms")]
+    public static partial void ManagementSucceeded(this ILogger logger, string operation, int count, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1213,
+        Message = "Inbox {Operation} failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void ManagementFailed(
+        this ILogger logger, LogLevel level, string operation, double elapsedMs, int errorCode, string errorName, string? errorMessage);
 }

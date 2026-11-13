@@ -2,6 +2,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 
 namespace MsgHatch.Domain.Outbox;
 
@@ -47,6 +48,28 @@ public interface IOutboxDispatchStore
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The number of deleted messages, or the error.</returns>
     ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Counts the messages of all tenants that match the query, for the state of the channels (section 4.19): one row
+    /// for each message type, channel, status, and test flag (D164).
+    /// </summary>
+    /// <param name="query">The filters.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The rows, or the error.</returns>
+    ValueTask<ErrorOr<IReadOnlyList<MessageCount>>> CountAsync(TrafficQuery query, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes up to <paramref name="maxCount"/> finished messages of all tenants (D128), with their publish tries. A finished message has the
+    /// status <see cref="DeliveryStatus.Done"/>, <see cref="DeliveryStatus.Failed"/>, or <see cref="DeliveryStatus.Cancelled"/>,
+    /// and a finish time before <paramref name="finishedBeforeUtc"/>. The finish time is <c>LastTryAtUtc</c>, or
+    /// <c>CreatedAtUtc</c> for a message with no try. It never deletes a pending message. A purged id is a new message
+    /// when it comes again.
+    /// </summary>
+    /// <param name="finishedBeforeUtc">The time before which a message must finish.</param>
+    /// <param name="maxCount">The maximum number of messages. A value less than 1 gives <see cref="Errors.ValidationFailed"/>.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The number of deleted messages, or the error.</returns>
+    ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct);
 
     /// <summary>Gives the down state of each down channel (D106).</summary>
     /// <param name="ct">The cancellation token.</param>

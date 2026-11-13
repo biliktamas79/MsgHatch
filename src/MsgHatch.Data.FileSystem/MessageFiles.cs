@@ -1,5 +1,6 @@
 using System.Globalization;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 
 namespace MsgHatch.Data.FileSystem;
@@ -118,6 +119,34 @@ internal sealed class MessageFiles
         var target = Path.Combine(FolderOf(path), StatusFolderOf(DeliveryStatus.Failed), Path.GetFileName(path));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Move(path, target, overwrite: true);
+    }
+
+    /// <summary>The finished statuses, whose files a purge can delete (D128).</summary>
+    public static readonly DeliveryStatus[] FinishedStatuses = [DeliveryStatus.Done, DeliveryStatus.Failed, DeliveryStatus.Cancelled];
+
+    /// <summary>The message files of the folders of the given statuses of one folder. The status pending includes <c>claimed</c>.</summary>
+    public static IEnumerable<string> FilesOf(string folder, IEnumerable<DeliveryStatus> statuses) =>
+        statuses
+            .SelectMany(static status => status == DeliveryStatus.Pending ? _dueFolders : [StatusFolderOf(status)])
+            .Distinct(StringComparer.Ordinal)
+            .SelectMany(status => FilesOf(Path.Combine(folder, status), _jsonPattern));
+
+    /// <summary>
+    /// Reads each file with its reader, and skips a file that the code cannot read, for example invalid JSON or a newer
+    /// version (D167).
+    /// </summary>
+    // ponytail: a query reads each file, use a database store for a large outbox
+    public static IEnumerable<(string Path, T Message)> ReadEach<T>(IEnumerable<string> paths, Func<byte[], ErrorOr<T>> read) =>
+        from path in paths
+        let message = read(File.ReadAllBytes(path))
+        where message.IsSuccess
+        select (path, message.Value);
+
+    /// <summary>Deletes the file of a purged message and the marker of its key, so that its id is a new message when it comes again.</summary>
+    public static void DeletePurged(string path, string marker)
+    {
+        File.Delete(path);
+        File.Delete(marker);
     }
 
     /// <summary>Deletes a root folder with its files.</summary>

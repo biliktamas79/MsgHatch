@@ -21,4 +21,20 @@ public readonly record struct DeliveryState(
     DateTime NextTryAtUtc,
     DateTime? LeaseUntilUtc,
     DateTime? ExpiresAtUtc,
-    string? LastError);
+    string? LastError)
+{
+    /// <summary>
+    /// Tells whether the item finished before a time, so that a purge can delete it (D128): its status is
+    /// <see cref="DeliveryStatus.Done"/>, <see cref="DeliveryStatus.Failed"/>, or <see cref="DeliveryStatus.Cancelled"/>,
+    /// and its finish time is before the time. The finish time is <see cref="LastTryAtUtc"/>, or
+    /// <see cref="CreatedAtUtc"/> for an item with no try.
+    /// </summary>
+    /// <param name="timeUtc">The time.</param>
+    /// <returns>True when the item finished before the time.</returns>
+    public bool FinishedBefore(DateTime timeUtc) =>
+        Status is DeliveryStatus.Done or DeliveryStatus.Failed or DeliveryStatus.Cancelled && FinishedAtUtc() < timeUtc;
+
+    /// <summary>Gives the finish time of a finished item: <see cref="LastTryAtUtc"/>, or <see cref="CreatedAtUtc"/> for an item with no try.</summary>
+    /// <returns>The finish time.</returns>
+    public DateTime FinishedAtUtc() => LastTryAtUtc ?? CreatedAtUtc;
+}

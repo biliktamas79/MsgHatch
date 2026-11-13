@@ -5,6 +5,7 @@ using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
@@ -99,6 +100,8 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         { nameof(IOutboxDispatchStore.SetChannelDownAsync), 1311 },
         { nameof(IOutboxDispatchStore.SetChannelUpAsync), 1311 },
         { nameof(IOutboxDispatchStore.TryStartChannelCheckAsync), 1311 },
+        { nameof(IOutboxDispatchStore.CountAsync), 1317 },
+        { nameof(IOutboxDispatchStore.PurgeAsync), 1317 },
     };
 
     public static TheoryData<string, int> SucceededEventRows => new()
@@ -109,6 +112,8 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         { nameof(IOutboxDispatchStore.SetChannelDownAsync), 1310 },
         { nameof(IOutboxDispatchStore.SetChannelUpAsync), 1310 },
         { nameof(IOutboxDispatchStore.TryStartChannelCheckAsync), 1310 },
+        { nameof(IOutboxDispatchStore.CountAsync), 1316 },
+        { nameof(IOutboxDispatchStore.PurgeAsync), 1316 },
     };
 
     [Theory]
@@ -179,6 +184,43 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     }
 
     [Fact]
+    public async Task CountAsync_InnerRows_ReturnsTheRowsUnchanged()
+    {
+        // Arrange
+        IReadOnlyList<MessageCount> rows =
+        [
+            new(new MessageType("TestEvent"), TestChannel.Id, DeliveryStatus.Pending, Test: false, 2, TestMessages.CreatedAtUtc),
+            new(new MessageType("TestEvent"), TestChannel.Id, DeliveryStatus.Done, Test: true, 1, null),
+        ];
+        var inner = AStoreOf(error: null);
+        inner.CountAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForValue(rows)));
+        await using var provider = BuildWith(inner);
+        var store = provider.GetRequiredService<IOutboxDispatchStore>();
+
+        // Act
+        var counts = await store.CountAsync(new TrafficQuery(), Ct);
+
+        // Assert
+        Assert.Same(rows, counts.Value);
+    }
+
+    [Fact]
+    public async Task PurgeAsync_InnerCount_ReturnsTheCountUnchanged()
+    {
+        // Arrange
+        var inner = AStoreOf(error: null);
+        inner.PurgeAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(7)));
+        await using var provider = BuildWith(inner);
+        var store = provider.GetRequiredService<IOutboxDispatchStore>();
+
+        // Act
+        var purged = await store.PurgeAsync(TestMessages.CreatedAtUtc, 10, Ct);
+
+        // Assert
+        Assert.Equal(7, purged.Value);
+    }
+
+    [Fact]
     public async Task RecordTryAsync_TestMessageOfATenant_LogsTheTenantAndTheTestFlagAndNoChannelAddress()
     {
         // Arrange
@@ -231,7 +273,9 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
             nameof(IOutboxDispatchStore.GetDownChannelsAsync) => (await store.GetDownChannelsAsync(Ct)).Error,
             nameof(IOutboxDispatchStore.SetChannelDownAsync) => (await store.SetChannelDownAsync(APause("note"), Ct)).Error,
             nameof(IOutboxDispatchStore.SetChannelUpAsync) => (await store.SetChannelUpAsync(TestChannel.Id, reason: null, Ct)).Error,
-            _ => (await store.TryStartChannelCheckAsync(TestChannel.Id, now, now.AddSeconds(30), Ct)).Error,
+            nameof(IOutboxDispatchStore.TryStartChannelCheckAsync) => (await store.TryStartChannelCheckAsync(TestChannel.Id, now, now.AddSeconds(30), Ct)).Error,
+            nameof(IOutboxDispatchStore.CountAsync) => (await store.CountAsync(new TrafficQuery(), Ct)).Error,
+            _ => (await store.PurgeAsync(now, 10, Ct)).Error,
         };
     }
 
@@ -249,6 +293,11 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         store.SetChannelDownAsync(default!, default).ReturnsForAnyArgs(changed);
         store.SetChannelUpAsync(default, default, default).ReturnsForAnyArgs(changed);
         store.TryStartChannelCheckAsync(default, default, default, default).ReturnsForAnyArgs(changed);
+        store.CountAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(error is null
+            ? ErrorOr<IReadOnlyList<MessageCount>>.ForValue([])
+            : ErrorOr<IReadOnlyList<MessageCount>>.ForError(error)));
+        store.PurgeAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(
+            error is null ? ErrorOr<int>.ForValue(0) : ErrorOr<int>.ForError(error)));
         return store;
     }
 

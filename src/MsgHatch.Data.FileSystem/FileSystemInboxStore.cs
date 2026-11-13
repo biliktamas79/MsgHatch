@@ -78,6 +78,33 @@ public sealed class FileSystemInboxStore : IInboxDispatchStore
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) =>
         ValueTask.FromResult(FileFailures.Run(() => ErrorOr<int>.ForValue(MessageFiles.DeleteRoot(_testRoot))));
 
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct) =>
+        ValueTask.FromResult(maxCount < 1
+            ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
+            : FileFailures.Run(() => ErrorOr<int>.ForValue(Purge(finishedBeforeUtc, maxCount))));
+
+    private int Purge(DateTime finishedBeforeUtc, int maxCount)
+    {
+        (string Root, string Path, ReceivedMessage Message)[] purged =
+        [
+            .. _folders
+                .SelectMany(root => ReadEach(root, MessageFiles.FinishedStatuses).Select(file => (root, file.Path, file.Message)))
+                .Where(file => file.Message.Delivery.FinishedBefore(finishedBeforeUtc))
+                .OrderBy(static file => file.Message.Delivery.FinishedAtUtc())
+                .Take(maxCount),
+        ];
+        foreach (var (root, path, message) in purged)
+        {
+            MessageFiles.DeletePurged(path, MessageFiles.MarkerOf(root, message.Tenant, message.Delivery.Id));
+        }
+
+        return purged.Length;
+    }
+
+    private IEnumerable<(string Path, ReceivedMessage Message)> ReadEach(string root, IEnumerable<DeliveryStatus> statuses) =>
+        MessageFiles.ReadEach(MessageFiles.FilesOf(root, statuses), content => _json.DeserializeReceived(content));
+
     private ErrorOr<ClaimResult<ReceivedMessage>> Claim(int maxCount, DateTime nowUtc, DateTime leaseUntilUtc)
     {
         var claimed = new List<ReceivedMessage>();
