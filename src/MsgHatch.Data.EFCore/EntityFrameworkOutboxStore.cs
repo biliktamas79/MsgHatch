@@ -80,7 +80,7 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
             async context =>
             {
                 var arguments = Arguments(context)
-                    .Text("@id", id)
+                    .MessageId("@id", id)
                     .Text("@try", TryJson(publishTry))
                     .Number("@tryNumber", publishTry.TryNumber)
                     .Time("@finishedAtUtc", publishTry.FinishedAtUtc)
@@ -246,7 +246,7 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
             .Text("@tenantId", MessageQueries.Tenant(message.Tenant))
             .Delivery(message.Delivery)
             .Number("@schemaVersion", message.SchemaVersion)
-            .Text("@sourceMessageId", MessageQueries.Id(message.SourceMessageId))
+            .MessageId("@sourceMessageId", MessageQueries.Id(message.SourceMessageId))
             .Name("@messageType", message.Type.Name)
             .Name("@channel", message.Channel.Name)
             .Name("@targetKind", message.Target.Kind.ToString())

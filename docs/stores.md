@@ -341,7 +341,7 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 |---|---|---|
 | `Sequence` | `bigint` identity, the clustered primary key of a message table | It keeps the add order (D144). |
 | A tenant, company, user, or target id | `nvarchar(256)` with the collation `Latin1_General_100_BIN2` | An id is case-sensitive, so two tenants that differ only in case stay apart (D178). An empty text means no tenant. |
-| A message id | `char(36)` in the format `D` | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. A `uniqueidentifier` sorts by its last bytes first (checked fact of phase 18). |
+| A message id | `char(36)` in the format `D` | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. A `uniqueidentifier` sorts by its last bytes first (checked fact of phase 18). A message id parameter of a raw statement is a fixed ANSI text too. With an `nvarchar` parameter, SQL Server converts the column, and parallel adds of one id got the deadlock 1205 (checked fact after phase 18). |
 | A message type, channel, content type, or trace type name | `varchar(256)` with the binary collation | A longer name gives `Errors.Unavailable` (D178). The binary collation gives the ordinal order. |
 | An enum value | `varchar(32)` | The name of the value, for example `Pending`. |
 | A time | `datetime2(7)` in UTC | The store gives each time that it reads the kind UTC. |

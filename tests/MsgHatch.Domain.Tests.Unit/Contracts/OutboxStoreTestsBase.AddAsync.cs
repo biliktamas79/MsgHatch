@@ -94,6 +94,23 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task AddAsync_EightParallelAddsOfEachOfTwentyMessages_StoreEachMessageOneTimeWithNoError()
+    {
+        // Arrange
+        OutgoingMessage[] messages = [.. Enumerable.Range(0, 20).Select(_ => AMessage(T1))];
+
+        // Act
+        var errors = await Task.WhenAll(messages.SelectMany(message =>
+            Enumerable.Range(0, 8).Select(_ => Task.Run(() => TenantStore(T1).AddAsync([message], Ct).AsTask(), Ct))));
+
+        // Assert
+        Assert.Equal(new Error?[160], errors);
+        Assert.Equal(
+            messages.Select(static message => message.Delivery.Id).Order(),
+            (await TestData.GetStoredAsync(Ct)).Select(static message => message.Delivery.Id).Order());
+    }
+
+    [Fact]
     public async Task AddAsync_TenantStoresOfTwoKeys_StoreEachMessageWithTheTenantOfItsKey()
     {
         // Arrange
