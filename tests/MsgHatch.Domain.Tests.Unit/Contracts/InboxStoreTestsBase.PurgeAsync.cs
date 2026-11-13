@@ -85,6 +85,20 @@ public abstract partial class InboxStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task PurgeAsync_MaxCountOne_DeletesTheMessageThatFinishedFirst()
+    {
+        // Arrange
+        var later = await AddAsync(Finished(AMessage(T1), DeliveryStatus.Done, Now.AddDays(-1)));
+        await AddAsync(Finished(AMessage(T1), DeliveryStatus.Done, Now.AddDays(-2)));
+
+        // Act
+        await Store.PurgeAsync(Now, maxCount: 1, Ct);
+
+        // Assert
+        Assert.Equal([later.Delivery.Id], (await TestData.GetStoredAsync(Ct)).Select(static message => message.Delivery.Id));
+    }
+
+    [Fact]
     public async Task PurgeAsync_PurgedId_IsStoredAgainAsANewMessage()
     {
         // Arrange

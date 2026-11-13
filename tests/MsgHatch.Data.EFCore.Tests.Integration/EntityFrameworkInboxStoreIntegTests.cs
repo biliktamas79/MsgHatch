@@ -37,21 +37,6 @@ public sealed class EntityFrameworkInboxStoreIntegTests(SqlServerFixture server)
     }
 
     [Fact]
-    public async Task AddAsync_EightParallelAddsOfEachOfTwentyMessages_StoreEachMessageOneTimeWithNoError()
-    {
-        // Arrange
-        ReceivedMessage<TestEvent>[] messages = [.. Enumerable.Range(0, 20).Select(_ => AMessage(T1))];
-
-        // Act
-        var errors = await Task.WhenAll(messages.SelectMany(message =>
-            Enumerable.Range(0, 8).Select(_ => Task.Run(() => TenantStore(T1).AddAsync(message, Ct).AsTask(), Ct))));
-
-        // Assert
-        Assert.Equal(new Error?[160], errors);
-        Assert.Equal([["20"]], await Database.RowsAsync("SELECT COUNT(*) FROM [msghatch].[MsgHatchInbox]", Ct));
-    }
-
-    [Fact]
     public async Task ClaimDueAsync_CancelledToken_GivesOperationCancelled()
     {
         // Arrange

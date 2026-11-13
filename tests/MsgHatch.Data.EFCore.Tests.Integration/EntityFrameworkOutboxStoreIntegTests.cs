@@ -79,34 +79,6 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
     }
 
     [Fact]
-    public async Task SetChannelDownAsync_ReasonErrorsTwoTimes_ReturnsFalseWithNoErrorTheSecondTime()
-    {
-        // Arrange
-        var down = new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null);
-        await Store.SetChannelDownAsync(down, Ct);
-
-        // Act
-        var again = await Store.SetChannelDownAsync(down with { ErrorCode = 429 }, Ct);
-
-        // Assert
-        Assert.Equal(((Error?)null, false), (again.Error, again.Value));
-    }
-
-    [Fact]
-    public async Task PurgeAsync_MaxCountOne_DeletesTheMessageThatFinishedFirst()
-    {
-        // Arrange
-        var later = await AddAsync(Finished(AMessage(T1), DeliveryStatus.Done, Now.AddDays(-1)));
-        await AddAsync(Finished(AMessage(T1), DeliveryStatus.Done, Now.AddDays(-2)));
-
-        // Act
-        await Store.PurgeAsync(Now, 1, Ct);
-
-        // Assert
-        Assert.Equal([later.Delivery.Id], (await TestData.GetStoredAsync(Ct)).Select(static message => message.Delivery.Id));
-    }
-
-    [Fact]
     public async Task ClaimDueAsync_SecondStoreOnTheSameDatabase_ClaimsTheMessageOfTheFirstStore()
     {
         // Arrange

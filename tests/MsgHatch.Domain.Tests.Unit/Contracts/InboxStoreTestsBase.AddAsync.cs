@@ -1,6 +1,7 @@
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Domain.Tests.Unit.Contracts;
 
@@ -50,6 +51,23 @@ public abstract partial class InboxStoreTestsBase<TStore>
         // Assert
         Assert.Null(error);
         Assert.Equal([stored], await TestData.GetStoredAsync(Ct));
+    }
+
+    [Fact]
+    public async Task AddAsync_EightParallelAddsOfEachOfTwentyMessages_StoreEachMessageOneTimeWithNoError()
+    {
+        // Arrange
+        ReceivedMessage<TestEvent>[] messages = [.. Enumerable.Range(0, 20).Select(_ => AMessage(T1))];
+
+        // Act
+        var errors = await Task.WhenAll(messages.SelectMany(message =>
+            Enumerable.Range(0, 8).Select(_ => Task.Run(() => TenantStore(T1).AddAsync(message, Ct).AsTask(), Ct))));
+
+        // Assert
+        Assert.Equal(new Error?[160], errors);
+        Assert.Equal(
+            messages.Select(static message => message.Delivery.Id).Order(),
+            (await TestData.GetStoredAsync(Ct)).Select(static message => message.Delivery.Id).Order());
     }
 
     [Fact]

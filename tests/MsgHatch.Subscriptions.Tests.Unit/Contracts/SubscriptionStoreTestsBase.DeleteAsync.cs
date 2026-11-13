@@ -1,3 +1,4 @@
+using MsgHatch.Domain.Failures;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Subscriptions.Tests.Unit.Contracts;
@@ -29,6 +30,19 @@ public abstract partial class SubscriptionStoreTestsBase<TStore>
 
         // Assert
         Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_IdOfASubscriptionOfAnotherTenant_KeepsTheSubscription_S6()
+    {
+        // Arrange
+        await Store.AddAsync(Scenario.S6, Ct);
+
+        // Act
+        var error = await StoreOf(T2).DeleteAsync(Scenario.S6.Id, Ct);
+
+        // Assert
+        Assert.Equal(((Error?)null, Scenario.S6), (error, (await Store.GetAsync(Scenario.S6.Id, Ct)).Value));
     }
 
     [Fact]

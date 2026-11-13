@@ -120,19 +120,6 @@ public sealed class EntityFrameworkSubscriptionStoreIntegTests(SqlServerFixture 
     }
 
     [Fact]
-    public async Task DeleteAsync_IdOfASubscriptionOfAnotherTenant_KeepsTheSubscription()
-    {
-        // Arrange
-        await Store.AddAsync(Scenario.S6, Ct);
-
-        // Act
-        var error = await StoreOf(T2).DeleteAsync(Scenario.S6.Id, Ct);
-
-        // Assert
-        Assert.Equal(((Error?)null, Scenario.S6), (error, (await Store.GetAsync(Scenario.S6.Id, Ct)).Value));
-    }
-
-    [Fact]
     public async Task AddAsync_DatabaseThatDoesNotExist_GivesUnavailable()
     {
         // Arrange

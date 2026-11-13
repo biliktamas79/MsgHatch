@@ -1,4 +1,5 @@
 using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 
@@ -14,11 +15,11 @@ public abstract partial class OutboxStoreTestsBase<TStore>
         var second = ADown(ChannelDownReason.Errors, errorCode: 503);
 
         // Act
-        var wrote = (await Store.SetChannelDownAsync(first, Ct)).Value;
-        var wroteAgain = (await Store.SetChannelDownAsync(second, Ct)).Value;
+        var wrote = await Store.SetChannelDownAsync(first, Ct);
+        var wroteAgain = await Store.SetChannelDownAsync(second, Ct);
 
         // Assert
-        Assert.Equal((true, false), (wrote, wroteAgain));
+        Assert.Equal(((Error?)null, true, (Error?)null, false), (wrote.Error, wrote.Value, wroteAgain.Error, wroteAgain.Value));
         Assert.Equal([first], (await Store.GetDownChannelsAsync(Ct)).Value);
     }
 
