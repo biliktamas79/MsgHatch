@@ -1,4 +1,5 @@
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Failures;
 
 namespace MsgHatch.Domain.Tests.Unit.Contracts;
 
@@ -85,6 +86,23 @@ public abstract partial class OutboxStoreTestsBase<TStore>
 
         // Assert
         Assert.Equal(DeliveryStatus.Cancelled, (await StoredAsync(message.Delivery.Id)).Delivery.Status);
+    }
+
+    [Fact]
+    public async Task CancelAsync_EightParallelCancelsOfEachOfTwentyMessages_CancelEachMessageOneTimeWithNoError()
+    {
+        // Arrange
+        OutgoingMessage[] messages = [.. Enumerable.Range(0, 20).Select(_ => AMessage(T1))];
+        await TenantStore(T1).AddAsync(messages, Ct);
+
+        // Act
+        var results = await Task.WhenAll(messages.SelectMany(message =>
+            Enumerable.Range(0, 8).Select(_ => Task.Run(() => TenantStore(T1).CancelAsync([message.Delivery.Id], Now, Ct).AsTask(), Ct))));
+
+        // Assert
+        Assert.Equal(new Error?[160], results.Select(static result => result.Error));
+        Assert.Equal(20, results.Sum(static result => result.Value));
+        Assert.Equal(Enumerable.Repeat(1, 20), await TryCountsAsync(messages));
     }
 
     [Fact]
