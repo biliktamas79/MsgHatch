@@ -118,9 +118,12 @@ public abstract partial class InboxStoreTestsBase<TStore>
 
         // Assert
         Assert.Equal(
-            [(ofT1.Delivery.Id, ofT1.Tenant, typeof(ReceivedMessage<TestEvent>), ofT1.Event),
-             (ofNoTenant.Delivery.Id, null, typeof(ReceivedMessage<TestEvent>), ofNoTenant.Event)],
-            result.Value.Messages.Select(static m => (m.Delivery.Id, m.Tenant, m.GetType(), ((ReceivedMessage<TestEvent>)m).Event)));
+            new[]
+            {
+                (ofT1.Delivery.Id, ofT1.Tenant, typeof(ReceivedMessage<TestEvent>), ofT1.Event),
+                (ofNoTenant.Delivery.Id, null, typeof(ReceivedMessage<TestEvent>), ofNoTenant.Event),
+            }.OrderBy(static item => item.Id),
+            result.Value.Messages.Select(static m => (m.Delivery.Id, m.Tenant, m.GetType(), ((ReceivedMessage<TestEvent>)m).Event)).OrderBy(static item => item.Id));
     }
 
     [Fact]

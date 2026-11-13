@@ -4,12 +4,17 @@ using MsgHatch.Domain.Identity;
 namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
-/// The service provider of one tenant key (D126). It gives the key itself, each tenant service of the same key, and
-/// each other service as the inner provider gives it.
+/// The service provider of one tenant key (D126). It gives the key itself, each tenant service of the same key, each
+/// keyed service with its own key, and each other service as the inner provider gives it.
 /// </summary>
 internal sealed class TenantServiceProvider(IServiceProvider services, TenantKey key, IReadOnlySet<Type> tenantServiceTypes)
-    : IServiceProvider, IServiceProviderIsService
+    : IKeyedServiceProvider, IServiceProviderIsService
 {
+    public object? GetKeyedService(Type serviceType, object? serviceKey) => KeyedServices().GetKeyedService(serviceType, serviceKey);
+
+    public object GetRequiredKeyedService(Type serviceType, object? serviceKey) =>
+        KeyedServices().GetRequiredKeyedService(serviceType, serviceKey);
+
     public object? GetService(Type serviceType)
     {
         if (serviceType == typeof(TenantKey))

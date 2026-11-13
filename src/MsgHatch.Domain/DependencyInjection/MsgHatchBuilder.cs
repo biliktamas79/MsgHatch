@@ -288,6 +288,73 @@ public sealed class MsgHatchBuilder
         AddOutboxDispatchStore(factory, setupMethod ?? nameof(UseOutboxDispatchStore));
 
     /// <summary>
+    /// Selects one storage for each tenant (D125, section 4.5). It registers the tenant source with its logging wrapper,
+    /// the tenant stores of each key from the functions, and <see cref="TenantInboxDispatchStore"/> and
+    /// <see cref="TenantOutboxDispatchStore"/> as the dispatch stores, each with its logging wrapper. The storage
+    /// packages call it.
+    /// </summary>
+    /// <typeparam name="TTenantSource">The tenant source of the consumer.</typeparam>
+    /// <param name="inbox">The inbox tenant store of one key.</param>
+    /// <param name="inboxDispatch">The inbox dispatch store of the storage of one key. The composite keeps one instance for each key.</param>
+    /// <param name="outbox">The outbox tenant store of one key.</param>
+    /// <param name="outboxDispatch">The outbox dispatch store of the storage of one key. The composite keeps one instance for each key.</param>
+    /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseStorageForEachTenant<TTenantSource>(
+        Func<IServiceProvider, TenantKey, IInboxStore> inbox,
+        Func<IServiceProvider, TenantKey, IInboxDispatchStore> inboxDispatch,
+        Func<IServiceProvider, TenantKey, IOutboxStore> outbox,
+        Func<IServiceProvider, TenantKey, IOutboxDispatchStore> outboxDispatch,
+        string? setupMethod = null)
+        where TTenantSource : class, ITenantSource =>
+        UseStorageForEachTenant(
+            static services => ActivatorUtilities.CreateInstance<TTenantSource>(services), inbox, inboxDispatch, outbox, outboxDispatch,
+            setupMethod);
+
+    /// <summary>Selects one storage for each tenant with a factory of the tenant source, for example for a test substitute.</summary>
+    /// <param name="tenantSource">The factory of the tenant source.</param>
+    /// <param name="inbox">The inbox tenant store of one key.</param>
+    /// <param name="inboxDispatch">The inbox dispatch store of the storage of one key. The composite keeps one instance for each key.</param>
+    /// <param name="outbox">The outbox tenant store of one key.</param>
+    /// <param name="outboxDispatch">The outbox dispatch store of the storage of one key. The composite keeps one instance for each key.</param>
+    /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseStorageForEachTenant(
+        Func<IServiceProvider, ITenantSource> tenantSource,
+        Func<IServiceProvider, TenantKey, IInboxStore> inbox,
+        Func<IServiceProvider, TenantKey, IInboxDispatchStore> inboxDispatch,
+        Func<IServiceProvider, TenantKey, IOutboxStore> outbox,
+        Func<IServiceProvider, TenantKey, IOutboxDispatchStore> outboxDispatch,
+        string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(tenantSource);
+        ArgumentNullException.ThrowIfNull(inbox);
+        ArgumentNullException.ThrowIfNull(inboxDispatch);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(outboxDispatch);
+        var method = setupMethod ?? nameof(UseStorageForEachTenant);
+        Setup.Select(typeof(ITenantSource), method);
+        Services.AddSingleton(services => Loggers.Wrap(
+            services, tenantSource(services),
+            static (services, inner) => new TenantSourceLoggingWrapper(
+                inner, Loggers.For<TenantSourceLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
+        Services.AddSingleton(services => new TenantInboxDispatchStore(
+            services.GetRequiredService<ITenantSource>(), key => inboxDispatch(services, key),
+            MaxPollIntervalOf(services, OptionNames.Inbox), Loggers.For<TenantInboxDispatchStore>(services)));
+        Services.AddSingleton(services => new TenantOutboxDispatchStore(
+            services.GetRequiredService<ITenantSource>(), key => outboxDispatch(services, key),
+            MaxPollIntervalOf(services, OptionNames.Outbox), Loggers.For<TenantOutboxDispatchStore>(services)));
+        AddInboxStore(
+            (tenantServices, key) => tenantServices.GetRequiredService<TenantInboxDispatchStore>().TellingNewMessages(inbox(tenantServices, key), key),
+            method);
+        AddInboxDispatchStore(static services => services.GetRequiredService<TenantInboxDispatchStore>(), method);
+        AddOutboxStore(
+            (tenantServices, key) => tenantServices.GetRequiredService<TenantOutboxDispatchStore>().TellingNewMessages(outbox(tenantServices, key), key),
+            method);
+        return AddOutboxDispatchStore(static services => services.GetRequiredService<TenantOutboxDispatchStore>(), method);
+    }
+
+    /// <summary>
     /// Registers the transport of one channel as a singleton, with its logging wrapper (D129). The host is then a
     /// publisher of that channel (D101). The channel packages call it.
     /// </summary>
@@ -463,6 +530,9 @@ public sealed class MsgHatchBuilder
                 inner, Loggers.For<OutboxDispatchStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
         return this;
     }
+
+    private static TimeSpan MaxPollIntervalOf(IServiceProvider services, string dispatch) =>
+        services.GetRequiredService<IOptionsMonitor<DispatchOptions>>().Get(dispatch).MaxPollInterval;
 
     private static bool IsOpenGenericRouter(Type routerType) =>
         routerType is { IsGenericTypeDefinition: true, IsAbstract: false }

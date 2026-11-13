@@ -116,9 +116,12 @@ public abstract partial class OutboxStoreTestsBase<TStore>
 
         // Assert
         Assert.Equal(
-            [(ofT1.Delivery.Id, ofT1.Tenant, typeof(OutgoingMessage<TestEnvelope>), (object)ofT1.Envelope),
-             (ofNoTenant.Delivery.Id, null, typeof(OutgoingMessage<TestEnvelope>), ofNoTenant.Envelope)],
-            result.Value.Messages.Select(static m => (m.Delivery.Id, m.Tenant, m.GetType(), m.Content)));
+            new[]
+            {
+                (ofT1.Delivery.Id, ofT1.Tenant, typeof(OutgoingMessage<TestEnvelope>), (object)ofT1.Envelope),
+                (ofNoTenant.Delivery.Id, null, typeof(OutgoingMessage<TestEnvelope>), ofNoTenant.Envelope),
+            }.OrderBy(static item => item.Id),
+            result.Value.Messages.Select(static m => (m.Delivery.Id, m.Tenant, m.GetType(), m.Content)).OrderBy(static item => item.Id));
     }
 
     [Fact]
