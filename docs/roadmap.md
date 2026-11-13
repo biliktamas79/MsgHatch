@@ -1023,6 +1023,17 @@ Commits after the tag:
 18. "Record the test server of D180 in D124 and section 5.5"
 19. "Record the fixes after phase 18 in the plan"
 
+Then the owner answered the open questions of the review:
+- The MongoDB integration tests of phase 19 use dev-mongo when a connection string is set, and Testcontainers only with no connection string (D183).
+- The cancel statement of the EF Core outbox store compares the `char(36)` column with the `nvarchar` values of `OPENJSON`. The owner asked for test coverage. A new contract test runs 8 parallel cancels of each of 20 outgoing messages. It passed 10 of 10 runs on SQL Server, so the statement stays unchanged.
+- A second new contract test runs 8 parallel records of the first try of each of 20 outgoing messages. It covers the `@id` type of the try statement, which commit 14 changed with no test of its own. On SQL Server, it passed 10 of 10 runs also with the old `nvarchar` type. On the file store, 52 to 61 of the 160 calls gave `Errors.Unavailable` in 5 of 5 runs, and each message kept one try. The fix runs a try record of the file store behind the gate of its claims, retries, and cancels.
+
+More commits after the tag:
+20. "Record the server decision of the MongoDB integration tests (D183)"
+21. "Serialize the try records of the file outbox store"
+22. "Add a contract test of parallel cancels of outgoing messages"
+23. "Record the answers after phase 18 in the plan"
+
 Done when: the build has no errors and no warnings, all unit tests pass, and the integration tests pass in the stage after the merge.
 
 ### Phase 19: MongoDB stores
