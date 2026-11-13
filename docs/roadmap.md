@@ -938,11 +938,14 @@ Tests:
 
 Commits:
 1. "Record the decisions of the stores for each tenant in the plan (D172 to D174)"
-2. "Add the tenant source and the dispatch composites"
-3. "Add SQLite stores for each tenant"
-4. "Record phase 17 as done in README and AGENTS.md"
+2. "Fix the claim order of the dispatch composites in the plan"
+3. "Add the tenant source and the dispatch composites"
+4. "Test the error paths of the dispatch composites"
+5. "Add SQLite stores for each tenant"
+6. "Record the commits of phase 17 in the plan"
+7. "Record phase 17 as done in README and AGENTS.md"
 
-Commit 3 also adds the stores for each tenant to `docs/stores.md`.
+Commit 5 also adds the stores for each tenant to `docs/stores.md`.
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
