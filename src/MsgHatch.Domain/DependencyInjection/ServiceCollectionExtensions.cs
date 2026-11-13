@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Pipeline;
@@ -31,7 +32,13 @@ public static class ServiceCollectionExtensions
     public static MsgHatchBuilder AddMsgHatch(this IServiceCollection services, Action<MsgHatchOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
-        var setup = ExistingSetup(services) ?? AddSetup(services);
+        var existingSetup = ExistingSetup(services);
+        var setup = existingSetup ?? AddSetup(services);
+        if (existingSetup is null)
+        {
+            AddDeliveryManager(services, setup);
+        }
+
         var options = services.AddOptions<MsgHatchOptions>().BindConfiguration(MsgHatchOptions.SectionName);
         if (configure is not null)
         {
@@ -73,6 +80,13 @@ public static class ServiceCollectionExtensions
                 inner, Loggers.For<OutboxDispatcherLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
         return new MsgHatchBuilder(services, setup);
     }
+
+    private static void AddDeliveryManager(IServiceCollection services, MsgHatchSetup setup) =>
+        TenantServices.Add<IDeliveryManager>(
+            services, setup, ServiceLifetime.Singleton,
+            static (tenantServices, key) => DeliveryManager.Create(tenantServices, key),
+            static (tenantServices, key, inner) => new DeliveryManagerLoggingWrapper(
+                inner, key, Loggers.For<DeliveryManagerLoggingWrapper>(tenantServices), tenantServices.GetRequiredService<TimeProvider>()));
 
     private static void AddDispatchOptions(IServiceCollection services, string name) =>
         services.AddOptions<DispatchOptions>(name).BindConfiguration($"{DispatchOptions.SectionName}:{name}").ValidateOnStart();
