@@ -859,12 +859,19 @@ Tests:
 - In `ExampleApp.Tests.Unit`: with the two hosts of phase 13, a pause through the endpoint of the first host stops the email sends of the second host, and a resume starts them again (D106).
 
 Commits:
-1. "Add cancelled messages"
-2. "Add the delivery management types, store members, and purge"
-3. "Add delivery management to the in-memory, file, and SQLite stores"
-4. "Add the delivery manager"
-5. "Add HTTP endpoints for delivery management"
-6. "Add delivery management to the example app"
+1. "Record the decisions of the delivery management in the plan (D164 to D167)"
+2. "Count the real and the test messages apart in the plan (D164)"
+3. "Add cancelled messages"
+4. "Add the delivery management types, store members, and purge"
+5. "Add delivery management to the in-memory, file, and SQLite stores"
+6. "Add the delivery manager"
+7. "Add HTTP endpoints for delivery management"
+8. "Add delivery management to the example app"
+9. "Test the error paths and the response bodies of the delivery management"
+10. "Record the commits of phase 15 in the plan"
+11. "Record phase 15 as done in README and AGENTS.md"
+
+Commit 4 adds the dispatch store members `CountAsync` and `PurgeAsync` with the in-memory, file, and SQLite stores, and commit 5 adds the tenant store members with the stores. An interface member and its implementations come in one commit, so that each commit builds.
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
