@@ -60,10 +60,16 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 Phase 14 added the routing verification to `MsgHatch.Subscriptions`.
 
 ## Example app
-`examples/ExampleApp` runs the subscription example of the design end to end, with no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, keeps all data in one SQLite file, and maps the subscription endpoints. A caller signs in with a local JWT from `dotnet user-jwts`:
+`examples/ExampleApp` runs the subscription example of the design end to end, with no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, keeps all data in one SQLite file, and maps the subscription endpoints and the delivery endpoints under `/api/delivery`. A caller signs in with a local JWT from `dotnet user-jwts`:
 
 ```bash
 dotnet user-jwts create --project examples/ExampleApp --name 1
+```
+
+The delivery endpoints need a token with roles: `DeliveryAdmin` for the overview and the actions, and `DeliveryContent` for the content of the messages (D165):
+
+```bash
+dotnet user-jwts create --project examples/ExampleApp --name 1 --role DeliveryAdmin --role DeliveryContent
 ```
 
 ```bash

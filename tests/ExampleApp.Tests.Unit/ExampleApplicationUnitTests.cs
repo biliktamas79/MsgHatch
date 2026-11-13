@@ -8,8 +8,12 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using MsgHatch.Email.DependencyInjection;
+using ExampleApp.Notices;
 using MsgHatch.Broker;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
+using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -26,6 +30,9 @@ public sealed class ExampleApplicationUnitTests : IDisposable
 {
     private const string _issuer = "dotnet-user-jwts";
     private const string _audience = "http://localhost:5080";
+
+    /// <summary>The event id of a claim of the outbox dispatch store: the record has the count and the down reason of the claim.</summary>
+    private const int _outboxClaimId = 1304;
     private static readonly byte[] _signingKey = [.. Enumerable.Range(1, 32).Select(static value => (byte)value)];
     private readonly Dictionary<string, string?> _configuration = TestDatabases.NewSection();
 
@@ -109,6 +116,57 @@ public sealed class ExampleApplicationUnitTests : IDisposable
             (response.StatusCode, string.Join(' ', body.RootElement.EnumerateArray().Select(static s => s.GetProperty("messageType").GetString()).Order())));
     }
 
+    [Theory]
+    [InlineData("/channels", ExampleApplication.DeliveryAdmin, HttpStatusCode.OK)]
+    [InlineData("/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", ExampleApplication.DeliveryContent, HttpStatusCode.NotFound)]
+    [InlineData("/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", ExampleApplication.DeliveryAdmin, HttpStatusCode.Forbidden)]
+    public async Task DeliveryRoute_RoleOfTheToken_PassesOnlyThePolicyOfItsGroup(string path, string role, HttpStatusCode expected)
+    {
+        // Arrange
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{ExampleApplication.DeliveryPrefix}{path}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TokenOf("1", role));
+
+        // Act
+        using var response = await example.App.GetTestClient().SendAsync(request, Ct);
+
+        // Assert
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task PauseRoute_TwoHostsOnOneFile_StopsTheEmailSendsOfThePublisherHostUntilAResume()
+    {
+        // Arrange
+        _configuration["MsgHatch:Roles"] = nameof(MsgHatchRoles.Consumer);
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+        var time = new WaitRecordingTimeProvider();
+        await using var publisher = BuildPublisher(time);
+        await using var worker = await RunningWorker.StartAsync(publisher, Ct);
+        var poll = await time.NextWaitAsync();
+        await example.App.Services.SeedScenarioAsync(TenantKey.None);
+        using var client = example.App.GetTestClient();
+        var token = TokenOf("1", ExampleApplication.DeliveryAdmin);
+        var paused = await PostAsync(client, "/channels/Email/pause", token);
+        await example.App.Services.ProcessAsync(new EventA([1], null, "a"));
+        time.Advance(poll);
+        var claimWhilePaused = (await publisher.WaitForLogsAsync(_outboxClaimId, count: 2))[^1];
+        var waitWhilePaused = await time.NextWaitAsync();
+        var resumed = await PostAsync(client, "/channels/Email/resume", token);
+
+        // Act
+        time.Advance(waitWhilePaused);
+
+        // Assert
+        var emails = await publisher.WaitForLogsAsync(ExampleLoggerExtensions.EmailSentId, count: 1);
+        Assert.Equal(
+            (HttpStatusCode.NoContent, HttpStatusCode.NoContent, "0", "Operator"),
+            (paused, resumed, claimWhilePaused.Field("Count"), claimWhilePaused.Field("DownReason")));
+        Assert.Equal(["client1@acme.example | Notification A: a"], emails.Select(static email => $"{email.Field("To")} | {email.Field("Subject")}"));
+    }
+
     [Fact]
     public async Task MeRoute_NoToken_Gives401()
     {
@@ -123,12 +181,33 @@ public sealed class ExampleApplicationUnitTests : IDisposable
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    private static string TokenOf(string user) =>
+    /// <summary>A token in the form of <c>dotnet user-jwts create --name {user} --role {role}</c> (D158, D165).</summary>
+    private static string TokenOf(string user, params string[] roles) =>
         new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = _issuer,
             Audience = _audience,
-            Claims = new Dictionary<string, object> { ["sub"] = user, ["unique_name"] = user },
+            Claims = new Dictionary<string, object> { ["sub"] = user, ["unique_name"] = user, ["role"] = roles },
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(_signingKey), SecurityAlgorithms.HmacSha256),
         });
+
+    private ServiceProvider BuildPublisher(WaitRecordingTimeProvider time)
+    {
+        var services = CreateServices(_configuration, time);
+        services.AddExampleMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseEmailClient<LogEmailClient>();
+        var publisher = services.Build();
+        publisher.GetRequiredService<IStartupValidator>().Validate();
+        return publisher;
+    }
+
+    private static async Task<HttpStatusCode> PostAsync(HttpClient client, string path, string token)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{ExampleApplication.DeliveryPrefix}{path}")
+        {
+            Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await client.SendAsync(request, Ct);
+        return response.StatusCode;
+    }
 }

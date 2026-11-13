@@ -72,10 +72,11 @@ dotnet run -c Release --project tests/MsgHatch.Email.Tests.Performance
 dotnet run -c Release --project tests/MsgHatch.Subscriptions.Tests.Performance
 ```
 
-The example app needs no server, no cloud account, and no network. Its SQLite file `msghatch-example.db` is in the working folder of the app, and git ignores it. A token for the user `"1"` comes from `dotnet user-jwts` (D158):
+The example app needs no server, no cloud account, and no network. Its SQLite file `msghatch-example.db` is in the working folder of the app, and git ignores it. A token for the user `"1"` comes from `dotnet user-jwts` (D158). The delivery endpoints need the roles `DeliveryAdmin` and `DeliveryContent` (D165):
 
 ```bash
 dotnet user-jwts create --project examples/ExampleApp --name 1
+dotnet user-jwts create --project examples/ExampleApp --name 1 --role DeliveryAdmin --role DeliveryContent
 dotnet run --project examples/ExampleApp
 dotnet test tests/ExampleApp.Tests.Unit
 ```

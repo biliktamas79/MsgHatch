@@ -1,6 +1,7 @@
 using ExampleApp.Channels;
 using System.Security.Claims;
 using JasperFx.CodeGeneration;
+using MsgHatch.AspNetCore;
 using MsgHatch.Broker.Wolverine.DependencyInjection;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email.DependencyInjection;
@@ -13,12 +14,21 @@ namespace ExampleApp;
 
 /// <summary>
 /// The web app of the example, in one process with both roles (D101, D102): the event consumer, the publishers of email,
-/// SignalR, and the broker, the subscription endpoints, and the SignalR hub.
+/// SignalR, and the broker, the subscription endpoints, the delivery endpoints, and the SignalR hub.
 /// </summary>
 public static class ExampleApplication
 {
     /// <summary>The prefix of the subscription endpoints.</summary>
     public const string SubscriptionsPrefix = "/api/subscriptions";
+
+    /// <summary>The prefix of the two route groups of the delivery endpoints (section 4.19).</summary>
+    public const string DeliveryPrefix = "/api/delivery";
+
+    /// <summary>The policy and the role of the overview and the actions of the delivery endpoints (D165).</summary>
+    public const string DeliveryAdmin = "DeliveryAdmin";
+
+    /// <summary>The policy and the role of the content routes of the delivery endpoints, which show events and envelopes (D109, D165).</summary>
+    public const string DeliveryContent = "DeliveryContent";
 
     /// <summary>The route of the SignalR hub.</summary>
     public const string HubRoute = "/hubs/notifications";
@@ -39,7 +49,11 @@ public static class ExampleApplication
         builder.Services.AddHostedService<MsgHatchWorker>();
         builder.Services.AddExampleTelemetry().UseOtlpExporter();
         builder.Services.AddAuthentication().AddJwtBearer();
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(static options =>
+        {
+            options.AddPolicy(DeliveryAdmin, static policy => policy.RequireRole(DeliveryAdmin));
+            options.AddPolicy(DeliveryContent, static policy => policy.RequireRole(DeliveryContent));
+        });
 
         var app = builder.Build();
         app.UseAuthentication();
@@ -47,6 +61,8 @@ public static class ExampleApplication
         app.MapHub<NotificationHub>(HubRoute);
         // ponytail: one policy for all subscription routes, add an administrator policy for the routes with no /me
         app.MapMsgHatchSubscriptions(SubscriptionsPrefix, static o => o.CurrentUser = CurrentUser).RequireAuthorization();
+        app.MapMsgHatchDelivery(DeliveryPrefix).RequireAuthorization(DeliveryAdmin);
+        app.MapMsgHatchDeliveryContent(DeliveryPrefix).RequireAuthorization(DeliveryContent);
         return app;
     }
 

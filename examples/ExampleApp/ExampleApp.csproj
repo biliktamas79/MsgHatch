@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.AspNetCore\MsgHatch.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Data.Sqlite\MsgHatch.Data.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.SignalR\MsgHatch.SignalR.csproj" />
