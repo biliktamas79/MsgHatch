@@ -1,0 +1,193 @@
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore;
+using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
+
+namespace MsgHatch.Data.EntityFrameworkCore;
+
+/// <summary>
+/// The operations that the inbox and the outbox share: the claim after its SQL statement (D103, D144), the filters and
+/// the page of a query (D112), the retry (D111), the purge (D128), and the values of a row.
+/// </summary>
+internal static class MessageQueries
+{
+    public const string Pending = nameof(DeliveryStatus.Pending);
+
+    private const string _failed = nameof(DeliveryStatus.Failed);
+
+    private const string _test = nameof(MessageFlags.Test);
+
+    public static string Id(Guid id) => id.ToString("D");
+
+    public static string Tenant(TenantId? tenant) => tenant?.Value ?? string.Empty;
+
+    public static TenantId? TenantOf(string text) => text.Length == 0 ? null : new TenantId(text);
+
+    /// <exception cref="FormatException">The row has an invalid id.</exception>
+    /// <exception cref="ArgumentException">The row has an invalid status.</exception>
+    public static DeliveryState DeliveryOf(MessageRow row) =>
+        new(
+            Guid.Parse(row.Id), Enum.Parse<DeliveryStatus>(row.Status), row.TryCount, row.MaxTryCount, row.CreatedAtUtc, row.LastTryAtUtc,
+            row.NextTryAtUtc, row.LeaseUntilUtc, row.ExpiresAtUtc, row.LastError);
+
+    /// <summary>
+    /// Reads the rows of a claim statement, and returns their messages in the claim order: the due time before the lease,
+    /// then <c>Sequence</c> (D144). The end of the lease is the next due time of a claimed row (D103). A row that the code
+    /// cannot read stays out of the result: a transient error keeps it leased for a newer instance (section 4.13), and a
+    /// permanent error fails it.
+    /// </summary>
+    public static async ValueTask<ErrorOr<ClaimResult<T>>> ClaimAsync<TRow, T>(
+        IQueryable<TRow> claim, IQueryable<TRow> pending, int maxCount, DateTime nowUtc, Func<TRow, ErrorOr<T>> read, CancellationToken ct)
+        where TRow : MessageRow
+    {
+        var rows = await claim.AsNoTracking().ToListAsync(ct);
+        var messages = new List<T>(rows.Count);
+        foreach (var row in rows.OrderBy(static row => row.NextTryAtUtc).ThenBy(static row => row.Sequence))
+        {
+            row.NextTryAtUtc = row.LeaseUntilUtc.GetValueOrDefault();
+            var message = read(row);
+            if (message.IsError)
+            {
+                await SetAsideAsync(pending, row.Sequence, message.Error!, ct);
+                continue;
+            }
+
+            messages.Add(message.Value);
+        }
+
+        var nextDueAtUtc = rows.Count < maxCount ? await NextDueAsync(pending, ct) : nowUtc;
+        return new ClaimResult<T>(messages, nextDueAtUtc);
+    }
+
+    public static Task<DateTime?> NextDueAsync<TRow>(IQueryable<TRow> rows, CancellationToken ct)
+        where TRow : MessageRow =>
+        rows.Where(static row => row.Status == Pending).MinAsync(static row => (DateTime?)row.NextTryAtUtc, ct);
+
+    /// <summary>Filters the rows of a query with the filters that the inbox and the outbox share, and with the cursor of the page (D112).</summary>
+    [SuppressMessage("Globalization", "CA1309", Justification = "EF Core translates string.Compare to SQL, where the binary collation compares ordinally.")]
+    public static IQueryable<TRow> Filter<TRow>(
+        IQueryable<TRow> rows, TenantKey key, IReadOnlyList<Guid>? ids, DeliveryStatus? status, DateTime? createdFromUtc,
+        DateTime? createdToUtc, DateTime? dueBeforeUtc, bool includeTest, MessageCursor? after)
+        where TRow : MessageRow
+    {
+        var tenant = Tenant(key.Tenant);
+        var filtered = rows.Where(row => row.TenantId == tenant);
+        if (ids is not null)
+        {
+            string[] texts = [.. ids.Select(Id)];
+            filtered = filtered.Where(row => texts.Contains(row.Id));
+        }
+
+        if (status is { } value)
+        {
+            var text = value.ToString();
+            filtered = filtered.Where(row => row.Status == text);
+        }
+
+        if (createdFromUtc is { } from)
+        {
+            filtered = filtered.Where(row => row.CreatedAtUtc >= from);
+        }
+
+        if (createdToUtc is { } to)
+        {
+            filtered = filtered.Where(row => row.CreatedAtUtc < to);
+        }
+
+        if (dueBeforeUtc is { } dueBefore)
+        {
+            filtered = filtered.Where(row => row.Status == Pending && row.NextTryAtUtc < dueBefore);
+        }
+
+        if (!includeTest)
+        {
+            filtered = filtered.Where(static row => row.Flags != _test);
+        }
+
+        if (after is { } cursor)
+        {
+            var createdAtUtc = cursor.CreatedAtUtc;
+            var id = Id(cursor.Id);
+            filtered = filtered.Where(row => row.CreatedAtUtc < createdAtUtc || (row.CreatedAtUtc == createdAtUtc && string.Compare(row.Id, id) < 0));
+        }
+
+        return filtered;
+    }
+
+    /// <summary>Reads one page newest first: <c>CreatedAtUtc</c> descending, then the id descending (D112).</summary>
+    public static async Task<MessagePage<T>> PageAsync<TRow, T>(
+        IQueryable<TRow> filtered, int limit, Func<TRow, T> summary, Func<T, DeliveryState> delivery, CancellationToken ct)
+        where TRow : MessageRow
+    {
+        var rows = await filtered.OrderByDescending(static row => row.CreatedAtUtc).ThenByDescending(static row => row.Id).Take(limit).ToListAsync(ct);
+        List<T> items = [.. rows.Select(summary)];
+        return new MessagePage<T>(items, items.Count > 0 && items.Count == limit ? MessageCursor.Of(delivery(items[^1])) : null);
+    }
+
+    /// <summary>Makes the failed and the pending messages of the ids due now, when no lease is active and the message has not expired (D111).</summary>
+    public static Task<int> RetryAsync<TRow>(
+        IQueryable<TRow> rows, TenantKey key, IReadOnlyList<Guid> ids, DateTime nowUtc, int addedTries, CancellationToken ct)
+        where TRow : MessageRow
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        var tenant = Tenant(key.Tenant);
+        string[] texts = [.. ids.Select(Id)];
+        return rows
+            .Where(row => row.TenantId == tenant && texts.Contains(row.Id) && (row.Status == _failed || row.Status == Pending)
+                && (row.LeaseUntilUtc == null || row.LeaseUntilUtc <= nowUtc) && (row.ExpiresAtUtc == null || row.ExpiresAtUtc > nowUtc))
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(static row => row.Status, Pending)
+                    .SetProperty(static row => row.NextTryAtUtc, nowUtc)
+                    .SetProperty(static row => row.LeaseUntilUtc, (DateTime?)null)
+                    .SetProperty(static row => row.MaxTryCount, row => row.Status == _failed ? row.TryCount + addedTries : row.MaxTryCount),
+                ct);
+    }
+
+    /// <summary>The pending rows of the ids of one tenant with no active lease, which a cancel changes (D110).</summary>
+    public static IQueryable<TRow> Cancellable<TRow>(IQueryable<TRow> rows, TenantKey key, IReadOnlyList<Guid> ids, DateTime nowUtc)
+        where TRow : MessageRow
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        var tenant = Tenant(key.Tenant);
+        string[] texts = [.. ids.Select(Id)];
+        return rows.Where(row => row.TenantId == tenant && texts.Contains(row.Id) && row.Status == Pending
+            && (row.LeaseUntilUtc == null || row.LeaseUntilUtc <= nowUtc));
+    }
+
+    /// <summary>Deletes up to <paramref name="maxCount"/> finished rows that finished before a time, those that finished first first (D128).</summary>
+    public static Task<int> PurgeAsync<TRow>(IQueryable<TRow> rows, DateTime finishedBeforeUtc, int maxCount, CancellationToken ct)
+        where TRow : MessageRow =>
+        rows
+            .Where(row => (row.Status == nameof(DeliveryStatus.Done) || row.Status == _failed || row.Status == nameof(DeliveryStatus.Cancelled))
+                && (row.LastTryAtUtc ?? row.CreatedAtUtc) < finishedBeforeUtc)
+            .OrderBy(static row => row.LastTryAtUtc ?? row.CreatedAtUtc)
+            .Take(maxCount)
+            .ExecuteDeleteAsync(ct);
+
+    public static Task<int> DeleteTestDataAsync<TRow>(IQueryable<TRow> rows, CancellationToken ct)
+        where TRow : MessageRow =>
+        rows.Where(static row => row.Flags == _test).ExecuteDeleteAsync(ct);
+
+    public static bool IsTest(string flags) => flags == _test;
+
+    private static async Task SetAsideAsync<TRow>(IQueryable<TRow> rows, long sequence, Error error, CancellationToken ct)
+        where TRow : MessageRow
+    {
+        if (error.Type.IsTransient)
+        {
+            return;
+        }
+
+        var lastError = $"{error.Type.Name}: {error.Message}";
+        await rows.Where(row => row.Sequence == sequence).ExecuteUpdateAsync(
+            set => set
+                .SetProperty(static row => row.Status, _failed)
+                .SetProperty(static row => row.LeaseUntilUtc, (DateTime?)null)
+                .SetProperty(static row => row.LastError, lastError),
+            ct);
+    }
+}

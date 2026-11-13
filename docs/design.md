@@ -1056,6 +1056,15 @@ File store rules (D26):
 - A claimed file that the code cannot read stays out of the claim: a newer version stays in `claimed` for a newer instance (section 4.13), and a permanent error moves the file to `failed`.
 - A query and a count of the delivery management (section 4.19) skip a file that the code cannot read (D167).
 
+EF Core store rules (D120, D175 to D178). `docs/stores.md` section 4 has the statements:
+- `MsgHatchDbContext` maps the tables of the SQLite schema with the same names, in the schema of `EntityFrameworkStoreOptions.Schema`, with the filtered claim indexes `WHERE Status = 'Pending'` (D104). `MsgHatchSubscriptionDbContext` of `MsgHatch.Subscriptions.Data.EntityFrameworkCore` maps `MsgHatchSubscription`. The package creates no schema: the host creates it with its own EF Core migrations, and the tests use `EnsureCreatedAsync`.
+- An id is `nvarchar(256)` with a binary collation, so it is case-sensitive. A message id is `char(36)` in the format `D`, so a page sorts as `Guid.CompareTo` (D112). A name is `varchar(256)` (D178). An enum value is text, and a time is `datetime2(7)` in UTC.
+- Each store is a singleton, and makes one context for each operation through a pooled `IDbContextFactory` (D130).
+- An add is an `INSERT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK`, and SQL Server takes the parts of the document into their columns with `JSON_QUERY` and `JSON_VALUE` (D143). To read a message, the store writes the document from the columns in C# (D176).
+- The claim is one `UPDATE` with an `OUTPUT` clause of the rows of a `TOP` subquery with `ROWLOCK, READPAST, UPDLOCK` in the claim order. The store sorts the `OUTPUT` rows by the due time from `deleted` and by `Sequence` (D144).
+- `RecordTryAsync` appends the try with `JSON_MODIFY(Tries, 'append $', JSON_QUERY(@try))` (D27). The other statements that LINQ can express use LINQ, `ExecuteUpdateAsync`, and `ExecuteDeleteAsync`.
+- The stores have SQL statements only for SQL Server. Another provider fails the startup validation, and each store call on it gives `Errors.NotFound` (D175).
+
 The library gives each store the type information that it needs (`MsgHatch.Domain.Persistence`):
 
 ```csharp

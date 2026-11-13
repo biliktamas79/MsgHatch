@@ -1,6 +1,6 @@
 # MsgHatch stores
 
-This guide explains how the library stores keep the inbox, the outbox, the subscriptions, and the registry settings, and what a store for another storage must do. It covers the JSON file stores and the SQLite stores. Phase 18 adds the section of the EF Core stores, and phase 19 adds the section of the MongoDB stores.
+This guide explains how the library stores keep the inbox, the outbox, the subscriptions, and the registry settings, and what a store for another storage must do. It covers the JSON file stores, the SQLite stores, and the EF Core stores. Phase 19 adds the section of the MongoDB stores.
 
 The design `docs/design.md` is the source of each rule. Section 4.5 has the persistence rules, section 4.6 has the contract rules, and section 4.13 has the versioning rules. This guide puts these rules together for each storage kind, and names the decision of each rule, for example D26.
 
@@ -329,7 +329,92 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 - `UseSqliteTenantSubscriptionStore` of `MsgHatch.Subscriptions.Data.Sqlite` keeps the subscriptions of each key in the file of that key, with the same options.
 - A setup with `UseSqliteStores` and `UseSqliteTenantStores` fails the startup validation, because two methods select the stores (D62). A value in code in both `UseSqliteTenantStores` and `UseSqliteTenantSubscriptionStore` fails it too (D150).
 
-## 4. A store for another storage
+## 4. EF Core stores
+
+`MsgHatch.Data.EntityFrameworkCore` keeps the inbox, the outbox, the down states, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them.
+
+### 4.1 Model and tables
+
+`MsgHatchDbContext` maps the tables of section 3.1 with the same table and column names, in the schema of `EntityFrameworkStoreOptions.Schema`. The options bind from the section `MsgHatch:EntityFramework`, and the default schema is `msghatch`. There is no table `MsgHatchSchema`, because the migration history of the host keeps the version of the schema.
+
+| Value | SQL Server type | Rule |
+|---|---|---|
+| `Sequence` | `bigint` identity, the clustered primary key of a message table | It keeps the add order (D144). |
+| A tenant, company, user, or target id | `nvarchar(256)` with the collation `Latin1_General_100_BIN2` | An id is case-sensitive, so two tenants that differ only in case stay apart (D178). An empty text means no tenant. |
+| A message id | `char(36)` in the format `D` | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. A `uniqueidentifier` sorts by its last bytes first (checked fact of phase 18). |
+| A message type, channel, content type, or trace type name | `varchar(256)` with the binary collation | A longer name gives `Errors.Unavailable` (D178). The binary collation gives the ordinal order. |
+| An enum value | `varchar(32)` | The name of the value, for example `Pending`. |
+| A time | `datetime2(7)` in UTC | The store gives each time that it reads the kind UTC. |
+| JSON | `nvarchar(max)` | `Content`, `Trace`, `Tries`, `DisabledChannels`, `Settings`, and `NamedUsers`. |
+
+The indexes have the names of the model, for example `IX_MsgHatchOutbox_Due` on `(Channel, NextTryAtUtc)` with the filter `Status = 'Pending'` (D104). The other indexes are the indexes of section 3.1: the unique `(TenantId, Id)` of the inbox and `Id` of the outbox, `Flags`, `(TenantId, CreatedAtUtc, Id)`, `(TenantId, TargetKind, TargetId, CreatedAtUtc)`, and `SourceMessageId`.
+
+The package creates no schema. The host adds EF Core migrations of `MsgHatchDbContext` to its own assembly, for example with `o.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("MyHost"))`, and applies them. The integration tests use `EnsureCreatedAsync`, which creates the tables only when it creates the database.
+
+### 4.2 Message format
+
+- `AddAsync` writes the whole message with `MsgHatchJson`. SQL Server takes the event or the envelope, the route trace, and its `$type` out of that document into their columns with `JSON_QUERY` and `JSON_VALUE` (D143).
+- To read a message, the store writes the document from the columns of the row with `Utf8JsonWriter`, and `MsgHatchJson` reads it (D176).
+- A JSON column that is not valid JSON goes into the document as a JSON string. So an edited row gives the error of that row only, and an edited column cannot add a property to the document, for example a second `tenant`.
+
+### 4.3 Publish tries
+
+`RecordTryAsync` is one statement:
+
+```sql
+UPDATE [msghatch].[MsgHatchOutbox] SET
+    Tries = JSON_MODIFY(Tries, 'append $', JSON_QUERY(@try)), Status = @status, TryCount = @tryNumber, ...
+WHERE Id = @id AND TryCount = @tryNumber - 1
+```
+
+- `@try` is the try as one JSON object. Without `JSON_QUERY`, `JSON_MODIFY` appends the object as a JSON string (checked fact of phase 18).
+- A changed row count of 0 means that the try is already recorded (D27), or that the message is not stored. Only then a second query reads whether the id is stored, and an id that is not stored gives `Errors.NotFound`.
+- The cancel of an outgoing message appends the cancelled try with `JSON_MODIFY(@try, '$.tryNumber', TryCount + 1)`, so each row gets its next try number in the same statement.
+
+### 4.4 Claim pattern
+
+The claim is one statement (D120, D144):
+
+```sql
+UPDATE [msghatch].[MsgHatchOutbox] SET NextTryAtUtc = @leaseUntilUtc, LeaseUntilUtc = @leaseUntilUtc
+OUTPUT inserted.Sequence, ..., deleted.NextTryAtUtc AS NextTryAtUtc, ...
+WHERE Sequence IN (
+    SELECT TOP (@maxCount) due.Sequence FROM [msghatch].[MsgHatchOutbox] AS due WITH (ROWLOCK, READPAST, UPDLOCK)
+    WHERE due.Status = 'Pending' AND due.Channel = @channel AND due.NextTryAtUtc <= @nowUtc
+    ORDER BY due.NextTryAtUtc, due.Sequence)
+```
+
+1. The subquery reads the filtered due index in the claim order, and stops after `maxCount` rows. `UPDLOCK` locks only these rows, and `READPAST` lets a parallel claim skip them. So two parallel claims get different messages.
+2. An `UPDATE` of a CTE with the `TOP` puts a sort under the `TOP` as the Halloween protection, because the statement changes the key of the index that it reads. The sort reads and locks each due row, so a parallel claim got only 0 to 3 of 5 rows (checked fact of phase 18).
+3. `OUTPUT` gives the rows in no order. The store sorts them by the due time before the lease, which `deleted.NextTryAtUtc` gives, and by `Sequence`. The end of the lease is the next due time of a claimed message (D103).
+4. A claimed row that the code cannot read stays out of the result. A transient error keeps the row leased for a newer instance. A permanent error sets the status `Failed`, ends the lease, and writes `{ErrorName}: {message}` into `LastError`.
+5. When the claim takes fewer than `maxCount` rows, a query reads `MIN(NextTryAtUtc)` of the pending rows as `NextDueAtUtc`. Else `NextDueAtUtc` is now.
+
+The outbox claim first reads the down row of its channel. With a down row, it claims nothing, and returns the row as `ClaimResult.Down` (D106). `SetChannelDownAsync` with the reason `Errors` is an `INSERT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK`, so the first loop wins. With the reason `Operator`, it is a `MERGE ... WITH (HOLDLOCK)`. `TryStartChannelCheckAsync` is one `UPDATE` with the condition `NextCheckAtUtc <= @now`.
+
+### 4.5 Two parts and the tenant field
+
+- `EntityFrameworkInboxStore` and `EntityFrameworkOutboxStore` are the dispatch stores. `For(key)` gives the tenant store of a key.
+- `AddAsync` is an `INSERT ... SELECT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK` on the key. So a second add of a key changes nothing, also from a parallel caller. The outbox adds a batch in one transaction, inside the execution strategy of the provider.
+- The statements that LINQ can express are LINQ: a query page with `OrderByDescending` and `Take`, a count with `GroupBy`, a retry and the cancel of a received message with `ExecuteUpdateAsync`, and a purge with `ExecuteDeleteAsync`. A query reads only the columns of a summary.
+
+### 4.6 Registry settings store
+
+`EntityFrameworkRegistrySettingsStore` keeps the registry settings in `MsgHatchChannelEntry` and `MsgHatchMessageTypeEntry` (section 4.20 of the design). `UseEntityFrameworkStores` registers it.
+
+- A new entry, with the revision 1, is an EF Core insert. A failed insert of a stored name gives `Errors.Conflict`.
+- A change is one `ExecuteUpdateAsync` with the condition `Revision = @revision - 1`. A changed row count of 0 gives `Errors.Conflict`.
+- `GetEntriesAsync` sorts each list with the ordinal comparer, so each provider gives the same order.
+
+### 4.7 Connections, versioning, and limits
+
+- Each operation makes its own context through the pooled `IDbContextFactory` of `MsgHatchDbContext`, so the stores are thread-safe singletons (D130).
+- The stores have SQL statements only for SQL Server. With another provider, the startup validation fails with an `OptionsValidationException` that names the provider, and each store call gives `Errors.NotFound` (D175).
+- A database failure gives `Errors.Unavailable`, a stored value that a person changed into an invalid value gives `Errors.SerializationFailed`, and a cancelled token gives `Errors.OperationCancelled`.
+- The statements need SQL Server 2016 or later, for `JSON_MODIFY`, `JSON_QUERY`, `JSON_VALUE`, and `OPENJSON`. The integration tests run on SQL Server 2025 CU7.
+- The schema is a part of the options of each context. So two hosts with two schemas in one process get two models.
+
+## 5. A store for another storage
 
 A consumer can write a store for another storage. Do these steps:
 
