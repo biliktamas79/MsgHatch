@@ -4,4 +4,5 @@ namespace MsgHatch.Domain.Pipeline;
 /// <param name="Stored">The number of stored outgoing messages.</param>
 /// <param name="Failed">The number of failed routes.</param>
 /// <param name="Errors">The error of each failed route, in the order of the routes. It is empty when no route failed.</param>
-public sealed record NotificationResult(int Stored, int Failed, IReadOnlyList<Failures.Error> Errors);
+/// <param name="Skipped">The number of routes on a disabled channel (D118). They give no message and no error.</param>
+public sealed record NotificationResult(int Stored, int Failed, IReadOnlyList<Failures.Error> Errors, int Skipped = 0);

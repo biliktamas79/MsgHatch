@@ -66,10 +66,10 @@ internal readonly struct ProcessSpan : IDisposable
             return;
         }
 
-        _activity.SetTag(TelemetryNames.Routes, result.Value.Stored + result.Value.Failed);
+        _activity.SetTag(TelemetryNames.Routes, result.Value.Stored + result.Value.Failed + result.Value.Skipped);
         _activity.SetTag(TelemetryNames.Stored, result.Value.Stored);
         _activity.SetTag(TelemetryNames.Failed, result.Value.Failed);
-        _activity.SetTag(TelemetryNames.Skipped, 0);
+        _activity.SetTag(TelemetryNames.Skipped, result.Value.Skipped);
     }
 
     public void Dispose() => _activity?.Dispose();

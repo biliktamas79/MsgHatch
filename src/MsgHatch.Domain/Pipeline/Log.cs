@@ -78,4 +78,16 @@ internal static partial class Log
         EventId = 1010, Level = LogLevel.Warning,
         Message = "Dispatch signal notify of the topic {Topic} failed: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void NotifyFailed(this ILogger logger, string topic, int errorCode, string errorName, string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 1011, Level = LogLevel.Information,
+        Message = "Message {MessageId} of the disabled message type {MessageType} of tenant {Tenant} with flags {MessageFlags} stored nothing")]
+    public static partial void MessageTypeDisabled(
+        this ILogger logger, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags);
+
+    [LoggerMessage(
+        EventId = 1012, Level = LogLevel.Debug,
+        Message = "Skipped the route of message {MessageId} of {MessageType} of tenant {Tenant} with flags {MessageFlags} on the disabled channel {Channel}")]
+    public static partial void RouteSkipped(
+        this ILogger logger, Guid messageId, string messageType, string? tenant, MessageFlags messageFlags, string channel);
 }

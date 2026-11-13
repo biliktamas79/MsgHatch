@@ -113,19 +113,62 @@ internal sealed class NotificationPipeline(
         }
     }
 
+    /// <summary>
+    /// Runs the steps 2 to 6 with the registry settings (D118): a disabled message type stores nothing and calls no
+    /// router, and a route on a disabled channel is skipped. A preview ignores the settings (D169).
+    /// </summary>
     private async ValueTask<ErrorOr<NotificationResult>> ProcessInSpanAsync<TEvent>(
         MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, DateTime nowUtc, string? outgoingTraceParent,
         CancellationToken ct)
     {
-        var composed = await RouteAndComposeAsync(registration, received, nowUtc, givenRoutes: null, outgoingTraceParent, ct);
+        await WaitForTheFirstRegistryReadAsync(ct);
+        var descriptor = registry.FindMessageType(registration.Type);
+        if (descriptor is { Enabled: false })
+        {
+            Loggers.For<NotificationPipeline>(services).MessageTypeDisabled(
+                received.Delivery.Id, registration.Type.Name, received.Tenant?.Value, received.Flags);
+            return new NotificationResult(0, 0, []);
+        }
+
+        var composed = await RouteAndComposeAsync(
+            registration, received, nowUtc, givenRoutes: null, outgoingTraceParent, routes => EnabledRoutes(descriptor, received, routes), ct);
         if (composed.IsError)
         {
             return composed.Error;
         }
 
         RecordFailedRoutes(registration.Type, composed.Value.Routes, composed.Value.Outcomes);
-        return await StoreAsync(composed.Value.Key, composed.Value.Outcomes, ct);
+        return await StoreAsync(composed.Value.Key, composed.Value.Outcomes, composed.Value.Skipped, ct);
     }
+
+    /// <summary>Waits for the first read of the stored registry, so that its settings apply after a restart too (D168).</summary>
+    private ValueTask WaitForTheFirstRegistryReadAsync(CancellationToken ct) =>
+        registry is StoredRegistry { FirstRead.IsCompleted: false } stored ? new ValueTask(stored.FirstRead.WaitAsync(ct)) : ValueTask.CompletedTask;
+
+    /// <summary>The routes that are not on a disabled channel. With no skipped route, it gives the same list and allocates nothing.</summary>
+    private IReadOnlyList<MessageRoute> EnabledRoutes(MessageTypeDescriptor? type, ReceivedMessage received, IReadOnlyList<MessageRoute> routes)
+    {
+        List<MessageRoute>? enabled = null;
+        for (var position = 0; position < routes.Count; position++)
+        {
+            var route = routes[position];
+            if (IsOnADisabledChannel(type, route))
+            {
+                enabled ??= [.. routes.Take(position)];
+                Loggers.For<NotificationPipeline>(services).RouteSkipped(
+                    received.Delivery.Id, received.Type.Name, received.Tenant?.Value, received.Flags, route.Channel.Name);
+            }
+            else
+            {
+                enabled?.Add(route);
+            }
+        }
+
+        return enabled ?? routes;
+    }
+
+    private bool IsOnADisabledChannel(MessageTypeDescriptor? type, MessageRoute route) =>
+        registry.FindChannel(route.Channel) is { Enabled: false } || type?.DisabledChannels?.Contains(route.Channel) == true;
 
     private void RecordFailedRoutes(MessageType type, IReadOnlyList<MessageRoute> routes, ErrorOr<OutgoingMessage>[] outcomes)
     {
@@ -157,7 +200,7 @@ internal sealed class NotificationPipeline(
 
         var nowUtc = time.GetUtcNowDateTime();
         var received = found.Value.Receive(domainEvent, AsTestMessage(context), nowUtc, _oneProcessingInMemory, traceParent: null);
-        var composed = await RouteAndComposeAsync(found.Value, received, nowUtc, routes, outgoingTraceParent: null, ct);
+        var composed = await RouteAndComposeAsync(found.Value, received, nowUtc, routes, outgoingTraceParent: null, select: null, ct);
         return composed.IsError
             ? composed.Error
             : ErrorOr<IReadOnlyList<RouteResult>>.ForValue(ToRouteResults(composed.Value.Routes, composed.Value.Outcomes));
@@ -170,7 +213,8 @@ internal sealed class NotificationPipeline(
 
     private async ValueTask<ErrorOr<ComposedEvent>> RouteAndComposeAsync<TEvent>(
         MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, DateTime nowUtc,
-        IReadOnlyList<MessageRoute>? givenRoutes, string? outgoingTraceParent, CancellationToken ct)
+        IReadOnlyList<MessageRoute>? givenRoutes, string? outgoingTraceParent,
+        Func<IReadOnlyList<MessageRoute>, IReadOnlyList<MessageRoute>>? select, CancellationToken ct)
     {
         var key = TenantKey.For(received.Tenant);
         var routes = givenRoutes is null
@@ -181,9 +225,10 @@ internal sealed class NotificationPipeline(
             return routes.Error;
         }
 
+        var selected = select is null ? routes.Value : select(routes.Value);
         var outcomes = await ComposeAsync(
-            registration, received, routes.Value, key, new OutgoingDefaults(nowUtc, outgoingTraceParent, retryOptions), ct);
-        return outcomes.IsError ? outcomes.Error : new ComposedEvent(key, routes.Value, outcomes.Value);
+            registration, received, selected, key, new OutgoingDefaults(nowUtc, outgoingTraceParent, retryOptions), ct);
+        return outcomes.IsError ? outcomes.Error : new ComposedEvent(key, selected, outcomes.Value, routes.Value.Count - selected.Count);
     }
 
     private static MessageContext AsTestMessage(MessageContext context) => context with { Flags = context.Flags | MessageFlags.Test };
@@ -268,7 +313,7 @@ internal sealed class NotificationPipeline(
     }
 
     private async ValueTask<ErrorOr<NotificationResult>> StoreAsync(
-        TenantKey key, ErrorOr<OutgoingMessage>[] outcomes, CancellationToken ct)
+        TenantKey key, ErrorOr<OutgoingMessage>[] outcomes, int skipped, CancellationToken ct)
     {
         OutgoingMessage[] messages = [.. outcomes.Where(static outcome => outcome.IsSuccess).Select(static outcome => outcome.Value)];
         Error[] errors = [.. outcomes.Where(static outcome => outcome.IsError).Select(static outcome => outcome.Error!)];
@@ -284,7 +329,7 @@ internal sealed class NotificationPipeline(
             await NotifyAsync(messages.Select(static message => DispatchTopic.ForChannel(message.Channel)).Distinct(), ct);
         }
 
-        return new NotificationResult(messages.Length, errors.Length, errors);
+        return new NotificationResult(messages.Length, errors.Length, errors, skipped);
     }
 
     private async ValueTask NotifyAsync(IEnumerable<DispatchTopic> topics, CancellationToken ct)
@@ -299,5 +344,6 @@ internal sealed class NotificationPipeline(
         }
     }
 
-    private readonly record struct ComposedEvent(TenantKey Key, IReadOnlyList<MessageRoute> Routes, ErrorOr<OutgoingMessage>[] Outcomes);
+    private readonly record struct ComposedEvent(
+        TenantKey Key, IReadOnlyList<MessageRoute> Routes, ErrorOr<OutgoingMessage>[] Outcomes, int Skipped);
 }

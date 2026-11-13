@@ -56,6 +56,24 @@ public sealed class InboxProcessorUnitTests
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_MessageOfADisabledMessageType_CompletesItAndStoresNothing()
+    {
+        // Arrange
+        await using var provider = Build(more: static b => b.UseStoredRegistry());
+        var disabled = new MessageTypeEntry(new MessageType("TestEvent"), null, null, Enabled: false, [], Revision: 0, default);
+        await provider.GetRequiredService<IRegistryWriter>().SaveMessageTypeAsync(disabled, Ct);
+        var message = await AddAsync(provider, AMessage());
+
+        // Act
+        var summary = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        Assert.Equal((new DispatchSummary(1, 1, 0, 0), DeliveryStatus.Done), (summary.Value, Stored(provider, message).Delivery.Status));
+        Assert.Empty(provider.GetRequiredService<InMemoryOutboxStore>().GetMessages());
+        _ = _router.DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
+    }
+
+    [Fact]
     public async Task ProcessPendingAsync_OldVersion_RoutesTheEventThatTheRegisteredFunctionUpgraded()
     {
         // Arrange

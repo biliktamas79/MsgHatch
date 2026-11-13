@@ -52,6 +52,28 @@ public sealed partial class NotificationServiceUnitTests
     }
 
     [Fact]
+    public async Task ProcessAsync_RouteOnADisabledChannel_GivesTheSkippedRouteInTheRouteAndSkippedAttributes()
+    {
+        // Arrange
+        _doubles.Routes = [ARoute("u1"), ARoute("u2", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings())];
+        var disabled = new ChannelEntry(TestChannel.SecondId, null, null, Enabled: false, Revision: 1, TestHost.Start.UtcDateTime);
+        await using var provider = _doubles.Build(_time, more: b => b.UseRegistrySettingsStore(_ => StoreWith(disabled)).UseStoredRegistry());
+        var spans = new ConcurrentQueue<Activity>();
+        using var listener = ListenTo([MsgHatchTelemetry.SourceName, _testSource.Name], spans);
+        using var parent = _testSource.StartActivity("test")!;
+
+        // Act
+        await ProcessAsync(provider, AContext());
+
+        // Assert
+        var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
+        Assert.Equal(
+            ["msghatch.routes=2", "msghatch.stored=1", "msghatch.failed=0", "msghatch.skipped=1"],
+            span.TagObjects.Select(static tag => $"{tag.Key}={tag.Value}").Where(static tag => tag.StartsWith("msghatch.r", StringComparison.Ordinal)
+                || tag.StartsWith("msghatch.s", StringComparison.Ordinal) || tag.StartsWith("msghatch.f", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task ProcessAsync_MessageWithATenant_GivesTheTenantAttribute()
     {
         // Arrange
