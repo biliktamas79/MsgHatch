@@ -331,7 +331,7 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 
 ## 4. EF Core stores
 
-`MsgHatch.Data.EntityFrameworkCore` keeps the inbox, the outbox, the down states, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them.
+`MsgHatch.Data.EntityFrameworkCore` keeps the inbox, the outbox, the down states, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them. `MsgHatch.Subscriptions.Data.EntityFrameworkCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(connectionString))`.
 
 ### 4.1 Model and tables
 
@@ -349,7 +349,7 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 
 The indexes have the names of the model, for example `IX_MsgHatchOutbox_Due` on `(Channel, NextTryAtUtc)` with the filter `Status = 'Pending'` (D104). The other indexes are the indexes of section 3.1: the unique `(TenantId, Id)` of the inbox and `Id` of the outbox, `Flags`, `(TenantId, CreatedAtUtc, Id)`, `(TenantId, TargetKind, TargetId, CreatedAtUtc)`, and `SourceMessageId`.
 
-The package creates no schema. The host adds EF Core migrations of `MsgHatchDbContext` to its own assembly, for example with `o.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("MyHost"))`, and applies them. The integration tests use `EnsureCreatedAsync`, which creates the tables only when it creates the database.
+The package creates no schema. The host adds EF Core migrations of `MsgHatchDbContext` and `MsgHatchSubscriptionDbContext` to its own assembly, for example with `o.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("MyHost"))`, and applies them. The integration tests use `EnsureCreatedAsync`, which creates the tables only when it creates the database. So use migrations for a database with both contexts.
 
 ### 4.2 Message format
 
@@ -398,7 +398,17 @@ The outbox claim first reads the down row of its channel. With a down row, it cl
 - `AddAsync` is an `INSERT ... SELECT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK` on the key. So a second add of a key changes nothing, also from a parallel caller. The outbox adds a batch in one transaction, inside the execution strategy of the provider.
 - The statements that LINQ can express are LINQ: a query page with `OrderByDescending` and `Take`, a count with `GroupBy`, a retry and the cancel of a received message with `ExecuteUpdateAsync`, and a purge with `ExecuteDeleteAsync`. A query reads only the columns of a summary.
 
-### 4.6 Registry settings store
+### 4.6 Subscription store
+
+`MsgHatchSubscriptionDbContext` maps the table `MsgHatchSubscription` with the columns of section 3.6, in the same schema and with the same column rules. It is a context of its own, because the core packages never reference `MsgHatch.Subscriptions`.
+
+- The unique index `UX_MsgHatchSubscription_Owner` on `(TenantId, MessageType, Level, CompanyId, UserId, Channel, Recipients)` stops a duplicate, and also serves `FindForDeliveryAsync`. The store writes an empty text for a missing tenant, company, user, or channel.
+- The declared size of this index is more than 1,700 bytes, so SQL Server creates it with a warning. A real row has a company id or a user id, never both, so its key stays below the limit (D178).
+- `AddAsync` inserts the row with EF Core. A failed insert gives `Errors.Conflict` when another row has the id or the same owner, message type, channel, and recipient kind.
+- `UpdateAsync` is one `ExecuteUpdateAsync` with the id and the expected revision. A changed row count of 0 gives `Errors.Conflict` for a stored id, and `Errors.NotFound` else. A change into the key of another row gives `Errors.Conflict`.
+- `UseEntityFrameworkSubscriptionStore` shares `EntityFrameworkStoreOptions` with `UseEntityFrameworkStores` (D59), and registers its own pooled context factory.
+
+### 4.7 Registry settings store
 
 `EntityFrameworkRegistrySettingsStore` keeps the registry settings in `MsgHatchChannelEntry` and `MsgHatchMessageTypeEntry` (section 4.20 of the design). `UseEntityFrameworkStores` registers it.
 
@@ -406,9 +416,9 @@ The outbox claim first reads the down row of its channel. With a down row, it cl
 - A change is one `ExecuteUpdateAsync` with the condition `Revision = @revision - 1`. A changed row count of 0 gives `Errors.Conflict`.
 - `GetEntriesAsync` sorts each list with the ordinal comparer, so each provider gives the same order.
 
-### 4.7 Connections, versioning, and limits
+### 4.8 Connections, versioning, and limits
 
-- Each operation makes its own context through the pooled `IDbContextFactory` of `MsgHatchDbContext`, so the stores are thread-safe singletons (D130).
+- Each operation makes its own context through the pooled `IDbContextFactory` of its context, so the stores are thread-safe singletons (D130).
 - The stores have SQL statements only for SQL Server. With another provider, the startup validation fails with an `OptionsValidationException` that names the provider, and each store call gives `Errors.NotFound` (D175).
 - A database failure gives `Errors.Unavailable`, a stored value that a person changed into an invalid value gives `Errors.SerializationFailed`, and a cancelled token gives `Errors.OperationCancelled`.
 - The statements need SQL Server 2016 or later, for `JSON_MODIFY`, `JSON_QUERY`, `JSON_VALUE`, and `OPENJSON`. The integration tests run on SQL Server 2025 CU7.
