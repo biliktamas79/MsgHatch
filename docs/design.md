@@ -313,6 +313,10 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D161 | Error of one verification variation | Confirmed | When the routing or the preview of one variation fails, for example a directory error or a payload loader error of the event, the verifier adds one `Failed` row with the error code and name, with no channel and with the language of the variation, and continues. Only `Errors.OperationCancelled` stops the verification, and `VerifyAsync` returns it (section 4.18). | `VerifyAsync` returns the first error with no report. One failed payload loader then hides all other results. |
 | D162 | Report log of the example app | Confirmed | In the `Development` environment, the example app logs one Information record with the counts of the verification report, one Warning record for each `Failed` row, and one Information record for each `Skipped` row. Each row record has the message type, the test case, the owner level, the channel, the language, and the error (section 4.18). | One record for each row, about 30 at each start. Or only the counts, which do not show the failed check. |
 | D163 | No `/me` route for the verification | Confirmed | `POST {prefix}/verification` exists only in the route group with no `/me`. A verification reads all subscriptions and profiles of a tenant, so it is an administrator action, not a change of the own user-level subscriptions (section 4.17, D154). | The same route under `{prefix}/me`. |
+| D164 | Test messages in the channel state | Confirmed | `GetChannelsAsync` counts the pending test messages too: it calls `CountAsync` of the outbox dispatch store with `IncludeTest` true. A pending test message waits in the channel, and a publisher must claim it, so `ChannelStatus.Pending` and `OldestDueAtUtc` show the true backlog of the channel (section 4.19). | The default `IncludeTest` false of the other views. A stuck test message then does not show on the channel page. |
+| D165 | Delivery policies of the example app | Confirmed | The example app puts the policy `DeliveryAdmin` on the group of `MapMsgHatchDelivery` and the policy `DeliveryContent` on the group of `MapMsgHatchDeliveryContent`. Each policy needs the role of its name. `dotnet user-jwts create --name 1 --role DeliveryAdmin` makes a token for the overview and the actions, and a second `--role DeliveryContent` adds the content (D109, D158). | A signed-in user for both groups. Less setup, but the two policies then do not differ. |
+| D166 | Status after a cancelled try | Confirmed | `PublishTry.StatusAfter` gives `Cancelled` for the outcome `Cancelled`. So one rule maps each outcome to its status, a store can use it for the cancel try too, and a wrong call of `RecordTryAsync` never marks a cancelled message as `Failed` (section 4.6). | `Failed` from the default arm, with no change of `StatusAfter`. |
+| D167 | Unreadable file in a query of a file store | Confirmed | A query and a count of a file store skip a message file that the code cannot read, for example invalid JSON or a newer version. The page and the counts show each readable message, so one bad file does not break the UI. A claim already moves an invalid file to `failed` (section 4.5). | The query returns the read error. The UI then shows nothing until a person repairs or deletes the file. |
 
 The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3).
 
@@ -1036,6 +1040,7 @@ File store rules (D26):
 - The sequence counts the files that one store instance adds with the same time prefix, so a sort by name keeps the insert order of the messages with the same due time.
 - A claim renames each due file into `claimed`, with the lease end as its time prefix (D103). The claims of one store instance take turns. On Windows, a rename goes through a handle of the source, so two processes on one folder can rarely claim one file in the same lease.
 - A claimed file that the code cannot read stays out of the claim: a newer version stays in `claimed` for a newer instance (section 4.13), and a permanent error moves the file to `failed`.
+- A query and a count of the delivery management (section 4.19) skip a file that the code cannot read (D167).
 
 The library gives each store the type information that it needs (`MsgHatch.Domain.Persistence`):
 
@@ -1425,7 +1430,7 @@ Contract rules of the core:
 - `IOutboxDispatchStore.RecordTryAsync` changes the stored message of `message` in one atomic operation:
   1. It adds the publish try.
   2. It sets `TryCount` to the try number, `LastTryAtUtc` to the finish time, and `LastError` to `"{ErrorName}: {ErrorMessage}"`, or to null for a success. `PublishTry.ErrorText()` gives this text, and only the error name for a try with no error message.
-  3. It sets the status: `Done` for `Succeeded` and `Suppressed`, `Failed` for `PermanentError`, `Expired`, or a `TransientError` with a null `nextTryAtUtc`, and `Pending` with the new `NextTryAtUtc` for a `TransientError` with a next try time. `PublishTry.StatusAfter(nextTryAtUtc)` gives this status, so each store uses one rule. The outcome `Cancelled` comes only from `CancelAsync` (section 4.19).
+  3. It sets the status: `Done` for `Succeeded` and `Suppressed`, `Failed` for `PermanentError`, `Expired`, or a `TransientError` with a null `nextTryAtUtc`, and `Pending` with the new `NextTryAtUtc` for a `TransientError` with a next try time. `PublishTry.StatusAfter(nextTryAtUtc)` gives this status, so each store uses one rule. The outcome `Cancelled` comes only from `CancelAsync` (section 4.19), and gives the status `Cancelled` (D166).
   4. It ends the lease.
 - `RecordTryAsync` changes nothing when the stored `TryCount` is not the try number minus 1. So a dispatcher can repeat the call after a store failure, and a try is never recorded two times.
 - `IInboxDispatchStore.CompleteAsync` and `FailAsync` add 1 to `TryCount` of the stored message of `message`, set `LastTryAtUtc`, and end the lease. `FailAsync` with `nextTryAtUtc` null marks the message as failed permanently.
@@ -2181,7 +2186,7 @@ Rules of the types:
 - `DeliveryActionResult.Matched` counts the messages that the query found. `Changed` counts the messages that the action changed. The difference is the messages that the rules of the action skip.
 
 Actions:
-- `GetChannelsAsync` returns one `ChannelStatus` for each registered channel, from `IMessageRegistry`. It calls `GetDownChannelsAsync`, and `CountAsync` of the outbox dispatch store with the status `Pending`, one time each.
+- `GetChannelsAsync` returns one `ChannelStatus` for each registered channel, from `IMessageRegistry`. It calls `GetDownChannelsAsync`, and `CountAsync` of the outbox dispatch store with the status `Pending` and `IncludeTest` true, one time each (D164).
 - `PauseChannelAsync(channel, note)` calls `SetChannelDownAsync` with the reason `Operator`, the time from `TimeProvider`, and the note. Each publisher instance of the channel stops at its next claim (D106).
 - `ResumeChannelAsync(channel)` calls `SetChannelUpAsync` with no reason, so it ends a down state of each reason. Then it notifies the topic of the channel. If the provider still fails, the first transient error marks the channel down again (section 4.9).
 - `GetTrafficAsync(query)` calls `CountAsync` of the inbox tenant store and of the outbox tenant store, one time each.

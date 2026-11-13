@@ -833,7 +833,7 @@ Goal: the API and the HTTP endpoints for a UI of the traffic, the history, and t
 4. Add the members to the in-memory, file, and SQLite stores, with the indexes of section 4.5. A query or a count of a file store reads each file of the matching folders, with the comment `ponytail: a query reads each file, use a database store for a large outbox`.
 5. Add `DeletedMessages`, `IDeliveryManager`, the internal `DeliveryManager` (section 4.19), and `DeliveryManagerLoggingWrapper`. `AddMsgHatch` registers them as tenant services. From this phase on, the tests delete the test data through `IDeliveryManager.DeleteTestDataAsync`.
 6. Add `src/MsgHatch.AspNetCore` with `MapMsgHatchDelivery`, `MapMsgHatchDeliveryContent`, the request and response types, and their `JsonSerializerContext` (section 4.19). Add `tests/MsgHatch.AspNetCore.Tests.Unit`.
-7. In the example app, map the two route groups, each with its own authorization policy.
+7. In the example app, map the two route groups, each with its own authorization policy: `DeliveryAdmin` and `DeliveryContent`, each with the role of its name (D165).
 
 Tests:
 - The management use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` (section 5.5) run on the in-memory, file, and SQLite stores. They include the tenant rule that the tenant store of one key does not see the messages of another key.
