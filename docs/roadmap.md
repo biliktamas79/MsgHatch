@@ -968,10 +968,37 @@ Tests:
 - Two parallel claims get different messages, so the claim is atomic between concurrent dispatchers. A claim of one message takes the message with the earliest `NextTryAtUtc`.
 - The options tests of `EntityFrameworkStoreOptions`.
 - A host with the EF Core SQLite provider fails the startup validation, and the message names the provider (D175).
+- More tests unique to the EF Core stores, from breaks of the code that showed gaps of the contract tests:
+  - The setup methods: one call of `UseEntityFrameworkStores` registers each store with its logging wrapper, and with no logging each store is the one instance of its class. A schema from code keeps the tables and the rows in that schema, also for the subscription store after `UseEntityFrameworkStores`. A schema in the section reaches the options, a schema from code wins, and a schema that is not an identifier fails the validation on `Schema`. A store call on the SQLite provider gives `Errors.NotFound`. `UseEntityFrameworkStores` after `UseInMemoryStores` names both methods for each store interface.
+  - The stores write the enum values as text, an empty tenant, the trace type, and `[]` as the first `Tries`. A batch keeps its order in `Sequence`. 160 parallel adds of 20 messages store each message one time with no error. A row with a column that is not JSON, or that adds a property to the document, fails only that row. A newer version stays leased. A down row with an unknown reason, and a registry or subscription row that a person broke, give the error of the row. A database that does not exist gives `Errors.Unavailable`, and a cancelled token gives `Errors.OperationCancelled`.
+  - A second down state with the reason `Errors` returns false with no error. A purge with `maxCount` 1 deletes the message that finished first. The times of a summary have the kind UTC. A delete through the subscription store of another tenant keeps the subscription.
+
+Checked facts (2026-11-13) for the EF Core stores, on SQL Server 2025 RTM-CU7 (17.0.4065.4) in the container image `mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04`:
+
+| Fact | Source |
+|---|---|
+| An `UPDATE` of a CTE with `TOP (@maxCount)`, `ORDER BY NextTryAtUtc, Sequence`, and `ROWLOCK, READPAST, UPDLOCK` has a `Sort` under the `Top`, also after an `Index Seek` of the filtered due index. The sort is the Halloween protection, because the statement changes `NextTryAtUtc`, a key of that index. It reads and locks each due row. In a probe of 30 rounds with 10 due messages and two parallel claims of 5, rounds 1 to 15 each gave one claim only 0, 2, or 3 messages. The output stopped after round 15, so the later rounds are not known. An `UPDATE ... WHERE Sequence IN (SELECT TOP (@maxCount) ...)` has the `Top` directly on the ordered `Index Seek`, and a `Table Spool` above it. It gave 10 different messages in 30 of 30 rounds. | `SET SHOWPLAN_TEXT ON` on a probe table, and a probe test of the inbox store |
+| `OUTPUT deleted.NextTryAtUtc` gives the due time before the lease. EF Core 10.0.14 runs an `UPDATE ... OUTPUT` statement through `FromSqlRaw` with no composition, and maps the `OUTPUT` columns by name. | A probe on SQL Server, and the contract tests |
+| `JSON_MODIFY(Tries, 'append $', JSON_QUERY(@try))` appends the try as an object. Without `JSON_QUERY`, it appends the text as a JSON string, for example `["{\"tryNumber\":3}"]`. `JSON_MODIFY(@try, '$.tryNumber', TryCount + 1)` sets a number. | A probe on SQL Server |
+| `JSON_VALUE(@document, '$.trace."$type"')` reads the trace discriminator, and `JSON_QUERY` of a `null` property gives `NULL`. | A probe on SQL Server |
+| `JSON_OBJECT` writes a `datetime2` as `"2030-01-01T00:00:00"`, with no `Z`. `JSON_QUERY` of a text that is not JSON fails the statement with error 13609 (D176). | A probe on SQL Server |
+| The default collation `SQL_Latin1_General_CP1_CI_AS` compares `'abc'` and `'ABC'` as equal, and `Latin1_General_100_BIN2` as different. A parameter and the `value` of `OPENJSON` compare with a `BIN2` column with no collation conflict, with the collation of the column. | A probe on SQL Server |
+| `ORDER BY` of a `uniqueidentifier` descending gives `00000000-0000-0000-0000-000000000002` before `01000000-0000-0000-0000-000000000000`, so it is not the order of `Guid.CompareTo` (D112). | A probe on SQL Server |
+| `Microsoft.EntityFrameworkCore.Relational`, `.SqlServer`, and `.Sqlite` 11.0.0 target only `net11.0`, so the phase pins 10.0.14, the servicing band of the other Microsoft packages. EF Core SqlServer 10.0.14 and 10.0.15 depend on `Microsoft.Data.SqlClient` 6.1.7, which brings `System.Security.Cryptography.Pkcs` 9.0.11 with GHSA-846f-f764-76mx (high) and GHSA-2fmv-rv2c-59x7 (moderate). `Microsoft.Data.SqlClient` 6.1.8 brings the fixed 9.0.21, so the test projects pin it. | The nuspec of each package, the NuGet warnings NU1902 and NU1903, and the GitHub advisories |
+| The new packages have the MIT license, also each transitive package, except `Microsoft.Data.SqlClient.SNI.runtime` 6.0.3 and `Microsoft.Identity.Client.NativeInterop` 0.20.6, which have the Microsoft Software License Terms. Only the test projects reference them (D179). | The nuspec and the license file of each package |
+| Testcontainers.MsSql 4.16.0 starts the local image with no pull. With the default settings, it also starts the Ryuk container `testcontainers/ryuk`, which this machine does not have (D177). | The test runs with `TESTCONTAINERS_RYUK_DISABLED=true` |
 
 Commits:
-1. "Add EF Core stores for the inbox, the outbox, and the registry settings"
-2. "Add the EF Core subscription store"
+1. "Record the decisions of the EF Core stores in the plan (D175 to D178)"
+2. "Fix the check of the EF Core provider in the plan"
+3. "Fix the claim statement of the EF Core stores in the plan"
+4. "Record the license decision of the test database provider (D179)"
+5. "Add EF Core stores for the inbox, the outbox, and the registry settings"
+6. "Add the EF Core subscription store"
+7. "Record the commits and the checked facts of phase 18 in the plan"
+8. "Record phase 18 as done in README and AGENTS.md"
+
+Commit 5 also adds the EF Core rules to section 4.5 of the design and the EF Core section to `docs/stores.md`, and commit 6 adds the subscription part of that section.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and the integration tests pass in the stage after the merge.
 
