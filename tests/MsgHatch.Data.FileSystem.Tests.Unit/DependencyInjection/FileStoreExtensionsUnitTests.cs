@@ -108,6 +108,19 @@ public sealed class FileStoreExtensionsUnitTests : IDisposable
     }
 
     [Fact]
+    public async Task UseFileStores_LoggingDisabled_TheRegistrySettingsStoreIsTheFileStoreOnTheSameRootPath()
+    {
+        // Arrange
+        await using var provider = Build(enableLogging: false);
+
+        // Act
+        var store = provider.GetRequiredService<IRegistrySettingsStore>();
+
+        // Assert
+        Assert.Equal(_rootPath, Assert.IsType<FileSystemRegistrySettingsStore>(store).RootPath);
+    }
+
+    [Fact]
     public async Task UseFileStores_AfterUseInMemoryStores_NamesBothSetupMethodsForEachStoreInterface()
     {
         // Arrange
@@ -121,7 +134,7 @@ public sealed class FileStoreExtensionsUnitTests : IDisposable
 
         // Assert
         Assert.Equal(
-            ["IInboxDispatchStore", "IInboxStore", "IOutboxDispatchStore", "IOutboxStore"],
+            ["IInboxDispatchStore", "IInboxStore", "IOutboxDispatchStore", "IOutboxStore", "IRegistrySettingsStore"],
             Assert.IsType<OptionsValidationException>(exception).Failures
                 .Where(static failure => failure.StartsWith(names, StringComparison.Ordinal))
                 .Select(static failure => failure[names.Length..^1])

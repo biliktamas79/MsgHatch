@@ -12,7 +12,8 @@ public static class FileStoreExtensions
     /// <summary>
     /// Selects the JSON file stores (D26): <see cref="FileSystemInboxStore"/> under <c>{RootPath}/inbox</c> and
     /// <see cref="FileSystemOutboxStore"/> under <c>{RootPath}/outbox</c>, each with its two parts and their logging
-    /// wrappers. The options bind from the section <c>MsgHatch:FileStores</c>, and a value from code wins.
+    /// wrappers, and <see cref="FileSystemRegistrySettingsStore"/> under <c>{RootPath}/registry</c> with its logging
+    /// wrapper. The options bind from the section <c>MsgHatch:FileStores</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -23,7 +24,9 @@ public static class FileStoreExtensions
         AddOptions(builder, nameof(UseFileStores), configure);
         builder.Services.TryAddSingleton(static services => new FileSystemInboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new FileSystemOutboxStore(RootPathOf(services), services.GetRequiredService<MsgHatchJson>()));
+        builder.Services.TryAddSingleton(static services => new FileSystemRegistrySettingsStore(RootPathOf(services)));
         return builder
+            .UseRegistrySettingsStore(static services => services.GetRequiredService<FileSystemRegistrySettingsStore>(), nameof(UseFileStores))
             .UseInboxStore(static (services, key) => services.GetRequiredService<FileSystemInboxStore>().For(key), nameof(UseFileStores))
             .UseInboxDispatchStore(static services => services.GetRequiredService<FileSystemInboxStore>(), nameof(UseFileStores))
             .UseOutboxStore(static (services, key) => services.GetRequiredService<FileSystemOutboxStore>().For(key), nameof(UseFileStores))

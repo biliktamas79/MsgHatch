@@ -66,6 +66,19 @@ public sealed class SqliteStoreExtensionsUnitTests : IDisposable
     }
 
     [Fact]
+    public async Task UseSqliteStores_LoggingDisabled_TheRegistrySettingsStoreIsTheSqliteStoreOnTheSameDatabase()
+    {
+        // Arrange
+        await using var provider = Build(enableLogging: false);
+
+        // Act
+        var store = provider.GetRequiredService<IRegistrySettingsStore>();
+
+        // Assert
+        Assert.Equal(ConnectionString, Assert.IsType<SqliteRegistrySettingsStore>(store).ConnectionString);
+    }
+
+    [Fact]
     public async Task UseSqliteStores_ConnectionStringInTheSection_ReachesTheOptionsAndBothStores()
     {
         // Arrange
@@ -130,7 +143,7 @@ public sealed class SqliteStoreExtensionsUnitTests : IDisposable
 
         // Assert
         Assert.Equal(
-            ["IInboxDispatchStore", "IInboxStore", "IOutboxDispatchStore", "IOutboxStore"],
+            ["IInboxDispatchStore", "IInboxStore", "IOutboxDispatchStore", "IOutboxStore", "IRegistrySettingsStore"],
             Assert.IsType<OptionsValidationException>(exception).Failures
                 .Where(static failure => failure.StartsWith(names, StringComparison.Ordinal))
                 .Select(static failure => failure[names.Length..^1])

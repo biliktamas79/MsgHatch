@@ -8,7 +8,7 @@ namespace MsgHatch.Data.FileSystem;
 internal sealed class ChannelIdJsonConverter : JsonConverter<ChannelId>
 {
     public override ChannelId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        new(reader.GetString() ?? throw new JsonException("The channel of a down state is null."));
+        JsonNames.Read(reader.GetString(), static name => new ChannelId(name));
 
     public override void Write(Utf8JsonWriter writer, ChannelId value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.Name);

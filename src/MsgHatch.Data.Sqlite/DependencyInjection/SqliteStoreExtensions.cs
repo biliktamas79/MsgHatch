@@ -11,8 +11,8 @@ public static class SqliteStoreExtensions
 {
     /// <summary>
     /// Selects the SQLite stores (D55): <see cref="SqliteInboxStore"/> and <see cref="SqliteOutboxStore"/> on one
-    /// database, each with its two parts and their logging wrappers. The stores create their tables one time for each
-    /// connection string. The options bind from the section <c>MsgHatch:Sqlite</c>, and a value from code wins.
+    /// database, each with its two parts and their logging wrappers, and <see cref="SqliteRegistrySettingsStore"/> on the
+    /// same database with its logging wrapper. The stores create their tables one time for each connection string. The options bind from the section <c>MsgHatch:Sqlite</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -23,7 +23,9 @@ public static class SqliteStoreExtensions
         AddOptions(builder, nameof(UseSqliteStores), configure);
         builder.Services.TryAddSingleton(static services => new SqliteInboxStore(ConnectionStringOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new SqliteOutboxStore(ConnectionStringOf(services), services.GetRequiredService<MsgHatchJson>()));
+        builder.Services.TryAddSingleton(static services => new SqliteRegistrySettingsStore(ConnectionStringOf(services)));
         return builder
+            .UseRegistrySettingsStore(static services => services.GetRequiredService<SqliteRegistrySettingsStore>(), nameof(UseSqliteStores))
             .UseInboxStore(static (services, key) => services.GetRequiredService<SqliteInboxStore>().For(key), nameof(UseSqliteStores))
             .UseInboxDispatchStore(static services => services.GetRequiredService<SqliteInboxStore>(), nameof(UseSqliteStores))
             .UseOutboxStore(static (services, key) => services.GetRequiredService<SqliteOutboxStore>().For(key), nameof(UseSqliteStores))

@@ -1,6 +1,6 @@
 # MsgHatch stores
 
-This guide explains how the library stores keep the inbox, the outbox, and the subscriptions, and what a store for another storage must do. It covers the JSON file stores and the SQLite stores. Phase 18 adds the section of the EF Core stores, and phase 19 adds the section of the MongoDB stores.
+This guide explains how the library stores keep the inbox, the outbox, the subscriptions, and the registry settings, and what a store for another storage must do. It covers the JSON file stores and the SQLite stores. Phase 18 adds the section of the EF Core stores, and phase 19 adds the section of the MongoDB stores.
 
 The design `docs/design.md` is the source of each rule. Section 4.5 has the persistence rules, section 4.6 has the contract rules, and section 4.13 has the versioning rules. This guide puts these rules together for each storage kind, and names the decision of each rule, for example D26.
 
@@ -95,6 +95,17 @@ Each persisted contract is backward compatible and has a version number (D24, se
 - A person can edit a stored record. The edit must obey the same rules. An invalid edit fails at read time with `Errors.SerializationFailed`.
 - A golden-file test keeps one JSON sample for each released version of each persisted type. `tests/MsgHatch.Domain.Tests.Unit/Samples/` holds the samples of the library, and `tests/ExampleApp.Tests.Unit/Samples/` shows the same pattern for consumer types.
 
+### 1.9 Registry settings
+
+A registry settings store keeps the stored settings of the channels and the message types on top of the code (D118, section 4.20 of the design):
+
+- The settings belong to the whole system, not to a tenant (D114). So the store has no tenant field and no `For(TenantKey key)`.
+- An entry is a `ChannelEntry` or a `MessageTypeEntry`. A save writes the entry only when the stored revision is `entry.Revision - 1`, and a missing entry has the revision 0. Else it gives `Errors.Conflict` (D79). The library writer gives each entry its revision and its `LastModifiedAtUtc`.
+- A delete of an unknown entry succeeds. After a delete, a new entry starts at the revision 1 again.
+- `GetEntriesAsync` gives each list in the ordinal order of the names, so that each store gives the same result.
+- `DisabledChannels` round-trips in its order. A channel entry and a message type entry with the same name are two entries.
+- `StoredRegistry` reads all entries when the container creates it and after each `RegistryOptions.RefreshInterval`. A read error keeps its last snapshot. So a store gives `Errors.SerializationFailed` for an entry that a person changed into an invalid value, and does not skip it.
+
 ## 2. JSON file stores
 
 `MsgHatch.Data.FileSystem` keeps one JSON file for each message (D26). `UseFileStores(rootPath)` selects the inbox and the outbox under one root folder.
@@ -114,7 +125,10 @@ Each persisted contract is backward compatible and has a version number (D24, se
 ├── test/
 │   ├── inbox/      (the same layout, for test messages)
 │   └── outbox/     (the same layout, for test messages)
-└── subscriptions/  (the subscription store, section 2.6)
+├── subscriptions/  (the subscription store, section 2.6)
+└── registry/       (the registry settings store, section 2.7)
+    ├── channels/{channel}.json
+    └── message-types/{type}.json
 ```
 
 - The outbox has a folder for each channel, so a claim reads only the files of its channel (D104).
@@ -164,7 +178,16 @@ The file holds the message as `MsgHatchJson` writes it. Section 4.5 of the desig
 - `FindForDeliveryAsync` reads only the folders of the requested owners.
 - A file lock on the owner folder serializes the changes of one owner. A change while another caller holds the lock gives `Errors.Unavailable`.
 
-### 2.7 Versioning and limits
+### 2.7 Registry settings store
+
+`FileSystemRegistrySettingsStore` keeps one file for each entry under `{RootPath}/registry` (section 4.20 of the design). `UseFileStores` registers it.
+
+- The file holds the entry as one JSON document with camelCase names, for example `{"channel":"Email","displayName":"Shop email","description":null,"enabled":false,"revision":1,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}`. A message type file also has `disabledChannels` as an array of channel names.
+- A new entry, with the revision 1, is a file that the store creates with `FileMode.CreateNew`. So of two writers only one creates it, and the other gets `Errors.Conflict`.
+- A change opens the file with `FileShare.None`, reads the stored revision, and writes the entry into the same open file. A change while another caller holds the file gives `Errors.Unavailable`.
+- A file with invalid JSON, the JSON null, or an invalid channel or message type name gives `Errors.SerializationFailed` for the whole read.
+
+### 2.8 Versioning and limits
 
 - Each message document has `schemaVersion` and `contentVersion`, and each subscription file has `schemaVersion` and `settingsVersion`.
 - The folder must allow an atomic rename. A network share often does not (section 6 of the design).
@@ -184,6 +207,8 @@ The table and column names are the C# property names (D56):
 | `MsgHatchInbox` | `Sequence INTEGER PRIMARY KEY`, `TenantId`, `Id`, with `UNIQUE (TenantId, Id)`, the columns of `DeliveryState`, `SchemaVersion`, `ContentType`, `ContentVersion`, `Flags`, `TraceParent`, and `Content` (the event as JSON) |
 | `MsgHatchOutbox` | `Sequence INTEGER PRIMARY KEY`, `Id TEXT UNIQUE`, `TenantId`, the columns of `DeliveryState`, `SchemaVersion`, `SourceMessageId`, `MessageType`, `Channel`, `TargetKind`, `TargetId`, `ContentType`, `ContentVersion`, `Flags`, `TraceParent`, `TraceType`, `Trace`, `Content` (the envelope as JSON), and `Tries` (a JSON array) |
 | `MsgHatchChannelDown` | `Channel TEXT PRIMARY KEY`, `Reason`, `SinceUtc`, `NextCheckAtUtc`, `ErrorCode`, `ErrorName`, and `Note`: one row for each down channel |
+| `MsgHatchChannelEntry` | `Channel TEXT PRIMARY KEY`, `DisplayName`, `Description`, `Enabled` (0 or 1), `Revision`, and `LastModifiedAtUtc`: one row for each channel entry (section 4.20) |
+| `MsgHatchMessageTypeEntry` | `Type TEXT PRIMARY KEY`, `DisplayName`, `Description`, `Enabled` (0 or 1), `DisabledChannels` (a JSON array of channel names), `Revision`, and `LastModifiedAtUtc`: one row for each message type entry (section 4.20) |
 
 - The partial index `(NextTryAtUtc) WHERE Status = 'Pending'` of the inbox and `(Channel, NextTryAtUtc) WHERE Status = 'Pending'` of the outbox hold only the backlog and the claimed messages (D104).
 - An index on `Flags` serves `DeleteTestDataAsync`.
@@ -193,6 +218,7 @@ The table and column names are the C# property names (D56):
 - `Sequence` keeps the add order. The SQLite documentation says that `VACUUM` can change the `rowid` of a table with no `INTEGER PRIMARY KEY` (D144).
 - Enum values are text. Times are ISO 8601 text in UTC, for example `2026-10-31T08:00:00.0000000Z` (D57).
 - The tables have no `NOT NULL` constraint, because `INSERT OR IGNORE` also skips a row that breaks a `NOT NULL` constraint, with no error.
+- The registry tables of phase 16 come with `CREATE TABLE IF NOT EXISTS`, so a database of an earlier phase gets them at its first open, and the schema version stays 1.
 
 ### 3.2 Message format
 
@@ -241,7 +267,15 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 - The store writes an empty text for a missing tenant, company, user, or channel, because SQLite treats each NULL as a different value in a unique index.
 - `UpdateAsync` uses `WHERE Id = @id AND Revision = @expected`. A changed row count of 0 gives `Errors.Conflict`.
 
-### 3.7 Connections, versioning, and limits
+### 3.7 Registry settings store
+
+`SqliteRegistrySettingsStore` keeps the registry settings in the tables `MsgHatchChannelEntry` and `MsgHatchMessageTypeEntry` of the same database (section 4.20 of the design). `UseSqliteStores` registers it.
+
+- A new entry, with the revision 1, is an `INSERT OR IGNORE`. A change is an `UPDATE ... WHERE Channel = @name AND Revision = @revision - 1`, or with `Type` for a message type. A changed row count of 0 gives `Errors.Conflict`.
+- `GetEntriesAsync` reads each table with `ORDER BY` the name. The names have only ASCII letters, digits, and `_`, so the binary order of SQLite is the ordinal order.
+- A row with invalid JSON in `DisabledChannels`, an invalid name, or an invalid time gives `Errors.SerializationFailed`.
+
+### 3.8 Connections, versioning, and limits
 
 - Each operation opens its own connection. `Microsoft.Data.Sqlite` pools the connections.
 - The first operation in the process sets `PRAGMA journal_mode = WAL`, and creates the tables with `CREATE TABLE IF NOT EXISTS`, one time for each connection string.
@@ -257,8 +291,8 @@ A consumer can write a store for another storage. Do these steps:
 2. Keep the tenant, the flags, the versions, and the tries of each message in fields that a query can read.
 3. Write and read each message with `MsgHatchJson`, and each subscription setting with `ChannelSettingsJson`.
 4. Make `ClaimDueAsync`, `RecordTryAsync`, `RetryAsync`, and `CancelAsync` atomic in your storage.
-5. Register the store with `UseInboxStore`, `UseOutboxStore`, `UseInboxDispatchStore`, and `UseOutboxDispatchStore`, or with `UseSubscriptionStore`.
-6. Add one subclass of each contract base class, for example `OutboxStoreTestsBase<TStore>` and `SubscriptionStoreTestsBase<TStore>` (section 5.5 of the design).
+5. Register the store with `UseInboxStore`, `UseOutboxStore`, `UseInboxDispatchStore`, and `UseOutboxDispatchStore`, with `UseSubscriptionStore`, or with `UseRegistrySettingsStore`.
+6. Add one subclass of each contract base class, for example `OutboxStoreTestsBase<TStore>`, `SubscriptionStoreTestsBase<TStore>`, and `RegistrySettingsStoreTestsBase<TStore>` (section 5.5 of the design).
 7. Keep a schema version in your storage, and a golden-file sample for each released version of your own types.
 
 The in-memory stores of `MsgHatch.Domain` follow each rule and pass each contract base class, so they are the reference implementation (D119).

@@ -39,6 +39,12 @@ internal sealed class SqliteSchema(string create)
         CREATE TABLE IF NOT EXISTS MsgHatchChannelDown (
             Channel TEXT PRIMARY KEY, Reason TEXT, SinceUtc TEXT, NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT,
             Note TEXT);
+        CREATE TABLE IF NOT EXISTS MsgHatchChannelEntry (
+            Channel TEXT PRIMARY KEY, DisplayName TEXT, Description TEXT, Enabled INTEGER, Revision INTEGER,
+            LastModifiedAtUtc TEXT);
+        CREATE TABLE IF NOT EXISTS MsgHatchMessageTypeEntry (
+            Type TEXT PRIMARY KEY, DisplayName TEXT, Description TEXT, Enabled INTEGER, DisabledChannels TEXT, Revision INTEGER,
+            LastModifiedAtUtc TEXT);
         """);
 
     private readonly ConcurrentDictionary<string, bool> _created = new(StringComparer.Ordinal);
