@@ -56,6 +56,24 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
     }
 
     [Fact]
+    public async Task ClaimDueAsync_LastGiverThatTheSourceNoLongerGives_StartsTheTurnAtTheFirstTenant()
+    {
+        // Arrange
+        var t3 = TenantKey.For(new TenantId("t3"));
+        await AddAsync(AMessage(T1));
+        var ofT2 = await AddAsync(AMessage(T2));
+        await AddAsync(AMessage(t3));
+        await ClaimAsync(maxCount: 1);
+        Stores.Unlisted.Add(T1.Tenant!.Value);
+
+        // Act
+        var result = await ClaimAsync(maxCount: 1);
+
+        // Assert
+        Assert.Equal(ofT2.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_TenantThatGaveNoMessage_DoesNotMoveTheTurn()
     {
         // Arrange
@@ -302,6 +320,33 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
 
         // Assert
         Assert.Equal((Errors.Unavailable, (DateTime?)null), (result.Error?.Type, (await StoredAsync(message.Delivery.Id)).Delivery.LeaseUntilUtc));
+    }
+
+    [Fact]
+    public async Task CountAsync_TenantSourceFails_ReturnsItsError()
+    {
+        // Arrange
+        Stores.TenantsError = new Error(Errors.Unavailable);
+
+        // Act
+        var result = await Store.CountAsync(new TrafficQuery(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Unavailable, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task DeleteTestDataAsync_TenantSourceFails_ReturnsItsErrorAndDeletesNothing()
+    {
+        // Arrange
+        var message = await AddAsync(AMessage(TenantKey.None, flags: MessageFlags.Test));
+        Stores.TenantsError = new Error(Errors.Unavailable);
+
+        // Act
+        var result = await Store.DeleteTestDataAsync(Ct);
+
+        // Assert
+        Assert.Equal((Errors.Unavailable, message.Delivery.Id), (result.Error?.Type, (await StoredAsync(message.Delivery.Id)).Delivery.Id));
     }
 
     [Fact]

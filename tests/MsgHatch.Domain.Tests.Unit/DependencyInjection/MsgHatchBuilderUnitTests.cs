@@ -326,6 +326,23 @@ public sealed class MsgHatchBuilderUnitTests
     }
 
     [Fact]
+    public async Task AddTenantService_FactoryThatResolvesAnOptionalKeyedService_GetsTheServiceOfThatKey()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddKeyedSingleton(KeyedService.AnyKey, static (_, key) => new KeyCapturingService((TenantKey)key!));
+        services.AddMsgHatch().AddTenantService(
+            ServiceLifetime.Singleton, static (tenantServices, key) => new DependentService(tenantServices.GetKeyedService<KeyCapturingService>(key)!));
+        await using var provider = services.Build();
+
+        // Act
+        var service = provider.GetRequiredKeyedService<DependentService>(_t1);
+
+        // Assert
+        Assert.Equal(_t1, service.Inner.Key);
+    }
+
+    [Fact]
     public async Task UseStorageForEachTenant_LoggingEnabled_ResolvesTheTenantSourceAndEachStoreAsItsLoggingWrapper()
     {
         // Arrange

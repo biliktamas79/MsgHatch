@@ -41,6 +41,9 @@ public sealed class TenantTestStores
 
     public HashSet<TenantId> Listed { get; } = [];
 
+    /// <summary>The tenants that the tenant source leaves out, also when they have a store.</summary>
+    public HashSet<TenantId> Unlisted { get; } = [];
+
     /// <summary>An error that the tenant source gives in place of the tenants.</summary>
     public Error? TenantsError { get; set; }
 
@@ -64,6 +67,7 @@ public sealed class TenantTestStores
                         .Where(static key => key.Tenant is not null)
                         .Select(static key => key.Tenant!.Value)
                         .Concat(Listed)
+                        .Except(Unlisted)
                         .Distinct()
                         .OrderBy(static tenant => tenant.Value, StringComparer.Ordinal),
                 ];
