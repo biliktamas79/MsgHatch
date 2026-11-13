@@ -929,15 +929,20 @@ Tests:
   - `RecordTryAsync`, `CompleteAsync`, and `FailAsync` go only to the store of the tenant of the message.
   - The down states are only in the store of `TenantKey.None`. With a down state there, a claim returns that state, and claims no message of a tenant store.
   - `CountAsync` sums the counts of all stores. `DeleteTestDataAsync` and `PurgeAsync` call each store, and `PurgeAsync` deletes at most `maxCount` messages in total.
+  - A claim skips the store of a tenant that returns an error, logs it with the tenant, and returns the messages of the other stores. An error of the store of `TenantKey.None` fails the claim (D173).
 - `UseSqliteTenantSubscriptionStore` gives the subscription store of each key on the file of that key.
-- `UseSqliteTenantStores` with the `TenantConnectionString` `Data Source={folder}/msghatch-{tenant}.db` makes one file for each tenant of the tenant source, and the file of `SystemConnectionString` for the messages with no tenant, the down states, and the registry settings. A tenant id with the character `|` gives an escaped file name.
+- `UseSqliteTenantStores` with the `TenantConnectionString` `Data Source={folder}/msghatch-{tenant}.db` makes one file for each tenant of the tenant source, and the file of `SystemConnectionString` for the messages with no tenant, the down states, and the registry settings. The tenant id `a|b` gives the file `msghatch-a%7^cb.db`, and the tenants `Acme` and `acme` give two files (D172).
 - The options tests of `SqliteTenantStoreOptions`: a `TenantConnectionString` with no `{tenant}` fails, and a `SystemConnectionString` with `{tenant}` fails.
 - A host that calls both `UseSqliteStores` and `UseSqliteTenantStores` fails the startup validation, because two methods select the outbox stores (D62).
-- In `ExampleApp.Tests.Unit`: two tenants on two SQLite files. An event of each tenant is sent, and each file has only the messages of its tenant.
+- In `ExampleApp.Tests.Unit`: two tenants on two SQLite files. An event of each tenant is sent, and each file has only the messages of its tenant. The test builds its host from the setup methods, and the example app does not change (D174).
 
 Commits:
-1. "Add the tenant source and the dispatch composites"
-2. "Add SQLite stores for each tenant"
+1. "Record the decisions of the stores for each tenant in the plan (D172 to D174)"
+2. "Add the tenant source and the dispatch composites"
+3. "Add SQLite stores for each tenant"
+4. "Record phase 17 as done in README and AGENTS.md"
+
+Commit 3 also adds the stores for each tenant to `docs/stores.md`.
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
