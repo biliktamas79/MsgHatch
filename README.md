@@ -3,7 +3,7 @@ A flexible and extensible .NET library that can generate and handle various mess
 
 MsgHatch turns domain events into messages, and delivers them by email, as real-time UI updates with SignalR, or through a message broker such as RabbitMQ, Amazon SQS, or Kafka with Wolverine. A router decides who gets each message on which channel. The optional package `MsgHatch.Subscriptions` is a router with managed subscriptions.
 
-**Status:** in development. The development follows the [roadmap](docs/roadmap.md) of phases. Each phase ends in a tested and working state. Phases 0 to 14 are done. The [design](docs/design.md) holds the requirements, the decisions, and the architecture. The [store guide](docs/stores.md) explains the stores. No package is released yet.
+**Status:** in development. The development follows the [roadmap](docs/roadmap.md) of phases. Each phase ends in a tested and working state. Phases 0 to 15 are done. The [design](docs/design.md) holds the requirements, the decisions, and the architecture. The [store guide](docs/stores.md) explains the stores. No package is released yet.
 
 ## Message flow
 1. **Trigger.** A domain event arrives. Its type is the message type. An event from a source that is not a resilient broker goes into the inbox first.
@@ -51,13 +51,13 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 | `MsgHatch.Subscriptions.Caching.Hybrid` | The HybridCache backend of the subscription cache | 11, done |
 | `MsgHatch.Subscriptions.Caching.FusionCache` | The FusionCache backend of the subscription cache | 11, done |
 | `MsgHatch.Subscriptions.AspNetCore` | HTTP endpoints for subscription management | 12, done |
-| `MsgHatch.AspNetCore` | HTTP endpoints for delivery management and registry administration | 15 and 16, planned |
+| `MsgHatch.AspNetCore` | HTTP endpoints for delivery management and registry administration | 15, done; 16, planned |
 | `MsgHatch.Data.EntityFrameworkCore` | The EF Core stores, with SQL Server as the first provider | 18, planned |
 | `MsgHatch.Subscriptions.Data.EntityFrameworkCore` | The EF Core subscription store | 18, planned |
 | `MsgHatch.Data.MongoDb` | The MongoDB stores | 19, planned |
 | `MsgHatch.Subscriptions.Data.MongoDb` | The MongoDB subscription store | 19, planned |
 
-Phase 14 added the routing verification to `MsgHatch.Subscriptions`.
+Phase 14 added the routing verification to `MsgHatch.Subscriptions`. Phase 15 added the delivery management: the status `Cancelled`, the query, count, retry, cancel, and purge members of the stores, `IDeliveryManager`, and its HTTP endpoints in `MsgHatch.AspNetCore`.
 
 ## Example app
 `examples/ExampleApp` runs the subscription example of the design end to end, with no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, keeps all data in one SQLite file, and maps the subscription endpoints and the delivery endpoints under `/api/delivery`. A caller signs in with a local JWT from `dotnet user-jwts`:
