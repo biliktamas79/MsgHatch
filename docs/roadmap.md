@@ -898,11 +898,17 @@ Tests:
 - The standard logging wrapper tests for the writer and settings store wrappers.
 
 Commits:
-1. "Add the registry writer and the registry settings store contract"
-2. "Add the stored registry"
-3. "Skip disabled message types and channels in the pipeline"
-4. "Add registry settings stores to the in-memory, file, and SQLite packages"
-5. "Add HTTP endpoints for registry administration"
+1. "Record the decisions of the registry administration in the plan (D168 to D171)"
+2. "Fix the commit list of phase 16 in the plan"
+3. "Add the registry settings store contract and the in-memory store"
+4. "Add the stored registry"
+5. "Skip disabled message types and channels in the pipeline"
+6. "Add registry settings stores to the file and SQLite packages"
+7. "Add HTTP endpoints for registry administration"
+8. "Add registry administration to the example app"
+9. "Record phase 16 as done in README and AGENTS.md"
+
+Commit 3 adds `UseRegistrySettingsStore`, `InMemoryRegistrySettingsStore` with `UseInMemoryStores`, and the contract base class with its first subclass. A test reaches an internal logging wrapper only through a setup method, and a contract base class runs only through a subclass, so each one comes with the code that runs it. Commit 4 adds `RegistryWriterLoggingWrapper` with `UseStoredRegistry`, which registers it. Item 6 gets its own commit 8.
 
 Done when: the build has no errors and no warnings, and all tests pass.
 
