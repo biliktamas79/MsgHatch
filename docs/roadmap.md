@@ -956,7 +956,7 @@ Goal: the inbox, outbox, registry settings, and subscription stores on EF Core, 
 1. Add `src/MsgHatch.Data.EntityFrameworkCore` with `EntityFrameworkStoreOptions` and its validator, `MsgHatchDbContext`, `EntityFrameworkInboxStore`, `EntityFrameworkOutboxStore`, `EntityFrameworkRegistrySettingsStore`, and `UseEntityFrameworkStores` (sections 4.5 and 4.7):
    - The model maps the columns of section 4.5, in the schema of `EntityFrameworkStoreOptions.Schema`, with the same indexes. The partial claim index is a filtered index with `WHERE Status = 'Pending'` (D104).
    - Each store is a singleton, and makes one `DbContext` for each operation through the pooled `IDbContextFactory<MsgHatchDbContext>` (D130).
-   - The claim is one raw SQL statement through `FromSql`, because LINQ cannot express it. For SQL Server, a CTE selects the first due rows with `TOP (@max)`, `ORDER BY NextTryAtUtc, Sequence`, and the hints `ROWLOCK, READPAST, UPDLOCK`, and an `UPDATE` of the CTE with an `OUTPUT` clause sets the lease (D120). `Sequence` is an identity column. The store sorts the `OUTPUT` rows by the old `NextTryAtUtc` from `deleted` and by `Sequence` (D144). The store selects the statement by the provider of the context, and a provider with no statement gives `Errors.NotFound` at startup.
+   - The claim is one raw SQL statement through `FromSql`, because LINQ cannot express it. For SQL Server, a CTE selects the first due rows with `TOP (@max)`, `ORDER BY NextTryAtUtc, Sequence`, and the hints `ROWLOCK, READPAST, UPDLOCK`, and an `UPDATE` of the CTE with an `OUTPUT` clause sets the lease (D120). `Sequence` is an identity column. The store sorts the `OUTPUT` rows by the old `NextTryAtUtc` from `deleted` and by `Sequence` (D144). The store selects the statement by the provider of the context. A provider with no statement fails the startup validation with an `OptionsValidationException` that names the provider, and a store call on it gives `Errors.NotFound` (D175). The startup validation of MsgHatch reports an `OptionsValidationException`, not an `Error`.
    - `RecordTryAsync` is one `UPDATE` that appends the try to the JSON column `Tries` with `JSON_MODIFY`, with `WHERE Id = @id AND TryCount = @tryNumber - 1` (D27).
    - The package creates no schema. The host creates it with its own EF Core migrations, and the tests use `EnsureCreatedAsync`.
 2. Add `src/MsgHatch.Subscriptions.Data.EntityFrameworkCore` with `EntityFrameworkSubscriptionStore` and `UseEntityFrameworkSubscriptionStore`.
@@ -967,6 +967,7 @@ Tests:
 - The use cases of `InboxStoreTestsBase`, `OutboxStoreTestsBase`, `RegistrySettingsStoreTestsBase`, and `SubscriptionStoreTestsBase` run on the EF Core stores against SQL Server in a container. Each test class uses its own database.
 - Two parallel claims get different messages, so the claim is atomic between concurrent dispatchers. A claim of one message takes the message with the earliest `NextTryAtUtc`.
 - The options tests of `EntityFrameworkStoreOptions`.
+- A host with the EF Core SQLite provider fails the startup validation, and the message names the provider (D175).
 
 Commits:
 1. "Add EF Core stores for the inbox, the outbox, and the registry settings"
