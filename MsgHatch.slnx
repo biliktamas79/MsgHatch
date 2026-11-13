@@ -3,6 +3,7 @@
     <Project Path="examples/ExampleApp/ExampleApp.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/MsgHatch.AspNetCore/MsgHatch.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
     <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
     <Project Path="src/MsgHatch.Data.FileSystem/MsgHatch.Data.FileSystem.csproj" />
@@ -22,6 +23,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ExampleApp.Tests.Unit/ExampleApp.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.AspNetCore.Tests.Unit/MsgHatch.AspNetCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />
