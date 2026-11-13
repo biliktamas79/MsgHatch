@@ -6,6 +6,8 @@ using ExampleApp.Recipients;
 using ExampleApp.Startup;
 using ExampleApp.Tests.Unit.TestTypes;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Data.Sqlite;
+using MsgHatch.Data.Sqlite.DependencyInjection;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
@@ -14,6 +16,8 @@ using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Email.DependencyInjection;
 using MsgHatch.Subscriptions;
+using MsgHatch.Subscriptions.Data.Sqlite.DependencyInjection;
+using MsgHatch.Subscriptions.DependencyInjection;
 using MsgHatch.Subscriptions.Management;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -23,7 +27,7 @@ namespace ExampleApp.Tests.Unit;
 
 /// <summary>
 /// The registration code of the example on its SQLite stores and its SQLite directory: the subscription example of
-/// section 1.1, a change through the manager, two tenants (D114), and the telemetry (D131, D132). Its telemetry test
+/// section 1.1, a change through the manager, two tenants (D114), two tenants on two files (D125, D174), and the telemetry (D131, D132). Its telemetry test
 /// listens to the spans of MsgHatch, so the class is in the collection <c>Telemetry</c>.
 /// </summary>
 [Collection(SequentialTelemetry.Name)]
@@ -105,6 +109,28 @@ public sealed class ExampleSetupUnitTests : IDisposable
     }
 
     [Fact]
+    public async Task AddExampleMessages_TwoTenantsOnTwoSqliteFiles_SendsTheEventOfEachTenantAndKeepsItsMessagesInItsFile()
+    {
+        // Arrange
+        using var folder = new TenantDatabaseFolder();
+        await using var provider = BuildForEachTenant(folder);
+        await SeedUser1Async(provider, _t1, "one@t1.example");
+        await SeedUser1Async(provider, _t2, "one@t2.example");
+        await provider.AcceptAsync(new EventA([1], null, "a"), _t1);
+        await provider.AcceptAsync(new EventA([1], null, "a"), _t2);
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Act
+        var sent = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        Assert.Equal(2, sent.Value.Succeeded);
+        Assert.Equal(
+            [["inbox t1 Done", "outbox t1 Done"], ["inbox t2 Done", "outbox t2 Done"], []],
+            [MessagesIn(folder, "msghatch-t1.db"), MessagesIn(folder, "msghatch-t2.db"), MessagesIn(folder, "msghatch.db")]);
+    }
+
+    [Fact]
     public async Task AddExampleTelemetry_OneAcceptedEvent_GivesAProcessSpanAndASendSpanInANewTraceWithALinkToIt()
     {
         // Arrange
@@ -161,6 +187,34 @@ public sealed class ExampleSetupUnitTests : IDisposable
         services.AddExampleMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer);
         return services.Build();
     }
+
+    /// <summary>
+    /// A host of the example messages with one SQLite file for each of the tenants t1 and t2, and the system file for
+    /// the directory, which keeps the tenant of each row (D174).
+    /// </summary>
+    private ServiceProvider BuildForEachTenant(TenantDatabaseFolder folder)
+    {
+        var services = CreateServices(folder.Section, _time);
+        services.AddSingleton(new FixedTenants([_t1, _t2]));
+        services.Configure<SqliteStoreOptions>(o => o.ConnectionString = folder.ConnectionStringOf("msghatch.db"));
+        services.AddMsgHatch()
+            .UseSubscriptions()
+            .UseRecipientDirectory<ExampleRecipientDirectory>()
+            .UseSqliteTenantStores<FixedTenantSource>()
+            .UseSqliteTenantSubscriptionStore()
+            .UseEmbeddedTemplates(typeof(ExampleSetup).Assembly, ExampleSetup.TemplatePrefix)
+            .AddExampleMessages()
+            .UseEmailClient<LogEmailClient>();
+        return services.Build();
+    }
+
+    private static string?[] MessagesIn(TenantDatabaseFolder folder, string fileName) =>
+    [
+        .. TestDatabases.Rows(
+                folder.ConnectionStringOf(fileName),
+                "SELECT 'inbox ' || TenantId || ' ' || Status FROM MsgHatchInbox UNION ALL SELECT 'outbox ' || TenantId || ' ' || Status FROM MsgHatchOutbox")
+            .Select(static row => row[0]),
+    ];
 
     private static async Task SeedUser1Async(IServiceProvider provider, TenantId tenant, string email)
     {

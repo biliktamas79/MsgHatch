@@ -12,7 +12,7 @@ using NSubstitute;
 namespace MsgHatch.Data.Sqlite.Tests.Unit.DependencyInjection;
 
 /// <summary><c>UseSqliteStores</c> alone registers all parts of the package (section 4.7, D60). Each test has its own database file.</summary>
-public sealed class SqliteStoreExtensionsUnitTests : IDisposable
+public sealed partial class SqliteStoreExtensionsUnitTests : IDisposable
 {
     private const string _key = "MsgHatch:Sqlite:ConnectionString";
 
@@ -24,7 +24,11 @@ public sealed class SqliteStoreExtensionsUnitTests : IDisposable
 
     private string ConnectionString => _section[_key]!;
 
-    public void Dispose() => TestDatabases.Delete(ConnectionString);
+    public void Dispose()
+    {
+        TestDatabases.Delete(ConnectionString);
+        _folder.Dispose();
+    }
 
     [Fact]
     public async Task UseSqliteStores_Alone_ResolvesEachStoreAsItsLoggingWrapperAroundTheSqliteStores()

@@ -28,6 +28,26 @@ public static class SqliteSubscriptionStoreExtensions
             nameof(UseSqliteSubscriptionStore));
     }
 
+    /// <summary>
+    /// Selects one <see cref="SqliteSubscriptionStore"/> for each tenant key, with its logging wrapper, on the file of
+    /// that key (D125): <c>TenantConnectionString</c> for a tenant, and <c>SystemConnectionString</c> for
+    /// <see cref="Domain.Identity.TenantKey.None"/>. It shares the <see cref="SqliteTenantStoreOptions"/> of
+    /// <c>UseSqliteTenantStores</c> (D59): the options bind from the section <c>MsgHatch:SqliteTenants</c>, and a value
+    /// from code wins. A value from code here and in <c>UseSqliteTenantStores</c> fails the startup validation (D150).
+    /// </summary>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="configure">An optional change of the options in code.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseSqliteTenantSubscriptionStore(this MsgHatchBuilder builder, Action<SqliteTenantStoreOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        SqliteStoreExtensions.AddTenantOptions(builder, nameof(UseSqliteTenantSubscriptionStore), configure);
+        return builder.UseSubscriptionStore(
+            static (services, key) => new SqliteSubscriptionStore(
+                SqliteStoreExtensions.ConnectionStringOf(services, key), key, services.GetRequiredService<ChannelSettingsJson>()),
+            nameof(UseSqliteTenantSubscriptionStore));
+    }
+
     /// <summary>Selects the SQLite subscription store on a database.</summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="connectionString">The connection string of the database, for example <c>Data Source=msghatch.db</c>.</param>

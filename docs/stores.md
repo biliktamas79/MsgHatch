@@ -106,6 +106,36 @@ A registry settings store keeps the stored settings of the channels and the mess
 - `DisabledChannels` round-trips in its order. A channel entry and a message type entry with the same name are two entries.
 - `StoredRegistry` reads all entries when the container creates it and after each `RegistryOptions.RefreshInterval`. A read error keeps its last snapshot. So a store gives `Errors.SerializationFailed` for an entry that a person changed into an invalid value, and does not skip it.
 
+### 1.10 A storage for each tenant
+
+A host can keep one storage for each tenant, for example one SQLite file for each tenant (D125). The setup methods of one shared storage do not change.
+
+- The consumer implements `ITenantSource`. `GetTenantsAsync` gives each tenant that has its own storage. A tenant that the source does not give gets no claim, so the source must give each tenant that has messages.
+- The storage package registers one store instance for each key, on the storage of that key. The key `TenantKey.None` uses the system storage: the messages with no tenant, the down states of the channels, and the registry settings.
+- The package calls `UseStorageForEachTenant<TTenantSource>` with four functions: the inbox tenant store, the inbox dispatch store, the outbox tenant store, and the outbox dispatch store of one key. The core then registers the dispatch composites `TenantInboxDispatchStore` and `TenantOutboxDispatchStore`. A tenant store needs no composite, because it uses only the storage of its key.
+
+A claim of a composite:
+
+1. Reads the tenants from the tenant source. An error of the source fails the claim.
+2. Claims from the store of `TenantKey.None`. With a down state of the channel there, it claims nothing more, and returns that state (D106). An error of this store fails the claim.
+3. Asks the store of each tenant in turn, from the tenant after the last one that gave messages, until it has `maxCount` messages.
+4. Skips a tenant whose known next due time is later than now, or that has no pending message. One claim in each `MaxPollInterval` asks all tenants.
+5. Skips a tenant whose store gives an error, and logs the error with the tenant, event 1502 (D173). `Errors.OperationCancelled` fails the claim.
+
+The known next due times:
+
+- A claim keeps the next due time of each tenant and channel.
+- A successful `AddAsync` or `RetryAsync` of a tenant store of the same process clears the known times of its tenant. A recorded try or a failure with a next try time clears them too. So the next claim asks that tenant.
+- A message that another process adds is found by the next claim that asks all tenants, at most `MaxPollInterval` later.
+
+Other rules:
+
+- The claim order of D144 holds only inside the storage of one key. A claim returns the messages of the system storage first, and then the messages of each tenant in turn.
+- `RecordTryAsync`, `CompleteAsync`, and `FailAsync` go to the store of the tenant of the message.
+- The down state methods go to the store of `TenantKey.None`.
+- `CountAsync` sums the counts of all stores. `DeleteTestDataAsync` and `PurgeAsync` call each store, and `PurgeAsync` stops at `maxCount` messages in total. Each of them returns the first error.
+- The composite asks each tenant store. With many tenants, this sweep costs more time than the sends, so use one shared storage there.
+
 ## 2. JSON file stores
 
 `MsgHatch.Data.FileSystem` keeps one JSON file for each message (D26). `UseFileStores(rootPath)` selects the inbox and the outbox under one root folder.
@@ -283,6 +313,22 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 - The version of the store schema is in `MsgHatchSchema`. The version of each message is in the columns `SchemaVersion` and `ContentVersion`, and the version of a route trace is in `TraceType`.
 - The database file must be on a local disk. The stores do not create the folder of the file. SQLite works only for processes on one machine.
 
+### 3.9 A file for each tenant
+
+`UseSqliteTenantStores<TTenantSource>` keeps one database file for each tenant (section 1.10, D125). `SqliteTenantStoreOptions` binds from the section `MsgHatch:SqliteTenants`:
+
+| Option | Example | Rule |
+|---|---|---|
+| `TenantConnectionString` | `Data Source=data/msghatch-{tenant}.db` | Required. It must contain `{tenant}`. |
+| `SystemConnectionString` | `Data Source=data/msghatch.db` | Required. It must not contain `{tenant}`. |
+
+- The store puts the tenant id into `{tenant}` with the escape of the file stores (D172): `Uri.EscapeDataString`, and then each capital letter A to Z as `^` and the small letter. So the tenant `a|b` gives `msghatch-a%7^cb.db`, and the tenants `Acme` and `acme` give `msghatch-^acme.db` and `msghatch-acme.db`.
+- `SqliteInboxStore` and `SqliteOutboxStore` are keyed singletons with `KeyedService.AnyKey`, one instance for each key, on the file of that key. The tenant store of a key is `For(key)` of that instance.
+- The system file holds the messages with no tenant, the down states, and the registry settings of `SqliteRegistrySettingsStore`.
+- Each file has the full schema of section 3.1, and the store creates it at the first operation on the file. So the first claim makes the file of each tenant of the tenant source.
+- `UseSqliteTenantSubscriptionStore` of `MsgHatch.Subscriptions.Data.Sqlite` keeps the subscriptions of each key in the file of that key, with the same options.
+- A setup with `UseSqliteStores` and `UseSqliteTenantStores` fails the startup validation, because two methods select the stores (D62). A value in code in both `UseSqliteTenantStores` and `UseSqliteTenantSubscriptionStore` fails it too (D150).
+
 ## 4. A store for another storage
 
 A consumer can write a store for another storage. Do these steps:
@@ -294,5 +340,6 @@ A consumer can write a store for another storage. Do these steps:
 5. Register the store with `UseInboxStore`, `UseOutboxStore`, `UseInboxDispatchStore`, and `UseOutboxDispatchStore`, with `UseSubscriptionStore`, or with `UseRegistrySettingsStore`.
 6. Add one subclass of each contract base class, for example `OutboxStoreTestsBase<TStore>`, `SubscriptionStoreTestsBase<TStore>`, and `RegistrySettingsStoreTestsBase<TStore>` (section 5.5 of the design).
 7. Keep a schema version in your storage, and a golden-file sample for each released version of your own types.
+8. For one storage for each tenant, call `UseStorageForEachTenant<TTenantSource>` with the four parts of the storage of each key, in place of the four methods of step 5 (section 1.10).
 
 The in-memory stores of `MsgHatch.Domain` follow each rule and pass each contract base class, so they are the reference implementation (D119).

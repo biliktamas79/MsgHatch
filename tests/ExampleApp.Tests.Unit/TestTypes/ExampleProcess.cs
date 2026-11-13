@@ -42,10 +42,10 @@ public static class ExampleProcess
             .ProcessAsync(domainEvent, new MessageContext(Guid.NewGuid(), tenant), Ct);
     }
 
-    public static async Task<ErrorOr<Guid>> AcceptAsync<TEvent>(this IServiceProvider provider, TEvent domainEvent)
+    public static async Task<ErrorOr<Guid>> AcceptAsync<TEvent>(this IServiceProvider provider, TEvent domainEvent, TenantId? tenant = null)
     {
         await using var scope = provider.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<INotificationService>().AcceptAsync(domainEvent, new MessageContext(Guid.NewGuid()), Ct);
+        return await scope.ServiceProvider.GetRequiredService<INotificationService>().AcceptAsync(domainEvent, new MessageContext(Guid.NewGuid(), tenant), Ct);
     }
 
     /// <summary>
