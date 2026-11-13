@@ -180,6 +180,7 @@ The file holds the message as `MsgHatchJson` writes it. Section 4.5 of the desig
 
 - The file of an outgoing message has the property `tries`: an array of the publish tries, in the order of their record. `MsgHatchJson` ignores this property when it reads a message.
 - `RecordTryAsync` writes the new content through a temporary file and a rename, into the folder of the new status, with the next try time as the due time. Then it deletes the old file. So a reader never sees half a file.
+- `RecordTryAsync` runs while no claim, retry, cancel, or other try record of the same store instance runs. Without this gate, 8 parallel records of the first try of each of 20 messages kept one try for each message, but about 55 of the 160 calls gave `Errors.Unavailable`, because a rename or a delete found the file of another caller (checked after phase 18).
 - A file of a received message has no `tries`.
 
 ### 2.4 Claim pattern

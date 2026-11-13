@@ -64,7 +64,7 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(publishTry);
-        return ValueTask.FromResult(FileFailures.Run(() => RecordTry(message, publishTry, nextTryAtUtc)));
+        return ValueTask.FromResult(FileFailures.Run(() => _files.WhileNoClaimRuns(() => RecordTry(message, publishTry, nextTryAtUtc))));
     }
 
     /// <inheritdoc />

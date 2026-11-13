@@ -97,6 +97,23 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task RecordTryAsync_EightParallelRecordsOfTheFirstTryOfEachOfTwentyMessages_RecordEachTryOneTimeWithNoError()
+    {
+        // Arrange
+        OutgoingMessage[] messages = [.. Enumerable.Range(0, 20).Select(_ => AMessage(T1))];
+        await TenantStore(T1).AddAsync(messages, Ct);
+
+        // Act
+        var errors = await Task.WhenAll(messages.SelectMany(message =>
+            Enumerable.Range(0, 8).Select(_ => Task.Run(
+                () => Store.RecordTryAsync(message, ATry(message, 1, PublishOutcome.Succeeded), nextTryAtUtc: null, Ct).AsTask(), Ct))));
+
+        // Assert
+        Assert.Equal(new Error?[160], errors);
+        Assert.Equal(Enumerable.Repeat(1, 20), await TryCountsAsync(messages));
+    }
+
+    [Fact]
     public async Task RecordTryAsync_MessageThatIsNotStored_ReturnsNotFound()
     {
         // Arrange
@@ -107,6 +124,17 @@ public abstract partial class OutboxStoreTestsBase<TStore>
 
         // Assert
         Assert.Equal(Errors.NotFound, error?.Type);
+    }
+
+    private async Task<List<int>> TryCountsAsync(IEnumerable<OutgoingMessage> messages)
+    {
+        List<int> counts = [];
+        foreach (var message in messages)
+        {
+            counts.Add((await TestData.GetTriesAsync(message.Delivery.Id, Ct)).Count);
+        }
+
+        return counts;
     }
 
     private PublishTry ATry(OutgoingMessage message, int tryNumber, PublishOutcome outcome, string? errorMessage = null)

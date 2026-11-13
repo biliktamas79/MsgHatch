@@ -78,8 +78,8 @@ internal sealed class MessageFiles
     }
 
     /// <summary>
-    /// Runs a change of the files of one instance while no claim of the instance runs, so a retry or a cancel never
-    /// moves a file that a claim moves at the same time.
+    /// Runs a change of the files of one instance while no claim and no other change of the instance runs, so a retry,
+    /// a cancel, or a try record never moves a file that a claim or another change moves at the same time.
     /// </summary>
     public T WhileNoClaimRuns<T>(Func<T> change)
     {
