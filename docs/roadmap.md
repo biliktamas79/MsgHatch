@@ -970,8 +970,9 @@ Tests:
 - A host with the EF Core SQLite provider fails the startup validation, and the message names the provider (D175).
 - More tests unique to the EF Core stores, from breaks of the code that showed gaps of the contract tests:
   - The setup methods: one call of `UseEntityFrameworkStores` registers each store with its logging wrapper, and with no logging each store is the one instance of its class. A schema from code keeps the tables and the rows in that schema, also for the subscription store after `UseEntityFrameworkStores`. A schema in the section reaches the options, a schema from code wins, and a schema that is not an identifier fails the validation on `Schema`. A store call on the SQLite provider gives `Errors.NotFound`. `UseEntityFrameworkStores` after `UseInMemoryStores` names both methods for each store interface.
-  - The stores write the enum values as text, an empty tenant, the trace type, and `[]` as the first `Tries`. A batch keeps its order in `Sequence`. 160 parallel adds of 20 messages store each message one time with no error. A row with a column that is not JSON, or that adds a property to the document, fails only that row. A newer version stays leased. A down row with an unknown reason, and a registry or subscription row that a person broke, give the error of the row. A database that does not exist gives `Errors.Unavailable`, and a cancelled token gives `Errors.OperationCancelled`.
-  - A second down state with the reason `Errors` returns false with no error. A purge with `maxCount` 1 deletes the message that finished first. The times of a summary have the kind UTC. A delete through the subscription store of another tenant keeps the subscription.
+  - The stores write the enum values as text, an empty tenant, the trace type, and `[]` as the first `Tries`. A batch keeps its order in `Sequence`. A row with a column that is not JSON, or that adds a property to the document, fails only that row. A newer version stays leased. A down row with an unknown reason, and a registry or subscription row that a person broke, give the error of the row. A database that does not exist gives `Errors.Unavailable`, and a cancelled token gives `Errors.OperationCancelled`.
+  - The times of a summary have the kind UTC.
+- Four tests from these breaks are in the contract base classes, so each store runs them (see "After the tag" below): 160 parallel adds of 20 messages store each message one time with no error. A second down state with the reason `Errors` returns false with no error. A purge with `maxCount` 1 deletes the message that finished first. A delete through the subscription store of another tenant keeps the subscription.
 
 Checked facts (2026-11-13) for the EF Core stores, on SQL Server 2025 RTM-CU7 (17.0.4065.4) in the container image `mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04`:
 
@@ -988,6 +989,7 @@ Checked facts (2026-11-13) for the EF Core stores, on SQL Server 2025 RTM-CU7 (1
 | The new packages have the MIT license, also each transitive package, except `Microsoft.Data.SqlClient.SNI.runtime` 6.0.3 and `Microsoft.Identity.Client.NativeInterop` 0.20.6, which have the Microsoft Software License Terms. Only the test projects reference them (D179). | The nuspec and the license file of each package |
 | With the connection string of dev-mssql in `appsettings.Local.json`, both projects passed with no new container. The log of dev-mssql names each test database with its start and its delete. `@@SERVERNAME` gives `2c84ce1ea605`, and the host name of dev-mssql is `1a246115df45`, because the volume `transcend-dev_dev-mssql-data` keeps the `master` database of an older container. A run with no drop at its end left 5 databases, the next run dropped these 5 at its start, and the run after it found 0 (D180). | Three runs of the core project with the diagnostic messages of the fixture, `docker events`, and `docker logs dev-mssql` |
 | Testcontainers.MsSql 4.16.0 starts the local image with no pull. With the default settings, it also starts the Ryuk container `testcontainers/ryuk`, which this machine does not have (D177). | The test runs with `TESTCONTAINERS_RYUK_DISABLED=true` |
+| After the tag: with the message id parameter `@id` as `nvarchar` (`DbType.String`) and the column `Id` as `char(36)`, 8 parallel adds of each of 20 outgoing messages got the deadlock 1205 in 4 of 14 runs. With `@id` as `char` (`DbType.AnsiStringFixedLength`), 13 of 13 runs passed, and the test took 3 to 4 seconds instead of up to 11. The query plan is not checked. So the cause in the lock ranges of `UPDLOCK, HOLDLOCK` is not confirmed. A likely cause is that SQL Server converts the column to compare it with an `nvarchar` value. | The contract test `AddAsync_EightParallelAddsOfEachOfTwentyMessages_StoreEachMessageOneTimeWithNoError`, 10 runs of each type on dev-mssql, and the error number in the test output |
 
 Commits:
 1. "Record the decisions of the EF Core stores in the plan (D175 to D178)"
@@ -1004,6 +1006,22 @@ Commits:
 12. "Rename the EF Core projects and namespaces to EFCore"
 
 Commit 5 also adds the EF Core rules to section 4.5 of the design and the EF Core section to `docs/stores.md`, and commit 6 adds the subscription part of that section.
+
+After the tag `phase-18`, a review before phase 19 found three loose ends, and the owner chose to fix them:
+- Four tests from the breaks of the phase ran only on the EF Core stores. They moved into the contract base classes, so the in-memory, file, SQLite, and EF Core stores run them, and the MongoDB stores of phase 19 get them. The parallel adds and the purge order now also run for the other dispatch store. The new outbox test found the deadlock above, and commit 14 fixes it.
+- `UseEntityFrameworkSubscriptionStore` had no startup check (D182).
+- D124 and section 5.5 of the design did not name the configured server of D180, and `docs/stores.md` did not tell a host to pin `Microsoft.Data.SqlClient` 6.1.8.
+
+The owner also asked for one line end in the repository: `.gitattributes` sets LF for each text file. The index already had LF in each text file, so the commit changes no other file.
+
+Commits after the tag:
+13. "Add a .gitattributes file with LF line ends"
+14. "Fix a deadlock of parallel adds in the EF Core outbox store"
+15. "Move four store tests of phase 18 into the contract base classes"
+16. "Record the startup check of the EF Core subscription store (D182)"
+17. "Add the startup check of the EF Core subscription store"
+18. "Record the test server of D180 in D124 and section 5.5"
+19. "Record the fixes after phase 18 in the plan"
 
 Done when: the build has no errors and no warnings, all unit tests pass, and the integration tests pass in the stage after the merge.
 
