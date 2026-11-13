@@ -8,7 +8,7 @@ MsgHatch is a .NET 10 library for message routing, message templates, and delive
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D179), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D180), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -82,7 +82,7 @@ dotnet run --project examples/ExampleApp
 dotnet test tests/ExampleApp.Tests.Unit
 ```
 
-From phase 18 on, the EF Core integration tests need a container runtime, for example Docker. Testcontainers starts SQL Server from the image `mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04`, and pulls the image only when it is missing. A machine with no image of the Ryuk container of Testcontainers sets `TESTCONTAINERS_RYUK_DISABLED=true` for its run (D177):
+From phase 18 on, the EF Core integration tests use the SQL Server of `SqlServerIntegration:ConnectionString` in `appsettings.Local.json` of each EF Core integration project, which git ignores, for example the local container dev-mssql. `appsettings.json` next to it describes the key. The tests drop and create only the databases whose names start with the name of their project, at the start and at the end of a run (D180). With no connection string, they need a container runtime, for example Docker: Testcontainers starts SQL Server from the image `mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04`, and pulls the image only when it is missing. A machine with no image of the Ryuk container of Testcontainers sets `TESTCONTAINERS_RYUK_DISABLED=true` for its run (D177):
 
 ```bash
 dotnet test tests/MsgHatch.Data.EntityFrameworkCore.Tests.Integration

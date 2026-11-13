@@ -421,7 +421,7 @@ The outbox claim first reads the down row of its channel. With a down row, it cl
 - Each operation makes its own context through the pooled `IDbContextFactory` of its context, so the stores are thread-safe singletons (D130).
 - The stores have SQL statements only for SQL Server. With another provider, the startup validation fails with an `OptionsValidationException` that names the provider, and each store call gives `Errors.NotFound` (D175).
 - A database failure gives `Errors.Unavailable`, a stored value that a person changed into an invalid value gives `Errors.SerializationFailed`, and a cancelled token gives `Errors.OperationCancelled`.
-- The statements need SQL Server 2016 or later, for `JSON_MODIFY`, `JSON_QUERY`, `JSON_VALUE`, and `OPENJSON`. The integration tests run on SQL Server 2025 CU7.
+- The statements need SQL Server 2016 or later, for `JSON_MODIFY`, `JSON_QUERY`, `JSON_VALUE`, and `OPENJSON`. The integration tests run on SQL Server 2025 CU7: on the server of `appsettings.Local.json`, for example the local container dev-mssql, or else in a container through Testcontainers (D180).
 - The schema is a part of the options of each context. So two hosts with two schemas in one process get two models.
 
 ## 5. A store for another storage

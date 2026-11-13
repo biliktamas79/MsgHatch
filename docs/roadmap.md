@@ -960,7 +960,7 @@ Goal: the inbox, outbox, registry settings, and subscription stores on EF Core, 
    - `RecordTryAsync` is one `UPDATE` that appends the try to the JSON column `Tries` with `JSON_MODIFY`, with `WHERE Id = @id AND TryCount = @tryNumber - 1` (D27).
    - The package creates no schema. The host creates it with its own EF Core migrations, and the tests use `EnsureCreatedAsync`.
 2. Add `src/MsgHatch.Subscriptions.Data.EntityFrameworkCore` with `EntityFrameworkSubscriptionStore` and `UseEntityFrameworkSubscriptionStore`.
-3. Add `tests/MsgHatch.Data.EntityFrameworkCore.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EntityFrameworkCore.Tests.Integration`, with Testcontainers for SQL Server (D124).
+3. Add `tests/MsgHatch.Data.EntityFrameworkCore.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EntityFrameworkCore.Tests.Integration`, with Testcontainers for SQL Server (D124). From D180, the tests use the SQL Server of `SqlServerIntegration:ConnectionString` in the git-ignored `appsettings.Local.json`, for example the local container dev-mssql, and Testcontainers only with no value. They drop the databases with the name prefix of their test project at the start and at the end of a run.
 4. Add the EF Core sections to `docs/stores.md`.
 
 Tests:
@@ -986,6 +986,7 @@ Checked facts (2026-11-13) for the EF Core stores, on SQL Server 2025 RTM-CU7 (1
 | `ORDER BY` of a `uniqueidentifier` descending gives `00000000-0000-0000-0000-000000000002` before `01000000-0000-0000-0000-000000000000`, so it is not the order of `Guid.CompareTo` (D112). | A probe on SQL Server |
 | `Microsoft.EntityFrameworkCore.Relational`, `.SqlServer`, and `.Sqlite` 11.0.0 target only `net11.0`, so the phase pins 10.0.14, the servicing band of the other Microsoft packages. EF Core SqlServer 10.0.14 and 10.0.15 depend on `Microsoft.Data.SqlClient` 6.1.7, which brings `System.Security.Cryptography.Pkcs` 9.0.11 with GHSA-846f-f764-76mx (high) and GHSA-2fmv-rv2c-59x7 (moderate). `Microsoft.Data.SqlClient` 6.1.8 brings the fixed 9.0.21, so the test projects pin it. | The nuspec of each package, the NuGet warnings NU1902 and NU1903, and the GitHub advisories |
 | The new packages have the MIT license, also each transitive package, except `Microsoft.Data.SqlClient.SNI.runtime` 6.0.3 and `Microsoft.Identity.Client.NativeInterop` 0.20.6, which have the Microsoft Software License Terms. Only the test projects reference them (D179). | The nuspec and the license file of each package |
+| With the connection string of dev-mssql in `appsettings.Local.json`, both projects passed with no new container. The log of dev-mssql names each test database with its start and its delete. `@@SERVERNAME` gives `2c84ce1ea605`, and the host name of dev-mssql is `1a246115df45`, because the volume `transcend-dev_dev-mssql-data` keeps the `master` database of an older container. A run with no drop at its end left 5 databases, the next run dropped these 5 at its start, and the run after it found 0 (D180). | Three runs of the core project with the diagnostic messages of the fixture, `docker events`, and `docker logs dev-mssql` |
 | Testcontainers.MsSql 4.16.0 starts the local image with no pull. With the default settings, it also starts the Ryuk container `testcontainers/ryuk`, which this machine does not have (D177). | The test runs with `TESTCONTAINERS_RYUK_DISABLED=true` |
 
 Commits:
@@ -997,6 +998,8 @@ Commits:
 6. "Add the EF Core subscription store"
 7. "Record the commits and the checked facts of phase 18 in the plan"
 8. "Record phase 18 as done in README and AGENTS.md"
+9. "Record the server decision of the EF Core integration tests (D180)"
+10. "Run the EF Core integration tests on a configured SQL Server"
 
 Commit 5 also adds the EF Core rules to section 4.5 of the design and the EF Core section to `docs/stores.md`, and commit 6 adds the subscription part of that section.
 
