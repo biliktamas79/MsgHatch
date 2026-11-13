@@ -1035,7 +1035,7 @@ Goal: the inbox, outbox, registry settings, and subscription stores on MongoDB (
    - A try is a `$push` in the same update as the delivery state, with the filter `tryCount` equal to the try number minus 1 (D27).
    - The claim index is a partial index on `channel` and `nextTryAtUtc` with the filter `status: "Pending"` (D104). The store creates its indexes one time for each database in the process.
 2. Add `src/MsgHatch.Subscriptions.Data.MongoDb` with `MongoDbSubscriptionStore` and `UseMongoDbSubscriptionStore`.
-3. Add `tests/MsgHatch.Data.MongoDb.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration`, with Testcontainers for MongoDB (D124).
+3. Add `tests/MsgHatch.Data.MongoDb.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration`. They use the MongoDB of `MongoDbIntegration:ConnectionString` in the git-ignored `appsettings.Local.json`, for example the local container dev-mongo, and Testcontainers for MongoDB only with no value (D124, D183). They drop the databases with the name prefix of their test project at the start and at the end of a run. The name of the subscription test project alone has 53 characters, so the phase checks the maximum length of a MongoDB database name in the pinned server version, and shortens the prefix if necessary.
 4. Add the MongoDB sections to `docs/stores.md`.
 
 Tests:
