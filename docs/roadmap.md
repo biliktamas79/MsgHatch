@@ -836,11 +836,11 @@ Goal: the API and the HTTP endpoints for a UI of the traffic, the history, and t
 7. In the example app, map the two route groups, each with its own authorization policy: `DeliveryAdmin` and `DeliveryContent`, each with the role of its name (D165).
 
 Tests:
-- The management use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` (section 5.5) run on the in-memory, file, and SQLite stores. They include the tenant rule that the tenant store of one key does not see the messages of another key.
+- The management use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` (section 5.5) run on the in-memory, file, and SQLite stores. A count with `IncludeTest` true gives the rows of the real and of the test messages apart (D164). They include the tenant rule that the tenant store of one key does not see the messages of another key.
 - A `Cancelled` message is never claimed again, and `RecordTryAsync` keeps its status rules.
 - `PurgeAsync` of each dispatch store deletes only the finished messages that finished before the given time, of all tenants, at most `maxCount`, and never a pending message (D128).
 - Delivery manager tests, with substitutes for the stores and the dispatch signal, and the test channel:
-  - `GetChannelsAsync` gives each registered channel with its down state, its pending count, and its oldest due time. It calls `GetDownChannelsAsync` one time and `CountAsync` one time.
+  - `GetChannelsAsync` gives each registered channel with its down state, its pending counts of real and of test messages, and its oldest due time (D164). It calls `GetDownChannelsAsync` one time and `CountAsync` one time.
   - `PauseChannelAsync` calls `SetChannelDownAsync` with the reason `Operator`, the fake time, and the note. `ResumeChannelAsync` calls `SetChannelUpAsync` with no reason, and notifies the topic of the channel. An unregistered channel gives `Errors.NotFound` for both.
   - Each validation rule of section 4.19 gives `Errors.ValidationFailed`, and the stores receive no call. The rows include `Limit` 0, 1, 500, and 501, `Ids` with 0, 1, 1000, and 1001 ids, a note of 500 and of 501 characters, a bulk action with only `Limit` and `IncludeTest`, a purge with `maxCount` 0, and a pause, a resume, a test data delete, and a purge on the manager of a tenant.
   - A retry over three pages of the query calls `RetryAsync` one time for each page, and returns the sums of the matched and the changed messages.
