@@ -2353,6 +2353,7 @@ HTTP endpoints. `MapMsgHatchRegistry(this IEndpointRouteBuilder routes, string p
 
 - The GET routes join `IMessageRegistry` with `IRegistryWriter.GetEntriesAsync`, so they show the revision of each entry, or 0 for no entry.
 - `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, `Errors.Conflict` gives 409, and each other error gives 500. The body is a `ProblemDetails` with the error name and message.
+- A PUT body needs a JSON content type, else 415 (D156). `enabled` and `revision` are required, and a missing `disabledChannels` means no disabled channel. An invalid channel or message type name in the path or in the body gives 400, and calls no writer.
 - With the in-memory reader, `MapMsgHatchRegistry` maps only the GET routes, because a setup in code has no writer. Each revision is then 0.
 
 ### 4.21 Telemetry

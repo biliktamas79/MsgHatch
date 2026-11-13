@@ -189,7 +189,7 @@ internal static class DeliveryRoutes
     /// Reads the JSON body, and runs the action with it. A content type that is not JSON gives 415 and calls no
     /// manager, so a form of another site cannot post a body as text (D156). Invalid JSON gives 400.
     /// </summary>
-    private static async Task<IResult> WithBodyAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo, Func<T, Task<IResult>> action)
+    public static async Task<IResult> WithBodyAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo, Func<T, Task<IResult>> action)
         where T : class
     {
         if (!context.Request.HasJsonContentType())

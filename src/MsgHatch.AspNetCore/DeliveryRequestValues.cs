@@ -149,7 +149,7 @@ internal static class DeliveryRequestValues
 
     private static string? First(StringValues values) => values.Count == 0 ? null : values[0];
 
-    private static ErrorOr<MessageType> MessageTypeOf(string name) => NameOf(name, static valid => new MessageType(valid));
+    public static ErrorOr<MessageType> MessageTypeOf(string name) => NameOf(name, static valid => new MessageType(valid));
 
     private static ErrorOr<T> EnumOf<T>(string text)
         where T : struct, Enum =>
