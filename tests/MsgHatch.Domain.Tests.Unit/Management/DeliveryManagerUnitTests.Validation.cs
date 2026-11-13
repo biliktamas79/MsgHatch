@@ -22,8 +22,10 @@ public sealed partial class DeliveryManagerUnitTests
         { "created from before created to", true },
         { "note 500", true },
         { "note 501", false },
-        { "outbox bulk with only limit and include test", false },
-        { "inbox bulk with only limit and include test", false },
+        { "outbox retry with only limit and include test", false },
+        { "outbox cancel with only limit and include test", false },
+        { "inbox retry with only limit and include test", false },
+        { "inbox cancel with only limit and include test", false },
         { "purge max count 0", false },
         { "purge max count 1", true },
         { "purge before now", true },
@@ -59,9 +61,13 @@ public sealed partial class DeliveryManagerUnitTests
         "created from before created to" => (await Manager().GetTrafficAsync(new TrafficQuery(Now.AddTicks(-1), Now), Ct)).Error,
         "note 500" => await Manager().PauseChannelAsync(TestChannel.Id, new string('n', 500), Ct),
         "note 501" => await Manager().PauseChannelAsync(TestChannel.Id, new string('n', 501), Ct),
-        "outbox bulk with only limit and include test" =>
+        "outbox retry with only limit and include test" =>
             (await Manager().RetryOutgoingAsync(new OutboxQuery(IncludeTest: true, Limit: 10), Ct)).Error,
-        "inbox bulk with only limit and include test" =>
+        "outbox cancel with only limit and include test" =>
+            (await Manager().CancelOutgoingAsync(new OutboxQuery(IncludeTest: true, Limit: 10), Ct)).Error,
+        "inbox retry with only limit and include test" =>
+            (await Manager().RetryReceivedAsync(new InboxQuery(IncludeTest: true, Limit: 10), Ct)).Error,
+        "inbox cancel with only limit and include test" =>
             (await Manager().CancelReceivedAsync(new InboxQuery(IncludeTest: true, Limit: 10), Ct)).Error,
         "purge max count 0" => (await Manager().PurgeAsync(Now, 0, Ct)).Error,
         "purge max count 1" => (await Manager().PurgeAsync(Now, 1, Ct)).Error,

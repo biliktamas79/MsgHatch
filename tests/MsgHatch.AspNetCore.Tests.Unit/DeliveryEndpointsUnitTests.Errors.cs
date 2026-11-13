@@ -84,6 +84,8 @@ public sealed partial class DeliveryEndpointsUnitTests
     [InlineData("/delivery/inbox?createdFrom=yesterday")]
     [InlineData("/delivery/traffic?includeTest=yes")]
     [InlineData("/delivery/channels?tenantId=")]
+    [InlineData("/delivery/outbox?channel=bad-name")]
+    [InlineData("/delivery/inbox?messageType=1x")]
     public async Task Query_InvalidValue_Gives400AndCallsNoManager(string path)
     {
         // Act

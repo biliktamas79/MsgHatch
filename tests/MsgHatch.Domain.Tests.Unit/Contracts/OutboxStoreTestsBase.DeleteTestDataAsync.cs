@@ -22,6 +22,21 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     }
 
     [Fact]
+    public async Task DeleteTestDataAsync_TestMessageWithATry_LeavesNoTryForItsIdAddedAgain()
+    {
+        // Arrange
+        var message = await AddAsync(AMessage(T1, flags: MessageFlags.Test));
+        await Store.RecordTryAsync(message, ATry(message, 1, PublishOutcome.Suppressed), nextTryAtUtc: null, Ct);
+        await Store.DeleteTestDataAsync(Ct);
+
+        // Act
+        await AddAsync(message);
+
+        // Assert
+        Assert.Empty(await TestData.GetTriesAsync(message.Delivery.Id, Ct));
+    }
+
+    [Fact]
     public async Task DeleteTestDataAsync_SecondCall_ReturnsZero()
     {
         // Arrange

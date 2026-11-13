@@ -3,6 +3,8 @@ using MsgHatch.Data.FileSystem.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.Contracts;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -149,6 +151,35 @@ public sealed class FileSystemOutboxStoreUnitTests()
 
         // Assert
         Assert.Equal((true, false), (started.IsSuccess, started.Value));
+    }
+
+    [Fact]
+    public async Task GetAsync_FileThatIsNotJson_ReturnsSerializationFailed()
+    {
+        // Arrange
+        var id = Guid.NewGuid();
+        WriteChannelFile($"failed/20300101000000000_0000000000_{id:D}.json", "not json");
+
+        // Act
+        var history = await Store.For(TenantKey.None).GetAsync(id, Ct);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, history.Error?.Type);
+    }
+
+    [Fact]
+    public async Task QueryAsync_FileThatIsNotJson_SkipsItAndGivesTheReadableMessages()
+    {
+        // Arrange
+        var message = TestMessages.AnOutgoingMessage();
+        await Store.For(TenantKey.None).AddAsync([message], Ct);
+        WriteChannelFile($"failed/20300101000000000_0000000000_{Guid.NewGuid():D}.json", "not json");
+
+        // Act
+        var page = await Store.For(TenantKey.None).QueryAsync(new OutboxQuery(), Ct);
+
+        // Assert
+        Assert.Equal([message.Delivery.Id], page.Value.Items.Select(static summary => summary.Delivery.Id));
     }
 
     private ChannelDown ADownOfAPerson() =>

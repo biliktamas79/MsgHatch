@@ -44,6 +44,16 @@ public sealed class MsgHatchJsonUnitTests
     };
 
     [Fact]
+    public void DeserializeTries_InvalidJson_ReturnsSerializationFailed()
+    {
+        // Act
+        var tries = MsgHatchJson.DeserializeTries(Guid.NewGuid(), "[{\"tryNumber\":"u8);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, tries.Error?.Type);
+    }
+
+    [Fact]
     public void DeserializeOutgoing_SerializedMessage_GivesAnEqualMessageOfTheClosedType()
     {
         // Arrange
