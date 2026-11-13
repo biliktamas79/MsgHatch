@@ -29,8 +29,9 @@ public static class ExampleSetup
 
     /// <summary>
     /// Registers MsgHatch with the subscription router, the example directory, the SQLite stores and the subscription
-    /// store on one database file, the subscription cache on FusionCache, the embedded templates, and the message types
-    /// A to F. The connection string comes from <c>MsgHatch:Sqlite:ConnectionString</c>.
+    /// store on one database file, the stored registry on the same file (section 4.20), the subscription cache on
+    /// FusionCache, the embedded templates, and the message types A to F. The connection string comes from
+    /// <c>MsgHatch:Sqlite:ConnectionString</c>.
     /// </summary>
     /// <param name="services">The services of the host.</param>
     /// <param name="configure">Changes the options, for example the roles of the process.</param>
@@ -40,6 +41,7 @@ public static class ExampleSetup
             .UseSubscriptions()
             .UseRecipientDirectory<ExampleRecipientDirectory>()
             .UseSqliteStores()
+            .UseStoredRegistry()
             .UseSqliteSubscriptionStore()
             .UseFusionSubscriptionCache()
             .UseEmbeddedTemplates(typeof(ExampleSetup).Assembly, TemplatePrefix)

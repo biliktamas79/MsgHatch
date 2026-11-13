@@ -72,6 +72,12 @@ The delivery endpoints need a token with roles: `DeliveryAdmin` for the overview
 dotnet user-jwts create --project examples/ExampleApp --name 1 --role DeliveryAdmin --role DeliveryContent
 ```
 
+The registry endpoints under `/api/registry` change the stored registry settings, and need a token with the role `RegistryAdmin` (D170):
+
+```bash
+dotnet user-jwts create --project examples/ExampleApp --name 1 --role RegistryAdmin
+```
+
 ```bash
 dotnet run --project examples/ExampleApp
 ```

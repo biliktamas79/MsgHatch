@@ -167,6 +167,46 @@ public sealed class ExampleApplicationUnitTests : IDisposable
         Assert.Equal(["client1@acme.example | Notification A: a"], emails.Select(static email => $"{email.Field("To")} | {email.Field("Subject")}"));
     }
 
+    [Theory]
+    [InlineData(ExampleApplication.RegistryAdmin, HttpStatusCode.OK)]
+    [InlineData(ExampleApplication.DeliveryAdmin, HttpStatusCode.Forbidden)]
+    public async Task RegistryRoute_RoleOfTheToken_PassesOnlyTheRegistryPolicy(string role, HttpStatusCode expected)
+    {
+        // Arrange
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{ExampleApplication.RegistryPrefix}/channels");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TokenOf("1", role));
+
+        // Act
+        using var response = await example.App.GetTestClient().SendAsync(request, Ct);
+
+        // Assert
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task RegistryRoute_DisabledMessageTypeA_TheConsumerStoresNoMessageOfA()
+    {
+        // Arrange
+        _configuration["MsgHatch:Roles"] = nameof(MsgHatchRoles.Consumer);
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+        await example.App.Services.SeedScenarioAsync(TenantKey.None);
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"{ExampleApplication.RegistryPrefix}/message-types/A")
+        {
+            Content = new StringContent("""{"enabled":false,"revision":0}""", System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TokenOf("1", ExampleApplication.RegistryAdmin));
+        using var saved = await example.App.GetTestClient().SendAsync(request, Ct);
+
+        // Act
+        var result = await example.App.Services.ProcessAsync(new EventA([1], null, "a"));
+
+        // Assert
+        Assert.Equal((HttpStatusCode.OK, 0, 0), (saved.StatusCode, result.Value.Stored, result.Value.Failed));
+    }
+
     [Fact]
     public async Task MeRoute_NoToken_Gives401()
     {
