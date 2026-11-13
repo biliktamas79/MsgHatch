@@ -921,7 +921,7 @@ Goal: one storage for each tenant, for example one SQLite file for each tenant (
 3. Add `SqliteTenantStoreOptions` with its validator and `UseSqliteTenantStores<TTenantSource>` to `MsgHatch.Data.Sqlite`, and `UseSqliteTenantSubscriptionStore` to `MsgHatch.Subscriptions.Data.Sqlite` (section 4.7).
 
 Tests:
-- The use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` run on the dispatch composites.
+- The use cases of `InboxStoreTestsBase` and `OutboxStoreTestsBase` run on the dispatch composites. The claim test with the due messages of two tenants compares the claimed messages with no order, because a composite keeps the claim order only inside the storage of one key (section 4.5).
 - With an in-memory store for each key through a test function:
   - The tenant store of each key writes only into the store of that key.
   - A claim takes the messages of all stores in turn, and starts after the store that gave the last messages. `NextDueAtUtc` is the earliest value of all stores.
