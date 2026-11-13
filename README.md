@@ -3,7 +3,7 @@ A flexible and extensible .NET library that can generate and handle various mess
 
 MsgHatch turns domain events into messages, and delivers them by email, as real-time UI updates with SignalR, or through a message broker such as RabbitMQ, Amazon SQS, or Kafka with Wolverine. A router decides who gets each message on which channel. The optional package `MsgHatch.Subscriptions` is a router with managed subscriptions.
 
-**Status:** in development. The development follows the [roadmap](docs/roadmap.md) of phases. Each phase ends in a tested and working state. Phases 0 to 16 are done. The [design](docs/design.md) holds the requirements, the decisions, and the architecture. The [store guide](docs/stores.md) explains the stores. No package is released yet.
+**Status:** in development. The development follows the [roadmap](docs/roadmap.md) of phases. Each phase ends in a tested and working state. Phases 0 to 17 are done. The [design](docs/design.md) holds the requirements, the decisions, and the architecture. The [store guide](docs/stores.md) explains the stores. No package is released yet.
 
 ## Message flow
 1. **Trigger.** A domain event arrives. Its type is the message type. An event from a source that is not a resilient broker goes into the inbox first.
@@ -36,7 +36,7 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 ## Packages
 | Package | Content | Phase |
 |---|---|---|
-| `MsgHatch.Domain` | The routing contract, the pipeline, the inbox, the outbox, and the dispatch loops | 1, done |
+| `MsgHatch.Domain` | The routing contract, the pipeline, the inbox, the outbox, the dispatch loops, and the dispatch composites for a storage for each tenant | 1, done; 17, done |
 | `MsgHatch.Email` | The email channel, the template engine interface, and the placeholder engine | 3, done |
 | `MsgHatch.Email.AmazonSES` | The Amazon SES email client | 4, done |
 | `MsgHatch.Email.Resend` | The Resend email client | 4, done |
@@ -44,10 +44,10 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 | `MsgHatch.Broker` | The broker channel and the broker client contract | 6, done |
 | `MsgHatch.Broker.Wolverine` | Message brokers through Wolverine | 6, done |
 | `MsgHatch.Data.FileSystem` | The JSON file stores for the inbox and the outbox | 7, done |
-| `MsgHatch.Data.Sqlite` | The SQLite stores for the inbox and the outbox | 8, done |
+| `MsgHatch.Data.Sqlite` | The SQLite stores for the inbox and the outbox, on one file or on one file for each tenant | 8, done; 17, done |
 | `MsgHatch.Subscriptions` | The router with subscriptions on three levels, and its management API | 9, done |
 | `MsgHatch.Subscriptions.Data.FileSystem` | The JSON file subscription store | 10, done |
-| `MsgHatch.Subscriptions.Data.Sqlite` | The SQLite subscription store | 10, done |
+| `MsgHatch.Subscriptions.Data.Sqlite` | The SQLite subscription store, on one file or on one file for each tenant | 10, done; 17, done |
 | `MsgHatch.Subscriptions.Caching.Hybrid` | The HybridCache backend of the subscription cache | 11, done |
 | `MsgHatch.Subscriptions.Caching.FusionCache` | The FusionCache backend of the subscription cache | 11, done |
 | `MsgHatch.Subscriptions.AspNetCore` | HTTP endpoints for subscription management | 12, done |
@@ -57,7 +57,7 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 | `MsgHatch.Data.MongoDb` | The MongoDB stores | 19, planned |
 | `MsgHatch.Subscriptions.Data.MongoDb` | The MongoDB subscription store | 19, planned |
 
-Phase 14 added the routing verification to `MsgHatch.Subscriptions`. Phase 15 added the delivery management: the status `Cancelled`, the query, count, retry, cancel, and purge members of the stores, `IDeliveryManager`, and its HTTP endpoints in `MsgHatch.AspNetCore`. Phase 16 added the registry administration: the stored registry settings of the channels and the message types on top of the code, `IRegistryWriter`, the registry settings stores of the in-memory, file, and SQLite packages, the skip of a disabled message type or channel in the pipeline, and its HTTP endpoints in `MsgHatch.AspNetCore`.
+Phase 14 added the routing verification to `MsgHatch.Subscriptions`. Phase 15 added the delivery management: the status `Cancelled`, the query, count, retry, cancel, and purge members of the stores, `IDeliveryManager`, and its HTTP endpoints in `MsgHatch.AspNetCore`. Phase 16 added the registry administration: the stored registry settings of the channels and the message types on top of the code, `IRegistryWriter`, the registry settings stores of the in-memory, file, and SQLite packages, the skip of a disabled message type or channel in the pipeline, and its HTTP endpoints in `MsgHatch.AspNetCore`. Phase 17 added a store for each tenant: `ITenantSource`, the dispatch composites with `UseStorageForEachTenant`, `UseSqliteTenantStores` with one SQLite file for each tenant, and `UseSqliteTenantSubscriptionStore`.
 
 ## Example app
 `examples/ExampleApp` runs the subscription example of the design end to end, with no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, keeps all data in one SQLite file, and maps the subscription endpoints and the delivery endpoints under `/api/delivery`. A caller signs in with a local JWT from `dotnet user-jwts`:

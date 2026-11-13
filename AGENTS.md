@@ -4,18 +4,18 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 16 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, and the registry administration.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 17 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, and a store for each tenant.
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D171), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D174), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
 
 `docs/subscription-domain.md` describes the subscription domain of `MsgHatch.Subscriptions`: the three owner levels, the recipients, the merge rules, the resolution trace, the domain actions, and the numbered examples (for example `R7`, `M15`, or `T3`). A test of the subscription domain takes its rows from these examples, and names the example in each row.
 
-`docs/stores.md` explains the formats, the publish tries, the claims, the tenant field, and the versioning of the file and SQLite stores, and what a store for another storage must do. Read it before you change a store or add one.
+`docs/stores.md` explains the formats, the publish tries, the claims, the tenant field, and the versioning of the file and SQLite stores, a storage for each tenant, and what a store for another storage must do. Read it before you change a store or add one.
 
 `examples/ExampleApp` is the subscription example of section 1.1 of the design as a web app, with its use cases in the folders `Notices`, `PasswordResets`, `Recipients`, `Channels`, and `Startup`. `tests/ExampleApp.Tests.Unit` tests it on SQLite files.
 
@@ -28,7 +28,7 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite` |
 | Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 
-Phases 17 to 19 add a store for each tenant, the EF Core stores, and the MongoDB stores.
+Phases 18 and 19 add the EF Core stores and the MongoDB stores.
 
 ## Commands
 
