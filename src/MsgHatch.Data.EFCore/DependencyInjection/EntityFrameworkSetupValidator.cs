@@ -4,19 +4,24 @@ using Microsoft.Extensions.Options;
 namespace MsgHatch.Data.EFCore.DependencyInjection;
 
 /// <summary>
-/// The startup check of <c>UseEntityFrameworkStores</c> (D175): the EF Core provider of <see cref="MsgHatchDbContext"/>
-/// has the SQL statements of the stores. The message names the provider. The check opens no connection.
+/// The startup check of an EF Core setup method (D175, D182): the EF Core provider of <typeparamref name="TContext"/>
+/// has the SQL statements of the stores. The message names the setup method and the provider. The check opens no
+/// connection.
 /// </summary>
+/// <typeparam name="TContext">The context of the setup method.</typeparam>
 /// <param name="contexts">The pooled factory of the contexts.</param>
-internal sealed class EntityFrameworkSetupValidator(IDbContextFactory<MsgHatchDbContext> contexts) : IValidateOptions<EntityFrameworkSetupCheck>
+internal sealed class EntityFrameworkSetupValidator<TContext>(IDbContextFactory<TContext> contexts)
+    : IValidateOptions<EntityFrameworkSetupCheck<TContext>>
+    where TContext : DbContext
 {
-    public ValidateOptionsResult Validate(string? name, EntityFrameworkSetupCheck options)
+    public ValidateOptionsResult Validate(string? name, EntityFrameworkSetupCheck<TContext> options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         using var context = contexts.CreateDbContext();
         var provider = context.Database.ProviderName;
         return StoreModel.HasStatements(provider)
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(
-                $"UseEntityFrameworkStores has no SQL statements for the EF Core provider {provider}. The stores support {StoreModel.SqlServerProvider}.");
+                $"{options.SetupMethod} has no SQL statements for the EF Core provider {provider}. The stores support {StoreModel.SqlServerProvider}.");
     }
 }

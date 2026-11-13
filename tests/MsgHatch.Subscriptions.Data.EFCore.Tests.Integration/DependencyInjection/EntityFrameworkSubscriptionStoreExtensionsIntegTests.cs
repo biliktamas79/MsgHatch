@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
@@ -55,6 +56,27 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(SqlServ
 
         // Assert
         Assert.Equal([[Scenario.S6.Id.ToString("D")]], await database.RowsAsync("SELECT Id FROM [shared].[MsgHatchSubscription]", Ct));
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkSubscriptionStore_ProviderWithNoStatements_FailsTheStartupValidationWithTheSetupMethodAndTheProvider()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
+            .UseInMemoryStores()
+            .UseEntityFrameworkSubscriptionStore(static o => o.UseSqlite("Data Source=:memory:"));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.Equal(
+            (true, true),
+            (failure.Contains("UseEntityFrameworkSubscriptionStore", StringComparison.Ordinal),
+                failure.Contains("Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal)));
     }
 
     private static async Task CreateTablesAsync(ServiceProvider provider)

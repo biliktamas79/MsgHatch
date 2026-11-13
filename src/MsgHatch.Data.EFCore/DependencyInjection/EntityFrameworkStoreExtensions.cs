@@ -30,9 +30,7 @@ public static class EntityFrameworkStoreExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
         AddOptions(builder, nameof(UseEntityFrameworkStores), configureOptions);
-        AddContexts<MsgHatchDbContext>(builder.Services, configure);
-        builder.Services.AddOptions<EntityFrameworkSetupCheck>().ValidateOnStart();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<EntityFrameworkSetupCheck>, EntityFrameworkSetupValidator>());
+        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure);
         builder.Services.TryAddSingleton(static services => new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new EntityFrameworkOutboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new EntityFrameworkRegistrySettingsStore(ContextsOf(services)));
@@ -60,14 +58,23 @@ public static class EntityFrameworkStoreExtensions
         }
     }
 
-    /// <summary>Registers a pooled factory of a context, with the options of the host and the schema of <see cref="EntityFrameworkStoreOptions"/>.</summary>
-    internal static void AddContexts<TContext>(IServiceCollection services, Action<DbContextOptionsBuilder> configure)
-        where TContext : DbContext =>
+    /// <summary>
+    /// Registers a pooled factory of a context, with the options of the host and the schema of
+    /// <see cref="EntityFrameworkStoreOptions"/>, and the startup check of its provider, which names the setup method
+    /// (D175, D182).
+    /// </summary>
+    internal static void AddContexts<TContext>(IServiceCollection services, string setupMethod, Action<DbContextOptionsBuilder> configure)
+        where TContext : DbContext
+    {
         services.AddPooledDbContextFactory<TContext>((provider, options) =>
         {
             configure(options);
             SchemaOptionsExtension.Use(options, provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.Schema);
         });
+        services.AddOptions<EntityFrameworkSetupCheck<TContext>>().Configure(check => check.SetupMethod = setupMethod).ValidateOnStart();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<EntityFrameworkSetupCheck<TContext>>, EntityFrameworkSetupValidator<TContext>>());
+    }
 
     private static IDbContextFactory<MsgHatchDbContext> ContextsOf(IServiceProvider services) =>
         services.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>();

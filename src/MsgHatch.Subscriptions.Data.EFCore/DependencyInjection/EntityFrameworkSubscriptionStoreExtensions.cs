@@ -16,7 +16,8 @@ public static class EntityFrameworkSubscriptionStoreExtensions
     /// options of <paramref name="configure"/>, for example <c>o =&gt; o.UseSqlServer(connectionString)</c>. It shares the
     /// <see cref="EntityFrameworkStoreOptions"/> of <c>UseEntityFrameworkStores</c> (D59): the options bind from the
     /// section <c>MsgHatch:EntityFramework</c>. The package creates no schema: the host creates it with its own EF Core
-    /// migrations of <see cref="MsgHatchSubscriptionDbContext"/>.
+    /// migrations of <see cref="MsgHatchSubscriptionDbContext"/>. The startup validation fails for a provider with no SQL
+    /// statements of the store (D182).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">The options of the contexts, with the provider and its connection.</param>
@@ -26,7 +27,8 @@ public static class EntityFrameworkSubscriptionStoreExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
         EntityFrameworkStoreExtensions.AddOptions(builder, nameof(UseEntityFrameworkSubscriptionStore), configure: null);
-        EntityFrameworkStoreExtensions.AddContexts<MsgHatchSubscriptionDbContext>(builder.Services, configure);
+        EntityFrameworkStoreExtensions.AddContexts<MsgHatchSubscriptionDbContext>(
+            builder.Services, nameof(UseEntityFrameworkSubscriptionStore), configure);
         return builder.UseSubscriptionStore(
             static (services, key) => new EntityFrameworkSubscriptionStore(
                 services.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>(), key, services.GetRequiredService<ChannelSettingsJson>()),
