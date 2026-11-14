@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MongoDB.Driver" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MsgHatch.Subscriptions.Data.MongoDb" />
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,6 @@
 # MsgHatch stores
 
-This guide explains how the library stores keep the inbox, the outbox, the subscriptions, and the registry settings, and what a store for another storage must do. It covers the JSON file stores, the SQLite stores, and the EF Core stores. Phase 19 adds the section of the MongoDB stores.
+This guide explains how the library stores keep the inbox, the outbox, the subscriptions, and the registry settings, and what a store for another storage must do. It covers the JSON file stores, the SQLite stores, the EF Core stores, and the MongoDB stores.
 
 The design `docs/design.md` is the source of each rule. Section 4.5 has the persistence rules, section 4.6 has the contract rules, and section 4.13 has the versioning rules. This guide puts these rules together for each storage kind, and names the decision of each rule, for example D26.
 
@@ -426,7 +426,127 @@ The outbox claim first reads the down row of its channel. With a down row, it cl
 - The statements need SQL Server 2016 or later, for `JSON_MODIFY`, `JSON_QUERY`, `JSON_VALUE`, and `OPENJSON`. The integration tests run on SQL Server 2025 CU7: on the server of `appsettings.Local.json`, for example the local container dev-mssql, or else in a container through Testcontainers (D180).
 - The schema is a part of the options of each context. So two hosts with two schemas in one process get two models.
 
-## 5. A store for another storage
+## 5. MongoDB stores
+
+`MsgHatch.Data.MongoDb` keeps the inbox, the outbox, the down states, and the registry settings in one MongoDB database through the official driver `MongoDB.Driver` (D121). `UseMongoDbStores(o => o.ConnectionString = "mongodb://localhost:27017")` selects them. `MsgHatch.Subscriptions.Data.MongoDb` adds the subscription store with `UseMongoDbSubscriptionStore()`.
+
+### 5.1 Options and collections
+
+`MongoDbStoreOptions` binds from the section `MsgHatch:MongoDb`:
+
+| Option | Default | Rule |
+|---|---|---|
+| `ConnectionString` | none | Required. The setup method makes the `IMongoClient` from it with `TryAdd`, so a client that the host registered stays (D60). |
+| `DatabaseName` | `msghatch` | Required. Only ASCII letters, digits, `_`, and `-`, and at most 63 characters, because MongoDB 8.3.7 rejects a longer name (checked fact of phase 19). |
+
+| Collection | Documents | Indexes |
+|---|---|---|
+| `MsgHatchInbox` | One document for each received message | `UX_MsgHatchInbox_Key`, unique on `(tenant, delivery.id)`. `IX_MsgHatchInbox_Due` on `(delivery.nextTryAtUtc.t, _id)` with the filter `delivery.status: "Pending"` (D104). `IX_MsgHatchInbox_Flags` on `flags`. `IX_MsgHatchInbox_Created` on `(tenant, delivery.createdAtUtc.t, delivery.id)`. |
+| `MsgHatchOutbox` | One document for each outgoing message | `UX_MsgHatchOutbox_Id`, unique on `delivery.id`. `IX_MsgHatchOutbox_Due` on `(channel, delivery.nextTryAtUtc.t, _id)` with the filter `delivery.status: "Pending"`. `IX_MsgHatchOutbox_Flags`, `IX_MsgHatchOutbox_Created`, `IX_MsgHatchOutbox_Target` on `(tenant, target.kind, target.id, delivery.createdAtUtc.t)`, and `IX_MsgHatchOutbox_Source` on `sourceMessageId`. |
+| `MsgHatchChannelDown` | One document for each down channel, with the channel name as `_id` (D106) | Only `_id` |
+| `MsgHatchChannelEntry`, `MsgHatchMessageTypeEntry` | One document for each registry entry, with the name as `_id` (section 4.20 of the design) | Only `_id` |
+
+- A store creates the indexes of its collection before its first operation, one time for each database in the process. The creation is idempotent, so two processes can do it at the same time. A failed creation is tried again at the next operation.
+- The claim index has `_id` as its last key. On MongoDB 8.3.7, a claim with the index on `(channel, delivery.nextTryAtUtc.t)` only has a `SORT` stage that reads each due document, and with `_id` as the last key, the plan stops after the `LIMIT` with no sort (checked fact of phase 19).
+- No collection keeps a schema version of the store. Each message document has `schemaVersion` and `contentVersion`, and each index has a name, so a later version can change an index by its name.
+
+### 5.2 Message format
+
+`AddAsync` writes the whole message with `MsgHatchJson`, and converts that JSON document into one BSON document with the same names (D184):
+
+- An object becomes a BSON document, an array a BSON array, and a string, a boolean, or null its BSON value. So the event, the envelope, and the route trace with its `$type` stay sub-documents that a person can read and edit in the tools of MongoDB.
+- A number becomes a 32-bit or a 64-bit integer when it is one, and else a `Decimal128` with the digits of its text, so `19.90` comes back as `19.90`. A number with more than 34 significant digits gives `Errors.SerializationFailed`, because `Decimal128.TryParse` does not round it (checked fact of phase 19).
+- Each time of the delivery state, of a publish try, of a down state, of a registry entry, and of a subscription is the sub-document `{ d, t }` (D185). `d` is the BSON date cut to the millisecond, for the tools, the date operators, and a TTL index. `t` is the number of UTC ticks of 100 nanoseconds, the exact time. Each filter, sort, and index uses `t`, and a read takes `t` only. A person who edits a time changes `t`.
+- `_id` is an ObjectId with the creation time of the message, in seconds, and the counter of the driver (D187). A store never reads the clock (section 1.6), so the time of the ObjectId comes from `CreatedAtUtc`. The counter increases in each process, so the ObjectIds of the adds of one process in a row increase.
+- The stores register no BSON class map and no serializer, so they do not change the BSON setup of the host.
+
+An outgoing message with one failed try, in the shell syntax of MongoDB:
+
+```js
+{
+  _id: ObjectId("..."),
+  schemaVersion: 1,
+  delivery: {
+    id: "7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31", status: "Pending", tryCount: 1, maxTryCount: 8,
+    createdAtUtc: { d: ISODate("2026-10-31T08:00:00Z"), t: NumberLong("639290304000000000") },
+    lastTryAtUtc: { d: ISODate("2026-10-31T08:00:01Z"), t: NumberLong("639290304010000000") },
+    nextTryAtUtc: { d: ISODate("2026-10-31T08:00:06Z"), t: NumberLong("639290304060000000") },
+    leaseUntilUtc: null, expiresAtUtc: null, lastError: "RateLimited: Maximum sending rate exceeded."
+  },
+  sourceMessageId: "0b6c1f7e-2a44-4d8e-9a3b-61c0f5e2d7a9", tenant: null, type: "OrderShipped", channel: "Email",
+  target: { kind: "User", id: "1" }, contentType: "Email:OrderShippedEmail", contentVersion: 1, flags: "None",
+  traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  trace: { $type: "Trace:Subscription@1", target: "ScopeUser", ... },
+  envelope: { to: "client1@example.com", subject: "Order 1001 is shipped", ... },
+  tries: [
+    {
+      tryNumber: 1,
+      startedAtUtc: { d: ISODate("2026-10-31T08:00:00Z"), t: NumberLong("639290304000000000") },
+      finishedAtUtc: { d: ISODate("2026-10-31T08:00:01Z"), t: NumberLong("639290304010000000") },
+      outcome: "TransientError", providerMessageId: null, errorCode: 429, errorName: "RateLimited",
+      errorMessage: "Maximum sending rate exceeded."
+    }
+  ]
+}
+```
+
+To read a message, the store converts the BSON document back into the JSON document of `MsgHatchJson`, with no `_id` and no `tries`. A sub-document with only `d` as a date and `t` as a 64-bit integer becomes the ISO 8601 text of `t`. JSON has no BSON date, so a sub-document from JSON never has this shape. A value of a BSON type that JSON does not have, for example an ObjectId that a person wrote into an event, gives `Errors.SerializationFailed` for that document only.
+
+### 5.3 Publish tries
+
+`RecordTryAsync` is one `updateOne` (D27):
+
+```js
+db.MsgHatchOutbox.updateOne(
+  { "delivery.id": id, "delivery.tryCount": tryNumber - 1 },
+  { $push: { tries: publishTry }, $set: { "delivery.status": status, "delivery.tryCount": tryNumber, ... } })
+```
+
+- No matched document means that the try is already recorded, or that the message is not stored. Only then a count reads whether the id is stored, and an id that is not stored gives `Errors.NotFound`.
+- The cancel of outgoing messages is one `updateMany` with an aggregation pipeline. `$concatArrays` appends the cancelled try with the try number `{ $add: ["$delivery.tryCount", 1] }`, so each document gets its next try number in the same update. Each value of the try is in `$literal`, so a text that starts with `$` stays a text.
+
+### 5.4 Claim pattern
+
+The claim is a loop of `findOneAndUpdate` calls, one for each message, until `maxCount` messages or no due message (D121):
+
+```js
+db.MsgHatchOutbox.findOneAndUpdate(
+  { "delivery.status": "Pending", channel: channel, "delivery.nextTryAtUtc.t": { $lte: nowTicks } },
+  { $set: { "delivery.nextTryAtUtc": leaseEnd, "delivery.leaseUntilUtc": leaseEnd } },
+  { sort: { "delivery.nextTryAtUtc.t": 1, _id: 1 }, returnDocument: "after" })
+```
+
+1. The outbox claim first reads the down document of its channel. With a down document, it claims nothing, and returns it as `ClaimResult.Down` (D106).
+2. Each call takes the due message with the earliest due time, and of these the one with the lowest `_id` (D144, D187). It sets the due time and the lease end to the end of the lease (D103). Each call is atomic, so two parallel claims get different messages.
+3. A stop between two calls leaves only the messages that the store already claimed leased, so no message waits for more than one lease.
+4. A claimed document that the code cannot read stays out of the result. A transient error, for example a newer version, keeps it leased for a newer instance. A permanent error sets the status `Failed`, ends the lease, and writes `{ErrorName}: {message}` into `lastError`.
+5. When the claim takes fewer than `maxCount` documents, a query reads the earliest due time of the pending documents as `NextDueAtUtc`. Else `NextDueAtUtc` is now.
+
+`SetChannelDownAsync` with the reason `Errors` is an `insertOne`, and a stored channel gives a duplicate key, so the first loop wins. With the reason `Operator`, it is a `replaceOne` with `upsert`. `TryStartChannelCheckAsync` is one `updateOne` with the condition `nextCheckAtUtc.t <= now`.
+
+### 5.5 Two parts and the tenant field
+
+- `MongoDbInboxStore` and `MongoDbOutboxStore` are the dispatch stores. `For(key)` gives the tenant store of a key.
+- The tenant is the field `tenant`, with null for no tenant. A unique index treats null as one value, so the store needs no empty text for no tenant.
+- `AddAsync` is one unordered `insertMany` with no transaction, which skips each document whose key is stored (D186). So a second add of a key changes nothing, also from a parallel caller, and the stores work on a server with no replica set. A server failure can store a part of a batch. The next add of the same messages adds the rest.
+- A query is one `find` with the filters, the sort `delivery.createdAtUtc.t` descending and `delivery.id` descending (D112), and a projection with no content. A retry is one `updateMany` with a pipeline that gives a failed message new tries with `$cond` (D111).
+- A purge reads the finished documents in the order of their finish time, `$ifNull` of `lastTryAtUtc.t` and `createdAtUtc.t`, up to `maxCount`, and deletes these documents with a filter that they are still finished (D128). A count is one aggregation with `$group` by the message type, the channel, the status, and the test flag, and `$min` of the due time of the pending documents (D164).
+
+### 5.6 Registry settings store
+
+`MongoDbRegistrySettingsStore` keeps the registry settings in `MsgHatchChannelEntry` and `MsgHatchMessageTypeEntry` (section 4.20 of the design). `UseMongoDbStores` registers it.
+
+- A document is `{ _id: "Email", displayName, description, enabled, revision, lastModifiedAtUtc: { d, t } }`. A message type document also has `disabledChannels` as an array of channel names.
+- A new entry, with the revision 1, is an `insertOne`, and a stored name gives `Errors.Conflict`. A change is a `replaceOne` with the condition `revision: revision - 1`, and no matched document gives `Errors.Conflict`.
+- `GetEntriesAsync` sorts each list with the ordinal comparer. A field with another BSON type or an invalid name gives `Errors.SerializationFailed`.
+
+### 5.7 Connections, errors, and limits
+
+- The stores share one `IMongoClient`, which pools the connections, so they are thread-safe singletons (D130).
+- A server failure gives `Errors.Unavailable`, also a server that the driver cannot select in its timeout. A field with another BSON type, a missing field, an invalid name, or invalid JSON gives `Errors.SerializationFailed`. A cancelled token gives `Errors.OperationCancelled`.
+- The stores use no transaction and no change stream, so they work on a server with no replica set. The integration tests run on MongoDB 8.3.7: on the server of `appsettings.Local.json`, for example the local container dev-mongo, a replica set with one member, or else in a container of the image `mongo:8.3` through Testcontainers (D183).
+
+## 6. A store for another storage
 
 A consumer can write a store for another storage. Do these steps:
 
