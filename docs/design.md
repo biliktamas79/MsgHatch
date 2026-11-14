@@ -924,7 +924,7 @@ Options (D49, D63, D64, D65). Each options class is a `sealed class` with a publ
 | | | `SystemConnectionString` | none | `[Required]`. It must not contain `{tenant}`. It names the database of the system storage, for the key `TenantKey.None`. |
 | `EntityFrameworkStoreOptions` | `MsgHatch:EntityFramework` | `Schema` | `"msghatch"` | `[Required]`, `[RegularExpression("^[A-Za-z_][A-Za-z0-9_]*$")]` |
 | `MongoDbStoreOptions` | `MsgHatch:MongoDb` | `ConnectionString` | none | `[Required]` |
-| | | `DatabaseName` | `"msghatch"` | `[Required]`, `[RegularExpression("^[A-Za-z0-9_-]+$")]` |
+| | | `DatabaseName` | `"msghatch"` | `[Required]`, `[RegularExpression("^[A-Za-z0-9_-]+$")]`, `[MaxLength(63)]`, because MongoDB 8.3.7 rejects a longer name (checked fact of phase 19 in the roadmap) |
 | `RegistryOptions` | `MsgHatch:Registry` | `RefreshInterval` | 30 seconds | `[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]` (D118) |
 | `FileTemplateOptions` | `MsgHatch:FileTemplates` | `RootPath` | none | `[Required]` |
 | `AmazonSesOptions` | `MsgHatch:AmazonSes` | `SenderEmail` | none | `[Required]`, `[EmailAddress]`, and `[RegularExpression("^[ -~]+$")]`, because SES accepts only 7-bit ASCII in an address. A domain with other letters is in Punycode. |
@@ -984,7 +984,7 @@ The stores receive the typed envelopes and serialize them with the serializer of
 | Storage | Outgoing message | Publish tries | Claim |
 |---|---|---|---|
 | JSON files in a folder | One file for each message, written with `MsgHatchJson`. `MsgHatch.Data.FileSystem` ships `FileSystemOutboxStore` (D26). | An array in the same file. | An atomic rename from the `pending` folder to the `claimed` folder. |
-| NoSQL database, for example MongoDB | One BSON document for each message, converted from the JSON document of `MsgHatchJson` (D184), with each time as `{ d, t }` (D185), and a partial index on `channel` and the due time with the filter `status: "Pending"` (D104). `MsgHatch.Data.MongoDb` ships `MongoDbOutboxStore` (D121). | An embedded array. The store adds a try with `$push` in the same update as the delivery state. | An atomic conditional update of each document, for example `findOneAndUpdate`. |
+| NoSQL database, for example MongoDB | One BSON document for each message, converted from the JSON document of `MsgHatchJson` (D184), with each time as `{ d, t }` (D185), and a partial index on `channel`, the due time, and `_id` with the filter `status: "Pending"` (D104, D187). `MsgHatch.Data.MongoDb` ships `MongoDbOutboxStore` (D121). | An embedded array. The store adds a try with `$push` in the same update as the delivery state. | An atomic conditional update of each document, for example `findOneAndUpdate`. |
 | SQLite | Columns for the delivery state, the content type, and the versions. A JSON text column for the channel envelope, written with `MsgHatchJson`. `MsgHatch.Data.Sqlite` ships `SqliteOutboxStore` (D55). | A JSON array column `Tries` of the message row. One `UPDATE` adds the try and changes the delivery state (D27). | An `UPDATE ... RETURNING` of the first due rows. SQLite allows one writer at a time, so the claim is atomic. |
 | SQL Server | Columns for the delivery state, the content type, and the versions. A JSON column for the channel envelope, written with `MsgHatchJson`. `MsgHatch.Data.EFCore` ships `EntityFrameworkOutboxStore` (D120). | A JSON array column `Tries` of the message row. One `UPDATE` adds the try and changes the delivery state (D27). | An `UPDATE` with an `OUTPUT` clause of the rows of a subquery that selects the first due rows with `TOP`, `ORDER BY NextTryAtUtc, Sequence` (D144), and the hints `ROWLOCK, READPAST, UPDLOCK` (D120). |
 
@@ -2692,8 +2692,8 @@ The tests follow the `core:automated-tests` skill of the Transcend agent tooling
 | `MsgHatch.AspNetCore.Tests.Unit` | Unit | none. A `TestServer` runs the endpoints in memory, with doubles. | 15 |
 | `MsgHatch.Data.EFCore.Tests.Integration` | Integration | The SQL Server of `appsettings.Local.json`, which git ignores, or else SQL Server in a container through Testcontainers (D124, D180) | 18 |
 | `MsgHatch.Subscriptions.Data.EFCore.Tests.Integration` | Integration | The SQL Server of `appsettings.Local.json`, which git ignores, or else SQL Server in a container through Testcontainers (D124, D180) | 18 |
-| `MsgHatch.Data.MongoDb.Tests.Integration` | Integration | MongoDB in a container, through Testcontainers (D124) | 19 |
-| `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` | Integration | MongoDB in a container, through Testcontainers (D124) | 19 |
+| `MsgHatch.Data.MongoDb.Tests.Integration` | Integration | The MongoDB of `appsettings.Local.json`, which git ignores, or else MongoDB in a container through Testcontainers (D124, D183) | 19 |
+| `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` | Integration | The MongoDB of `appsettings.Local.json`, which git ignores, or else MongoDB in a container through Testcontainers (D124, D183) | 19 |
 
 Packages:
 - `Directory.Build.props` gives each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance` the property `OutputType` `Exe`. It gives each unit and integration test project references to `xunit.v3`, `Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, `NSubstitute`, `NSubstitute.Analyzers.CSharp`, `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.Extensions.Diagnostics.Testing`, and `coverlet.collector` (D70).
