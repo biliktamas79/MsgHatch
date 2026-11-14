@@ -56,7 +56,7 @@ public sealed class DomainEventReceiverUnitTests : IAsyncLifetime
         // Assert
         Assert.Equal(
             [
-                "north Email admin@acme.example A user of your company signed in",
+                "north Email admin@acme.example A cégének egyik felhasználója bejelentkezett",
                 "north SignalR u:1 UserLogin: User 1 signed in at 2030-01-01 00:00:00Z.",
             ],
             await RoutedAsync());
@@ -92,7 +92,7 @@ public sealed class DomainEventReceiverUnitTests : IAsyncLifetime
         // Assert
         Assert.Equal(
             [
-                "north Email admin@acme.example A project of your company was created",
+                "north Email admin@acme.example Új projekt jött létre a cégénél",
                 "north SignalR u:2 ProjectCreated: Project Bridge (7) of user 2 was created.",
             ],
             await RoutedAsync());
@@ -128,7 +128,7 @@ public sealed class DomainEventReceiverUnitTests : IAsyncLifetime
         // Assert
         Assert.Equal(
             [
-                "north Email admin@acme.example A maintenance of the system is planned",
+                "north Email admin@acme.example Karbantartás várható a rendszerben",
                 "north Email admin@globex.example A maintenance of the system is planned",
                 "north SignalR c:100 TenantMaintenance: The maintenance of north runs from 2030-01-02 00:00:00Z to 2030-01-02 02:00:00Z.",
                 "north SignalR c:200 TenantMaintenance: The maintenance of north runs from 2030-01-02 00:00:00Z to 2030-01-02 02:00:00Z.",

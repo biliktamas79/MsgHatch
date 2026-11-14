@@ -19,20 +19,23 @@ public static class ConsumerScenario
     /// <summary>The second tenant, with the same ids as <see cref="North"/>.</summary>
     public const string South = "south";
 
-    /// <summary>The company Acme of the tenant <see cref="North"/>, with the users 1 and 2.</summary>
+    /// <summary>The company Acme of the tenant <see cref="North"/>, with the users 1 and 2, and a Hungarian administrator.</summary>
     public const int Acme = 100;
 
-    /// <summary>The company Globex of the tenant <see cref="North"/>, with the users 3 and 4.</summary>
+    /// <summary>The company Globex of the tenant <see cref="North"/>, with the users 3 and 4, and an English administrator.</summary>
     public const int Globex = 200;
 
-    /// <summary>The company Initech of the tenant <see cref="South"/>, with the users 1 and 2.</summary>
+    /// <summary>The company Initech of the tenant <see cref="South"/>, with the users 1 and 2, and an English administrator.</summary>
     public const int Initech = 100;
 
     /// <summary>The tenants, each with its companies and users.</summary>
     public static IReadOnlyList<ScenarioTenant> Tenants { get; } =
     [
-        new(North, [new(Acme, "admin@acme.example"), new(Globex, "admin@globex.example")], [new(1, Acme), new(2, Acme), new(3, Globex), new(4, Globex)]),
-        new(South, [new(Initech, "admin@initech.example")], [new(1, Initech), new(2, Initech)]),
+        new(
+            North,
+            [new(Acme, "hu", "admin@acme.example"), new(Globex, "en", "admin@globex.example")],
+            [new(1, Acme), new(2, Acme), new(3, Globex), new(4, Globex)]),
+        new(South, [new(Initech, "en", "admin@initech.example")], [new(1, Initech), new(2, Initech)]),
     ];
 
     /// <summary>

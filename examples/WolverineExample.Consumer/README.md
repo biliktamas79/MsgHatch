@@ -39,7 +39,7 @@ dotnet run --project examples/WolverineExample.Publisher
 
 The publisher declares the queue too. So you can also start the publisher first. The broker then keeps the events until the consumer starts. Wolverine declares two durable queues on the broker: `msghatch-example-events`, and `wolverine-dead-letter-queue` for the events that the consumer cannot accept after its retries.
 
-The consumer writes each email to its log, with the event id 9200. It needs no SMTP server and no cloud account. Its SQLite file `wolverine-example.db` is in the working folder of the app, and git ignores it. Delete the file to seed the example data again.
+The consumer writes each email to its log, with the event id 9200. It needs no SMTP server and no cloud account. Its SQLite file `wolverine-example.db` is in the working folder of the app, and git ignores it. Delete the file to seed the example data again, for example after a change of the scenario or of the directory tables.
 
 The unit tests of the routing and of the user tokens need no broker:
 
@@ -55,13 +55,15 @@ dotnet test tests/WolverineExample.UserSimulator.Tests.Unit
 
 At its first start, the consumer writes the example data into its SQLite file (`Startup/ConsumerScenario.cs`):
 
-| Tenant | Company | Admin email | Users |
-|---|---|---|---|
-| `north` | `100` Acme | `admin@acme.example` | `1`, `2` |
-| `north` | `200` Globex | `admin@globex.example` | `3`, `4` |
-| `south` | `100` Initech | `admin@initech.example` | `1`, `2` |
+| Tenant | Company | Admin email | Admin language | Users |
+|---|---|---|---|---|
+| `north` | `100` Acme | `admin@acme.example` | `hu` | `1`, `2` |
+| `north` | `200` Globex | `admin@globex.example` | `en` | `3`, `4` |
+| `south` | `100` Initech | `admin@initech.example` | `en` | `1`, `2` |
 
 The tenant `south` uses the same ids as the tenant `north`. The events of one tenant never reach the users of the other tenant.
+
+The admin language is the default language of the company. An email to a company has no language in its subscription, so the router takes the default language of the company (`docs/subscription-domain.md`, section 2.2). The email template store then selects the template of that language, for example `UserLogin.hu.subject.txt` for Acme and `UserLogin.en.subject.txt` for Globex. The folder `Templates` has an English and a Hungarian template for each message type. The placeholder `{{Text}}` stays English, because the consumer makes that text in code. SignalR sends its payload as data, with no template, so the language changes no SignalR notification.
 
 Each tenant has the same 10 default subscriptions. Each message type has 2:
 
@@ -84,11 +86,11 @@ The sample events of the publisher give these deliveries:
 
 | Sample event | SignalR | Email |
 |---|---|---|
-| `UserLogin` of user `1` | user `north:1` | `admin@acme.example` |
-| `CompanyArchived` of company `200` | group of company `200` | `admin@globex.example` |
-| `ProjectCreated` of project `7`, owner `2` | user `north:2` | `admin@acme.example` |
-| `ProjectFinished` of project `7`, owner `2` | user `north:2` | `admin@acme.example` |
-| `TenantMaintenance` of tenant `north` | groups of companies `100` and `200` | `admin@acme.example`, `admin@globex.example` |
+| `UserLogin` of user `1` | user `north:1` | `admin@acme.example`, Hungarian |
+| `CompanyArchived` of company `200` | group of company `200` | `admin@globex.example`, English |
+| `ProjectCreated` of project `7`, owner `2` | user `north:2` | `admin@acme.example`, Hungarian |
+| `ProjectFinished` of project `7`, owner `2` | user `north:2` | `admin@acme.example`, Hungarian |
+| `TenantMaintenance` of tenant `north` | groups of companies `100` and `200` | `admin@acme.example`, Hungarian, and `admin@globex.example`, English |
 
 ## Decisions of the example
 

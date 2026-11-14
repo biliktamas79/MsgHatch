@@ -11,10 +11,11 @@ namespace WolverineExample.Consumer.Recipients;
 
 /// <summary>
 /// The recipient directory of the consumer (D76), on the SQLite file of the stores. The table <c>Companies</c> holds the
-/// email address of the administrator of each company, which is the company address of the email channel. The table
-/// <c>Users</c> holds the company of each user. Each row has the tenant of its directory, so the company <c>100</c> of
-/// one tenant is not the company <c>100</c> of another tenant (D114). A profile has no language, so each message has the
-/// default language of MsgHatch.
+/// default language and the email address of the administrator of each company. The email address is the company
+/// address of the email channel, and the default language selects the language of the email templates for the company.
+/// The table <c>Users</c> holds the company of each user. Each row has the tenant of its directory, so the company
+/// <c>100</c> of one tenant is not the company <c>100</c> of another tenant (D114). A user profile has no language,
+/// because no email goes to a user in this example.
 /// </summary>
 /// <param name="key">The tenant of this directory (D126).</param>
 /// <param name="options">The options of the SQLite stores, with the connection string of the file.</param>
@@ -22,7 +23,7 @@ public sealed class ConsumerDirectory(TenantKey key, IOptions<SqliteStoreOptions
 {
     private const string _schema = """
         CREATE TABLE IF NOT EXISTS Companies (
-            TenantId TEXT NOT NULL, Id INTEGER NOT NULL, AdminEmail TEXT, PRIMARY KEY (TenantId, Id));
+            TenantId TEXT NOT NULL, Id INTEGER NOT NULL, DefaultLanguage TEXT NOT NULL, AdminEmail TEXT, PRIMARY KEY (TenantId, Id));
         CREATE TABLE IF NOT EXISTS Users (
             TenantId TEXT NOT NULL, Id INTEGER NOT NULL, CompanyId INTEGER, PRIMARY KEY (TenantId, Id));
         CREATE INDEX IF NOT EXISTS IX_Users_Company ON Users (TenantId, CompanyId);
@@ -59,10 +60,10 @@ public sealed class ConsumerDirectory(TenantKey key, IOptions<SqliteStoreOptions
 
         return await RunAsync<CompanyProfile?>(async connection =>
         {
-            await using var command = Command(connection, "SELECT Id, AdminEmail FROM Companies WHERE TenantId = $tenant AND Id = $id");
+            await using var command = Command(connection, "SELECT Id, DefaultLanguage, AdminEmail FROM Companies WHERE TenantId = $tenant AND Id = $id");
             command.Parameters.AddWithValue("$id", id);
             await using var reader = await command.ExecuteReaderAsync(ct);
-            return await reader.ReadAsync(ct) ? new CompanyProfile(CompanyId.From(reader.GetInt32(0)), DefaultLanguage: null, AddressesOf(reader, 1)) : null;
+            return await reader.ReadAsync(ct) ? new CompanyProfile(CompanyId.From(reader.GetInt32(0)), reader.GetString(1), AddressesOf(reader, 2)) : null;
         }, ct);
     }
 
@@ -91,10 +92,11 @@ public sealed class ConsumerDirectory(TenantKey key, IOptions<SqliteStoreOptions
     {
         ArgumentNullException.ThrowIfNull(company);
         return WriteAsync(
-            "INSERT OR REPLACE INTO Companies (TenantId, Id, AdminEmail) VALUES ($tenant, $id, $email)",
+            "INSERT OR REPLACE INTO Companies (TenantId, Id, DefaultLanguage, AdminEmail) VALUES ($tenant, $id, $language, $email)",
             command =>
             {
                 command.Parameters.AddWithValue("$id", company.Id);
+                command.Parameters.AddWithValue("$language", company.DefaultLanguage);
                 command.Parameters.AddWithValue("$email", (object?)company.AdminEmail ?? DBNull.Value);
             }, ct);
     }
