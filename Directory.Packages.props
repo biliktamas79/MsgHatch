@@ -56,6 +56,12 @@
     <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.61.0" />
   </ItemGroup>
 
+  <ItemGroup Label="WolverineExample.UserSimulator">
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
+  </ItemGroup>
+
   <ItemGroup Label="ExampleApp.Tests.Unit">
     <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
   </ItemGroup>
@@ -64,7 +70,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
   </ItemGroup>
 
-  <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration and the WolverineExample apps">
+  <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration and the WolverineExample publisher and consumer">
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.61.0" />
   </ItemGroup>
 

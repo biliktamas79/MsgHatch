@@ -1,10 +1,11 @@
-# Wolverine example: publisher and consumer
+# Wolverine example: publisher, consumer, and user simulator
 
-Two console apps show the full flow of MsgHatch behind a message broker:
+Three console apps show the full flow of MsgHatch behind a message broker:
 
 - `WolverineExample.Publisher` sends five domain events to the RabbitMQ queue `msghatch-example-events` through Wolverine, and then stops.
 - `WolverineExample.Consumer` listens to that queue through Wolverine. It gives each event to the MsgHatch inbox. The subscription router then sends SignalR notifications and emails to the users and the company administrators that the subscriptions name.
-- `WolverineExample.Contracts` holds the five event records and the RabbitMQ options. Both apps reference it.
+- `WolverineExample.UserSimulator` connects one SignalR client for each simulated user to the hub of the consumer, and logs each notification that a user gets.
+- `WolverineExample.Contracts` holds the five event records, their names, and the RabbitMQ options. The apps reference it.
 
 The examples are outside the phases of `docs/roadmap.md`.
 
@@ -24,7 +25,13 @@ Start the consumer first, and leave it open:
 dotnet run --project examples/WolverineExample.Consumer
 ```
 
-Then send the five sample events from a second terminal:
+To see the SignalR notifications, start the user simulator in a second terminal, and leave it open. Its first start needs one signing key of `dotnet user-jwts`, so make one token one time before (see [Simulate the users](#simulate-the-users)):
+
+```bash
+dotnet run --project examples/WolverineExample.UserSimulator
+```
+
+Then send the five sample events from a third terminal:
 
 ```bash
 dotnet run --project examples/WolverineExample.Publisher
@@ -34,10 +41,14 @@ The publisher declares the queue too. So you can also start the publisher first.
 
 The consumer writes each email to its log, with the event id 9200. It needs no SMTP server and no cloud account. Its SQLite file `wolverine-example.db` is in the working folder of the app, and git ignores it. Delete the file to seed the example data again.
 
-The unit tests of the routing need no broker:
+The unit tests of the routing and of the user tokens need no broker:
 
 ```bash
 dotnet test tests/WolverineExample.Consumer.Tests.Unit
+```
+
+```bash
+dotnet test tests/WolverineExample.UserSimulator.Tests.Unit
 ```
 
 ## Example data
@@ -87,7 +98,7 @@ The sample events of the publisher give these deliveries:
 - **The SignalR hub knows the tenant.** The SignalR transport sends a user message to the name `{tenant}:{user}`, and a company message to the group of the company. `TenantUserIdProvider` gives each connection that name, and `NotificationHub` adds each connection to the group of the company of its user.
 - **The email client writes to the log.** The library has no development email client, so `LogEmailClient` is the same log client as in `ExampleApp`.
 
-## Connect a SignalR client
+## Simulate the users
 
 The hub needs a JWT with the user id and the claim `tenant`. Make one for user `1` of the tenant `north`:
 
@@ -97,4 +108,24 @@ dotnet user-jwts create --project examples/WolverineExample.Consumer --name 1 --
 
 The command writes the signing key into the user secrets of the consumer. `appsettings.Development.json` holds the issuer and the audience of the tokens, so the consumer accepts them in the `Development` environment of its launch profile.
 
-Connect a .NET SignalR client to `http://localhost:5090/hubs/notifications` with the token as its access token. The client gets each notification on a method with the name of the message type, for example `UserLogin`, with a payload `{ "text": "..." }`. The JWT bearer setup reads the token from the `Authorization` header only. A browser client sends the token in the query string, so it needs an `OnMessageReceived` handler that the example does not have.
+The user simulator has the same `UserSecretsId` as the consumer. So it reads that signing key, and signs a token for each simulated user itself, with the claims `sub` and `tenant`. Only a development setup has this key. A real client gets its token from an identity provider.
+
+The simulated users are in the section `UserSimulator:Users` of `appsettings.json` of the simulator: the users `1` to `4` of `north`, and `1` and `2` of `south`. The client does not choose its groups. The hub of the consumer adds each connection to the user name `{tenant}:{user}` and to the group of the company of the user. So each simulated user gets:
+
+- Its user messages: `UserLogin`, `ProjectCreated`, and `ProjectFinished`.
+- The messages of its company: `CompanyArchived`.
+- The messages of its tenant: `TenantMaintenance`, which the consumer sends to the group of each company of the tenant.
+
+The simulator logs each notification with the event id 9300, for example `User north:1 got UserLogin: User 1 signed in at ...`. The sample events of the publisher reach these users:
+
+| Simulated user | Notifications |
+|---|---|
+| `north:1` | `UserLogin`, `TenantMaintenance` |
+| `north:2` | `ProjectCreated`, `ProjectFinished`, `TenantMaintenance` |
+| `north:3` | `CompanyArchived`, `TenantMaintenance` |
+| `north:4` | `CompanyArchived`, `TenantMaintenance` |
+| `south:1`, `south:2` | none |
+
+A user that cannot connect, for example because the consumer is not started yet, tries again every 2 seconds. A connected user reconnects by itself after a short outage.
+
+Another client connects to `http://localhost:5090/hubs/notifications` with the token as its access token. It gets each notification on a method with the name of the message type, for example `UserLogin`, with a payload `{ "text": "..." }`. The JWT bearer setup reads the token from the `Authorization` header only. A browser client sends the token in the query string, so it needs an `OnMessageReceived` handler that the example does not have.

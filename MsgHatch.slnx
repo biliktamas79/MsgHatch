@@ -4,6 +4,7 @@
     <Project Path="examples/WolverineExample.Consumer/WolverineExample.Consumer.csproj" />
     <Project Path="examples/WolverineExample.Contracts/WolverineExample.Contracts.csproj" />
     <Project Path="examples/WolverineExample.Publisher/WolverineExample.Publisher.csproj" />
+    <Project Path="examples/WolverineExample.UserSimulator/WolverineExample.UserSimulator.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/MsgHatch.AspNetCore/MsgHatch.AspNetCore.csproj" />
@@ -58,5 +59,6 @@
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Performance/MsgHatch.Subscriptions.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />
+    <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />
   </Folder>
 </Solution>

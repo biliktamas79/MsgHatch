@@ -24,10 +24,6 @@ public static class ConsumerSetup
     /// <summary>The prefix of the embedded email templates.</summary>
     public const string TemplatePrefix = "WolverineExample.Consumer.Templates";
 
-    /// <summary>The names of the message types, which are the names of the domain events.</summary>
-    public static IReadOnlyList<string> MessageTypes { get; } =
-        [nameof(UserLogin), nameof(CompanyArchived), nameof(ProjectCreated), nameof(ProjectFinished), nameof(TenantMaintenance)];
-
     /// <summary>
     /// Registers MsgHatch for the consumer. The connection string of the database file comes from
     /// <c>MsgHatch:Sqlite:ConnectionString</c>.

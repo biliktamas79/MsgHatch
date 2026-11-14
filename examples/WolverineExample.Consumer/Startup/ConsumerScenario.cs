@@ -2,6 +2,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Email;
 using MsgHatch.SignalR;
 using MsgHatch.Subscriptions;
+using WolverineExample.Contracts;
 
 namespace WolverineExample.Consumer.Startup;
 
@@ -40,7 +41,7 @@ public static class ConsumerScenario
     /// gets the email. For a company scope, the SignalR group of the company gets the notification, and the company gets
     /// the email. The company address of the email channel is the email address of the company administrator.
     /// </summary>
-    public static IReadOnlyList<SubscriptionDraft> Subscriptions { get; } = [.. ConsumerSetup.MessageTypes.SelectMany(SignalRAndAdminEmail)];
+    public static IReadOnlyList<SubscriptionDraft> Subscriptions { get; } = [.. DomainEvents.Names.SelectMany(SignalRAndAdminEmail)];
 
     private static SubscriptionDraft[] SignalRAndAdminEmail(string type) =>
     [
