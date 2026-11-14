@@ -25,20 +25,23 @@ public static class ConsumerSetup
     public const string TemplatePrefix = "WolverineExample.Consumer.Templates";
 
     /// <summary>
-    /// Registers MsgHatch for the consumer. The connection string of the database file comes from
-    /// <c>MsgHatch:Sqlite:ConnectionString</c>.
+    /// Registers MsgHatch for the consumer, and the <see cref="NotificationHistory"/> of the hub. The connection string of
+    /// the database file comes from <c>MsgHatch:Sqlite:ConnectionString</c>.
     /// </summary>
     /// <param name="services">The services of the host.</param>
     /// <param name="configure">Changes the options, for example the roles of the process.</param>
     /// <returns>The builder, for the transports of the host.</returns>
-    public static MsgHatchBuilder AddConsumerMsgHatch(this IServiceCollection services, Action<MsgHatchOptions>? configure = null) =>
-        services.AddMsgHatch(configure)
+    public static MsgHatchBuilder AddConsumerMsgHatch(this IServiceCollection services, Action<MsgHatchOptions>? configure = null)
+    {
+        services.AddSingleton<NotificationHistory>();
+        return services.AddMsgHatch(configure)
             .UseSubscriptions()
             .UseRecipientDirectory<ConsumerDirectory>()
             .UseSqliteStores()
             .UseSqliteSubscriptionStore()
             .UseEmbeddedTemplates(typeof(ConsumerSetup).Assembly, TemplatePrefix)
             .AddConsumerMessages();
+    }
 
     /// <summary>
     /// Registers the five message types, each on the email and the SignalR channel with one <see cref="Notification"/>.

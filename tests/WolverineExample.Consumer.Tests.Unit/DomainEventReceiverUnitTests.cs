@@ -1,8 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
-using MsgHatch.Domain.DependencyInjection;
-using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -10,8 +7,9 @@ using MsgHatch.Email;
 using MsgHatch.SignalR;
 using Wolverine;
 using WolverineExample.Consumer.Notifications;
-using WolverineExample.Consumer.Startup;
+using WolverineExample.Consumer.Tests.Unit.TestTypes;
 using WolverineExample.Contracts;
+using static WolverineExample.Consumer.Tests.Unit.TestTypes.ConsumerTestHost;
 
 namespace WolverineExample.Consumer.Tests.Unit;
 
@@ -23,25 +21,32 @@ namespace WolverineExample.Consumer.Tests.Unit;
 public sealed class DomainEventReceiverUnitTests : IAsyncLifetime
 {
     private static readonly DateTimeOffset _now = TestHost.Start;
-    private readonly Dictionary<string, string?> _database = TestDatabases.NewSection();
-    private ServiceProvider _provider = null!;
+    private ConsumerTestHost _host = null!;
     private DomainEventReceiver _sut = null!;
-
-    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public async ValueTask InitializeAsync()
     {
-        var services = TestHost.CreateServices(TestHost.NewFakeTime(), _database);
-        services.AddConsumerMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer);
-        _provider = services.Build();
-        await ConsumerStartup.SeedAsync(_provider, Ct);
-        _sut = ActivatorUtilities.CreateInstance<DomainEventReceiver>(_provider);
+        _host = await ConsumerTestHost.StartAsync();
+        _sut = _host.Receiver;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => _host.DisposeAsync();
+
+    [Fact]
+    public async Task Handle_TenantMaintenance_GivesEachSignalRNotificationTheIdOfItsOutgoingMessage()
     {
-        await _provider.DisposeAsync();
-        TestDatabases.Delete(_database["MsgHatch:Sqlite:ConnectionString"]!);
+        // Arrange
+        var maintenance = new TenantMaintenance("north", _now.AddDays(1), _now.AddDays(1).AddHours(2));
+
+        // Act
+        await _sut.Handle(maintenance, new Envelope(), Ct);
+
+        // Assert
+        var messages = await SignalRMessagesAsync();
+        Assert.Equal(2, messages.Count);
+        Assert.Equal(
+            [.. messages.Select(static message => message.Delivery.Id)],
+            [.. messages.Select(static message => ((SignalREnvelope<Notification>)message.Content).Payload.Id)]);
     }
 
     [Fact]
@@ -188,16 +193,28 @@ public sealed class DomainEventReceiverUnitTests : IAsyncLifetime
     /// </summary>
     private async Task<IReadOnlyList<string>> RoutedAsync()
     {
-        await _provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(100, Ct);
-        var store = _provider.GetRequiredService<IOutboxDispatchStore>();
+        await _host.ProcessInboxAsync();
         List<string> stored = [];
         foreach (var channel in new[] { EmailChannel.Id, SignalRChannel.Id })
         {
-            var claim = await store.ClaimDueAsync(channel, 1000, _now.UtcDateTime, TimeSpan.FromMinutes(1), Ct);
-            stored.AddRange(claim.Value.Messages.Select(Describe));
+            stored.AddRange((await ClaimAsync(channel)).Select(Describe));
         }
 
         return [.. stored.Order(StringComparer.Ordinal)];
+    }
+
+    /// <summary>Routes the events of the inbox, and gives the SignalR messages that the outbox stores.</summary>
+    private async Task<IReadOnlyList<OutgoingMessage>> SignalRMessagesAsync()
+    {
+        await _host.ProcessInboxAsync();
+        return await ClaimAsync(SignalRChannel.Id);
+    }
+
+    private async Task<IReadOnlyList<OutgoingMessage>> ClaimAsync(MsgHatch.Domain.Identity.ChannelId channel)
+    {
+        var claim = await _host.Provider.GetRequiredService<IOutboxDispatchStore>()
+            .ClaimDueAsync(channel, 1000, _now.UtcDateTime, TimeSpan.FromMinutes(1), Ct);
+        return claim.Value.Messages;
     }
 
     private static string Describe(OutgoingMessage message) => message.Content switch

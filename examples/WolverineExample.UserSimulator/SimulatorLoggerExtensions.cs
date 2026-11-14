@@ -21,6 +21,29 @@ public static partial class SimulatorLoggerExtensions
     /// <summary>The event id of <see cref="UserReconnected"/>.</summary>
     public const int UserReconnectedId = 9304;
 
+    /// <summary>The event id of <see cref="NotificationCaughtUp"/>.</summary>
+    public const int NotificationCaughtUpId = 9305;
+
+    /// <summary>The event id of <see cref="CatchUpFailed"/>.</summary>
+    public const int CatchUpFailedId = 9306;
+
+    /// <summary>A simulated user got one notification from the catch-up after a connect, which it did not get live.</summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="tenant">The tenant of the user.</param>
+    /// <param name="userId">The user.</param>
+    /// <param name="messageType">The message type.</param>
+    /// <param name="text">The text of the notification.</param>
+    [LoggerMessage(NotificationCaughtUpId, LogLevel.Information, "User {Tenant}:{UserId} caught up {MessageType}: {Text}")]
+    public static partial void NotificationCaughtUp(this ILogger logger, string tenant, int userId, string messageType, string text);
+
+    /// <summary>The hub gave an error for the catch-up of a simulated user.</summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="tenant">The tenant of the user.</param>
+    /// <param name="userId">The user.</param>
+    /// <param name="exception">The error of the hub.</param>
+    [LoggerMessage(CatchUpFailedId, LogLevel.Warning, "User {Tenant}:{UserId} could not catch up")]
+    public static partial void CatchUpFailed(this ILogger logger, string tenant, int userId, Exception exception);
+
     /// <summary>A simulated user connected again, for example after the hub closed the connection of an expired token.</summary>
     /// <param name="logger">The logger.</param>
     /// <param name="tenant">The tenant of the user.</param>
