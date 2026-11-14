@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\examples\WolverineExample.Consumer\WolverineExample.Consumer.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.Sqlite.Tests.Unit\MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
+  </ItemGroup>
+
+</Project>

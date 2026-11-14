@@ -49,7 +49,7 @@
     <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.9.0" />
   </ItemGroup>
 
-  <ItemGroup Label="ExampleApp">
+  <ItemGroup Label="ExampleApp and WolverineExample.Consumer">
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
@@ -64,7 +64,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
   </ItemGroup>
 
-  <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration">
+  <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration and the WolverineExample apps">
     <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.61.0" />
   </ItemGroup>
 
