@@ -532,7 +532,18 @@ db.MsgHatchOutbox.findOneAndUpdate(
 - A query is one `find` with the filters, the sort `delivery.createdAtUtc.t` descending and `delivery.id` descending (D112), and a projection with no content. A retry is one `updateMany` with a pipeline that gives a failed message new tries with `$cond` (D111).
 - A purge reads the finished documents in the order of their finish time, `$ifNull` of `lastTryAtUtc.t` and `createdAtUtc.t`, up to `maxCount`, and deletes these documents with a filter that they are still finished (D128). A count is one aggregation with `$group` by the message type, the channel, the status, and the test flag, and `$min` of the due time of the pending documents (D164).
 
-### 5.6 Registry settings store
+### 5.6 Subscription store
+
+`MongoDbSubscriptionStore` of `MsgHatch.Subscriptions.Data.MongoDb` keeps one document of the collection `MsgHatchSubscription` for each subscription (D78, D149):
+
+- The document has the subscription id as `_id`, and the fields of section 3.6 with camelCase names: `revision`, `tenant`, `level`, `company`, `user`, `type`, `kind`, `channel`, `settingsType`, `settingsVersion`, `settings`, `recipients`, `namedUsers`, `mandatory`, `createdAtUtc`, and `lastModifiedAtUtc`. A missing tenant, company, user, or channel is null.
+- `settings` is the JSON of `ChannelSettingsJson` converted into a BSON sub-document (D184), `namedUsers` is an array of user ids or null, and each time is `{ d, t }` (D185).
+- The unique index `UX_MsgHatchSubscription_Owner` on `(tenant, type, level, company, user, channel, recipients)` stops a duplicate, and also serves `FindForDeliveryAsync`. A unique index treats null as one value, so a second default subscription of one message type, channel, and recipient kind collides with the first.
+- `AddAsync` is an `insertOne`. A duplicate key, of the id or of the owner index, gives `Errors.Conflict`.
+- `UpdateAsync` is one `replaceOne` with the tenant, the id, and the expected revision. No matched document gives `Errors.Conflict` for a stored id, and `Errors.NotFound` else. A change into the key of another document gives `Errors.Conflict`.
+- `UseMongoDbSubscriptionStore` shares `MongoDbStoreOptions` and the `IMongoClient` with `UseMongoDbStores` (D59). A value in code in both setup methods fails the startup validation, and the message names both methods (D150).
+
+### 5.7 Registry settings store
 
 `MongoDbRegistrySettingsStore` keeps the registry settings in `MsgHatchChannelEntry` and `MsgHatchMessageTypeEntry` (section 4.20 of the design). `UseMongoDbStores` registers it.
 
@@ -540,7 +551,7 @@ db.MsgHatchOutbox.findOneAndUpdate(
 - A new entry, with the revision 1, is an `insertOne`, and a stored name gives `Errors.Conflict`. A change is a `replaceOne` with the condition `revision: revision - 1`, and no matched document gives `Errors.Conflict`.
 - `GetEntriesAsync` sorts each list with the ordinal comparer. A field with another BSON type or an invalid name gives `Errors.SerializationFailed`.
 
-### 5.7 Connections, errors, and limits
+### 5.8 Connections, errors, and limits
 
 - The stores share one `IMongoClient`, which pools the connections, so they are thread-safe singletons (D130).
 - A server failure gives `Errors.Unavailable`, also a server that the driver cannot select in its timeout. A field with another BSON type, a missing field, an invalid name, or invalid JSON gives `Errors.SerializationFailed`. A cancelled token gives `Errors.OperationCancelled`.
