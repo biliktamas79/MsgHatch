@@ -9,4 +9,14 @@ internal static partial class Log
         EventId = 3100, Level = LogLevel.Warning,
         Message = "The named pipe dispatch signal cannot serve the pipe of topic {Topic}, so the loop of the topic waits for its due times and its poll")]
     public static partial void PipeNotServed(this ILogger logger, string topic, Exception exception);
+
+    [LoggerMessage(
+        EventId = 3101, Level = LogLevel.Warning,
+        Message = "The named pipe dispatch signal cannot reach the pipe of topic {Topic} after {FailedConnects} connects in a row. A process of the same OS user with the same pipe name prefix must wait for the topic (D191), else the loop of the topic finds the messages only by its poll")]
+    public static partial void PipeNotReached(this ILogger logger, string topic, int failedConnects);
+
+    [LoggerMessage(
+        EventId = 3102, Level = LogLevel.Information,
+        Message = "The named pipe dispatch signal reaches the pipe of topic {Topic} again")]
+    public static partial void PipeReachedAgain(this ILogger logger, string topic);
 }

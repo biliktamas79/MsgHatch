@@ -74,7 +74,7 @@ internal sealed class NamedPipeDispatchSignal(string pipeNamePrefix, ILogger<Nam
 
             if (!_writers.TryGetValue(topic, out var writer))
             {
-                writer = PipeWriter.Start(PipeNames.Of(pipeNamePrefix, topic), _instance, () => Serves(topic));
+                writer = PipeWriter.Start(PipeNames.Of(pipeNamePrefix, topic), topic.Name, _instance, () => Serves(topic), logger);
                 _writers[topic] = writer;
             }
 

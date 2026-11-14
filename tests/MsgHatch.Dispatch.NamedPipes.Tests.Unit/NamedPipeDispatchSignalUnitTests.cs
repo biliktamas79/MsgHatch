@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MsgHatch.Dispatch.NamedPipes.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
@@ -13,7 +14,16 @@ namespace MsgHatch.Dispatch.NamedPipes.Tests.Unit;
 /// </summary>
 public sealed class NamedPipeDispatchSignalUnitTests : DispatchSignalTestsBase<IDispatchSignal>, IAsyncDisposable
 {
+    private const int _notifierCannotReachPipe = 3101;
+    private const int _notifierReachesPipeAgain = 3102;
+
     private static readonly DispatchTopic _topic = DispatchTopic.ForChannel(TestChannel.Id);
+
+    /// <summary>
+    /// A wait longer than the connect timeout of the writer, so that each notification makes its own connect and is
+    /// not merged into the one before it.
+    /// </summary>
+    private static readonly TimeSpan _gapAfterNotification = TimeSpan.FromMilliseconds(300);
 
     private readonly SignalHosts _hosts;
 
@@ -115,6 +125,75 @@ public sealed class NamedPipeDispatchSignalUnitTests : DispatchSignalTestsBase<I
         Assert.Null(await CompletedAsync(wait));
         var warning = Assert.Single(host.LogRecords(), static record => record.Id.Id == 3100);
         Assert.True(warning.ContainsText(_topic.Name));
+    }
+
+    [Fact]
+    public async Task NotifyAsync_NoContainerServesTheTopicForThreeConnects_LogsOneWarningWithTheTopic()
+    {
+        // Arrange
+        var host = _hosts.NewHost();
+        var notifier = host.GetRequiredService<IDispatchSignal>();
+        await NotifyUntilLoggedAsync(notifier, host, _notifierCannotReachPipe);
+
+        // Act
+        await NotifyWithGapsAsync(notifier, count: 3);
+
+        // Assert
+        var warning = Assert.Single(host.LogRecords(), static record => record.Id.Id == _notifierCannotReachPipe);
+        Assert.Equal((LogLevel.Warning, true), (warning.Level, warning.ContainsText(_topic.Name)));
+    }
+
+    [Fact]
+    public async Task NotifyAsync_ContainerServesTheTopicAfterTheWarning_LogsOneInformationThatTheNotifierReachesThePipeAgain()
+    {
+        // Arrange
+        var host = _hosts.NewHost();
+        var notifier = host.GetRequiredService<IDispatchSignal>();
+        await NotifyUntilLoggedAsync(notifier, host, _notifierCannotReachPipe);
+        var wait = Signal.WaitAsync(_topic, Ct);
+
+        // Act
+        await notifier.NotifyAsync(_topic, Ct);
+        await CompletedAsync(wait);
+        await NotifyWithGapsAsync(notifier, count: 2);
+
+        // Assert
+        var information = Assert.Single(host.LogRecords(), static record => record.Id.Id == _notifierReachesPipeAgain);
+        Assert.Equal((LogLevel.Information, true), (information.Level, information.ContainsText(_topic.Name)));
+    }
+
+    [Fact]
+    public async Task NotifyAsync_NoContainerServesTheTopicForTwoConnects_LogsNoWarning()
+    {
+        // Arrange
+        var host = _hosts.NewHost();
+        var notifier = host.GetRequiredService<IDispatchSignal>();
+
+        // Act
+        await NotifyWithGapsAsync(notifier, count: 2);
+
+        // Assert
+        Assert.DoesNotContain(host.LogRecords(), static record => record.Id.Id == _notifierCannotReachPipe);
+    }
+
+    private static async Task NotifyWithGapsAsync(IDispatchSignal notifier, int count)
+    {
+        for (var notification = 0; notification < count; notification++)
+        {
+            await notifier.NotifyAsync(_topic, Ct);
+            await Task.Delay(_gapAfterNotification, TimeProvider.System, Ct);
+        }
+    }
+
+    private static async Task NotifyUntilLoggedAsync(IDispatchSignal notifier, ServiceProvider host, int eventId)
+    {
+        using var hang = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(Ct, hang.Token);
+        while (!host.LogRecords().Any(record => record.Id.Id == eventId))
+        {
+            await notifier.NotifyAsync(_topic, guard.Token);
+            await Task.Delay(_gapAfterNotification, TimeProvider.System, guard.Token);
+        }
     }
 
     private static Task<Error?> CompletedAsync(ValueTask<Error?> wait) =>
