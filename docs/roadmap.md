@@ -28,6 +28,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 18 EF Core stores | 15, 16 |
 | 19 MongoDB stores | 15, 16 |
 | 20 Amazon SES against a real account | 4 |
+| 21 Dispatch signal between processes | 2, 13 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -1107,10 +1108,84 @@ Commits:
 
 Done when: the build has no errors and no warnings, all tests pass, and the SES integration tests pass with an SES account in `appsettings.Local.json`.
 
+### Phase 21: dispatch signal between processes
+
+Goal: a publisher in its own process wakes at once when another process of the same OS user on the same machine stores messages for its channel (D188). While a signal does not work, the fallback wait of a dispatch loop obeys a next try time that a worker gives (D103).
+
+1. Fix the fallback wait of the dispatch loop (D102, D103). Since phase 2, `WaitForTheBrokenSignalAsync` in `src/MsgHatch.Domain/Dispatch/DispatchLoop.cs` (lines 186 to 192) waits with `Task.Delay(..., time, ct)` on line 190. That delay listens only to the stop token `ct`. A worker gives a time through `Give` (line 220), which cancels the wake token of the wait, but the delay does not listen to the wake token. So a time that a worker gives during the fallback wait has no effect: the next try time of a recorded try, the next try time of a failed received message, or the lease end of a skipped message. The loop claims again only at the due time of the wait: the next due time of the claim, the poll delay, or `PollInterval` when the loop has no due time. The fix:
+   - The fallback wait listens to the same wake token as the signal wait. It returns `Wake.TimeGiven` when a worker gives an earlier time, and `Wake.Due` when its due time comes. The loop of `WaitAsync` (line 131) then calculates the earliest time again, so the loop claims at the given time.
+   - With no due time, the fallback wait still ends after `PollInterval`.
+   - The rule of `IDispatchSignal.WaitAsync` in section 4.6 and part 3 of section 4.9 get the new text: after a signal error, a loop waits until the earliest of its times of step 5, which include a time that a worker gives during the wait, or for `PollInterval` when it has no such time.
+2. Add `src/MsgHatch.Dispatch.NamedPipes` (D188, D189, D192) with `NamedPipeSignalOptions` and its source-generated validator, the internal `NamedPipeDispatchSignal`, and `UseNamedPipeDispatchSignal`:
+   - `NamedPipeSignalOptions` has the section `MsgHatch:NamedPipeSignal` and one setting, `PipeNamePrefix`. It is required, and has 1 to 40 characters from the ASCII letters, the digits, `_`, and `-`. All processes of one system use the same prefix. Two systems on one machine use two prefixes.
+   - Each topic has one pipe: `{PipeNamePrefix}.inbox`, and `{PipeNamePrefix}.outbox.{Channel}` for a channel. A channel name has only ASCII letters, digits, and `_`, so each pipe name is valid on each platform.
+   - `NotifyAsync` notifies the loops of its own process at once through an `InProcessDispatchSignal`, and returns null at once. When the process does not serve the pipe of the topic, it also gives the topic to the writer of that pipe. The writer holds one bounded queue of capacity 1 with `DropWrite`, so many notifications before one write become one byte.
+   - The writer of a pipe keeps one client connection with `PipeDirection.Out` and `PipeOptions.CurrentUserOnly` (D191), and writes one byte for each notification. When no process serves the pipe, the connect fails with a `TimeoutException`. The writer then drops the notification, and does not connect again within 1 second. A write error closes the connection, and the next notification connects again. The writer has the comment `ponytail: fixed reconnect delay of 1 second, an option if a host needs another one`. A lost notification only delays a send until the next poll (D102, D190).
+   - At the first `WaitAsync` of a topic, the signal starts to serve the pipe of the topic: a loop of `NamedPipeServerStream` instances with `PipeDirection.In`, `MaxAllowedServerInstances`, and `PipeOptions.CurrentUserOnly`, and with no `PipeOptions.FirstPipeInstance` (D192). Each byte that arrives notifies the loops of the topic in the process. `WaitAsync` then waits for a notification of the in-process signal.
+   - When the server of a topic cannot start, or stops with an error, `WaitAsync` returns `Errors.Unavailable` at once, and the loop uses the fallback wait of item 1. A later `WaitAsync` starts the server again, at most one time in each second. The signal logs the error at the Warning level, one time for each outage, with the topic.
+   - The signal reads the time only through `TimeProvider`. It is a thread-safe singleton, and `DisposeAsync` stops each server and each writer.
+   - `UseNamedPipeDispatchSignal(Action<NamedPipeSignalOptions>? configure = null)` binds and validates the options, and selects the signal through `UseDispatchSignal` with its own name. The core method `UseDispatchSignal(Func<IServiceProvider, IDispatchSignal>)` gets the optional parameter `string? setupMethod = null`, as the store methods have it (D62). So a second signal setup names both setup methods in the startup validation.
+3. Add the startup checks of `UseNamedPipeDispatchSignal`:
+   - `EnablePolling` false in the `DispatchOptions` of the inbox or of the outbox fails the startup validation with an `OptionsValidationException` (D190).
+   - On Linux and macOS, .NET makes the pipe of a name the Unix domain socket `{Path.GetTempPath()}CoreFxPipe_{name}`. A path of a topic of the host that is too long for the platform fails the startup validation, and the message names the topic. `UnixDomainSocketEndPoint` checks the limit of the platform, for example 107 characters on Linux. The topics of a host are the inbox topic and the topic of each channel with a registered transport.
+4. In `ExampleApp.Tests.Unit`, add a test with two hosts on one SQLite file and the named pipe signal. The test builds both hosts from the setup methods, and the example app does not change, as in D174. `ExampleApp.Tests.Unit` references the package.
+5. Section 4.9 gets the choice of a host (D102, D188):
+   - One process: the default `InProcessDispatchSignal`. `EnablePolling` can be false.
+   - Separate processes of one OS user on one machine: each process calls `UseNamedPipeDispatchSignal` with the same prefix. `EnablePolling` stays true (D190), and `MaxPollInterval` can be longer, because the signal wakes the loops.
+   - Separate machines, or separate OS users: no signal call. The loops find new messages by the poll and by the next due time.
+
+Tests:
+- The fallback wait of item 1. All times come from a `FakeTimeProvider`. A substitute signal returns `Errors.Unavailable` from each `WaitAsync`:
+  - `RunAsync_SignalThatDoesNotWorkAndATimeGivenDuringTheFallbackWait_ClaimsAgainAtTheGivenTime` in `OutboxDispatcherUnitTests.RunAsync.cs`: `EnablePolling` false, `MaxDegreeOfParallelism` 1, and one claimed message with a next due time of 60 seconds, the lease end. The send of the transport waits for the test. The test waits for the timer of the fallback wait, and then lets the send give a transient error with a next try time 5 seconds later. When the fake time moves 5 seconds, the loop claims again, with `nowUtc` 5 seconds after the start. On the code of phase 20, the next claim comes only after 60 seconds, so the test fails first.
+  - The same case in the inbox loop, with a `FailAsync` that has a next try time 5 seconds later.
+  - A time that a worker gives after the due time of the fallback wait does not end the wait early. The loop claims again at the due time.
+  - The phase 2 tests `RunAsync_SignalThatDoesNotWork_WaitsOnePollIntervalAndClaimsAgain` and `RunAsync_SignalThatFailsAfterTheDueTime_ClaimsAgainAtOnce` stay unchanged, and pass.
+- The use cases of `DispatchSignalTestsBase` run on the named pipe signal. The subclass `NamedPipeDispatchSignalUnitTests : DispatchSignalTestsBase<IDispatchSignal>` builds the signal with `UseNamedPipeDispatchSignal`, because the signal class is internal. Each test class uses its own random prefix.
+- Two signals, each from its own DI container, with the same prefix. The pipe between them goes through the operating system, the same as between two processes. The tests wait for the pipe with real time and `TestHost.HangGuard`:
+  - A notification of a channel topic in the first container completes a wait of that topic in the second container.
+  - A notification of the inbox topic in the first container does not complete a wait of a channel topic in the second container.
+  - A notification in the first container while no container serves the topic returns at once with no error. After the second container starts to wait, the next notification completes the wait.
+  - After the second container is disposed, and a third container with the same prefix starts to wait for the topic, a notification of the first container completes the wait of the third container.
+- The error path. The test holds the pipe name of a topic before the wait: on Windows with a server of one instance, and on Linux and macOS with a folder at the socket path. `WaitAsync` then returns `Errors.Unavailable` at once, and the signal logs one Warning with the topic. After the test releases the name and the fake time moves 1 second, the next `WaitAsync` serves the pipe, and a notification of another container completes it.
+- The setup and the startup checks:
+  - The options tests of `NamedPipeSignalOptions`, with the rows of section 5.5: no prefix, an empty prefix, 40 and 41 characters, a `.`, and a `/`.
+  - `EnablePolling` false in the options of the inbox, and in the options of the outbox, each fails the startup validation with an `OptionsValidationException`. Both true pass.
+  - `UseNamedPipeDispatchSignal` after `UseDispatchSignal` fails the startup validation, and the message names both methods.
+  - On Linux and macOS, a registered channel with a name of 100 characters fails the startup validation, and the message names its topic. On Windows, the test is skipped.
+- In `ExampleApp.Tests.Unit`: a consumer host and a publisher host on one SQLite file, each with `UseNamedPipeDispatchSignal` and the same random prefix, and with `EnablePolling` true. The fake time does not move after the first claim of the publisher, so no poll and no due time wakes its loop. An event that the consumer processes reaches the `LogEmailClient` of the publisher. The test fails first when the publisher host does not call `UseNamedPipeDispatchSignal`.
+
+Checked facts (2026-11-14) for the named pipe signal. The Windows probe ran on Windows 11 build 26300 with .NET 10.0.15. The Linux probe ran on .NET 10.0.12 in the local image `mcr.microsoft.com/dotnet/sdk:10.0`, with no pull. The probe is a console app in a scratch folder, outside the repository:
+
+| Fact | Source |
+|---|---|
+| On Linux, .NET makes the named pipe `n2` the Unix domain socket `/tmp/CoreFxPipe_n2`, in `Path.GetTempPath()`. | The probe, and `ls -l`, which shows the type `s` |
+| On Windows, two processes start servers of one pipe name with `MaxAllowedServerInstances`. Of 4 clients, 2 reached each process, and each client reached one server only. | The probe |
+| On Linux, a second process that starts a server of the same name with no `FirstPipeInstance` takes the socket path. All 4 clients reached the second process. The first process got no connection and no error. | The probe |
+| `FirstPipeInstance` while a server of the name exists gives `UnauthorizedAccessException`, on Windows and on Linux. | The probe |
+| On Linux, a process that is killed with `kill -9` leaves its socket file. A client then gets a `TimeoutException` after its connect timeout. A new server with `FirstPipeInstance` gives `UnauthorizedAccessException`, and a new server with no `FirstPipeInstance` takes over the path. | The probe |
+| A client with no server gets a `TimeoutException` after about its timeout: on Windows after 7 ms with a timeout of 0 ms and 63 ms with 50 ms, and on Linux after 32 ms and 54 ms. | The probe |
+| On Windows, the default DACL of a pipe server gives read access (`FR`) to Everyone and to Anonymous, and full access to SYSTEM, to the Administrators, and to the owner. With `CurrentUserOnly`, only the owner has access. The .NET source makes `CurrentUserOnly` a DACL of the owner only, and a .NET test shows that a client of another user gets `UnauthorizedAccessException`. | The probe with `GetAccessControl`, and the dotnet/runtime source through Context7 |
+| On Linux, the socket file has the mode `srwxr-xr-x` with and with no `CurrentUserOnly`, with the umask 022. A client that runs as the user `nobody` gets a `SocketException` "Permission denied" for both. A client of the same user connects. | The probe with `runuser -u nobody` |
+| On Linux, a pipe path of 107 characters works, and 108 characters give an `ArgumentOutOfRangeException` from the Unix domain socket endpoint. `UnixDomainSocketEndPoint` reads the limit of the platform at run time on Unix. | The probe, and the dotnet/runtime source through Context7 |
+| A held name stops a new server: on Windows, a server with `maxNumberOfServerInstances` 1 gives a second server `IOException` "All pipe instances are busy". On Linux, a folder at the socket path gives `SocketException` "Address already in use". After the release, a new server starts. | The probe |
+| On macOS, the temp folder is different for each user. The probe did not run on macOS, so the path limit and the behavior of the pipes there are not checked. | The .NET document `docs/design/security/unix-tmp.md` through Context7 |
+
+Commits:
+1. "Record the decisions of the dispatch signal between processes in the plan (D188 to D192)"
+2. "Obey a time that a worker gives during the fallback wait of the dispatch loop"
+3. "Add the named pipe dispatch signal"
+4. "Test the named pipe signal between two example hosts"
+5. "Record the commits and the checked facts of phase 21 in the plan"
+6. "Record phase 21 as done in README and AGENTS.md"
+
+Commit 2 holds item 1 with its tests and the new text of sections 4.6 and 4.9. Commit 3 holds items 2, 3, and 5: the new parameter of `UseDispatchSignal` comes with the package that uses it, and the commit adds the package to sections 4.2, 4.7, 4.9, 5.5, 6, and 7. Commit 4 holds item 4. Each commit builds and passes its tests on its own: commit 2 changes only `MsgHatch.Domain` and its tests, and commit 4 only adds a test and a project reference to `ExampleApp.Tests.Unit`. Before the push, a worktree at each commit runs `dotnet build` of the changed projects and `dotnet test` of their test projects. At the time of this plan, `MsgHatch.slnx` has uncommitted work of another session. Commit 3 adds two projects to it, so the work starts after that work is committed, or commit 3 stages only its own lines.
+
+Done when: the build has no errors and no warnings, all tests pass, and `MsgHatch.Dispatch.NamedPipes.Tests.Unit` also passes on Linux in the image `mcr.microsoft.com/dotnet/sdk:10.0`.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
-- A dispatch signal between processes, for example with a named pipe or a message broker (D102). While the signal does not work, the fallback wait of the dispatch loop must also obey a next try time that a worker gives (D103). From phase 2, it ignores that time.
+- A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
 - The Razor template engine `MsgHatch.Email.Razor` (D45).
 - SMS and push channels.
