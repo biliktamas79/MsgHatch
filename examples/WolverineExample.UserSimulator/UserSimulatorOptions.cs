@@ -21,6 +21,13 @@ public sealed class UserSimulatorOptions
     [Required]
     public string Audience { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The time from the creation of a token to its expiry. The hub of the consumer closes a connection when its token
+    /// expires, and the client then reconnects with a new token.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:10", "1.00:00:00")]
+    public TimeSpan TokenLifetime { get; set; } = TimeSpan.FromHours(1);
+
     /// <summary>The simulated users. Each one gets its own SignalR connection.</summary>
     [Required]
     [MinLength(1)]

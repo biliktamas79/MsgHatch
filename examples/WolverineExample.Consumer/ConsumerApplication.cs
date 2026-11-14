@@ -19,7 +19,11 @@ public static class ConsumerApplication
     /// <summary>The route of the SignalR hub.</summary>
     public const string HubRoute = "/hubs/notifications";
 
-    /// <summary>Registers the services of the consumer, and maps the hub.</summary>
+    /// <summary>
+    /// Registers the services of the consumer, and maps the hub. The hub closes a connection when its token expires, so a
+    /// user that left a company or a tenant does not keep the groups of an old token. The client then reconnects with a
+    /// new token, and the hub reads the company of the user again.
+    /// </summary>
     /// <param name="builder">The builder of the web app.</param>
     /// <returns>The web app, not started.</returns>
     public static WebApplication Build(WebApplicationBuilder builder)
@@ -40,7 +44,7 @@ public static class ConsumerApplication
         var app = builder.Build();
         app.UseAuthentication();
         app.UseAuthorization();
-        app.MapHub<NotificationHub>(HubRoute);
+        app.MapHub<NotificationHub>(HubRoute, static o => o.CloseOnAuthenticationExpiration = true);
         return app;
     }
 

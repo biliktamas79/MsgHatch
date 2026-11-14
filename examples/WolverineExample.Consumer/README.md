@@ -97,7 +97,8 @@ The sample events of the publisher give these deliveries:
 - **The consumer is a web app.** The SignalR hub needs an HTTP server, so the consumer runs `WebApplication` on Kestrel. It maps only the hub, at `/hubs/notifications`.
 - **A Wolverine handler receives the events.** `DomainEventReceiver` calls `INotificationService.AcceptAsync` with the tenant of the event and the id of the Wolverine envelope as the message id. A second delivery of the same envelope stores nothing new. The listener uses `ProcessInline()`, so the broker keeps an event until the inbox has it. The package `MsgHatch.Broker.Wolverine` is not used, because it sends outgoing broker messages, and this example has no broker subscription.
 - **`TenantMaintenance` becomes one event for each company.** A notification scope holds one company or a list of users, and no scope holds a whole tenant. So the handler reads the companies of the tenant from the directory, and accepts one `CompanyMaintenance` event for each company, with the message type `TenantMaintenance`. The message id of each one comes from the envelope id and the company id, so a second delivery stores nothing new.
-- **The SignalR hub knows the tenant.** The SignalR transport sends a user message to the name `{tenant}:{user}`, and a company message to the group of the company. `TenantUserIdProvider` gives each connection that name, and `NotificationHub` adds each connection to the group of the company of its user.
+- **The SignalR hub knows the tenant.** The SignalR transport sends a user message to the name `{tenant}:{user}`, and a company message to the group of the company. `TenantUserIdProvider` gives each connection that name, and `NotificationHub` adds each connection to the group of the company of its user. The tenant and the user come from the token. The company comes from the directory, because the router reads the company from the directory too, so the SignalR groups and the emails always agree.
+- **The hub closes a connection when its token expires.** The hub checks a token only when a client connects, so without this rule a connection could keep the groups of an expired token. With `CloseOnAuthenticationExpiration`, the client must reconnect with a new token, and the hub then reads the company of the user again.
 - **The email client writes to the log.** The library has no development email client, so `LogEmailClient` is the same log client as in `ExampleApp`.
 
 ## Simulate the users
@@ -128,6 +129,10 @@ The simulator logs each notification with the event id 9300, for example `User n
 | `north:4` | `CompanyArchived`, `TenantMaintenance` |
 | `south:1`, `south:2` | none |
 
-A user that cannot connect, for example because the consumer is not started yet, tries again every 2 seconds. A connected user reconnects by itself after a short outage.
+A user that cannot connect, for example because the consumer is not started yet, tries again every 2 seconds. A connected user reconnects by itself after a short outage, and when the hub closes its connection because its token expired. The simulator signs a new token for each connect. The setting `UserSimulator:TokenLifetime` (default 1 hour) sets how long a token is valid. To see the reconnects (event id 9304) after one minute, start the simulator with short tokens:
+
+```bash
+dotnet run --project examples/WolverineExample.UserSimulator -- --UserSimulator:TokenLifetime=00:01:00
+```
 
 Another client connects to `http://localhost:5090/hubs/notifications` with the token as its access token. It gets each notification on a method with the name of the message type, for example `UserLogin`, with a payload `{ "text": "..." }`. The JWT bearer setup reads the token from the `Authorization` header only. A browser client sends the token in the query string, so it needs an `OnMessageReceived` handler that the example does not have.

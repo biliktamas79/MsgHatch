@@ -18,6 +18,16 @@ public static partial class SimulatorLoggerExtensions
     /// <summary>The event id of <see cref="UserDisconnected"/>.</summary>
     public const int UserDisconnectedId = 9303;
 
+    /// <summary>The event id of <see cref="UserReconnected"/>.</summary>
+    public const int UserReconnectedId = 9304;
+
+    /// <summary>A simulated user connected again, for example after the hub closed the connection of an expired token.</summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="tenant">The tenant of the user.</param>
+    /// <param name="userId">The user.</param>
+    [LoggerMessage(UserReconnectedId, LogLevel.Information, "User {Tenant}:{UserId} reconnected")]
+    public static partial void UserReconnected(this ILogger logger, string tenant, int userId);
+
     /// <summary>A simulated user got one notification.</summary>
     /// <param name="logger">The logger.</param>
     /// <param name="tenant">The tenant of the user.</param>

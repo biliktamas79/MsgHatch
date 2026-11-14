@@ -16,16 +16,13 @@ public sealed class UserTokens
     /// <summary>The claim type of the tenant, which the hub of the consumer reads.</summary>
     public const string TenantClaim = "tenant";
 
-    /// <summary>The time from the creation of a token to its expiry.</summary>
-    public static readonly TimeSpan Lifetime = TimeSpan.FromHours(1);
-
     private readonly JsonWebTokenHandler _handler = new();
     private readonly UserSimulatorOptions _settings;
     private readonly SigningCredentials _credentials;
     private readonly TimeProvider _time;
 
     /// <summary>Selects the signing key of the issuer of the settings.</summary>
-    /// <param name="settings">The settings, with the issuer and the audience.</param>
+    /// <param name="settings">The settings, with the issuer, the audience, and the token lifetime.</param>
     /// <param name="keys">The signing keys of <c>dotnet user-jwts</c>.</param>
     /// <param name="time">The clock of the token times.</param>
     /// <exception cref="InvalidOperationException">No signing key has the issuer of the settings.</exception>
@@ -38,7 +35,7 @@ public sealed class UserTokens
         _time = time;
     }
 
-    /// <summary>Makes a token for one user, valid from now for <see cref="Lifetime"/>.</summary>
+    /// <summary>Makes a token for one user, valid from now for <see cref="UserSimulatorOptions.TokenLifetime"/>.</summary>
     /// <param name="user">The user.</param>
     /// <returns>The signed token.</returns>
     public string Create(SimulatedUser user)
@@ -56,7 +53,7 @@ public sealed class UserTokens
             },
             NotBefore = now,
             IssuedAt = now,
-            Expires = now + Lifetime,
+            Expires = now + _settings.TokenLifetime,
             SigningCredentials = _credentials,
         });
     }

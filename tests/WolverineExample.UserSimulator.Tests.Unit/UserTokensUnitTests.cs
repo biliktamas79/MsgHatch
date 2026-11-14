@@ -36,7 +36,23 @@ public sealed class UserTokensUnitTests
     }
 
     [Fact]
-    public async Task Create_AtTheTimeOfTheClock_GivesATokenValidFromThatTimeForOneHour()
+    public async Task Create_TokenLifetimeOf90Seconds_GivesATokenValidFromTheTimeOfTheClockFor90Seconds()
+    {
+        // Arrange
+        var configuration = WithUserJwtsKey(SimulatorConfiguration());
+        configuration["UserSimulator:TokenLifetime"] = "00:01:30";
+        await using var provider = BuildSimulator(configuration);
+        var now = _time.GetUtcNow().UtcDateTime;
+
+        // Act
+        var token = new JsonWebToken(provider.GetRequiredService<UserTokens>().Create(new SimulatedUser { Tenant = "north", UserId = 1 }));
+
+        // Assert
+        Assert.Equal((now, now.AddSeconds(90)), (token.ValidFrom, token.ValidTo));
+    }
+
+    [Fact]
+    public async Task Create_NoTokenLifetimeInTheConfiguration_GivesATokenValidForOneHour()
     {
         // Arrange
         await using var provider = BuildSimulator(WithUserJwtsKey(SimulatorConfiguration()));

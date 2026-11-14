@@ -57,6 +57,11 @@ public sealed class SimulatedUsers(IOptions<UserSimulatorOptions> options, UserT
                 messageType, notification => logger.NotificationReceived(user.Tenant, user.UserId, messageType, notification.Text));
         }
 
+        connection.Reconnected += _ =>
+        {
+            logger.UserReconnected(user.Tenant, user.UserId);
+            return Task.CompletedTask;
+        };
         connection.Closed += _ =>
         {
             logger.UserDisconnected(user.Tenant, user.UserId);
