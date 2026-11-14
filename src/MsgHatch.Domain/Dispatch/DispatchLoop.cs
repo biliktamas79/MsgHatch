@@ -167,7 +167,7 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
     {
         var error = await signal.WaitAsync(work.Topic, wake);
         ct.ThrowIfCancellationRequested();
-        return IsBroken(error) ? await WaitForTheBrokenSignalAsync(dueUtc, ct) : WakeOf(error, timeout);
+        return IsBroken(error) ? await WaitForTheBrokenSignalAsync(dueUtc, timeout, wake, ct) : WakeOf(error, timeout);
     }
 
     private CancellationTokenSource? TimeoutAfter(TimeSpan? delay) =>
@@ -181,14 +181,25 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
     private static bool IsBroken(Error? error) => error is not null && error.Type != Errors.OperationCancelled;
 
     private static Wake WakeOf(Error? error, CancellationTokenSource? timeout) =>
-        error is null ? Wake.Signal : timeout?.IsCancellationRequested == true ? Wake.Due : Wake.TimeGiven;
+        error is null ? Wake.Signal : WakeOfACancelledWait(timeout);
 
-    private async ValueTask<Wake> WaitForTheBrokenSignalAsync(DateTime? dueUtc, CancellationToken ct)
+    private static Wake WakeOfACancelledWait(CancellationTokenSource? timeout) =>
+        timeout?.IsCancellationRequested == true ? Wake.Due : Wake.TimeGiven;
+
+    private async ValueTask<Wake> WaitForTheBrokenSignalAsync(
+        DateTime? dueUtc, CancellationTokenSource? timeout, CancellationToken wake, CancellationToken ct)
     {
         var nowUtc = time.GetUtcNowDateTime();
         var delay = (dueUtc ?? nowUtc + options.PollInterval) - nowUtc;
-        await Task.Delay(delay > TimeSpan.Zero ? delay : TimeSpan.Zero, time, ct);
-        return Wake.Due;
+        try
+        {
+            await Task.Delay(delay > TimeSpan.Zero ? delay : TimeSpan.Zero, time, wake);
+            return Wake.Due;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return WakeOfACancelledWait(timeout);
+        }
     }
 
     private async Task WorkAsync(ChannelReader<T> reader, CancellationToken ct)

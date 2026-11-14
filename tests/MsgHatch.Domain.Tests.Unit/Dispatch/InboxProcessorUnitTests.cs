@@ -400,10 +400,52 @@ public sealed class InboxProcessorUnitTests
         Assert.Equal(nextTryAtUtc, await claims.Reader.ReadAsync(Ct).AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct));
     }
 
-    private static ValueTask<ErrorOr<ClaimResult<ReceivedMessage>>> Claimed(Channel<DateTime> claims, DateTime nowUtc, params ReceivedMessage[] messages)
+    [Fact]
+    public async Task RunAsync_SignalThatDoesNotWorkAndAFailWithANextTryTimeDuringTheFallbackWait_ClaimsAgainAtThatTime()
+    {
+        // Arrange
+        var fallbackWaitStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _router.RouteAsync(default!, Ct).ReturnsForAnyArgs(call => RateLimitedAfterAsync(fallbackWaitStarted.Task, call.ArgAt<CancellationToken>(1)));
+        var signal = Substitute.For<IDispatchSignal>();
+        signal.WaitAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Unavailable)));
+        var claims = Channel.CreateUnbounded<DateTime>();
+        var store = Substitute.For<IInboxDispatchStore>();
+        store.ClaimDueAsync(default, default, default, Ct).ReturnsForAnyArgs(
+            call => ClaimedWithNextDue(claims, call.ArgAt<DateTime>(1), call.ArgAt<DateTime>(1).AddSeconds(60), AMessage()),
+            call => Claimed(claims, call.ArgAt<DateTime>(1)));
+        await using var provider = Build(more: b => b.UseInboxDispatchStore(_ => store).UseDispatchSignal(_ => signal)
+            .ConfigureInboxDispatch(static o => (o.EnablePolling, o.MaxDegreeOfParallelism) = (false, 1)));
+        await using var running = new RunningLoop(provider.GetRequiredService<IInboxProcessor>().RunAsync);
+        await claims.Reader.ReadAsync(Ct);
+        TimeSpan[] fallbackWait = [await _time.NextWaitAsync(), await _time.NextWaitAsync()];
+        fallbackWaitStarted.SetResult();
+        var waitForTheGivenTime = await _time.NextWaitAsync();
+        var nextTryAtUtc = (DateTime)store.ReceivedCalls().Single(static c => c.GetMethodInfo().Name == nameof(IInboxDispatchStore.FailAsync)).GetArguments()[3]!;
+
+        // Act
+        _time.Advance(waitForTheGivenTime);
+
+        // Assert
+        Assert.Equal([TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60)], fallbackWait);
+        Assert.Equal(
+            (nextTryAtUtc - TestHost.Start.UtcDateTime, nextTryAtUtc),
+            (waitForTheGivenTime, await claims.Reader.ReadAsync(Ct).AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct)));
+    }
+
+    private static ValueTask<ErrorOr<ClaimResult<ReceivedMessage>>> Claimed(Channel<DateTime> claims, DateTime nowUtc, params ReceivedMessage[] messages) =>
+        ClaimedWithNextDue(claims, nowUtc, nextDueAtUtc: null, messages);
+
+    private static ValueTask<ErrorOr<ClaimResult<ReceivedMessage>>> ClaimedWithNextDue(
+        Channel<DateTime> claims, DateTime nowUtc, DateTime? nextDueAtUtc, params ReceivedMessage[] messages)
     {
         claims.Writer.TryWrite(nowUtc);
-        return ValueTask.FromResult(ErrorOr<ClaimResult<ReceivedMessage>>.ForValue(new ClaimResult<ReceivedMessage>(messages, null)));
+        return ValueTask.FromResult(ErrorOr<ClaimResult<ReceivedMessage>>.ForValue(new ClaimResult<ReceivedMessage>(messages, nextDueAtUtc)));
+    }
+
+    private static async ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RateLimitedAfterAsync(Task release, CancellationToken ct)
+    {
+        await release.WaitAsync(ct);
+        return new Error(Errors.RateLimited);
     }
 
     private ReceivedMessage<TestEvent> RoutedMessage() =>

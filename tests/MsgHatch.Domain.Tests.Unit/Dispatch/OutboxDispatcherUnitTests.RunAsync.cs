@@ -259,6 +259,35 @@ public sealed partial class OutboxDispatcherUnitTests
     }
 
     [Fact]
+    public async Task RunAsync_SignalThatDoesNotWorkAndATimeGivenDuringTheFallbackWait_ClaimsAgainAtTheGivenTime()
+    {
+        // Arrange
+        var signal = Substitute.For<IDispatchSignal>();
+        signal.WaitAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Unavailable)));
+        _doubles.ClaimsGive(TestChannel.Id, ClaimWithNextDue(_doubles.Now.AddSeconds(60), AMessage()));
+        var fallbackWaitStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var transport = TestTransports.For(TestChannel.Id);
+        transport.SendAsync(default!, default, Ct).ReturnsForAnyArgs(call => RateLimitedAfterAsync(fallbackWaitStarted.Task, call.ArgAt<CancellationToken>(2)));
+        await using var provider = _doubles.Build(
+            static o => (o.EnablePolling, o.MaxDegreeOfParallelism) = (false, 1), b => b.UseDispatchSignal(_ => signal), transport);
+        await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
+        await _doubles.NextClaimAsync();
+        TimeSpan[] fallbackWait = [await _doubles.Time.NextWaitAsync(), await _doubles.Time.NextWaitAsync()];
+        fallbackWaitStarted.SetResult();
+        var nextTryAtUtc = (await _doubles.NextRecordAsync()).NextTryAtUtc!.Value;
+        var waitForTheGivenTime = await _doubles.Time.NextWaitAsync();
+
+        // Act
+        _doubles.Time.Advance(waitForTheGivenTime);
+
+        // Assert
+        Assert.Equal([TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60)], fallbackWait);
+        Assert.Equal(
+            (nextTryAtUtc - TestHost.Start.UtcDateTime, nextTryAtUtc),
+            (waitForTheGivenTime, (await _doubles.NextClaimAsync()).NowUtc));
+    }
+
+    [Fact]
     public async Task RunAsync_SignalThatFailsAfterTheDueTime_ClaimsAgainAtOnce()
     {
         // Arrange
