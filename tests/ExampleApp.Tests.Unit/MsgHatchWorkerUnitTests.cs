@@ -4,6 +4,7 @@ using ExampleApp.Tests.Unit.TestTypes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
+using MsgHatch.Dispatch.NamedPipes.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
@@ -15,14 +16,42 @@ namespace ExampleApp.Tests.Unit;
 
 /// <summary>
 /// The worker in the layout with separate processes (D101, D105): two hosts on one database file, each with its own DI
-/// container and its own dispatch signal, an event consumer with no transport, and an email publisher with a poll.
+/// container and its own dispatch signal, an event consumer with no transport, and an email publisher. The publisher
+/// finds the messages of the consumer through a poll, or through the named pipe signal (D188).
 /// </summary>
 public sealed class MsgHatchWorkerUnitTests : IDisposable
 {
+    /// <summary>The event id of a claim of the outbox dispatch store.</summary>
+    private const int _outboxClaimId = 1304;
+
     private readonly Dictionary<string, string?> _database = TestDatabases.NewSection();
     private readonly WaitRecordingTimeProvider _time = new();
 
     public void Dispose() => _database.Delete();
+
+    [Fact]
+    public async Task ExecuteAsync_ConsumerAndEmailPublisherWithTheNamedPipeSignal_PublisherSendsTheEventOfTheConsumerWithNoPoll()
+    {
+        // Arrange
+        var prefix = $"mh{Guid.NewGuid():N}"[..14];
+        await using var consumer = Build(MsgHatchRoles.Consumer, builder => builder.UseNamedPipeDispatchSignal(o => o.PipeNamePrefix = prefix));
+        await using var publisher = Build(
+            MsgHatchRoles.Publisher, builder => builder.UseEmailClient<LogEmailClient>().UseNamedPipeDispatchSignal(o => o.PipeNamePrefix = prefix));
+        consumer.GetRequiredService<IStartupValidator>().Validate();
+        publisher.GetRequiredService<IStartupValidator>().Validate();
+        await consumer.SeedScenarioAsync(TenantKey.None);
+        await using var worker = await RunningWorker.StartAsync(publisher, Ct);
+        await publisher.WaitForLogsAsync(_outboxClaimId, count: 1);
+        await _time.NextWaitAsync();
+        await consumer.AcceptAsync(new EventA([1], null, "a"));
+
+        // Act
+        await consumer.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        var emails = await publisher.WaitForLogsAsync(ExampleLoggerExtensions.EmailSentId, count: 1);
+        Assert.Equal(["client1@acme.example | Notification A: a"], emails.Select(static email => $"{email.Field("To")} | {email.Field("Subject")}"));
+    }
 
     [Fact]
     public async Task ExecuteAsync_ConsumerAndEmailPublisherOnOneFile_PublisherSendsTheEventOfTheConsumerAfterAPoll()

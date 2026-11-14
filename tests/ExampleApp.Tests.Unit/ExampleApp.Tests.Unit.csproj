@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\examples\ExampleApp\ExampleApp.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Dispatch.NamedPipes\MsgHatch.Dispatch.NamedPipes.csproj" />
     <ProjectReference Include="..\MsgHatch.Data.Sqlite.Tests.Unit\MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
     <ProjectReference Include="..\MsgHatch.Subscriptions.Tests.Unit\MsgHatch.Subscriptions.Tests.Unit.csproj" />
   </ItemGroup>
