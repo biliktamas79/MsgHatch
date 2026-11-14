@@ -1044,8 +1044,8 @@ Done when: the build has no errors and no warnings, all unit tests pass, and the
 Goal: the inbox, outbox, registry settings, and subscription stores on MongoDB (D121).
 
 1. Add `src/MsgHatch.Data.MongoDb` with `MongoDbStoreOptions` and its validator, `MongoDbInboxStore`, `MongoDbOutboxStore`, `MongoDbRegistrySettingsStore`, and `UseMongoDbStores` (sections 4.5 and 4.7):
-   - The class maps come from the content type registry, with the discriminators of D30.
-   - A claim is a loop of `findOneAndUpdate` calls, one for each message, until `maxCount` messages or no due message (D121). Each call sorts by `nextTryAtUtc`, so the claim takes the messages in the order of their due time (D144). Each call sets `nextTryAtUtc` and `leaseUntilUtc` to the end of the lease (D103).
+   - A store converts the JSON document of `MsgHatchJson` into one BSON document, and back for a read (D184). Each time is the sub-document `{ d, t }`, and each filter, sort, and index uses `t` (D185). An add is one unordered `insertMany` with no transaction (D186).
+   - A claim is a loop of `findOneAndUpdate` calls, one for each message, until `maxCount` messages or no due message (D121). Each call sorts by `nextTryAtUtc` and then by the ObjectId `_id`, so the claim takes the messages in the order of their due time, and of their add for the adds of one process (D144, D187). Each call sets `nextTryAtUtc` and `leaseUntilUtc` to the end of the lease (D103).
    - A try is a `$push` in the same update as the delivery state, with the filter `tryCount` equal to the try number minus 1 (D27).
    - The claim index is a partial index on `channel` and `nextTryAtUtc` with the filter `status: "Pending"` (D104). The store creates its indexes one time for each database in the process.
 2. Add `src/MsgHatch.Subscriptions.Data.MongoDb` with `MongoDbSubscriptionStore` and `UseMongoDbSubscriptionStore`.
