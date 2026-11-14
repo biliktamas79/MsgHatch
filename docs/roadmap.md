@@ -1056,10 +1056,37 @@ Tests:
 - The use cases of `InboxStoreTestsBase`, `OutboxStoreTestsBase`, `RegistrySettingsStoreTestsBase`, and `SubscriptionStoreTestsBase` run on the MongoDB stores against the MongoDB of D183. Each test class uses its own database.
 - Two parallel claims get different messages.
 - The options tests of `MongoDbStoreOptions`.
+- More tests unique to the MongoDB stores, from breaks of the code that showed gaps of the contract tests:
+  - The document shape: the enum values as text, a null tenant, the trace with its `$type`, the empty array `tries`, a publish try, a down state, a registry entry, and a subscription with its settings as a sub-document. Each time is `{ d, t }`, and a time with ticks below a millisecond round-trips unchanged and keeps its claim order (D185).
+  - The numbers of an event keep their digits and their BSON types, and a number of 35 digits gives `Errors.SerializationFailed` (D184).
+  - The ObjectIds keep the order of the creation times, a batch with a stored id first stores the other messages (D186, D187), and the indexes have their keys, their partial filter, and `unique`.
+  - A document with a value that a person broke, or with a newer version, fails only itself. A server that the driver cannot reach gives `Errors.Unavailable`, and a cancelled token gives `Errors.OperationCancelled`.
+  - The setup methods: one call of `UseMongoDbStores` registers each store with its logging wrapper, an `IMongoClient` of the host stays, the database name of the section and of code reaches the stores, and two setup methods with a value in code fail the startup validation.
+
+Checked facts (2026-11-14) for the MongoDB stores, on MongoDB 8.3.7 (the local container dev-mongo, a replica set with one member) with `MongoDB.Driver` 3.14.0:
+
+| Fact | Source |
+|---|---|
+| A database name has at most 63 characters: 64 give error 73 `InvalidNamespace`. Two database names that differ only in case give error 13297. | A probe with `mongosh` on dev-mongo, with probe databases of the test prefix, dropped after it |
+| A `findOneAndUpdate` with the filter on the status, the channel, and the due ticks, and the sort by the due ticks and `_id`, has the plan `UPDATE > SORT > FETCH > IXSCAN` with the partial index on `(channel, nextTryAtUtc.t)`, and `UPDATE > LIMIT > FETCH > IXSCAN` with `_id` as the third key. | `explain` of `findAndModify` on dev-mongo |
+| A nested field `$type`, for example `trace.$type`, inserts and reads back unchanged through `mongosh` and through the C# driver. | A probe on dev-mongo, and the outbox tests with a route trace |
+| The driver keeps the BSON class maps for the whole process, and freezes a class map at its first use (D184). | The documentation of the driver repository, through Context7 |
+| `Decimal128.TryParse` of `MongoDB.Bson` 3.14.0 keeps the digits of a number text up to 34 significant digits, for example `19.90`, `5E-324`, and `1.7976931348623157E+308`. It returns false for 35 digits and for `1E+7000`, and does not round. | A probe with `MongoDB.Bson` 3.14.0 |
+| An unordered `InsertManyAsync` of a batch with a stored id first inserts the other documents, and gives a `MongoBulkWriteException` with only `DuplicateKey` errors. | The test `AddAsync_BatchWithAStoredIdFirst_StoresTheNewMessagesAfterIt`, which fails with `IsOrdered = true` |
+| A server on a port with no listener gives `System.TimeoutException` after the server selection timeout, not a `MongoException`. | The tests `..._ServerThatCannotBeReached_...`, which fail when the store maps only `MongoException` |
+| `MongoDB.Driver` 3.14.0 (published on 2026-11-12) and `MongoDB.Bson` 3.14.0 have the license Apache-2.0. The resolved transitive packages are `DnsClient` 1.6.1 (Apache-2.0), `SharpCompress` 0.48.1 (MIT), `Snappier` 1.3.1 (BSD-3-Clause), and `ZstdSharp.Port` 0.7.3 (MIT). `Testcontainers.MongoDb` 4.16.0 has MIT. | The nuspec of each package, and `dotnet list package --include-transitive` |
+| With no connection string, `new MongoDbBuilder("mongo:8.3")` of `Testcontainers.MongoDb` 4.16.0 started MongoDB 8.3.7 from the local image, and Ryuk from the local image `testcontainers/ryuk:0.14.0`, with no pull. The core project passed 335 tests, and no container stayed. | A run in a worktree with no `appsettings.Local.json`, and `docker images` and `docker ps -a` before and after |
+| With the connection string of dev-mongo, the core project passed 335 tests and the subscription project 50 tests. Each fixture dropped its test databases at the end, and dev-mongo had no test database after the runs. | The diagnostic messages of the fixtures, and `listDatabases` on dev-mongo |
 
 Commits:
-1. "Add MongoDB stores for the inbox, the outbox, and the registry settings"
-2. "Add the MongoDB subscription store"
+1. "Record the decisions of the MongoDB stores in the plan (D184 to D187)"
+2. "Fix the claim index and the test server of the MongoDB stores in the plan"
+3. "Add MongoDB stores for the inbox, the outbox, and the registry settings"
+4. "Add the MongoDB subscription store"
+5. "Record the commits and the checked facts of phase 19 in the plan"
+6. "Record phase 19 as done in README and AGENTS.md"
+
+Commit 3 also adds the MongoDB rules to section 4.5 of the design and the MongoDB section to `docs/stores.md`, and commit 4 adds the subscription part of that section.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and the integration tests pass in the stage after the merge.
 
