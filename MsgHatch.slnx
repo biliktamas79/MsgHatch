@@ -11,6 +11,7 @@
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
     <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
     <Project Path="src/MsgHatch.Data.EFCore/MsgHatch.Data.EFCore.csproj" />
+    <Project Path="src/MsgHatch.Dispatch.NamedPipes/MsgHatch.Dispatch.NamedPipes.csproj" />
     <Project Path="src/MsgHatch.Data.FileSystem/MsgHatch.Data.FileSystem.csproj" />
     <Project Path="src/MsgHatch.Data.MongoDb/MsgHatch.Data.MongoDb.csproj" />
     <Project Path="src/MsgHatch.Data.Sqlite/MsgHatch.Data.Sqlite.csproj" />
@@ -39,6 +40,7 @@
     <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.MongoDb.Tests.Integration/MsgHatch.Data.MongoDb.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Data.Sqlite.Tests.Unit/MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Dispatch.NamedPipes.Tests.Unit/MsgHatch.Dispatch.NamedPipes.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Domain.Tests.Performance/MsgHatch.Domain.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Integration/MsgHatch.Email.AmazonSES.Tests.Integration.csproj" />

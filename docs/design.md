@@ -377,6 +377,7 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Data.Sqlite` | `net10.0` | `MsgHatch.Domain` | `Microsoft.Data.Sqlite` | The SQLite inbox and outbox stores (D55) |
 | `src/MsgHatch.Data.EFCore` | `net10.0` | `MsgHatch.Domain` | `Microsoft.EntityFrameworkCore.Relational` | The EF Core stores, with SQL Server as the first provider (D120) |
 | `src/MsgHatch.Data.MongoDb` | `net10.0` | `MsgHatch.Domain` | `MongoDB.Driver` | The MongoDB stores (D121) |
+| `src/MsgHatch.Dispatch.NamedPipes` | `net10.0` | `MsgHatch.Domain` | none | The dispatch signal between the processes of one OS user on one machine, with named pipes (D188, D189) |
 | `src/MsgHatch.AspNetCore` | `net10.0` | `MsgHatch.Domain` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the delivery management API (D107) and of the registry administration (D117) |
 | `src/MsgHatch.Subscriptions` | `net10.0` | `MsgHatch.Domain` | none | The subscription router, the subscription model, the resolution, the management API, the subscription cache wrapper, and the routing verifier (D97) |
 | `src/MsgHatch.Subscriptions.Data.FileSystem` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Data.FileSystem` | none | The JSON file subscription store |
@@ -916,7 +917,7 @@ Options (D49, D63, D64, D65). Each options class is a `sealed class` with a publ
 | | | `LeaseSafetyMargin` | 10 seconds | `[Range(typeof(TimeSpan), "00:00:00", "00:30:00")]`, and less than `Lease` |
 | | | `PollInterval` | 1 second | `[Range(typeof(TimeSpan), "00:00:00.010", "00:10:00")]` |
 | | | `MaxPollInterval` | 30 seconds | `[Range(typeof(TimeSpan), "00:00:00.010", "01:00:00")]`, and not less than `PollInterval` |
-| | | `EnablePolling` | `true` | none. False only where a signal reaches each loop, for example in one process (D102, D103). |
+| | | `EnablePolling` | `true` | none. False only where a signal reaches each loop, for example in one process (D102, D103). With `UseNamedPipeDispatchSignal`, false fails the startup validation (D190). |
 | `ChannelDownOptions` (named: the channel name) | `MsgHatch:ChannelDown:{Name}` | `ErrorThreshold` | 5 | `[Range(1, 1000)]` |
 | | | `CheckInterval` | 30 seconds | `[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]` |
 | `TestDeliveryOptions` (named: the channel name) | `MsgHatch:TestDelivery:{Name}` | `Mode` | `Suppress` | `TestDeliveryMode.Suppress`, `Deliver`, or `Redirect` |
@@ -930,6 +931,7 @@ Options (D49, D63, D64, D65). Each options class is a `sealed class` with a publ
 | `EntityFrameworkStoreOptions` | `MsgHatch:EntityFramework` | `Schema` | `"msghatch"` | `[Required]`, `[RegularExpression("^[A-Za-z_][A-Za-z0-9_]*$")]` |
 | `MongoDbStoreOptions` | `MsgHatch:MongoDb` | `ConnectionString` | none | `[Required]` |
 | | | `DatabaseName` | `"msghatch"` | `[Required]`, `[RegularExpression("^[A-Za-z0-9_-]+$")]`, `[MaxLength(63)]`, because MongoDB 8.3.7 rejects a longer name (checked fact of phase 19 in the roadmap) |
+| `NamedPipeSignalOptions` | `MsgHatch:NamedPipeSignal` | `PipeNamePrefix` | none | `[Required]`, `[RegularExpression("^[A-Za-z0-9_-]{1,40}$")]` (D192) |
 | `RegistryOptions` | `MsgHatch:Registry` | `RefreshInterval` | 30 seconds | `[Range(typeof(TimeSpan), "00:00:01", "01:00:00")]` (D118) |
 | `FileTemplateOptions` | `MsgHatch:FileTemplates` | `RootPath` | none | `[Required]` |
 | `AmazonSesOptions` | `MsgHatch:AmazonSes` | `SenderEmail` | none | `[Required]`, `[EmailAddress]`, and `[RegularExpression("^[ -~]+$")]`, because SES accepts only 7-bit ASCII in an address. A domain with other letters is in Punycode. |
@@ -1557,7 +1559,7 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 | `UseRegistrySettingsStore<TStore>()` | Registers a registry settings store with its logging wrapper. The storage packages call it. |
 | `UseInboxStore<TStore>()`, `UseOutboxStore<TStore>()` | Register a tenant store as a tenant service, with its logging wrapper. |
 | `UseInboxDispatchStore<TStore>()`, `UseOutboxDispatchStore<TStore>()` | Register a dispatch store as a singleton, with its logging wrapper. The storage packages call these methods and the tenant store methods, with the factory overloads. Each factory overload takes an optional `setupMethod`, and a storage package gives the name of its own setup method, so that the message of D62 names it, for example `UseFileStores`. A host calls them for its own store, or to use two different technologies for the inbox and the outbox. |
-| `UseDispatchSignal<TSignal>()` | Selects another `IDispatchSignal`, for example one between processes (D102). A signal package calls it. |
+| `UseDispatchSignal<TSignal>()`, `UseDispatchSignal(Func<IServiceProvider, IDispatchSignal>, string? setupMethod)` | Selects another `IDispatchSignal`, for example one between processes (D102). A signal package calls the factory overload with the name of its own setup method, so that the message of D62 names it, for example `UseNamedPipeDispatchSignal`. |
 | `UseTransport<TTransport>()` | Registers the `ITransport` of one channel as a singleton, with its logging wrapper (D129). The channel packages call it, with the factory overload. A second transport for the same channel fails the startup validation. |
 | `ConfigureInboxDispatch(Action<DispatchOptions>)`, `ConfigureOutboxDispatch(Action<DispatchOptions>)` | Change the dispatch options. |
 | `AddMessage<TEvent>(name, version, JsonTypeInfo<TEvent>, configure)` | Registers one message type. `configure` receives a `MessageBuilder<TEvent>`. |
@@ -1616,6 +1618,7 @@ Setup methods of the other implementation packages (D60):
 | `UseSignalR<THub>()` | SignalR | `SignalRTransport<THub>` as the one `ITransport` of the SignalR channel, with its logging wrapper, the SignalR server services with `AddSignalR` (D129), and the SignalR channel with `AddChannelType`. So a publisher host with no message type also binds `MsgHatch:ChannelDown:SignalR` and `MsgHatch:TestDelivery:SignalR`. |
 | `UseBrokerClient<TClient>()` | Broker | A custom `IBrokerClient` and the broker transport, with their logging wrappers. One transport serves each payload type (D129). It also registers the broker channel with `AddChannelType`, so a publisher host with no message type also binds `MsgHatch:ChannelDown:Broker` and `MsgHatch:TestDelivery:Broker`. |
 | `UseWolverineBroker()` | Broker.Wolverine | `WolverineBrokerClient` as the `IBrokerClient` with its logging wrapper, and the broker transport. It uses the Wolverine of the host, because the host selects the transport of Wolverine, for example RabbitMQ or Amazon SQS (D134). Wolverine registers `IMessageBus` as a scoped service, so the client gets a new `MessageBus` on the `IWolverineRuntime` of the host for each publish. The client sends with `IMessageBus.SendAsync`, so a payload type with no Wolverine route gives the permanent `Errors.NotFound`. `PublishAsync` drops such a message with no error. The host configures Wolverine as D140 requires: `SendInline()` on the route of each broker payload type, `Durability.UseSyncRetryBlock = true`, and the publisher confirms of the transport. |
+| `UseNamedPipeDispatchSignal(Action<NamedPipeSignalOptions>?)` | Dispatch.NamedPipes | `NamedPipeSignalOptions`, and the internal `NamedPipeDispatchSignal` as the `IDispatchSignal` through `UseDispatchSignal` (D189). Its startup checks: `EnablePolling` false in the dispatch options `Inbox` or `Outbox` fails (D190). On Linux and macOS, the pipe path of a topic of the host that is too long for the platform fails, and the message names the topic. The topics of a host are the inbox and each channel with a registered transport. |
 
 A transport registration makes the host a publisher of its channel. The outbox dispatcher of a host sends exactly the channels whose transport the host registered (D101).
 
@@ -1747,7 +1750,13 @@ A dispatch loop has three parts, and an outbox loop has a fourth part, the down 
    - A notify error does not fail the event, because the messages are already stored. The pipeline logs it at the Warning level.
    - A `WaitAsync` error other than `Errors.OperationCancelled` means that the signal does not work. The loop then waits until the earliest of its times of step 5 of part 1, or for `PollInterval` when it has no such time. A time that a worker gives during this wait ends the wait, as during a wait for the signal (D103).
    - The default `InProcessDispatchSignal` holds one `Channel<bool>` with capacity 1 and `BoundedChannelFullMode.DropWrite` for each topic. It reaches only the loops of the same process.
-   - `UseDispatchSignal<TSignal>()` selects another implementation, for example one with a named pipe or a message broker between processes. Such a package is out of scope now (section 7). The contract is ready for it.
+   - `UseDispatchSignal<TSignal>()` selects another implementation. `UseNamedPipeDispatchSignal` selects the named pipe signal between the processes of one machine (D188). A signal between machines, for example with a message broker, is out of scope now (section 7).
+   - The named pipe signal of `MsgHatch.Dispatch.NamedPipes` (D188, D191, D192):
+     - Each topic has one pipe: `{PipeNamePrefix}.inbox`, and `{PipeNamePrefix}.outbox.{Channel}` for a channel. Both ends use `PipeOptions.CurrentUserOnly`.
+     - `NotifyAsync` notifies the loops of its own process at once through an `InProcessDispatchSignal`, and returns at once. When the process does not serve the pipe of the topic, a writer of that pipe also writes one byte into it in the background. Its queue has capacity 1, so many notifications before one write become one byte.
+     - The waiting process starts to serve the pipe of a topic at its first `WaitAsync` of that topic, with no `PipeOptions.FirstPipeInstance`. Each byte that arrives notifies the loops of the topic in the process.
+     - A writer keeps one connection, which starts with the id of its signal instance. A server closes a connection of its own signal instance, so a process never wakes itself through its own pipe. A notification that finds no server is lost. A write that fails connects one more time and writes again, so the first notification after a restart of the waiting process reaches it.
+     - When the pipe of a topic cannot be served, `WaitAsync` returns `Errors.Unavailable` at once, and the loop uses its fallback wait. The signal logs a Warning one time for each outage. The next `WaitAsync` tries to serve the pipe again.
 4. **The down state of a channel (D86, D106).** The outbox dispatch store keeps one down state for each channel, for all publisher instances of the channel. Each outbox loop keeps only the error count of its channel in its process:
    - A `TransientError` try adds 1 to the count. A `Succeeded` or `PermanentError` try sets the count to 0, because the provider answered. An `Expired` or `Suppressed` try and a `TransientError` try with `Errors.UnsupportedVersion` send nothing, so they do not change the count. The `TransientError` try of a transport or an upgrade function that throws does not change the count either, because a throw is a fault of the code, not an outage (D137). A cancelled send records no try and does not change it.
    - When the count reaches `ErrorThreshold` of the `ChannelDownOptions` of the channel, the loop calls `SetChannelDownAsync` with the reason `Errors`, the error of the last try, and a next check time of `CheckInterval` later. The loop whose call wrote the state logs it at the Error level, with the channel and the error code. The other loops change nothing, because the first loop wins.
@@ -1763,6 +1772,7 @@ A dispatch loop has three parts, and an outbox loop has a fourth part, the down 
 Hosting (D101, D102). The same registration code serves each of these layouts:
 - **One process.** One host runs the event consumer and all publishers, for example with one `BackgroundService` that starts `IInboxProcessor.RunAsync` and `IOutboxDispatcher.RunAsync`. `MsgHatchOptions.Roles` keeps its default, both roles. The in-process signal wakes each loop. With `EnablePolling` false, no loop polls a store: each loop waits only for a signal and for the next due time, which includes the next try times that its workers give to it.
 - **Separate processes.** The event consumer app has the role `Consumer`, registers no transport, and runs the inbox processor, or calls `ProcessAsync` from a broker. Each publisher app has the role `Publisher`, registers the transport of its channel, for example with `UseAmazonSes`, and runs `IOutboxDispatcher.RunAsync`. All apps call the same registration code of the message types, and use the same storage. A publisher then finds new messages by polling and by the next due time, or by an `IDispatchSignal` between processes.
+- **The choice of the signal (D102, D188).** One process uses the default `InProcessDispatchSignal`, and `EnablePolling` can be false. With separate processes of one OS user on one machine, each process calls `UseNamedPipeDispatchSignal` with the same prefix. `EnablePolling` then stays true (D190), and `MaxPollInterval` can be longer, because the signal wakes the loops. With separate machines or separate OS users, a host calls no signal method, and the loops find new messages by the poll and by the next due time.
 - A stopped publisher stops only its channel. The messages of the channel wait in the outbox. They are sent after the restart, or they get an `Expired` try.
 - Each process must reach the same stores. SQLite works only for processes on one machine, and the file stores need a folder with atomic rename (section 6).
 
@@ -2054,6 +2064,7 @@ Each namespace has one `internal static partial class Log` with `[LoggerMessage]
 | MongoDB stores | 2800 to 2899 |
 | Registry administration and its HTTP endpoints | 2900 to 2999 |
 | Resend | 3000 to 3099 |
+| Named pipe dispatch signal | 3100 to 3199 |
 
 ### 4.17 Subscription router and management
 
@@ -2708,6 +2719,7 @@ The tests follow the `core:automated-tests` skill of the Transcend agent tooling
 | `MsgHatch.Subscriptions.Data.EFCore.Tests.Integration` | Integration | The SQL Server of `appsettings.Local.json`, which git ignores, or else SQL Server in a container through Testcontainers (D124, D180) | 18 |
 | `MsgHatch.Data.MongoDb.Tests.Integration` | Integration | The MongoDB of `appsettings.Local.json`, which git ignores, or else MongoDB in a container through Testcontainers (D124, D183) | 19 |
 | `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` | Integration | The MongoDB of `appsettings.Local.json`, which git ignores, or else MongoDB in a container through Testcontainers (D124, D183) | 19 |
+| `MsgHatch.Dispatch.NamedPipes.Tests.Unit` | Unit | The named pipes of the operating system, between DI containers in the test process | 21 |
 
 Packages:
 - `Directory.Build.props` gives each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance` the property `OutputType` `Exe`. It gives each unit and integration test project references to `xunit.v3`, `Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, `NSubstitute`, `NSubstitute.Analyzers.CSharp`, `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.Extensions.Diagnostics.Testing`, and `coverlet.collector` (D70).
@@ -2809,7 +2821,7 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - **Large company scopes.** A company scope on a channel without group delivery, for example email, sends one message to each user of the company. A very large company gives a large fan-out in one event (D43).
 - **Claim atomicity.** The consumer's store must claim messages atomically. The example app and the file stores show correct implementations. The library cannot check a consumer's store.
 - **File store limits.** The file stores depend on an atomic rename. Some network file systems do not guarantee it. Use a database store there.
-- **Separate publisher processes.** The in-process signal does not reach another process. A publisher in its own process then finds new messages at its next poll, at most `MaxPollInterval` later, until a signal between processes exists (D102). Keep `MaxPollInterval` short for the SignalR publisher. All processes need the same stores: SQLite works only on one machine, and the file stores need a folder with atomic rename.
+- **Separate publisher processes.** The in-process signal does not reach another process. On one machine, `UseNamedPipeDispatchSignal` wakes the loops of the other processes of the same OS user (D188). A lost pipe signal only delays a send until the next poll (D190). On another machine, a publisher finds new messages at its next poll, at most `MaxPollInterval` later, until a signal between machines exists (D102). Keep `MaxPollInterval` short there for the SignalR publisher. All processes need the same stores: SQLite works only on one machine, and the file stores need a folder with atomic rename.
 - **Error texts.** The error message of a provider, for example of SES, can contain an email address. `LastError`, the publish tries, and the logs keep the error message, so the overview group of the delivery endpoints can show an address. Protect that group too.
 - **Delivery authorization.** The delivery endpoints can retry, cancel, and pause for the whole outbox. The consumer must protect them with an authorization policy, and the content group with a stricter one (D109).
 - **A publisher that does not run.** The library has no heartbeat of the publishers. A UI finds a stopped publisher only through its pending messages: due since a long time, with no down state of the channel (section 4.19).
@@ -2834,7 +2846,7 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - A resend of a delivered message. A retry skips a `Done` message (D111).
 - A time series of the traffic. A UI calls `GetTrafficAsync` for each time window.
 - A retention timer in the library. The host calls `IDeliveryManager.PurgeAsync` from its own timer (D128).
-- A dispatch signal between processes or instances, for example a named pipe, a message broker, MongoDB change streams, or SQL Server query notifications. A later package implements `IDispatchSignal` for it (D102).
+- A dispatch signal between machines, for example a message broker, MongoDB change streams, or SQL Server query notifications. A later package implements `IDispatchSignal` for it (D102, D188). Phase 21 adds a named pipe signal between the processes of one machine.
 - Streams for very large fan-outs, for example 100,000 recipients for one event. The benchmarks show if chunks are necessary (D43).
 - SMS and push channels.
 - Database schema migrations for the consumer's stores.

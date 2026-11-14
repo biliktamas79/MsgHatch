@@ -389,11 +389,12 @@ public sealed class MsgHatchBuilder
 
     /// <summary>Selects another dispatch signal with a factory, for example for a test substitute.</summary>
     /// <param name="factory">The factory of the signal.</param>
+    /// <param name="setupMethod">The setup method of a signal package that calls this method, so that a second selection names it (D62).</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseDispatchSignal(Func<IServiceProvider, IDispatchSignal> factory)
+    public MsgHatchBuilder UseDispatchSignal(Func<IServiceProvider, IDispatchSignal> factory, string? setupMethod = null)
     {
         ArgumentNullException.ThrowIfNull(factory);
-        Setup.Select(typeof(IDispatchSignal), nameof(UseDispatchSignal));
+        Setup.Select(typeof(IDispatchSignal), setupMethod ?? nameof(UseDispatchSignal));
         Services.AddSingleton(factory);
         return this;
     }
