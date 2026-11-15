@@ -6,7 +6,9 @@ namespace MsgHatch.Email.Templates;
 
 /// <summary>
 /// The template store of the embedded resources of an assembly (section 4.10). It reads the resources
-/// <c>{prefix}.{file name}</c>, with the file names of <see cref="FileSystemTemplateStore"/>. The template id is
+/// <c>{prefix}.{file name}</c>, with the file names of <see cref="FileSystemTemplateStore"/>, and the template of a scope
+/// as <c>{prefix}.{segment}.{file name}</c> with the segment of <see cref="ScopeFolders.SegmentOf"/>. These are the
+/// names that MSBuild gives to the files of a folder and its scope folders. The template id is
 /// <c>{assembly name}:{resource name}</c> with no part suffix, and the version is 0, because a resource does not change
 /// while the process runs. So it caches its sources and its misses for the life of the process. It is a shared
 /// template store only, because the resources are the same for all tenants.
@@ -43,7 +45,12 @@ public sealed class EmbeddedResourceTemplateStore : ITemplateStore
 
     private TemplateSource? Read(TemplateLookup lookup)
     {
-        var name = $"{_prefix}.{TemplateFiles.BaseName(lookup)}";
+        var name = TemplateFiles.ResourceNameOf(_prefix, lookup);
+        if (name is null)
+        {
+            return null;
+        }
+
         var parts = new List<TemplatePart>();
         foreach (var (partName, kind, suffix) in TemplateFiles.Parts)
         {

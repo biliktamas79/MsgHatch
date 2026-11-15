@@ -5,7 +5,8 @@ namespace MsgHatch.Email.Templates;
 
 /// <summary>
 /// The template store of a folder (section 4.10). It reads the files
-/// <c>{MessageType}.{Language}[.{Scope}].subject.txt</c>, <c>.body.html</c>, and <c>.body.txt</c>. The template id is
+/// <c>[{Scope}/]{MessageType}.{Language}.subject.txt</c>, <c>.body.html</c>, and <c>.body.txt</c>, with the scope folder
+/// of <see cref="ScopeFolders.FolderOf"/>. A scope with no folder gives a miss. The template id is
 /// the full path with no part suffix, and the version is the latest last write time of the parts, in ticks. It caches
 /// its sources and its misses: on each lookup, it reads only the last write times of the part files, and reads the
 /// files again only when a time changed.
@@ -30,7 +31,12 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     {
         try
         {
-            var basePath = Path.Combine(_rootPath, TemplateFiles.BaseName(lookup));
+            var basePath = TemplateFiles.PathOf(_rootPath, lookup);
+            if (basePath is null)
+            {
+                return ErrorOr<TemplateSource?>.ForValue(null);
+            }
+
             var writeTicks = WriteTicksOf(basePath);
             if (_entries.TryGetValue(lookup, out var entry) && entry.WriteTicks.AsSpan().SequenceEqual(writeTicks))
             {

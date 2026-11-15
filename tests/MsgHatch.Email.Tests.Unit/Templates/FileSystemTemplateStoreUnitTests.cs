@@ -60,16 +60,16 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
     }
 
     [Fact]
-    public async Task FindAsync_ScopeWithPathCharacters_FindsTheFileWithTheEscapedScope()
+    public async Task FindAsync_TemplateWithTheScopeInItsFileName_IsNotRead()
     {
         // Arrange
-        folder.Write("TestEvent.en.a%2Fb.subject.txt", "Escaped", _firstWriteUtc);
+        folder.Write("TestEvent.en.acme.subject.txt", "The name before D199", _firstWriteUtc);
 
         // Act
-        var result = await Store.FindAsync(new TemplateLookup(TestEvent, "en", "a/b"), Ct);
+        var result = await Store.FindAsync(new TemplateLookup(TestEvent, "en", "acme"), Ct);
 
         // Assert
-        Assert.Equal("Escaped", result.Value?.Parts[0].Text);
+        Assert.Equal("Acme order {{OrderNumber}}", result.Value?.Parts[0].Text);
     }
 
     [Fact]

@@ -51,6 +51,20 @@ public abstract partial class TemplateStoreTestsBase<TStore>
             PartsOf(result.Value));
     }
 
+    [Theory]
+    [MemberData(nameof(TemplateStoreTestRows.ScopeFolderRows), MemberType = typeof(TemplateStoreTestRows))]
+    public async Task FindAsync_ScopeFolder_GivesTheSubjectOfTheFolderOfTheScopeOrNull(string row, string scope, string? expectedSubject)
+    {
+        // Arrange
+        var lookup = new TemplateLookup(TestEvent, "en", scope);
+
+        // Act
+        var result = await Store.FindAsync(lookup, Ct);
+
+        // Assert
+        Assert.Equal((row, expectedSubject), (row, result.Value?.Parts[0].Text));
+    }
+
     [Fact]
     public async Task FindAsync_ScopeWithNoTemplateOfItsOwn_GivesNullSoThatTheSelectorFallsBackToNoScope()
     {

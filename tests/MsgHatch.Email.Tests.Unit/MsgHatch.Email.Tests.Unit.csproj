@@ -12,7 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="TemplateFiles\*" LogicalName="MsgHatch.Email.Tests.Unit.TemplateFiles.%(Filename)%(Extension)" WithCulture="false" />
+    <EmbeddedResource Include="TemplateFiles\**\*" WithCulture="false" />
+    <None Include="TemplateFiles\**\*" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Samples\*.json" />
   </ItemGroup>
 
