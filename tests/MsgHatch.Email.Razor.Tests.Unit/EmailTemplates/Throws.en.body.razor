@@ -1,0 +1,5 @@
+@inherits RazorEmailComponent<OrderEmail>
+<p>@Payload.Name</p>
+@code {
+    protected override void OnInitialized() => throw new InvalidOperationException("The component of the test throws.");
+}
