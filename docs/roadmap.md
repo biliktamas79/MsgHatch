@@ -1352,6 +1352,17 @@ Checked facts (2026-11-15) for the Liquid engine. The probe is a console app in 
 | 200 parallel renders of one parsed template, each with its own `TemplateContext`, give the correct culture and value in each result. | The probe |
 | A render of a short html template allocates about 700 B and takes about 3 µs. | The probe, with `GC.GetTotalAllocatedBytes` |
 | `TemplateOptions.Now` sets the value of `now`. | The probe |
+| The `Undefined` callback also runs for an unknown member of an object, for example `{{ line.Prodcut }}` in a loop, and for each member of an object whose type has no registration. A callback that throws a `FluidException` stops the render with that exception. | A second probe (2026-11-15, during the build), and the rows of `RenderAsync_LiquidInTheHtml_GivesTheRuleOfTheRender` |
+| Fluid writes a `Uri` and a `Version` as a string, so a member of them renders an empty text, with or without a registration. A `TimeZoneInfo`, a `CultureInfo`, and a `Type` stay objects: with no registration, a member read runs `Undefined`, and with a registration it renders the member. | The second probe |
+| The step limit throws an `InvalidOperationException`, and a `render` or `include` tag with the default `NullFileProvider` throws a `FileNotFoundException`. The code of the assembly `Fluid` throws both, so `Exception.TargetSite` is in that assembly. An exception of a getter of the model reaches the caller unchanged, with the getter as its `TargetSite`. | The second probe |
+| The default `TemplateOptions` has the local time zone, `MaxSteps` 0 (no limit), and a `NullFileProvider`. `TemplateContext.Now` sets the value of `now` for one context. The time zone changes a date with no zone, for example `'2030-06-01 10:00' \| date: '%z'`, and not a `now` in UTC. | The second probe, and the break of the time zone |
+| Two renders with one `TemplateContext` share the steps of the step limit: two loops of 60,000 steps stop at the limit of 100,000. Each render has its own scope, so a variable of `{% assign %}` in the first render is unknown in the second. | The second probe |
+| An unknown filter, for example `{{ Name \| nofilter }}`, writes the value with no filter and no error. | The second probe |
+| `HtmlEncoder.Create(UnicodeRanges.All)` writes `+` as `&#x2B;`. `{{ Lines.size }}` gives the number of items of a list. | The rows of `RenderAsync_LiquidInTheHtml_GivesTheRuleOfTheRender`, and the pipeline test |
+| The 22 unit test projects pass 3,464 tests and skip 1 test: the path limit test of the named pipe signal on Windows. `MsgHatch.Email.Liquid.Tests.Unit` passes 44 tests, and `MsgHatch.Email.Tests.Unit` 201. The solution builds with no errors and no warnings. | `pwsh ./coverage.ps1`, which runs each `tests/*.Tests.Unit` project, and `dotnet build MsgHatch.slnx` |
+| The line coverage of the unit tests is 99.3 %. `MsgHatch.Email` and `MsgHatch.Email.Liquid` each have 100 %. | `pwsh ./coverage.ps1` |
+| Each of the commits 2 to 4 builds on its own with no errors and no warnings, and passes its unit tests: `MsgHatch.Email.Tests.Unit` (201), `MsgHatch.Email.AmazonSES.Tests.Unit` (69), and `MsgHatch.Email.Resend.Tests.Unit` (68) at commits 2 and 3, and `MsgHatch.Email.Liquid.Tests.Unit` (44) and `MsgHatch.Email.Tests.Unit` (201) at commit 4. | `dotnet build MsgHatch.slnx` and `dotnet test` in a temporary worktree at each commit, outside the repository |
+| Each new test failed first, or failed with a break of the code that it covers. The selector test failed with no check of the default language. The base class test failed with no check of an unknown placeholder name. Each Liquid test failed with one of 25 breaks, for example with no `Undefined` callback, no step limit, a step limit of 99,000, the local time zone, no element types, registered runtime types, no html encoder, the culture of the caller, the system clock, no parse cache, no tenant store, and no check of a template store. | The break scripts, outside the repository |
 
 Commits:
 1. "Record the decisions of the Liquid email templates in the plan (D205 to D210)"
@@ -1362,6 +1373,14 @@ Commits:
 6. "Record phase 23 as done in README and AGENTS.md"
 
 Commit 2 holds item 1, and commit 3 holds item 2. Each changes only `MsgHatch.Email` or its test project, and the placeholder tests pass with it. Commit 4 holds items 3 and 4, the new projects in `MsgHatch.slnx`, and the pinned version in `Directory.Packages.props`. Before the end of the phase, a worktree at each commit runs `dotnet build MsgHatch.slnx` and `dotnet test` of the changed unit test projects.
+
+The implementation changed the plan in these points:
+- Commit 3 also changes the doc comment of `EmailTemplateEngineTestsBase`, which still named the removed Razor engine.
+- The `Undefined` callback throws a `FluidException`, a type of Fluid, so the engine adds no exception type (section 4.12). The engine gives `Errors.TemplateInvalid` for a `FluidException`, and for an exception whose `TargetSite` is in the assembly `Fluid`: the step limit and a partial. An exception of a getter of the payload has the getter as its `TargetSite`, so it reaches the caller.
+- The three parts of an email render with one `TemplateContext`, so the limit of 100,000 steps applies to all parts of the email together. Each part still renders in its own scope.
+- D209 also registers a struct that is not a primitive type or an enum. A type of the .NET runtime is a type in the namespace `System` or in a namespace below it.
+- The test of a runtime type reads a `TimeZoneInfo` and a `CultureInfo`. Fluid writes a `Uri` and a `Version` as a string, so a test with them passes also when the engine registers runtime types.
+- More tests: the default language through `AsLiquidEmail`, a variable of the subject in the html, `now` and a date with no zone in UTC, a loop of 99,990 steps under the limit, and the encoded value in the html.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
