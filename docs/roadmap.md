@@ -29,6 +29,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 19 MongoDB stores | 15, 16 |
 | 20 Amazon SES against a real account | 4 |
 | 21 Dispatch signal between processes | 2, 13 |
+| 22 Razor email templates | 3 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -1194,12 +1195,87 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all tests pass, and `MsgHatch.Dispatch.NamedPipes.Tests.Unit` also passes on Linux in the image `mcr.microsoft.com/dotnet/sdk:10.0`.
 
+### Phase 22: Razor email templates
+
+Goal: a host renders the html of an email with a Razor component, and takes the subject and the text part from the template store (D45, D193). The template stores read the template of a company from a company folder, for both engines (D199).
+
+1. The company folder in the template stores (D199, D201). `TemplateFiles.BaseName` in `src/MsgHatch.Email/Templates/TemplateFiles.cs` gives the name of a template with a scope as `{Scope}/{MessageType}.{Language}` for `FileSystemTemplateStore`, and as `{Segment}.{MessageType}.{Language}` after the prefix for `EmbeddedResourceTemplateStore`. The segment is the scope, with `_` before a scope that starts with a digit. A scope outside the rule of D201 gives a miss with no read, so the selector uses the template with no scope (D123). The language stays escaped with `Uri.EscapeDataString`. The two test files `TestEvent.en.acme.*` of `tests/MsgHatch.Email.Tests.Unit/TemplateFiles` move to `TemplateFiles/acme/TestEvent.en.*`. No other template file of the repository has a scope. Section 4.10 gets the new names.
+2. The parts of a placeholder template (D197). `MsgHatch.Email.Engines` gets the public enum `PlaceholderParts` with `All` and `SubjectAndText`, and `PlaceholderEmailEngine<TPayload>` gets the public constructor `(ITemplateStore? tenantStore, ITemplateStore? sharedStore, string defaultLanguage, PlaceholderParts parts)`:
+   - With `SubjectAndText`, the parser requires `subject`, allows `text`, and gives `Errors.TemplateInvalid` for an `html` part. The prepared template then renders a null html body.
+   - The cache of the parsed templates keeps the two modes apart.
+   - The existing constructor keeps `All`. A default language that is the language of the request gives no fallback to another language. This is the existing rule of the template selector.
+3. Add `src/MsgHatch.Email.Razor` (D196), which references `MsgHatch.Email` and `Microsoft.AspNetCore.Components.Web`:
+   - `RazorEmailComponent<TPayload> : ComponentBase` with the parameter `[Parameter, EditorRequired] public TPayload Payload`.
+   - `UseRazorEmailTemplates(this MsgHatchBuilder builder, Assembly assembly, string rootNamespace)` records the assembly and the root namespace of the templates (D198). A second call fails the startup validation, and the message names both calls (D62).
+   - `AsRazorEmail(this PayloadBuilder<TEvent, TPayload> payload, string name, Action<ChannelBuilder<EmailMessage>>? configure = null)`, with `TPayload : IPlaceholderPayload<TPayload>`, calls `AsEmail` with one static engine factory. So the email registrations of one payload type share one engine, and the existing check of two engines for one payload type applies (section 4.7).
+   - The startup validation with the role `Consumer`: an `AsRazorEmail` registration fails with no `UseRazorEmailTemplates`, and with no template store, as an email registration with the placeholder engine does.
+4. The internal `RazorEmailEngine<TPayload>`, a tenant service of the key of the request:
+   - `PrepareAsync` tries the language of the request, and then the default language (D194). In each language, it finds the component and the store template. Both found give the template. `Errors.NotFound` of one of them goes to the next language. Another error is the result. With no language left, the result is `Errors.NotFound`.
+   - The component of a language is the class `{rootNamespace}.{Segment}.{MessageType}_{Language}_body` for the scope of the request, and else `{rootNamespace}.{MessageType}_{Language}_body` (D195, D198). The language has `_` for `-`, and the engine compares the class names with no case. The segment follows D201. A class of this name that does not inherit `RazorEmailComponent<TPayload>` gives `Errors.TemplateInvalid`.
+   - The engine finds the classes with one scan of the assembly at its first prepare, and keeps them for the life of the process: each class in the root namespace, or in one namespace below it, that inherits `RazorEmailComponent<T>` for some `T`.
+   - The store template of a language comes from a `PlaceholderEmailEngine<TPayload>` with the stores of the key, `SubjectAndText`, and that language as its default language. So it keeps the lookups of D123 in that language (D195).
+   - `RenderAsync` renders the subject and the text with the placeholder template, and the html with a new `HtmlRenderer` for each render (D202).
+5. Sections 4.2, 4.7, 4.10, 4.11, 5.5, and 7 of the design get the package. Section 4.10 replaces the paragraph "Razor as a later engine" with the engine. Section 4.11 gets the allocation of a Razor render, about 4.7 KB for each email, as a measured cost outside the zero allocation target. Section 7 loses the item of the Razor engine.
+
+Tests:
+- The store layout of item 1, in `TemplateStoreTestsBase` for both stores:
+  - A template of the scope `acme` in the folder `acme` is found, and the old name `TestEvent.en.acme.subject.txt` is not found.
+  - The scope `42` finds the folder `42` of the file store and the resource segment `_42` of the embedded store.
+  - The scopes `acme-1`, `..`, and `_x` give a miss.
+- The parts of item 2, in `PlaceholderEmailEngineUnitTests`:
+  - With `SubjectAndText`: a subject and a text render with a null html body. A subject only renders with a null html body and a null text body. An `html` part gives 422. No subject gives 422.
+  - A default language `hu` and a store with only `en` give 404 for a request in `hu`.
+  - The existing rows of `All` stay unchanged and pass.
+- The engine contract: `RazorEmailEngineUnitTests : EmailTemplateEngineTestsBase<IEmailTemplateEngine<OrderEmail>>` builds the engine with `UseRazorEmailTemplates` and `AsRazorEmail`, because the engine class is internal. A substitute store holds the subject and the text of each `Seed`, and the test project holds the html as components. The base class names the message type of each test after its test method, not with a new GUID, because a Razor template needs a fixed class name. Each test method still has a message type of its own.
+- The rules of the Razor engine, in `RazorEmailEngineUnitTests`:
+  - The company (D195, D198): 4 rows for the request of the company `acme`: an override of both parts, of only the subject, of only the body, and of no part. Each row asserts the source of each part.
+  - The company id (D201): `42` finds the folder `42`, and `acme-1` uses the template with no company.
+  - The language (D194): a component and a subject in `hu` give `hu`. A component in `hu` with no subject in `hu`, and a subject in `hu` with no component in `hu`, each give `en` for all parts. Nothing in `en` gives 404.
+  - A store template of a Razor email with an `html` part gives 422.
+  - A class with the name of a template and another payload type gives 422.
+  - The culture of the caller is the same after a render in another culture.
+  - A component that throws gives the exception to the caller.
+- The setup: `AsRazorEmail` with no `UseRazorEmailTemplates` fails the startup validation. Two calls of `UseRazorEmailTemplates` fail, and the message names both. `AsEmail` with the placeholder engine and `AsRazorEmail` for one payload type fail. Two `AsRazorEmail` registrations of one payload type pass.
+- Through the pipeline: `INotificationService.ProcessAsync` with a Razor registration stores an email with the subject of the store and the html of the component.
+- The base class tests of encoding and culture prove the encoder and the culture of D202: `RenderAsync_AccentedCharacters_RenderUnchangedInEachPart` fails with `HtmlEncoder.Default`.
+
+Checked facts (2026-11-14 and 2026-11-15) for the Razor engine. The probe is a console app in a scratch folder, outside the repository, on Windows 11 build 26300 with the .NET SDK 10.0.404, the runtime 10.0.15, and `Microsoft.AspNetCore.Components.Web` 10.0.14:
+
+| Fact | Source |
+|---|---|
+| Runtime compilation is obsolete from .NET 10, and does not support Razor components. So a component cannot load at run time. | The ASP.NET Core documentation "Razor file compilation" through Context7 |
+| A call of `HtmlRenderer.RenderComponentAsync` must run in `Dispatcher.InvokeAsync`. | The ASP.NET Core documentation "Render Razor components outside of ASP.NET Core" through Context7 |
+| `HtmlRenderer` needs no DI scope. It renders with the root provider of a container with no registration, and with a `HtmlRenderer` that a DI scope gives. The sync dispose of that scope works. `HtmlRenderer` implements `IDisposable` and `IAsyncDisposable`. | The probe |
+| A console host with only the package reference needs only the runtime `Microsoft.NETCore.App`, in its `runtimeconfig.json`. The package brings 8 packages of the ASP.NET Core 10.0.14 release, each with the license MIT: `Microsoft.AspNetCore.Components.Web`, `Components`, `Components.Forms`, `Components.Analyzers`, `Authorization`, `Metadata`, `Microsoft.JSInterop`, and `Microsoft.Extensions.Validation`. | The probe, `project.assets.json`, and the `.nuspec` of each package |
+| `HtmlRenderer` encodes a value with the `HtmlEncoder` of its service provider. With no encoder, `Ö` becomes `&#xD6;`. With `HtmlEncoder.Create(UnicodeRanges.All)`, `Ö` stays, and `<script>` becomes `&lt;script&gt;`. Literal markup in a component stays unchanged, for example `ő`, `&amp;`, and `Tom & Jerry`. | The probe |
+| A culture that the code sets in `Dispatcher.InvokeAsync` applies to the render, also after an `await` in a component. The culture of the caller is the same after the render. A culture that the caller sets before the call also applies to the render. | The probe |
+| An exception of a component reaches the caller of `RenderComponentAsync` with its own type, for example `FormatException`. A missing payload gives `NullReferenceException`, a payload of another type or an unknown parameter gives `InvalidOperationException`, and the renderer still renders after these errors. | The probe |
+| 200 parallel renders on one renderer give the correct culture in each result. | The probe |
+| One shared renderer keeps about 2 KB for each render until it is disposed: 39 MB after 20,000 renders, and 117 MB after 60,000. A new renderer for each render allocates about 4.7 KB and a shared renderer about 3.8 KB to 4.0 KB, and each takes about 5 µs. | The probe, with `GC.GetTotalMemory` and `GC.GetTotalAllocatedBytes` |
+| A parameter of a base class works: a component with `@inherits RazorEmailComponent<Pay>` gets `Payload`. | The probe |
+| The Razor SDK makes a class name from a file name and a namespace from a folder: `A.hu.body.razor` gives `A_hu_body`, `A.en-US.body.razor` gives `A_en_US_body`, and `42/A.hu.body.razor` gives `_42.A_hu_body`. Folder names change: `acme-1` to `acme_1`, `1acme` to `_1acme`, and `a.b` to `a_b`. | The probe |
+| A component name that starts with a lowercase letter stops the build with RZ10011, for example `orderShipped.en.body.razor` and `hu.razor`. | The probe |
+| The folders `acme-1` and `acme_1` with one file name each stop the Razor source generator with CS8785, and then no component of the project compiles. | The probe |
+| MSBuild names an embedded resource in a folder in the same way: `42/A.hu.title.txt` gives `{prefix}._42.A.hu.title.txt`, and `acme-1` gives `acme_1`. | The probe |
+
+Commits:
+1. "Record the decisions of the Razor email templates in the plan (D193 to D202)"
+2. "Read the template of a company from its folder in the template stores"
+3. "Prepare a placeholder template with only a subject and a text part"
+4. "Name the message type of each engine contract test after its test method"
+5. "Add the Razor email template engine"
+6. "Record the commits and the checked facts of phase 22 in the plan"
+7. "Record phase 22 as done in README and AGENTS.md"
+
+Commit 2 holds item 1 with its tests and the new text of section 4.10. Commit 3 holds item 2. Commit 4 changes only `EmailTemplateEngineTestsBase`, and the placeholder tests pass with it. Commit 5 holds items 3, 4, and 5, the new projects in `MsgHatch.slnx`, and the pinned version in `Directory.Packages.props`. Each commit builds and passes its tests on its own: commits 2, 3, and 4 change only `MsgHatch.Email` and its test projects. Before the end of the phase, a worktree at each commit runs `dotnet build` of the changed projects and `dotnet test` of their unit test projects.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
 - A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
-- The Razor template engine `MsgHatch.Email.Razor` (D45).
 - SMS and push channels.
 - Batched try records: one store call records the tries of several sent messages, for more throughput on one channel.
 - `MsgHatch.Broker.AmazonSns`, the first direct broker client (D134):
