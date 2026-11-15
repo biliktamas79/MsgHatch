@@ -1285,11 +1285,28 @@ The implementation changed the plan in these points:
 - The file store test `FindAsync_ScopeWithPathCharacters_FindsTheFileWithTheEscapedScope` becomes `FindAsync_TemplateWithTheScopeInItsFileName_IsNotRead`, because a scope with path characters has no folder (D201).
 - The test of the pipeline uses the embedded store of the test project, with the subject files next to the components in the folder `EmailTemplates`, as in the layout of the owner (D198).
 - More tests: the template store of a tenant, a cancelled render, the arguments of `UseRazorEmailTemplates`, the arguments of the new `PlaceholderEmailEngine` constructor, and a publisher host with a Razor registration and no templates. The setup tests are in `RazorEmailExtensionsUnitTests`.
+
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
+After the phase, the owner required that a host adds email templates at run time, with no build and no deployment. A Razor component cannot meet this (D204), so the owner removed the Razor engine:
+- `03ea3a7` "Remove the Razor email template engine" reverts commit 5.
+- `c473fe8` "Remove the subject and text parts mode of the placeholder engine" reverts commit 3.
+- The company folders of the template stores (commit 2, D199, D201) and the message types of the engine contract tests (commit 4) stay.
+- The Liquid engine of D203 is the first item of "Later phases".
+
+Checked facts (2026-11-15) for the removal and for the choice of the engine:
+
+| Fact | Source |
+|---|---|
+| The newest version of `Microsoft.AspNetCore.Razor.Language`, the stand-alone Razor compiler, is 6.0.36, for `netstandard2.0`. `Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation` 11.0.0 depends on `Microsoft.CodeAnalysis.Razor` 6.0.0. `RazorLight` 2.3.1 targets at most `net6.0`, and has a license file, not a license expression. | The NuGet flat container API, with the `.nuspec` of each version |
+| `Fluid.Core` 2.41.1 has the license MIT and targets `net10.0`. `Scriban` 7.6.1 has BSD-2-Clause and targets at most `net8.0`. `Handlebars.Net` 2.4.3 has MIT and targets `net10.0`. | The NuGet flat container API, with the `.nuspec` of each version |
+| Fluid renders with a `TextEncoder`, for example an `HtmlEncoder`, which encodes each value. The filter `raw` and the tag `raw` turn this off. `TemplateContext.CultureInfo` sets the culture of one render, and the default is the invariant culture. A member access strategy controls which members of a model a template reads. `TemplateContext.CancellationToken` stops a render. | The Fluid documentation through Context7 |
+| After the two reverts, the solution builds with no errors and no warnings. `MsgHatch.Email.Tests.Unit` passes 198 tests, `MsgHatch.Email.AmazonSES.Tests.Unit` 69, and `MsgHatch.Email.Resend.Tests.Unit` 68. | `dotnet build MsgHatch.slnx` and `dotnet test` after each revert |
 
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
+- The Liquid template engine (D203): a package with `Fluid.Core`, which reads the subject, the html, and the text of an email from `ITemplateStore`. A host then adds a template, a language, or a company override at run time with a copied file. The phase checks the encoding, the culture, the member access, the partials from the template store, and the cache of the parsed templates in the pinned version.
 - A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
 - SMS and push channels.
