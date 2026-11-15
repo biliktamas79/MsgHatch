@@ -1257,6 +1257,13 @@ Checked facts (2026-11-14 and 2026-11-15) for the Razor engine. The probe is a c
 | A component name that starts with a lowercase letter stops the build with RZ10011, for example `orderShipped.en.body.razor` and `hu.razor`. | The probe |
 | The folders `acme-1` and `acme_1` with one file name each stop the Razor source generator with CS8785, and then no component of the project compiles. | The probe |
 | MSBuild names an embedded resource in a folder in the same way: `42/A.hu.title.txt` gives `{prefix}._42.A.hu.title.txt`, and `acme-1` gives `acme_1`. | The probe |
+| In `MsgHatch.Email.Tests.Unit`, the default resource names of MSBuild put the company folders at the place that `ScopeFolders.SegmentOf` gives: the embedded store finds `TemplateFiles/42/TestEvent.en.subject.txt` for the scope `42`. | The row `digits` of `FindAsync_ScopeFolder_GivesTheSubjectOfTheFolderOfTheScopeOrNull` |
+| `IServiceProviderIsKeyedService.IsKeyedService(typeof(ITemplateStore), TenantKey.None)` is true for a store that `UseTenantTemplateStore` registers with `KeyedService.AnyKey`. | The row `a template store of each tenant` of `Validate_CompleteRazorSetup_Succeeds`, which fails when the check leaves out the keyed store |
+| In xUnit v3, `TestContext.Current.TestMethod` is set when the test class is constructed, so a property initializer of a base class can read the name of the test method. | The engine contract tests of both engines, which use it for their message type |
+| A Razor component of the test project renders `<p>@Payload.Name</p>` as exactly `<p>Client 1</p>`, with no whitespace before or after it. | The engine contract tests of `RazorEmailEngineUnitTests` |
+| The 22 unit test projects pass 3,464 tests and skip 1 test: the path limit test of the named pipe signal on Windows. `MsgHatch.Email.Razor.Tests.Unit` passes 37 tests, and `MsgHatch.Email.Tests.Unit` 208. The solution builds with no errors and no warnings. | `pwsh ./coverage.ps1`, which runs each `tests/*.Tests.Unit` project, and `dotnet build MsgHatch.slnx` |
+| The line coverage of the unit tests is 99.3 %. `MsgHatch.Email` has 100 %, and `MsgHatch.Email.Razor` 98.2 %. The 2 lines with no test in `RazorEmailTemplate` give an error of the subject render to the caller. The placeholder template never gives an error at render, so no test can reach them. | `pwsh ./coverage.ps1` |
+| Each new test failed first, or failed with a break of the code that it covers. The store rows failed on the code of phase 21 and with no rule of D201. The parts rows failed with no check of the `html` part, with one cache for both modes, and with the default language ignored. Each Razor test failed with one of 22 breaks, for example with no encoder, no culture, no default language, a subject with its own fallback, no company component, no rule of D201, no payload type check, no tenant store, no cancellation check, an engine that catches the exception of a component, and with each check of the startup validation left out. | A run of the tests with each break, after which the code was restored |
 
 Commits:
 1. "Record the decisions of the Razor email templates in the plan (D193 to D202)"
@@ -1269,6 +1276,14 @@ Commits:
 
 Commit 2 holds item 1 with its tests and the new text of section 4.10. Commit 3 holds item 2. Commit 4 changes only `EmailTemplateEngineTestsBase`, and the placeholder tests pass with it. Commit 5 holds items 3, 4, and 5, the new projects in `MsgHatch.slnx`, and the pinned version in `Directory.Packages.props`. Each commit builds and passes its tests on its own: commits 2, 3, and 4 change only `MsgHatch.Email` and its test projects. Before the end of the phase, a worktree at each commit runs `dotnet build` of the changed projects and `dotnet test` of their unit test projects.
 
+The implementation changed the plan in these points:
+- The engine compares the class names exactly, not with no case. With no case, the companies `acme` and `ACME` share one template, and D201 does not allow that.
+- The scan takes each class of the assembly that inherits `RazorEmailComponent<T>`, with no filter for the namespace and for an abstract class. The engine looks up only names in the root namespace and one segment below it, so such a filter changes no result, and no test can make it fail.
+- The render also sets the UI culture of the route, for a component that reads resources. The test of the culture of the caller covers both cultures.
+- The embedded templates of `MsgHatch.Email.Tests.Unit` get the default resource names of MSBuild, with no `LogicalName`, because a `LogicalName` of only the file name loses the company folder. The test data of the file store copies the folder `TemplateFiles` from the output folder. The scope rows also have a folder `acme-1`, a template in the folder above the root folder, and the scope `acme/../42`, so that each row fails when the rule of D201 is missing.
+- The file store test `FindAsync_ScopeWithPathCharacters_FindsTheFileWithTheEscapedScope` becomes `FindAsync_TemplateWithTheScopeInItsFileName_IsNotRead`, because a scope with path characters has no folder (D201).
+- The test of the pipeline uses the embedded store of the test project, with the subject files next to the components in the folder `EmailTemplates`, as in the layout of the owner (D198).
+- More tests: the template store of a tenant, a cancelled render, the arguments of `UseRazorEmailTemplates`, the arguments of the new `PlaceholderEmailEngine` constructor, and a publisher host with a Razor registration and no templates. The setup tests are in `RazorEmailExtensionsUnitTests`.
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
 ### Later phases
