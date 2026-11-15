@@ -16,35 +16,15 @@ public sealed class PlaceholderEmailEngine<TPayload> : IEmailTemplateEngine<TPay
     where TPayload : IPlaceholderPayload<TPayload>
 {
     private readonly TemplateSelector _selector;
-    private readonly PlaceholderParts _parts;
 
-    /// <summary>Makes the engine of one tenant key, with all parts.</summary>
+    /// <summary>Makes the engine of one tenant key.</summary>
     /// <param name="tenantStore">The template store of the tenant, or null for no tenant or no tenant template store.</param>
     /// <param name="sharedStore">The shared template store, or null when none is registered.</param>
     /// <param name="options">The options, with the default language of the fallback.</param>
     public PlaceholderEmailEngine(ITemplateStore? tenantStore, ITemplateStore? sharedStore, IOptions<MsgHatchOptions> options)
-        : this(tenantStore, sharedStore, DefaultLanguageOf(options), PlaceholderParts.All)
     {
-    }
-
-    /// <summary>
-    /// Makes the engine of one tenant key with the parts of its templates (D197). A default language that is the
-    /// language of a request gives no fallback to another language.
-    /// </summary>
-    /// <param name="tenantStore">The template store of the tenant, or null for no tenant or no tenant template store.</param>
-    /// <param name="sharedStore">The shared template store, or null when none is registered.</param>
-    /// <param name="defaultLanguage">The default language of the fallback.</param>
-    /// <param name="parts">The parts of the templates.</param>
-    public PlaceholderEmailEngine(ITemplateStore? tenantStore, ITemplateStore? sharedStore, string defaultLanguage, PlaceholderParts parts)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(defaultLanguage);
-        if (!Enum.IsDefined(parts))
-        {
-            throw new ArgumentOutOfRangeException(nameof(parts), parts, "The parts are All or SubjectAndText.");
-        }
-
-        _selector = new TemplateSelector(tenantStore, sharedStore, defaultLanguage);
-        _parts = parts;
+        ArgumentNullException.ThrowIfNull(options);
+        _selector = new TemplateSelector(tenantStore, sharedStore, options.Value.DefaultLanguage);
     }
 
     /// <inheritdoc/>
@@ -56,13 +36,7 @@ public sealed class PlaceholderEmailEngine<TPayload> : IEmailTemplateEngine<TPay
             return source.Error;
         }
 
-        var template = ParsedTemplateCache<TPayload>.GetOrParse(source.Value, _parts);
+        var template = ParsedTemplateCache<TPayload>.GetOrParse(source.Value);
         return template.IsError ? template.Error : ErrorOr<IEmailTemplate<TPayload>>.ForValue(template.Value);
-    }
-
-    private static string DefaultLanguageOf(IOptions<MsgHatchOptions> options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        return options.Value.DefaultLanguage;
     }
 }

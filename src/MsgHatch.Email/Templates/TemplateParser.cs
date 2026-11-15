@@ -1,25 +1,20 @@
 using MsgHatch.Domain.Failures;
-using MsgHatch.Email.Engines;
 using MsgHatch.Email.Placeholders;
 
 namespace MsgHatch.Email.Templates;
 
 /// <summary>
 /// Parses the parts of a template (section 4.10). A placeholder is <c>{{PropertyName}}</c>. A <c>}}</c> outside a
-/// placeholder is literal text. These give <see cref="Errors.TemplateInvalid"/>: an unclosed <c>{{</c>, a name that the
-/// placeholder writer does not know (D5), a missing <c>subject</c> part, a missing <c>html</c> part with
-/// <see cref="PlaceholderParts.All"/>, and an <c>html</c> part with <see cref="PlaceholderParts.SubjectAndText"/> (D197).
-/// A generated writer knows only the property names, so a name with other characters than letters, digits, and
-/// <c>_</c> is unknown.
+/// placeholder is literal text. An unclosed <c>{{</c>, a name that the placeholder writer does not know (D5), and a
+/// missing <c>subject</c> or <c>html</c> part give <see cref="Errors.TemplateInvalid"/>. A generated writer knows only
+/// the property names, so a name with other characters than letters, digits, and <c>_</c> is unknown.
 /// </summary>
 internal static class TemplateParser
 {
-    public static ErrorOr<ParsedTemplate> Parse<TPayload>(TemplateSource source, IPlaceholderWriter<TPayload> writer, PlaceholderParts parts)
+    public static ErrorOr<ParsedTemplate> Parse<TPayload>(TemplateSource source, IPlaceholderWriter<TPayload> writer)
     {
         var subject = ParseRequired(source, "subject", writer);
-        var html = parts == PlaceholderParts.All
-            ? ParseRequired(source, "html", writer).ThenIfSuccess(static parsed => ErrorOr<ParsedTemplate.Part?>.ForValue(parsed))
-            : NoHtml(source);
+        var html = ParseRequired(source, "html", writer);
         var text = ParseOptional(source, "text", writer);
         if (subject.IsError)
         {
@@ -38,11 +33,6 @@ internal static class TemplateParser
         source.Parts.FirstOrDefault(part => part.Name == name) is { } part
             ? ParsePart(part, writer)
             : Invalid($"The template {source.Key.Id} has no {name} part.");
-
-    private static ErrorOr<ParsedTemplate.Part?> NoHtml(TemplateSource source) =>
-        source.Parts.Any(static part => part.Name == "html")
-            ? Invalid($"The template {source.Key.Id} has an html part, but its engine renders the html itself.")
-            : ErrorOr<ParsedTemplate.Part?>.ForValue(null);
 
     private static ErrorOr<ParsedTemplate.Part?> ParseOptional<TPayload>(TemplateSource source, string name, IPlaceholderWriter<TPayload> writer) =>
         source.Parts.FirstOrDefault(part => part.Name == name) is { } part

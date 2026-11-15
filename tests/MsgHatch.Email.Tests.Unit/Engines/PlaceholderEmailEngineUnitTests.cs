@@ -52,22 +52,6 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
         { "only a text", ["text"] },
     };
 
-    public static TheoryData<string, string[], string> SubjectAndTextRows => new()
-    {
-        { "a subject and a text", ["subject", "text"], "subject|<null>|text" },
-        { "only a subject", ["subject"], "subject|<null>|<null>" },
-        { "an html part", ["subject", "html", "text"], "422" },
-        { "no subject", ["text"], "422" },
-    };
-
-    public static TheoryData<string?, PlaceholderParts, Type> ConstructorRows => new()
-    {
-        { null, PlaceholderParts.All, typeof(ArgumentNullException) },
-        { "", PlaceholderParts.All, typeof(ArgumentException) },
-        { " ", PlaceholderParts.All, typeof(ArgumentException) },
-        { "en", (PlaceholderParts)2, typeof(ArgumentOutOfRangeException) },
-    };
-
     public static TheoryData<string, bool, string?, string[], string> FallbackRows => new()
     {
         { "tenant, scope, lookup 1", true, "acme", _tenantWithScope, "tenant:hu:acme" },
@@ -278,65 +262,6 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
         Assert.Equal(["tenant:hu:acme"], stores.Lookups);
     }
 
-    [Theory]
-    [MemberData(nameof(SubjectAndTextRows))]
-    public async Task PrepareAsync_SubjectAndTextParts_GivesTheRuleOfTheParts(string row, string[] partNames, string expectedOutcome)
-    {
-        // Arrange
-        var store = AStoreWith(PlaceholderTemplateTestData.ASource([.. partNames.Select(static name => Part(name, name))]));
-        var engine = new PlaceholderEmailEngine<OrderEmail>(tenantStore: null, store, "en", PlaceholderParts.SubjectAndText);
-
-        // Act
-        var outcome = await PartsOfAsync(engine, new EmailTemplateRequest(Type, "en", Scope: null));
-
-        // Assert
-        Assert.Equal((row, expectedOutcome), (row, outcome));
-    }
-
-    [Fact]
-    public async Task PrepareAsync_SourceParsedWithAllParts_IsParsedAgainForSubjectAndText()
-    {
-        // Arrange
-        var store = AStoreWith(PlaceholderTemplateTestData.ASource([Part("subject", "Order"), Part("html", _html)]));
-        var request = new EmailTemplateRequest(Type, "en", Scope: null);
-        await new PlaceholderEmailEngine<OrderEmail>(tenantStore: null, store, "en", PlaceholderParts.All).PrepareAsync(request, Ct);
-
-        // Act
-        var result = await new PlaceholderEmailEngine<OrderEmail>(tenantStore: null, store, "en", PlaceholderParts.SubjectAndText)
-            .PrepareAsync(request, Ct);
-
-        // Assert
-        Assert.Equal(422, CodeOf(result));
-    }
-
-    [Fact]
-    public async Task PrepareAsync_DefaultLanguageThatIsTheLanguageOfTheRequest_DoesNotFallBackToAnotherLanguage()
-    {
-        // Arrange
-        var stores = new FallbackStores(["shared:en:"]);
-        var engine = new PlaceholderEmailEngine<OrderEmail>(tenantStore: null, stores.Shared, "hu", PlaceholderParts.All);
-
-        // Act
-        var result = await engine.PrepareAsync(new EmailTemplateRequest(Type, "hu", Scope: null), Ct);
-
-        // Assert
-        Assert.Equal(404, CodeOf(result));
-    }
-
-    [Theory]
-    [MemberData(nameof(ConstructorRows))]
-    public void Constructor_InvalidArgument_Throws(string? defaultLanguage, PlaceholderParts parts, Type expectedException)
-    {
-        // Arrange
-        var store = Substitute.For<ITemplateStore>();
-
-        // Act
-        var exception = Record.Exception(() => new PlaceholderEmailEngine<OrderEmail>(tenantStore: null, store, defaultLanguage!, parts));
-
-        // Assert
-        Assert.IsType(expectedException, exception, exactMatch: false);
-    }
-
     private static PlaceholderEmailEngine<OrderEmail> EngineWith(ITemplateStore? tenantStore, ITemplateStore sharedStore) =>
         new(tenantStore, sharedStore, Options.Create(new MsgHatchOptions { DefaultLanguage = "en" }));
 
@@ -349,18 +274,6 @@ public sealed class PlaceholderEmailEngineUnitTests(PlaceholderTemplateTestData 
 
     private static TemplatePart Part(string name, string text) =>
         new(name, name == "html" ? TemplatePartKind.Html : TemplatePartKind.PlainText, text);
-
-    private static async Task<string> PartsOfAsync(PlaceholderEmailEngine<OrderEmail> engine, EmailTemplateRequest request)
-    {
-        var template = await engine.PrepareAsync(request, Ct);
-        if (template.IsError)
-        {
-            return template.Error.Type.Code.ToString(CultureInfo.InvariantCulture);
-        }
-
-        var rendered = await template.Value.RenderAsync(APayload(), TestRoutes.AnEmailRoute(), CultureInfo.InvariantCulture, Ct);
-        return $"{rendered.Value.Subject}|{rendered.Value.HtmlBody ?? "<null>"}|{rendered.Value.TextBody ?? "<null>"}";
-    }
 
     private static async Task<string> OutcomeOfAsync(IEmailTemplateEngine<OrderEmail> engine, EmailTemplateRequest request)
     {

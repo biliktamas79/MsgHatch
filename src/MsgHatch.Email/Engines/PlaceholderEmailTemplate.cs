@@ -22,7 +22,7 @@ internal sealed class PlaceholderEmailTemplate<TPayload>(ParsedTemplate parsed) 
         var writer = TPayload.Writer;
         var rendered = new RenderedEmail(
             PlaceholderRenderer.Render(parsed.Subject, payload, writer, culture, output, value),
-            parsed.Html is null ? null : PlaceholderRenderer.Render(parsed.Html, payload, writer, culture, output, value),
+            PlaceholderRenderer.Render(parsed.Html, payload, writer, culture, output, value),
             parsed.Text is null ? null : PlaceholderRenderer.Render(parsed.Text, payload, writer, culture, output, value));
         return ValueTask.FromResult(ErrorOr<RenderedEmail>.ForValue(rendered));
     }

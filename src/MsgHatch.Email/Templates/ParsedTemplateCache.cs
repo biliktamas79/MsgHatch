@@ -15,16 +15,16 @@ internal static class ParsedTemplateCache<TPayload>
     where TPayload : IPlaceholderPayload<TPayload>
 {
     // ponytail: unbounded cache, add a size limit if a store produces many versions
-    private static readonly ConcurrentDictionary<(TemplateKey Key, PlaceholderParts Parts), PlaceholderEmailTemplate<TPayload>> _templates = new();
+    private static readonly ConcurrentDictionary<TemplateKey, PlaceholderEmailTemplate<TPayload>> _templates = new();
 
-    public static ErrorOr<PlaceholderEmailTemplate<TPayload>> GetOrParse(TemplateSource source, PlaceholderParts parts)
+    public static ErrorOr<PlaceholderEmailTemplate<TPayload>> GetOrParse(TemplateSource source)
     {
-        if (_templates.TryGetValue((source.Key, parts), out var cached))
+        if (_templates.TryGetValue(source.Key, out var cached))
         {
             return cached;
         }
 
-        var parsed = TemplateParser.Parse(source, TPayload.Writer, parts);
-        return parsed.IsError ? parsed.Error : _templates.GetOrAdd((source.Key, parts), new PlaceholderEmailTemplate<TPayload>(parsed.Value));
+        var parsed = TemplateParser.Parse(source, TPayload.Writer);
+        return parsed.IsError ? parsed.Error : _templates.GetOrAdd(source.Key, new PlaceholderEmailTemplate<TPayload>(parsed.Value));
     }
 }
