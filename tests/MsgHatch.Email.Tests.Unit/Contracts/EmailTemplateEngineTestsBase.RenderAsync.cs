@@ -1,9 +1,27 @@
 using System.Globalization;
+using MsgHatch.Email.Engines;
+using MsgHatch.Email.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit.Contracts;
 
 public abstract partial class EmailTemplateEngineTestsBase<TEngine>
 {
+    [Fact]
+    public async Task RenderAsync_TemplateWithAnUnknownName_GivesTemplateInvalidAtPrepareOrRender()
+    {
+        // Arrange
+        TestData.Seed(Type, "en", "Order {Unknown}", "<p>{Name}</p>", "{Name}");
+
+        // Act
+        var template = await Engine.PrepareAsync(new EmailTemplateRequest(Type, "en", Scope: null), Ct);
+        var code = template.IsError
+            ? CodeOf(template)
+            : CodeOf(await template.Value.RenderAsync(APayload(), TestRoutes.AnEmailRoute(), CultureInfo.GetCultureInfo("en"), Ct));
+
+        // Assert
+        Assert.Equal(422, code);
+    }
+
     [Theory]
     [InlineData("en-US")]
     [InlineData("hu-HU")]

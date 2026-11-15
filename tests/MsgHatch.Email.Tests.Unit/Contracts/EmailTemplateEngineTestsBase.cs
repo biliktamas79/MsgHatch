@@ -9,8 +9,8 @@ namespace MsgHatch.Email.Tests.Unit.Contracts;
 /// <summary>
 /// The use cases of <see cref="IEmailTemplateEngine{TPayload}"/> and <see cref="IEmailTemplate{TPayload}"/> (section
 /// 5.5). Each engine gets them with one subclass that builds the engine and its test data. Each test method uses a
-/// message type of its own, with the name of the method, so the tests share no template, and an engine with compiled
-/// templates, for example the Razor engine, has a fixed template name for each test.
+/// message type of its own, with the name of the method, so the tests share no template. An engine can find an unknown
+/// name at prepare or at render (D207).
 /// </summary>
 /// <typeparam name="TEngine">The engine type.</typeparam>
 public abstract partial class EmailTemplateEngineTestsBase<TEngine>(TEngine engine, IEmailTemplateTestData testData)
