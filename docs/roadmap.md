@@ -30,6 +30,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 20 Amazon SES against a real account | 4 |
 | 21 Dispatch signal between processes | 2, 13 |
 | 22 Razor email templates | 3 |
+| 23 Liquid email templates | 3, 22 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -1300,13 +1301,74 @@ Checked facts (2026-11-15) for the removal and for the choice of the engine:
 |---|---|
 | The newest version of `Microsoft.AspNetCore.Razor.Language`, the stand-alone Razor compiler, is 6.0.36, for `netstandard2.0`. `Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation` 11.0.0 depends on `Microsoft.CodeAnalysis.Razor` 6.0.0. `RazorLight` 2.3.1 targets at most `net6.0`, and has a license file, not a license expression. | The NuGet flat container API, with the `.nuspec` of each version |
 | `Fluid.Core` 2.41.1 has the license MIT and targets `net10.0`. `Scriban` 7.6.1 has BSD-2-Clause and targets at most `net8.0`. `Handlebars.Net` 2.4.3 has MIT and targets `net10.0`. | The NuGet flat container API, with the `.nuspec` of each version |
-| Fluid renders with a `TextEncoder`, for example an `HtmlEncoder`, which encodes each value. The filter `raw` and the tag `raw` turn this off. `TemplateContext.CultureInfo` sets the culture of one render, and the default is the invariant culture. A member access strategy controls which members of a model a template reads. `TemplateContext.CancellationToken` stops a render. | The Fluid documentation through Context7 |
+| Fluid renders with a `TextEncoder`, for example an `HtmlEncoder`, which encodes each value. The filter `raw` and the tag `raw` turn this off. `TemplateContext.CultureInfo` sets the culture of one render, and the default is the invariant culture. A member access strategy controls which members of a model a template reads. `TemplateContext.CancellationToken` stops a render in Fluid 3, but 2.41.1 does not have it (checked facts of phase 23). | The Fluid documentation through Context7 |
 | After the two reverts, the solution builds with no errors and no warnings. `MsgHatch.Email.Tests.Unit` passes 198 tests, `MsgHatch.Email.AmazonSES.Tests.Unit` 69, and `MsgHatch.Email.Resend.Tests.Unit` 68. | `dotnet build MsgHatch.slnx` and `dotnet test` after each revert |
+
+### Phase 23: Liquid email templates
+
+Goal: a host adds an email template, a language, or a company override at run time, with no build and no deployment: an operator copies a Liquid file into the template store (D203). The Liquid engine renders all parts of an email from `ITemplateStore`, next to the placeholder engine (D205, D206).
+
+1. Make the template selector of `MsgHatch.Email` public (D205). `TemplateSelector` in `src/MsgHatch.Email/Templates/TemplateSelector.cs` becomes `public sealed class TemplateSelector(ITemplateStore? tenantStore, ITemplateStore? sharedStore, string defaultLanguage)` with `FindAsync(EmailTemplateRequest, CancellationToken)`. The constructor gives an `ArgumentException` for a default language that is null, empty, or only whitespace. The placeholder engine keeps it, and its fallback tests stay.
+2. Change the base class test `PrepareAsync_TemplateWithAnUnknownPlaceholderName_GivesTemplateInvalid` of `EmailTemplateEngineTestsBase` into a test of the first error of the prepare and the render: `RenderAsync_TemplateWithAnUnknownName_GivesTemplateInvalidAtPrepareOrRender`. The placeholder engine finds an unknown name at prepare (D5), and the Liquid engine at render (D207). Both then pass the same test.
+3. Add `src/MsgHatch.Email.Liquid` (D205), which references `MsgHatch.Email` and `Fluid.Core`:
+   - `AsLiquidEmail(this PayloadBuilder<TEvent, TPayload> payload, string name, Action<ChannelBuilder<EmailMessage>>? configure = null)` calls `AsEmail` with one static engine factory, so the Liquid registrations of one payload type share one engine, and the check of two engines for one payload type applies (D62, D206). A payload type needs no `[PlaceholderPayload]` (D209).
+   - The package needs no `Use` method, because its templates come from the template store of the setup methods of `MsgHatch.Email`. With the role `Consumer`, an `AsLiquidEmail` registration with no template store fails the startup validation, as a placeholder registration does.
+   - The internal `LiquidEmailEngine<TPayload>` is a tenant service. `PrepareAsync` finds the source with `TemplateSelector` and the stores of its key (D123, D199). It parses the parts `subject` and `html`, which are required, and the optional part `text`, one time for each `TemplateKey` (D210). A missing part and a parse error give `Errors.TemplateInvalid`.
+   - `RenderAsync` renders each part with the payload as the model (D209): the html with `HtmlEncoder.Create(UnicodeRanges.All)`, and the subject and the text with `NullEncoder.Default`. Each render gets the culture of the route, the time zone UTC, the `now` of the `TimeProvider`, and a limit of 100,000 steps (D210).
+   - An unknown name (D207), the step limit, and a `render` or `include` tag (D208) give `Errors.TemplateInvalid`. An exception of the payload code reaches the caller.
+   - The options of Fluid for a payload type are built one time, with the registered member types of D209.
+4. Sections 4.1, 4.2, 4.7, 4.10, 4.11, and 5.5 of the design get the package. Section 4.10 replaces the paragraph "An engine with loops and conditions" with the Liquid engine. Section 4.11 gets the allocation of a Liquid render, about 700 B, as a measured cost outside the zero allocation target.
+
+Tests:
+- The selector of item 1: `TemplateSelector` with a default language of null, an empty string, or only whitespace gives an `ArgumentException`. The fallback tests of D123 in `PlaceholderEmailEngineUnitTests` stay unchanged and pass.
+- The base class test of item 2 passes for the placeholder engine before and after the change.
+- The engine contract: `LiquidEmailEngineUnitTests : EmailTemplateEngineTestsBase<IEmailTemplateEngine<OrderEmail>>` builds the engine with `AsLiquidEmail`, because the engine class is internal. A substitute store holds each `Seed`. The test data writes `{Name}` as `{{ Name }}`, and `{ShippedAt}` as `{{ ShippedAt | format_date: 'G' }}`, because Liquid writes a date in its own format.
+- The rules of the Liquid engine, in `LiquidEmailEngineUnitTests`:
+  - A parse error gives 422 at prepare. A missing `subject` or `html` part gives 422.
+  - An unknown name gives 422 at render, and a property with a null value in `{% if Note %}` renders the `else` branch (D207).
+  - A loop over the lines of an order renders each line, with no registration in the host (D209).
+  - A template with 200,000 steps gives 422 (D210). A template with `render` and one with `include` each give 422 (D208).
+  - The filter `raw` turns the encoding of the html off, and the subject and the text are not encoded.
+  - `{{ 'now' | date: '%Y-%m-%d' }}` renders the date of the `FakeTimeProvider`, `2030-01-01`.
+  - A source with the key of a parsed template uses the parsed template, and a source with a new version is parsed again.
+  - The engine of a tenant takes the template from the template store of the tenant, and the request of the company `42` takes the template of the folder `42` (D123, D199).
+- The setup: `AsLiquidEmail` with no template store fails the startup validation, and with a shared store or a store of each tenant it passes. A publisher host with an `AsLiquidEmail` registration and no template store passes. `AsEmail` with the placeholder engine and `AsLiquidEmail` for one payload type fail. Two `AsLiquidEmail` registrations of one payload type pass.
+- Through the pipeline: `INotificationService.ProcessAsync` with an `AsLiquidEmail` registration and the embedded Liquid templates of the test project stores an email for each route, with a loop and a condition in the html.
+
+Checked facts (2026-11-15) for the Liquid engine. The probe is a console app in a scratch folder, outside the repository, on Windows 11 build 26300 with the .NET SDK 10.0.404 and `Fluid.Core` 2.41.1:
+
+| Fact | Source |
+|---|---|
+| `Fluid.Core` 2.41.1 targets `net10.0`, and depends there on `Parlot` 1.5.9 (BSD-3-Clause), `TimeZoneConverter` 7.2.0 (MIT), and `Microsoft.Extensions.FileProviders.Abstractions` 10.0.0 (MIT). The newest version is the prerelease 3.0.0-beta.9. | The NuGet flat container API, with the `.nuspec` of each version |
+| The Fluid documentation of Context7 describes Fluid 3, not 2.41.1. Version 2.41.1 has a mutable `TemplateOptions`, no `TemplateOptionsBuilder`, no `ITemplateFileProvider`, and no `TemplateContext.CancellationToken`. So the fact of phase 22 that `TemplateContext.CancellationToken` stops a render is not true for 2.41.1. Its `FileProvider` is the synchronous `IFileProvider`. | A build of the probe against 2.41.1, and the XML documentation of the package |
+| With the payload as the model, `{{Name}}` and `{{ Name }}` render the property. `{{ name }}` renders an empty text, so member names are case-sensitive. | The probe |
+| With `HtmlEncoder.Create(UnicodeRanges.All)`, `Ödön Űr <script>` renders as `Ödön Űr &lt;script&gt;`. Literal text of the template stays unchanged, also `&amp;`. The filter `raw` turns the encoding off. With `NullEncoder.Default`, no value is encoded. | The probe |
+| A `decimal` renders in the culture of the context: `1234,5` in `hu-HU`. A `DateTime` renders as `2030-01-02 15:04:05Z` in each culture. `format_date: 'G'` renders the same text as `DateTime.ToString(culture)` in `hu-HU` and `en-US`. | The probe |
+| An unknown name renders an empty text by default. With `StrictVariables`, it gives a `FluidException`, and a property with a null value in `{% if Note %}` also gives a `FluidException`. The `Undefined` callback of `TemplateOptions` runs for the unknown name `Nmae`, and not for the null property `Note`. | The probe |
+| `FluidParser.TryParse` gives false and a message with the position for `Hello {{ Name `. | The probe |
+| `TemplateContext(model, options)` lets a template read the members of the model type with no registration. With `allowModelMembers: false`, nothing renders. The element type of a list property needs `MemberAccessStrategy.Register`, or each member renders an empty text. | The probe |
+| `MaxSteps` 1,000 stops a loop of 100,000 steps with an `InvalidOperationException`. | The probe |
+| `render` and `include` read a partial from `TemplateOptions.FileProvider`, which gets the names `Footer` and then `Footer.liquid`. A missing partial gives a `FileNotFoundException` at render. | The probe |
+| 200 parallel renders of one parsed template, each with its own `TemplateContext`, give the correct culture and value in each result. | The probe |
+| A render of a short html template allocates about 700 B and takes about 3 µs. | The probe, with `GC.GetTotalAllocatedBytes` |
+| `TemplateOptions.Now` sets the value of `now`. | The probe |
+
+Commits:
+1. "Record the decisions of the Liquid email templates in the plan (D205 to D210)"
+2. "Make the template selector public for other engines"
+3. "Check an unknown name of an engine contract test at prepare or at render"
+4. "Add the Liquid email template engine"
+5. "Record the commits and the checked facts of phase 23 in the plan"
+6. "Record phase 23 as done in README and AGENTS.md"
+
+Commit 2 holds item 1, and commit 3 holds item 2. Each changes only `MsgHatch.Email` or its test project, and the placeholder tests pass with it. Commit 4 holds items 3 and 4, the new projects in `MsgHatch.slnx`, and the pinned version in `Directory.Packages.props`. Before the end of the phase, a worktree at each commit runs `dotnet build MsgHatch.slnx` and `dotnet test` of the changed unit test projects.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
-- The Liquid template engine (D203): a package with `Fluid.Core`, which reads the subject, the html, and the text of an email from `ITemplateStore`. A host then adds a template, a language, or a company override at run time with a copied file. The phase checks the encoding, the culture, the member access, the partials from the template store, and the cache of the parsed templates in the pinned version.
+- Partials of the Liquid engine (D208): `render` and `include` read a partial from the template store, with the lookups of the tenant, the company, and the language, through the asynchronous `ITemplateFileProvider` of the first stable Fluid 3.
 - A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
 - SMS and push channels.
