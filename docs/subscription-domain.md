@@ -261,7 +261,7 @@ Each example calls `ProcessAsync` with the scenario, the in-memory outbox, subst
 | No. | Event | Expected outgoing messages | Expected `NotificationResult` |
 |---|---|---|---|
 | P1 | A, users 1, 2 | An email to `client1@acme.example` in English, and an email to `client2@acme.example` in Hungarian, both with an HTML body | 2 stored, 0 failed |
-| P2 | B, users 1, 2 | An email to `client1@acme.example` in English, with a text body and no HTML body. An email to `admin@acme.example` in Hungarian, with an HTML body. | 2 stored, 0 failed |
+| P2 | B, users 1, 2 | An email to `client1@acme.example` in English, with a text body and no HTML body. An email to `admin@acme.example` in Hungarian, with an HTML body, and the English text body, because the template B has no Hungarian text part (D214). | 2 stored, 0 failed |
 | P3 | C, company Acme | One SignalR message with the target `c:100` and the method name `C` | 1 stored, 0 failed |
 | P4 | D, company Globex | One SignalR message with the target `c:200`, and one email to `client3@globex.example` | 2 stored, 0 failed |
 | P5 | A, users 1, 5 | An email to `client1@acme.example` | 1 stored, 1 failed, with `Errors.ValidationFailed` for user 5, who has no email address |

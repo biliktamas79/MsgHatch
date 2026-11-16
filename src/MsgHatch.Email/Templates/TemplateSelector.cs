@@ -4,8 +4,9 @@ using MsgHatch.Email.Engines;
 namespace MsgHatch.Email.Templates;
 
 /// <summary>
-/// Selects the template of a request with the fallback of D123 (section 4.10). It tries the template store of the
-/// tenant with the scope and with no scope, and then the shared template store with the scope and with no scope. It
+/// Selects the template of one part of a request with the fallback of D123 (section 4.10), so each part falls back on
+/// its own (D214). It tries the template store of the tenant with the scope and with no scope, and then the shared
+/// template store with the scope and with no scope. It
 /// does this for the language, and then for the default language. The first hit wins. It skips a missing store, and a
 /// lookup with a scope for a request with no scope. A hit that each store gives synchronously allocates nothing
 /// (section 4.11). Each template engine of <c>MsgHatch.Email</c> and of another package uses it (D205).
@@ -30,10 +31,10 @@ public sealed class TemplateSelector
     }
 
     /// <summary>Finds the template of one request.</summary>
-    /// <param name="request">The message type, the language, and the template scope.</param>
+    /// <param name="request">The message type, the language, the template scope, and the part.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The first template of the fallback, the error of a store, or <see cref="Errors.NotFound"/>.</returns>
-    public async ValueTask<ErrorOr<TemplateSource>> FindAsync(EmailTemplateRequest request, CancellationToken ct)
+    public async ValueTask<ErrorOr<TemplateSource>> FindAsync(TemplateRequest request, CancellationToken ct)
     {
         var source = await FindInLanguageAsync(request, request.Language, ct);
         if (IsMissing(source) && !IsDefaultLanguage(request.Language))
@@ -48,17 +49,17 @@ public sealed class TemplateSelector
 
         return source.Value is { } found
             ? found
-            : new Error(Errors.NotFound, $"No template of {request.Type.Name} exists in the language {request.Language} or {_defaultLanguage}.");
+            : new Error(Errors.NotFound, $"No {request.Part} template of {request.Type.Name} exists in the language {request.Language} or {_defaultLanguage}.");
     }
 
-    private async ValueTask<ErrorOr<TemplateSource?>> FindInLanguageAsync(EmailTemplateRequest request, string language, CancellationToken ct)
+    private async ValueTask<ErrorOr<TemplateSource?>> FindInLanguageAsync(TemplateRequest request, string language, CancellationToken ct)
     {
         var source = await FindInStoreAsync(_tenantStore, request, language, ct);
         return IsMissing(source) ? await FindInStoreAsync(_sharedStore, request, language, ct) : source;
     }
 
     private static async ValueTask<ErrorOr<TemplateSource?>> FindInStoreAsync(
-        ITemplateStore? store, EmailTemplateRequest request, string language, CancellationToken ct)
+        ITemplateStore? store, TemplateRequest request, string language, CancellationToken ct)
     {
         if (store is null)
         {
@@ -67,8 +68,8 @@ public sealed class TemplateSelector
 
         var scoped = request.Scope is null
             ? ErrorOr<TemplateSource?>.ForValue(null)
-            : await store.FindAsync(new TemplateLookup(request.Type, language, request.Scope), ct);
-        return IsMissing(scoped) ? await store.FindAsync(new TemplateLookup(request.Type, language, Scope: null), ct) : scoped;
+            : await store.FindAsync(new TemplateLookup(request.Type, language, request.Scope, request.Part, request.Kind), ct);
+        return IsMissing(scoped) ? await store.FindAsync(new TemplateLookup(request.Type, language, Scope: null, request.Part, request.Kind), ct) : scoped;
     }
 
     private static bool IsMissing(ErrorOr<TemplateSource?> source) => source.IsSuccess && source.Value is null;

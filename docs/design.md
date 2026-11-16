@@ -108,7 +108,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | Channel features | The flags of a channel: languages, rich text, raw data, and group delivery. |
 | Channel settings | The typed settings of one channel subscription, for example the language and the format of an email. |
 | Template payload | A class or record with properties. It contains the data of one message. The consumer defines one payload type for each message type and channel. |
-| Template engine | A component that turns an email template and a template payload into a rendered email. `IEmailTemplateEngine<TPayload>` is its interface (D44). |
+| Template engine | A component that turns the template of one part and a template payload into the output text of that part. `ITemplateEngine<TPayload>` is its interface (D44, D213). |
 | Placeholder engine | The first template engine. It reads text templates from a template store, and replaces each `{{PropertyName}}` with a payload property (D45). |
 | Template | The text of one email for one message type, language, and scope, in the template store of a tenant or in the shared template store (D123). It has the parts `subject`, `html`, and the optional `text`. |
 | Placeholder | `{{PropertyName}}` in a template part. It refers to a property of the template payload. |
@@ -378,7 +378,7 @@ The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3
 |---|---|---|
 | 1 Trigger | `INotificationService`, `ReceivedMessage<TEvent>`, `IInboxProcessor` | Domain event records, their `JsonSerializerContext`, and an inbox store when it uses the inbox |
 | 2 Route | `IMessageRouter<TEvent>`, `MessageRoute`, `RouteGrouping`. The package `MsgHatch.Subscriptions` with `SubscriptionRouter<TEvent>`, `SubscriptionResolver`, `ISubscriptionManager`, and its stores. | A router. Or, for the subscription router, `IRecipientDirectory` and a scope function for each message type. |
-| 3 Templates | `IEmailTemplateEngine<TPayload>`, the placeholder engine, the Liquid engine of `MsgHatch.Email.Liquid` (D205), the template selector, the template parser and cache, `EmbeddedResourceTemplateStore`, `FileSystemTemplateStore` | `ITemplateStore`, only for other storage, for example a database |
+| 3 Templates | `ITemplateEngine<TPayload>` with `ITemplateEngineFactory`, the placeholder engine, the Liquid engine of `MsgHatch.Email.Liquid` (D205), the template selector, the template parser and cache, `EmbeddedResourceTemplateStore`, `FileSystemTemplateStore` | `ITemplateStore`, only for other storage, for example a database |
 | 4 Data | `IPayloadLoader<TEvent, TPayload>`, which the library composers call, and the event loader of `WithEventPayload` (D139) | Template payload types and their loaders, only for a payload that is not the event |
 | 5 Generate | `IEnvelopeComposer<TEvent, TEnvelope>`, one library composer for each channel, the generated placeholder writers, and the placeholder renderer | A composer, only for an own channel |
 | 6 Store | `NotificationPipeline`, `DeterministicId`, the content type registry, `MsgHatchJson`, and the stores | `IOutboxStore` and `IOutboxDispatchStore`, only for other storage |
@@ -862,7 +862,6 @@ public sealed record EmailMessage(
     string To, string Subject, string? HtmlBody, string? TextBody = null,
     string? From = null, IReadOnlyList<string>? Cc = null, IReadOnlyList<string>? Bcc = null);
 
-public sealed record RenderedEmail(string Subject, string? HtmlBody, string? TextBody);
 ```
 
 An `EmailMessage` has at least one body. The format `PlainText` sends only the text body. The `EmailMessage` is the channel envelope of each email, with no copy of the payload (D17).
@@ -1372,17 +1371,21 @@ public interface IEmailClient
     ValueTask<Error?> CheckHealthAsync(CancellationToken ct);
 }
 
-public readonly record struct EmailTemplateRequest(MessageType Type, string Language, string? Scope);
+public readonly record struct TemplateRequest(MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind);
 
-public interface IEmailTemplateEngine<TPayload>
+public interface ITemplateEngine<TPayload>
 {
-    ValueTask<ErrorOr<IEmailTemplate<TPayload>>> PrepareAsync(EmailTemplateRequest request, CancellationToken ct);
+    ValueTask<ErrorOr<ITemplate<TPayload>>> PrepareAsync(TemplateRequest request, CancellationToken ct);
 }
 
-public interface IEmailTemplate<TPayload>
+public interface ITemplate<TPayload>
 {
-    ValueTask<ErrorOr<RenderedEmail>> RenderAsync(
-        TPayload payload, MessageRoute route, CultureInfo culture, CancellationToken ct);
+    ValueTask<ErrorOr<string>> RenderAsync(TPayload payload, CultureInfo culture, CancellationToken ct);
+}
+
+public interface ITemplateEngineFactory
+{
+    ITemplateEngine<TPayload> Create<TPayload>(IServiceProvider tenantServices, TenantKey key);
 }
 
 // MsgHatch.Broker
@@ -1653,8 +1656,8 @@ Message channel registrations of the channel packages. Each one is an extension 
 | Method | Package | Effect |
 |---|---|---|
 | `PayloadBuilder<TEvent, TPayload>.AsEmail(name, configure?)` | Email | Registers email with `EmailComposer<TEvent, TPayload>` and the placeholder engine. Requires `TPayload : IPlaceholderPayload<TPayload>`. The channel envelope is the library type `EmailMessage`, so the registration needs no version and no JSON type information (D17). |
-| `PayloadBuilder<TEvent, TPayload>.AsEmail(name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine, configure?)` | Email | Registers email with another engine, from a factory, for example `static (services, _) => ActivatorUtilities.CreateInstance<MyEmailEngine>(services)` or a test substitute. The email registrations of one payload type share one engine. Two registrations of one payload type with two engine factories fail the startup validation, and the error names both registrations (D62). |
-| `PayloadBuilder<TEvent, TPayload>.AsLiquidEmail(name, configure?)` | Email.Liquid | Registers email with `EmailComposer<TEvent, TPayload>` and the Liquid engine (D205, D206). The payload type needs no `[PlaceholderPayload]` (D209). It calls `AsEmail` with one static engine factory, so the Liquid registrations of one payload type share one engine, and a placeholder registration and a Liquid registration of one payload type fail the startup validation (D62). The package needs no `Use` method, because the templates come from the template store of the email setup methods. |
+| `PayloadBuilder<TEvent, TPayload>.AsEmail(name, ITemplateEngineFactory engine, configure?)` | Email | Registers email with another engine (D216), for example `LiquidTemplates.Engine` or a test substitute. The email registrations of one payload type share one engine. Two registrations of one payload type with two engine factories fail the startup validation, and the error names both registrations (D62). |
+| `PayloadBuilder<TEvent, TPayload>.AsLiquidEmail(name, configure?)` | Email.Liquid | Registers email with `EmailComposer<TEvent, TPayload>` and the Liquid engine (D205, D206). The payload type needs no `[PlaceholderPayload]` (D209). It calls `AsEmail` with the engine factory `LiquidTemplates.Engine`, so the Liquid registrations of one payload type share one engine, and a placeholder registration and a Liquid registration of one payload type fail the startup validation (D62). The package needs no `Use` method, because the templates come from the template store of the email setup methods. |
 | `PayloadBuilder<TEvent, TPayload>.AsSignalR(name, version, JsonTypeInfo<SignalREnvelope<TPayload>>, configure?)` | SignalR | Registers a SignalR message. The channel envelope is `SignalREnvelope<TPayload>`. |
 | `PayloadBuilder<TEvent, TPayload>.AsBroker(name, version, JsonTypeInfo<BrokerEnvelope<TPayload>>, configure?)` | Broker | Registers a broker message. The channel envelope is `BrokerEnvelope<TPayload>`. |
 
@@ -1704,7 +1707,7 @@ Processing of one domain event:
    - A second route for the same target and channel gives `Errors.Conflict`, because its outgoing message id is the id of the first route (step 5).
 4. **Compose.** `RouteGrouping.ByChannel` splits the routes by channel. For each channel registration of `TEvent`, the pipeline calls `IEnvelopeComposer<TEvent, TEnvelope>.ComposeAsync` one time, with all routes of that channel (D96). The library composers do these steps:
    - Each library composer first calls `IPayloadLoader<TEvent, TPayload>.LoadAsync` one time, with all routes of its channel. A loader error is the outer error of the composer.
-   - The email composer groups the routes by language and template scope with `RouteGrouping.ByLanguageAndScope`. It calls `IEmailTemplateEngine.PrepareAsync` one time for each group, and `IEmailTemplate.RenderAsync` for each route, with the culture of the language. It takes `To` from the address, and fails a route with no address with `Errors.ValidationFailed`. The format `PlainText` sends only the text part.
+   - The email composer groups the routes by language and template scope with `RouteGrouping.ByLanguageAndScope`. It calls `ITemplateEngine.PrepareAsync` one time for each group and part (`subject`, the html `body`, and the text `body`), and `ITemplate.RenderAsync` for each part of each route, with the culture of the language (D215). It takes `To` from the address, and fails a route with no address with `Errors.ValidationFailed`. The format `PlainText` sends only the text part.
    - The SignalR composer puts the payload into a `SignalREnvelope<TPayload>`. The transport takes the target from the outgoing message, and the method name is the message type name.
    - The broker composer puts the payload as it is, and the headers of the channel settings, into a `BrokerEnvelope<TPayload>`.
 5. **Outgoing messages.** The pipeline builds an `OutgoingMessage<TEnvelope>` for each envelope:
@@ -1811,11 +1814,13 @@ The validation of `DispatchOptions` at startup (section 4.4) requires `LeaseSafe
 
 ### 4.10 Email templates and engines
 
-**Confirmed rule (D44):** an email registration renders its emails through `IEmailTemplateEngine<TPayload>`. The engine has two steps, so that the email composer can find and prepare a template one time for each group of routes:
-1. `PrepareAsync` finds and prepares the template for one message type, language, and scope. It returns `Errors.NotFound` when no template exists.
-2. `IEmailTemplate.RenderAsync` renders the prepared template for one payload and culture. It also receives the route, so that an engine can read its trace, for example the `ResolutionTrace` of the subscription router, to log the source of the language or to show it in a test email. A placeholder template completes synchronously, so this call does not allocate a task.
+**Confirmed rule (D44, D213):** an email registration renders its emails through `ITemplateEngine<TPayload>`, which another implementation can replace. A template is the text of one part (D214). The engine has two steps, so that the email composer can find and prepare each part one time for each group of routes:
+1. `PrepareAsync` finds and prepares the template of one part for one message type, language, and scope. It returns `Errors.NotFound` when no template exists. An engine caches the parsed objects that it needs.
+2. `ITemplate.RenderAsync` renders the prepared part for one payload and culture, and gives the output string. A placeholder template completes synchronously, so this call does not allocate a task.
 
-The first engine is `PlaceholderEmailEngine<TPayload> where TPayload : IPlaceholderPayload<TPayload>` (D45):
+The email layer (D215) asks for the parts `subject` (`PlainText`, required), `body` (`Html`, required), and `body` (`PlainText`, optional). A missing text part gives no text body. Each part falls back on its own (D214), so a company can change only its subject, and a part with no translation takes the default language. `AsEmail(name)` selects the placeholder engine, and `AsEmail(name, ITemplateEngineFactory)` another engine (D216).
+
+The first engine is `PlaceholderTemplateEngine<TPayload> where TPayload : IPlaceholderPayload<TPayload>` (D45):
 - **Template store.** `ITemplateStore.FindAsync(TemplateLookup lookup, CancellationToken ct)` returns `ValueTask<ErrorOr<TemplateSource?>>`. A null value means that no template matches. This is not an error.
 - **Fallback (D123).** The template selector `TemplateSelector`, which is public so that each engine uses it (D205), tries these lookups in this order, and the first hit wins:
   1. The template store of the tenant, with the language and the scope.
@@ -1825,27 +1830,26 @@ The first engine is `PlaceholderEmailEngine<TPayload> where TPayload : IPlacehol
   5. to 8. The same four lookups with the default language.
   The selector gets the template store of the tenant with its own key. It skips the lookups in that store for the key `TenantKey.None`, or when no tenant template store is registered. It skips a lookup with a scope when the request has no scope. So a setup with no tenant tries the shared store with the scope and then with no scope, and the company templates of D80 apply.
 - **Parser.** A placeholder is `{{PropertyName}}`. The name contains only letters, digits, and `_`. A `}}` outside a placeholder is literal text. An unclosed `{{`, or a name with other characters, gives `Errors.TemplateInvalid`. The parser makes an array of literal and placeholder segments.
-- **Binding.** `ParsedTemplateCache<TPayload>` parses a template one time for each `TemplateKey`, and binds each placeholder to a property index with `IPlaceholderWriter.IndexOf`. An unknown name gives `Errors.TemplateInvalid` (D5). The cache is a static `ConcurrentDictionary<TemplateKey, ParsedTemplate>` for each payload type. It is marked with `ponytail: unbounded cache, add a size limit if a store produces many versions`.
-- **Renderer.** `PlaceholderRenderer` writes each segment into an internal `PooledCharBufferWriter` on `ArrayPool<char>.Shared`. In an `html` part, it encodes each value with `HtmlEncoder.Create(UnicodeRanges.All)` through the `OperationStatus` API. This encoder encodes the HTML characters, for example `<`, `>`, and `&`, but keeps accented letters, for example `Ö` and `Ű`. `HtmlEncoder.Default` writes them as character references, for example `&#xD6;`. In a `subject` or `text` part, it does not encode.
+- **Binding.** `ParsedTemplateCache<TPayload>` parses the text of a part one time for each `TemplateKey` and part kind, and binds each placeholder to a property index with `IPlaceholderWriter.IndexOf`. An unknown name gives `Errors.TemplateInvalid` (D5). The cache is a static `ConcurrentDictionary<(TemplateKey, TemplatePartKind), PlaceholderTemplate<TPayload>>` for each payload type. It is marked with `ponytail: unbounded cache, add a size limit if a store produces many versions`.
+- **Renderer.** `PlaceholderRenderer` writes each segment into an internal `PooledCharBufferWriter` on `ArrayPool<char>.Shared`. In an `Html` part, it encodes each value with `HtmlEncoder.Create(UnicodeRanges.All)` through the `OperationStatus` API. This encoder encodes the HTML characters, for example `<`, `>`, and `&`, but keeps accented letters, for example `Ö` and `Ű`. `HtmlEncoder.Default` writes them as character references, for example `&#xD6;`. In a `PlainText` part, it does not encode.
 
 Template types (`MsgHatch.Email.Templates`):
 
 ```csharp
 public readonly record struct TemplateKey(string Id, long Version);
-public readonly record struct TemplateLookup(MessageType Type, string Language, string? Scope);
+public readonly record struct TemplateLookup(MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind);
 public enum TemplatePartKind { PlainText, Html }
-public sealed record TemplatePart(string Name, TemplatePartKind Kind, string Text);
-public sealed record TemplateSource(TemplateKey Key, IReadOnlyList<TemplatePart> Parts);
+public sealed record TemplateSource(TemplateKey Key, string Text);
 ```
 
-The part names are `subject` (`PlainText`, required), `html` (`Html`, required), and `text` (`PlainText`, optional).
+A lookup and a source are one part (D214). The kind gives the file extension: `.txt` for `PlainText` and `.html` for `Html`.
 
 Template stores:
-- `FileSystemTemplateStore(string rootPath)` reads the files `{MessageType}.{Language}.subject.txt`, `.body.html`, and `.body.txt`, for example `OrderShipped.en.subject.txt`. The template of a scope is in the folder of the scope, for example `acme/OrderShipped.en.subject.txt` (D199). The language is escaped with `Uri.EscapeDataString` in the file names. The template id is the full path of the template with no part suffix, so two folders never share an id. The version is the latest last write time of the parts, in ticks.
+- `FileSystemTemplateStore(string rootPath)` reads the file `{MessageType}.{Language}.{Part}.txt` or `.html` of a lookup (D214), for example `OrderShipped.en.subject.txt`, `OrderShipped.en.body.html`, and `OrderShipped.en.body.txt`. The template of a scope is in the folder of the scope, for example `acme/OrderShipped.en.subject.txt` (D199). The language and the part are escaped with `Uri.EscapeDataString` in the file names. The template id is the full path of the file, so two folders never share an id. The version is the last write time of the file, in ticks.
 - `ScopeFolders.FolderOf(scope)` gives the folder of a scope: a scope of ASCII letters, digits, and `_`, which does not start with `_`, has the folder of its own name (D201). Each other scope has no folder, and its lookup is a miss, so the selector uses the template with no scope. So a scope cannot lead out of the template folder. `ScopeFolders.SegmentOf(scope)` gives the folder as a part of a namespace or of a resource name, with `_` before a folder name that starts with a digit, for example `_42`, as the Razor SDK and MSBuild make it. A folder whose name breaks this rule is an error of the host: the file store does not read it, but MSBuild changes its name, for example `acme-1` to `acme_1`, so the embedded store reads it for the scope `acme_1`.
 - A host can use `FileSystemTemplateStore` as the template store of each tenant, with the factory overload of `UseTenantTemplateStore`, for example on the folder `tenants/{tenantId}`, with the tenant id escaped by `Uri.EscapeDataString`.
-- `EmbeddedResourceTemplateStore(Assembly assembly, string prefix)` reads the resources `{prefix}.{file name}`, with the same file names, and the template of a scope from `{prefix}.{segment}.{file name}`, for example `{prefix}._42.OrderShipped.en.subject.txt`. These are the names that MSBuild gives to the files of a folder and its scope folders, with no `LogicalName`. The template id is `{assembly name}:{resource name}` with no part suffix. The version is 0, because an embedded resource does not change while the process runs. It is a shared template store only, because the resources are the same for all tenants.
-- Each library template store caches its sources and its misses. The embedded store keeps them for the life of the process. On each lookup, the file store reads only the last write times of the part files, and reads the files again only when a time changed. A missing file stays a cached miss until it exists.
+- `EmbeddedResourceTemplateStore(Assembly assembly, string prefix)` reads the resources `{prefix}.{file name}`, with the same file names, and the template of a scope from `{prefix}.{segment}.{file name}`, for example `{prefix}._42.OrderShipped.en.subject.txt`. These are the names that MSBuild gives to the files of a folder and its scope folders, with no `LogicalName`. The template id is `{assembly name}:{resource name}`. The version is 0, because an embedded resource does not change while the process runs. It is a shared template store only, because the resources are the same for all tenants.
+- Each library template store caches its sources and its misses. The embedded store keeps them for the life of the process. On each lookup, the file store reads only the last write time of the file, and reads the file again only when the time changed. A missing file stays a cached miss until it exists.
 
 Placeholder payloads (`MsgHatch.Email.Placeholders`):
 
@@ -1878,7 +1882,7 @@ The source generator (`MsgHatch.SourceGeneration`, D18) is an incremental genera
 **The Liquid engine (D45, D203 to D210).** A host must add an email template at run time, with no build and no deployment: an operator copies a file into the template store. `src/MsgHatch.Email.Liquid` does this with `Fluid.Core` 2.41.1, and `AsLiquidEmail` selects it for one payload type (section 4.7). Liquid gives loops, conditions, and filters.
 - **Templates.** The engine reads the parts `subject` and `html`, and the optional part `text`, from `ITemplateStore` through `TemplateSelector`, with the fallback of D123 and the company folders of D199. It parses each `TemplateKey` one time for the life of the process. A parse error, or a missing `subject` or `html` part, gives `Errors.TemplateInvalid` at prepare.
 - **Model (D209).** The payload is the model, so `{{ Name }}` reads the property `Name`. Member names are case-sensitive. The engine registers, one time for each payload type, each class, record, or struct that the public properties of the payload reach, also as the element type of a collection. It does not register a type of the .NET runtime, so a template cannot read the members of, for example, a `TimeZoneInfo`.
-- **Render (D210).** The html part encodes each value with `HtmlEncoder.Create(UnicodeRanges.All)`, and the filter `raw` turns this off. The subject and the text encode nothing. A render has the culture of the route, the time zone UTC, the `now` of the `TimeProvider`, and a limit of 100,000 steps for all parts of the email together. Each part renders in its own scope, so a variable of one part is unknown in the next part.
+- **Render (D210).** The html part encodes each value with `HtmlEncoder.Create(UnicodeRanges.All)`, and the filter `raw` turns this off. The subject and the text encode nothing. A render has the culture of the route, the time zone UTC, the `now` of the `TimeProvider`, and a limit of 100,000 steps for each part, because each part is a template of its own (D214).
 - **Errors.** An unknown name gives `Errors.TemplateInvalid` at render (D207). This applies also to a member of an object in a loop. A property with a null value is not unknown. The step limit and a `render` or `include` tag also give `Errors.TemplateInvalid` (D208, D210). An exception of the payload code reaches the caller, and the boundary of section 4.12 changes it into `Errors.Exception`. An unknown filter, for example `{{ Name | upcse }}`, also gives `Errors.TemplateInvalid` at render, through the option `StrictFilters` of Fluid (D211). Filter names are case-sensitive. As for an unknown name, a filter in a branch that does not run gives no error.
 - **Razor does not fit.** The Razor SDK compiles a component into the assembly at build time, and no supported library compiles a component at run time. A component is also C# code. Phase 22 built a Razor engine, and the owner removed it (D204).
 
@@ -2024,7 +2028,7 @@ These interfaces get a logging wrapper (D36):
 | `IRoutingVerifier` | `MsgHatch.Subscriptions` | `RoutingVerifierLoggingWrapper` |
 | `IPayloadLoader<TEvent, TPayload>` | Consumer | `PayloadLoaderLoggingWrapper<TEvent, TPayload>` |
 | `IEmailClient` | Library (SES, Resend) or consumer | `EmailClientLoggingWrapper` |
-| `IEmailTemplateEngine<TPayload>` | Library or consumer | `EmailTemplateEngineLoggingWrapper<TPayload>` |
+| `ITemplateEngine<TPayload>` | Library or consumer | `TemplateEngineLoggingWrapper<TPayload>` |
 | `ITemplateStore` | Library or consumer | `TemplateStoreLoggingWrapper` |
 | `IBrokerClient` | Library (Wolverine) or consumer | `BrokerClientLoggingWrapper` |
 
@@ -2786,7 +2790,7 @@ The pipeline itself is out of scope. A unit test never needs a database server o
 | `BrokerClientTestsBase<TClient>` | `MsgHatch.Broker.Tests.Unit` | `IBrokerClientTestDriver` | `WolverineBrokerClientUnitTests` (6) |
 | `RegistrySettingsStoreTestsBase<TStore>` | `MsgHatch.Domain.Tests.Unit` | `IRegistrySettingsStoreTestData` | `InMemoryRegistrySettingsStoreUnitTests` (16), `FileSystemRegistrySettingsStoreUnitTests` (16), `SqliteRegistrySettingsStoreUnitTests` (16), `EntityFrameworkRegistrySettingsStoreIntegTests` (18), `MongoDbRegistrySettingsStoreIntegTests` (19) |
 | `TemplateStoreTestsBase<TStore>` | `MsgHatch.Email.Tests.Unit` | `ITemplateStoreTestData` | `FileSystemTemplateStoreUnitTests` (3), `EmbeddedResourceTemplateStoreUnitTests` (3) |
-| `EmailTemplateEngineTestsBase<TEngine>` | `MsgHatch.Email.Tests.Unit` | `IEmailTemplateTestData` | `PlaceholderEmailEngineUnitTests` (3), `LiquidEmailEngineUnitTests` (23) |
+| `TemplateEngineTestsBase<TEngine>` | `MsgHatch.Email.Tests.Unit` | `ITemplateTestData` | `PlaceholderTemplateEngineUnitTests` (3), `LiquidTemplateEngineUnitTests` (23) |
 | `EmailClientTestsBase<TClient>` | `MsgHatch.Email.Tests.Unit` | `IEmailClientTestDriver` | `AmazonSimpleEmailServiceClientUnitTests` (4) |
 | `SubscriptionStoreTestsBase<TStore>` | `MsgHatch.Subscriptions.Tests.Unit` | `ISubscriptionStoreTestData` | `InMemorySubscriptionStoreUnitTests` (9), `FileSystemSubscriptionStoreUnitTests` (10), `SqliteSubscriptionStoreUnitTests` (10), `EntityFrameworkSubscriptionStoreIntegTests` (18), `MongoDbSubscriptionStoreIntegTests` (19) |
 | `SubscriptionCacheBackendTestsBase<TBackend>` | `MsgHatch.Subscriptions.Tests.Unit` | `ISubscriptionCacheBackendTestData` | `HybridCacheSubscriptionBackendUnitTests` (11), `FusionCacheSubscriptionBackendUnitTests` (11) |

@@ -24,14 +24,14 @@ public sealed class EmbeddedResourceTemplateStoreUnitTests()
     public async Task FindAsync_EmbeddedTemplate_HasTheAssemblyAndTheResourceNameAsItsIdAndTheVersion0()
     {
         // Arrange
-        var lookup = new TemplateLookup(TestEvent, "en", Scope: null);
+        var lookup = ALookup();
 
         // Act
         var result = await Store.FindAsync(lookup, Ct);
 
         // Assert
         Assert.Equal(
-            new TemplateKey("MsgHatch.Email.Tests.Unit:MsgHatch.Email.Tests.Unit.TemplateFiles.TestEvent.en", 0),
+            new TemplateKey("MsgHatch.Email.Tests.Unit:MsgHatch.Email.Tests.Unit.TemplateFiles.TestEvent.en.subject.txt", 0),
             result.Value?.Key);
     }
 
@@ -44,7 +44,7 @@ public sealed class EmbeddedResourceTemplateStoreUnitTests()
         var store = new EmbeddedResourceTemplateStore(assembly, "Prefix");
 
         // Act
-        var result = await store.FindAsync(new TemplateLookup(TestEvent, "en", Scope: null), Ct);
+        var result = await store.FindAsync(ALookup(), Ct);
 
         // Assert
         Assert.Equal(Errors.Unavailable, result.Error?.Type);

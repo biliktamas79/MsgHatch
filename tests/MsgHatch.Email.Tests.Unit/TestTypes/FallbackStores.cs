@@ -6,8 +6,8 @@ namespace MsgHatch.Email.Tests.Unit.TestTypes;
 
 /// <summary>
 /// Shared by the fallback tests of D123: a substitute for the tenant template store and one for the shared template
-/// store. Each one gives a template for each seeded lookup <c>{store}:{language}:{scope}</c>, with the lookup as its
-/// subject, and records each lookup in the same form.
+/// store. Each one gives a text for each seeded lookup <c>{store}:{language}:{scope}</c>, for each part, with the lookup
+/// as the text, and records each lookup in the same form.
 /// </summary>
 public sealed class FallbackStores
 {
@@ -44,6 +44,6 @@ public sealed class FallbackStores
     private ErrorOr<TemplateSource?> ResultOf(string text) =>
         ErrorOr<TemplateSource?>.ForValue(
             _seeded.Contains(text)
-                ? PlaceholderTemplateTestData.ASource([new TemplatePart("subject", TemplatePartKind.PlainText, text), new TemplatePart("html", TemplatePartKind.Html, "<p>html</p>")])
+                ? PlaceholderTemplateTestData.ASource(text)
                 : null);
 }

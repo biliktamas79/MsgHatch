@@ -5,21 +5,26 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Email.Engines;
+using MsgHatch.Email.Templates;
 
 namespace MsgHatch.Email;
 
 /// <summary>
-/// The composer of an email registration (section 4.8, step 4). It loads the payloads of all routes with one call,
-/// prepares one template for each language and template scope, and renders one email for each route, to the address
-/// of the route. A composer is a tenant service (D126), so it gets the loader and the engine of its key.
+/// The composer of an email registration (section 4.8, step 4, D215). It loads the payloads of all routes with one
+/// call, prepares the parts <c>subject</c>, <c>body</c> (html), and <c>body</c> (text) one time for each language and
+/// template scope, and renders one email for each route, to the address of the route. The text body is optional. A
+/// composer is a tenant service (D126), so it gets the loader and the engine of its key.
 /// </summary>
 /// <typeparam name="TEvent">The type of the domain event.</typeparam>
 /// <typeparam name="TPayload">The type of the template payload.</typeparam>
 /// <param name="loader">The payload loader of the registration.</param>
 /// <param name="engine">The template engine of the payload type.</param>
-public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayload> loader, IEmailTemplateEngine<TPayload> engine)
+public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayload> loader, ITemplateEngine<TPayload> engine)
     : IEnvelopeComposer<TEvent, EmailMessage>
 {
+    private const string _subjectPart = "subject";
+    private const string _bodyPart = "body";
+
     /// <inheritdoc/>
     public async ValueTask<ErrorOr<IReadOnlyList<ErrorOr<EmailMessage>>>> ComposeAsync(
         ReceivedMessage<TEvent> message, ReadOnlyMemory<MessageRoute> routes, CancellationToken ct)
@@ -56,12 +61,11 @@ public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayl
             var route = group.Routes.Span[index];
             emails[position] = template.IsError
                 ? template.Error
-                : await RenderAsync(template.Value.Template, template.Value.Culture, route, payloads[position], ct);
+                : await RenderAsync(template.Value, route, payloads[position], ct);
         }
     }
 
-    private async ValueTask<ErrorOr<(IEmailTemplate<TPayload> Template, CultureInfo Culture)>> PrepareAsync(
-        MessageType type, string language, string? scope, CancellationToken ct)
+    private async ValueTask<ErrorOr<EmailTemplate>> PrepareAsync(MessageType type, string language, string? scope, CancellationToken ct)
     {
         var culture = CultureOf(language);
         if (culture is null)
@@ -69,12 +73,28 @@ public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayl
             return new Error(Errors.ValidationFailed, $"The language {language} is not a known culture.");
         }
 
-        var template = await engine.PrepareAsync(new EmailTemplateRequest(type, language, scope), ct);
-        return template.IsError ? template.Error : (template.Value, culture);
+        var subject = await engine.PrepareAsync(new TemplateRequest(type, language, scope, _subjectPart, TemplatePartKind.PlainText), ct);
+        if (subject.IsError)
+        {
+            return subject.Error;
+        }
+
+        var html = await engine.PrepareAsync(new TemplateRequest(type, language, scope, _bodyPart, TemplatePartKind.Html), ct);
+        if (html.IsError)
+        {
+            return html.Error;
+        }
+
+        var text = await engine.PrepareAsync(new TemplateRequest(type, language, scope, _bodyPart, TemplatePartKind.PlainText), ct);
+        if (text.IsError && text.Error.Type != Errors.NotFound)
+        {
+            return text.Error;
+        }
+
+        return new EmailTemplate(subject.Value, html.Value, text.IsError ? null : text.Value, culture);
     }
 
-    private static async ValueTask<ErrorOr<EmailMessage>> RenderAsync(
-        IEmailTemplate<TPayload> template, CultureInfo culture, MessageRoute route, TPayload payload, CancellationToken ct)
+    private static async ValueTask<ErrorOr<EmailMessage>> RenderAsync(EmailTemplate template, MessageRoute route, TPayload payload, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(route.Address))
         {
@@ -86,16 +106,41 @@ public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayl
             return new Error(Errors.ValidationFailed, "The payload loader gave no payload for the route.");
         }
 
-        var rendered = await template.RenderAsync(payload, route, culture, ct);
-        return rendered.IsError ? rendered.Error : EmailOf(route, route.Address, rendered.Value);
+        var subject = await template.Subject.RenderAsync(payload, template.Culture, ct);
+        if (subject.IsError)
+        {
+            return subject.Error;
+        }
+
+        var html = route.Settings is EmailChannelSettings { Format: EmailFormat.PlainText }
+            ? ErrorOr<string?>.ForValue(null)
+            : await RenderPartAsync(template.Html, payload, template.Culture, ct);
+        if (html.IsError)
+        {
+            return html.Error;
+        }
+
+        var text = await RenderPartAsync(template.Text, payload, template.Culture, ct);
+        if (text.IsError)
+        {
+            return text.Error;
+        }
+
+        return html.Value is null && text.Value is null
+            ? new Error(Errors.TemplateInvalid, "The template gives no body for the format of the route.")
+            : new EmailMessage(route.Address, subject.Value, html.Value, text.Value);
     }
 
-    private static ErrorOr<EmailMessage> EmailOf(MessageRoute route, string address, RenderedEmail rendered)
+    private static async ValueTask<ErrorOr<string?>> RenderPartAsync(
+        ITemplate<TPayload>? template, TPayload payload, CultureInfo culture, CancellationToken ct)
     {
-        var htmlBody = route.Settings is EmailChannelSettings { Format: EmailFormat.PlainText } ? null : rendered.HtmlBody;
-        return htmlBody is null && rendered.TextBody is null
-            ? new Error(Errors.TemplateInvalid, "The template gives no body for the format of the route.")
-            : new EmailMessage(address, rendered.Subject, htmlBody, rendered.TextBody);
+        if (template is null)
+        {
+            return ErrorOr<string?>.ForValue(null);
+        }
+
+        var rendered = await template.RenderAsync(payload, culture, ct);
+        return rendered.IsError ? rendered.Error : ErrorOr<string?>.ForValue(rendered.Value);
     }
 
     private static CultureInfo? CultureOf(string language)
@@ -109,4 +154,8 @@ public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayl
             return null;
         }
     }
+
+    /// <summary>The prepared parts of the emails of one group of routes, and the culture of their language.</summary>
+    private readonly record struct EmailTemplate(
+        ITemplate<TPayload> Subject, ITemplate<TPayload> Html, ITemplate<TPayload>? Text, CultureInfo Culture);
 }

@@ -151,21 +151,24 @@ public static class EmailExtensions
     }
 
     /// <summary>
-    /// Registers the message type on the email channel for one payload type, with another template engine (D44), for
-    /// example <c>static (services, _) =&gt; ActivatorUtilities.CreateInstance&lt;MyEmailEngine&gt;(services)</c>, or a test
-    /// substitute.
+    /// Registers the message type on the email channel for one payload type, with another template engine (D44, D216),
+    /// for example the Liquid engine, or a test substitute. The email registrations of one payload type must select
+    /// the same factory object (D62).
     /// </summary>
     /// <typeparam name="TEvent">The type of the domain event.</typeparam>
     /// <typeparam name="TPayload">The payload type.</typeparam>
     /// <param name="payload">The builder of the payload type.</param>
     /// <param name="name">The name of the registration.</param>
-    /// <param name="engine">The factory of the engine of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="engine">The factory of the engine of one tenant key.</param>
     /// <param name="configure">The configuration of the retry options of this registration.</param>
     /// <returns>The builder of the payload type.</returns>
     public static PayloadBuilder<TEvent, TPayload> AsEmail<TEvent, TPayload>(
-        this PayloadBuilder<TEvent, TPayload> payload, string name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine,
-        Action<ChannelBuilder<EmailMessage>>? configure = null) =>
-        Register(payload, name, engine, configure);
+        this PayloadBuilder<TEvent, TPayload> payload, string name, ITemplateEngineFactory engine,
+        Action<ChannelBuilder<EmailMessage>>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(engine);
+        return Register(payload, name, engine.Create<TPayload>, configure);
+    }
 
     private static MsgHatchBuilder AddEmailChannel(MsgHatchBuilder builder) =>
         builder.AddChannelType(EmailChannel.Descriptor, 1, EmailJson.Default.EmailChannelSettings, new EmailChannelSettingsValidator());
@@ -180,7 +183,7 @@ public static class EmailExtensions
     }
 
     private static PayloadBuilder<TEvent, TPayload> Register<TEvent, TPayload>(
-        PayloadBuilder<TEvent, TPayload> payload, string name, Func<IServiceProvider, TenantKey, IEmailTemplateEngine<TPayload>> engine,
+        PayloadBuilder<TEvent, TPayload> payload, string name, Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine,
         Action<ChannelBuilder<EmailMessage>>? configure)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -191,11 +194,11 @@ public static class EmailExtensions
             EmailChannel.Id, name, 1, EmailJson.Default.EmailMessage, configure: configure);
     }
 
-    private static PlaceholderEmailEngine<TPayload> PlaceholderEngine<TPayload>(IServiceProvider tenantServices, TenantKey key)
+    private static PlaceholderTemplateEngine<TPayload> PlaceholderEngine<TPayload>(IServiceProvider tenantServices, TenantKey key)
         where TPayload : IPlaceholderPayload<TPayload>
     {
         var services = tenantServices.GetRequiredService<IServiceProvider>();
-        return new PlaceholderEmailEngine<TPayload>(
+        return new PlaceholderTemplateEngine<TPayload>(
             key == TenantKey.None ? null : services.GetKeyedService<ITemplateStore>(key),
             services.GetService<ITemplateStore>(),
             services.GetRequiredService<IOptions<MsgHatchOptions>>());

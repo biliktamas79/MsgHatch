@@ -8,7 +8,7 @@ namespace MsgHatch.Email.Tests.Performance;
 [MemoryDiagnoser]
 public class EmbeddedResourceTemplateStorePerfTests
 {
-    private static readonly TemplateLookup _lookup = new(PerfTemplateStore.Type, "en", Scope: null);
+    private static readonly TemplateLookup _lookup = new(PerfTemplateStore.Type, "en", Scope: null, "subject", TemplatePartKind.PlainText);
 
     private EmbeddedResourceTemplateStore _store = null!;
 

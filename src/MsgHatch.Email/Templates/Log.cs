@@ -7,13 +7,13 @@ internal static partial class Log
 {
     [LoggerMessage(
         EventId = 2000, Level = LogLevel.Debug,
-        Message = "Template store of tenant {Tenant} gave {PartCount} template parts for {MessageType} in {ElapsedMs} ms")]
-    public static partial void FindSucceeded(this ILogger logger, string messageType, int partCount, string? tenant, double elapsedMs);
+        Message = "Template store of tenant {Tenant} looked up the {Part} template of {MessageType} in {ElapsedMs} ms, found: {Found}")]
+    public static partial void FindSucceeded(this ILogger logger, string messageType, string part, bool found, string? tenant, double elapsedMs);
 
     [LoggerMessage(
         EventId = 2001,
-        Message = "Template store of tenant {Tenant} failed for {MessageType} after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+        Message = "Template store of tenant {Tenant} failed for the {Part} template of {MessageType} after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
     public static partial void FindFailed(
-        this ILogger logger, LogLevel level, string messageType, string? tenant, double elapsedMs, int errorCode, string errorName,
+        this ILogger logger, LogLevel level, string messageType, string part, string? tenant, double elapsedMs, int errorCode, string errorName,
         string? errorMessage);
 }

@@ -4,19 +4,18 @@ using MsgHatch.Domain.Failures;
 namespace MsgHatch.Email.Templates;
 
 /// <summary>
-/// The template store of a folder (section 4.10). It reads the files
-/// <c>[{Scope}/]{MessageType}.{Language}.subject.txt</c>, <c>.body.html</c>, and <c>.body.txt</c>, with the scope folder
-/// of <see cref="ScopeFolders.FolderOf"/>. A scope with no folder gives a miss. The template id is
-/// the full path with no part suffix, and the version is the latest last write time of the parts, in ticks. It caches
-/// its sources and its misses: on each lookup, it reads only the last write times of the part files, and reads the
-/// files again only when a time changed.
+/// The template store of a folder (section 4.10). It reads the file <c>[{Scope}/]{MessageType}.{Language}.{Part}.txt</c>
+/// or <c>.html</c> of a lookup (D214), with the scope folder of <see cref="ScopeFolders.FolderOf"/>. A scope with no
+/// folder gives a miss. The template id is the full path of the file, and the version is its last write time, in ticks.
+/// It caches its sources and its misses: on each lookup, it reads only the last write time of the file, and reads the
+/// file again only when the time changed.
 /// </summary>
 public sealed class FileSystemTemplateStore : ITemplateStore
 {
     private static readonly DateTime _missingFileTimeUtc = DateTime.FromFileTimeUtc(0);
 
     private readonly string _rootPath;
-    private readonly ConcurrentDictionary<TemplateLookup, (long[] WriteTicks, TemplateSource? Source)> _entries = new();
+    private readonly ConcurrentDictionary<TemplateLookup, (long WriteTicks, TemplateSource? Source)> _entries = new();
 
     /// <summary>Makes the store of a folder.</summary>
     /// <param name="rootPath">The folder of the template files.</param>
@@ -31,19 +30,19 @@ public sealed class FileSystemTemplateStore : ITemplateStore
     {
         try
         {
-            var basePath = TemplateFiles.PathOf(_rootPath, lookup);
-            if (basePath is null)
+            var path = TemplateFiles.PathOf(_rootPath, lookup);
+            if (path is null)
             {
                 return ErrorOr<TemplateSource?>.ForValue(null);
             }
 
-            var writeTicks = WriteTicksOf(basePath);
-            if (_entries.TryGetValue(lookup, out var entry) && entry.WriteTicks.AsSpan().SequenceEqual(writeTicks))
+            var writeTicks = WriteTicksOf(path);
+            if (_entries.TryGetValue(lookup, out var entry) && entry.WriteTicks == writeTicks)
             {
                 return ErrorOr<TemplateSource?>.ForValue(entry.Source);
             }
 
-            var source = await ReadAsync(basePath, writeTicks, ct);
+            var source = writeTicks == 0 ? null : new TemplateSource(new TemplateKey(path, writeTicks), await File.ReadAllTextAsync(path, ct));
             _entries[lookup] = (writeTicks, source);
             return ErrorOr<TemplateSource?>.ForValue(source);
         }
@@ -53,27 +52,9 @@ public sealed class FileSystemTemplateStore : ITemplateStore
         }
     }
 
-    private static long[] WriteTicksOf(string basePath) =>
-        [.. TemplateFiles.Parts.Select(part => WriteTicksOfFile(basePath + part.Suffix))];
-
-    private static long WriteTicksOfFile(string path)
+    private static long WriteTicksOf(string path)
     {
         var lastWriteUtc = File.GetLastWriteTimeUtc(path);
         return lastWriteUtc == _missingFileTimeUtc ? 0 : lastWriteUtc.Ticks;
-    }
-
-    private static async ValueTask<TemplateSource?> ReadAsync(string basePath, long[] writeTicks, CancellationToken ct)
-    {
-        var parts = new List<TemplatePart>();
-        for (var index = 0; index < TemplateFiles.Parts.Length; index++)
-        {
-            var (name, kind, suffix) = TemplateFiles.Parts[index];
-            if (writeTicks[index] != 0)
-            {
-                parts.Add(new TemplatePart(name, kind, await File.ReadAllTextAsync(basePath + suffix, ct)));
-            }
-        }
-
-        return parts.Count == 0 ? null : new TemplateSource(new TemplateKey(basePath, writeTicks.Max()), parts);
     }
 }

@@ -9,7 +9,7 @@ namespace MsgHatch.Email.Templates;
 /// <c>{prefix}.{file name}</c>, with the file names of <see cref="FileSystemTemplateStore"/>, and the template of a scope
 /// as <c>{prefix}.{segment}.{file name}</c> with the segment of <see cref="ScopeFolders.SegmentOf"/>. These are the
 /// names that MSBuild gives to the files of a folder and its scope folders. The template id is
-/// <c>{assembly name}:{resource name}</c> with no part suffix, and the version is 0, because a resource does not change
+/// <c>{assembly name}:{resource name}</c>, and the version is 0, because a resource does not change
 /// while the process runs. So it caches its sources and its misses for the life of the process. It is a shared
 /// template store only, because the resources are the same for all tenants.
 /// </summary>
@@ -51,17 +51,13 @@ public sealed class EmbeddedResourceTemplateStore : ITemplateStore
             return null;
         }
 
-        var parts = new List<TemplatePart>();
-        foreach (var (partName, kind, suffix) in TemplateFiles.Parts)
+        using var stream = _assembly.GetManifestResourceStream(name);
+        if (stream is null)
         {
-            using var stream = _assembly.GetManifestResourceStream(name + suffix);
-            if (stream is not null)
-            {
-                using var reader = new StreamReader(stream);
-                parts.Add(new TemplatePart(partName, kind, reader.ReadToEnd()));
-            }
+            return null;
         }
 
-        return parts.Count == 0 ? null : new TemplateSource(new TemplateKey($"{_assembly.GetName().Name}:{name}", 0), parts);
+        using var reader = new StreamReader(stream);
+        return new TemplateSource(new TemplateKey($"{_assembly.GetName().Name}:{name}", 0), reader.ReadToEnd());
     }
 }

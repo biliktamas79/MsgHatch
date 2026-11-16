@@ -10,9 +10,9 @@ namespace MsgHatch.Email.Tests.Unit.TestTypes;
 
 /// <summary>
 /// The test data of the placeholder engine, as an xUnit class fixture: a template store substitute that gives the
-/// seeded templates, each with an id of its own, because the parsed template cache is static.
+/// seeded parts, each with an id of its own, because the parsed template cache is static.
 /// </summary>
-public sealed partial class PlaceholderTemplateTestData : IEmailTemplateTestData
+public sealed partial class PlaceholderTemplateTestData : ITemplateTestData
 {
     private readonly ConcurrentDictionary<TemplateLookup, TemplateSource> _templates = new();
 
@@ -25,16 +25,14 @@ public sealed partial class PlaceholderTemplateTestData : IEmailTemplateTestData
 
     public ITemplateStore Store { get; }
 
-    public void Seed(MessageType type, string language, string subject, string html, string? text) =>
-        _templates[new TemplateLookup(type, language, Scope: null)] = ASource(
-            [
-                new TemplatePart("subject", TemplatePartKind.PlainText, InPlaceholderSyntax(subject)),
-                new TemplatePart("html", TemplatePartKind.Html, InPlaceholderSyntax(html)),
-                .. text is null ? Array.Empty<TemplatePart>() : [new TemplatePart("text", TemplatePartKind.PlainText, InPlaceholderSyntax(text))],
-            ]);
+    public void Seed(MessageType type, string language, string part, TemplatePartKind kind, string text) =>
+        SeedText(new TemplateLookup(type, language, Scope: null, part, kind), InPlaceholderSyntax(text));
 
-    public static TemplateSource ASource(IReadOnlyList<TemplatePart> parts) =>
-        new(new TemplateKey(Guid.NewGuid().ToString(), 0), parts);
+    /// <summary>Puts a text with no change into the store, with a new key or the given key.</summary>
+    public void SeedText(TemplateLookup lookup, string text, TemplateKey? key = null) =>
+        _templates[lookup] = new TemplateSource(key ?? new TemplateKey(Guid.NewGuid().ToString(), 0), text);
+
+    public static TemplateSource ASource(string text) => new(new TemplateKey(Guid.NewGuid().ToString(), 0), text);
 
     private static string InPlaceholderSyntax(string text) => Placeholder().Replace(text, "{{$1}}");
 

@@ -4,75 +4,67 @@ namespace MsgHatch.Email.Tests.Unit.Contracts;
 
 public abstract partial class TemplateStoreTestsBase<TStore>
 {
-    [Fact]
-    public async Task FindAsync_ExistingTemplate_GivesItsSubjectHtmlAndTextParts()
+    [Theory]
+    [InlineData("subject", TemplatePartKind.PlainText, "Order {{OrderNumber}} shipped")]
+    [InlineData("body", TemplatePartKind.Html, "<p>Hello {{Name}}</p>")]
+    [InlineData("body", TemplatePartKind.PlainText, "Hello {{Name}}")]
+    public async Task FindAsync_PartOfAnExistingTemplate_GivesTheTextOfItsFile(string part, TemplatePartKind kind, string expectedText)
     {
-        // Arrange
-        var lookup = new TemplateLookup(TestEvent, "en", Scope: null);
-
         // Act
-        var result = await Store.FindAsync(lookup, Ct);
+        var result = await Store.FindAsync(ALookup(part: part, kind: kind), Ct);
 
         // Assert
-        Assert.Equal(
-            [
-                ("subject", TemplatePartKind.PlainText, "Order {{OrderNumber}} shipped"),
-                ("html", TemplatePartKind.Html, "<p>Hello {{Name}}</p>"),
-                ("text", TemplatePartKind.PlainText, "Hello {{Name}}"),
-            ],
-            PartsOf(result.Value));
+        Assert.Equal(expectedText, result.Value?.Text);
     }
 
     [Fact]
     public async Task FindAsync_MissingTemplate_GivesNull()
     {
-        // Arrange
-        var lookup = new TemplateLookup(TestEvent, "de", Scope: null);
-
         // Act
-        var result = await Store.FindAsync(lookup, Ct);
+        var result = await Store.FindAsync(ALookup(language: "de"), Ct);
 
         // Assert
         Assert.Null(result.Value);
     }
 
-    [Fact]
-    public async Task FindAsync_TemplateWithAScope_GivesTheTemplateOfTheScope()
+    [Theory]
+    [InlineData("subject", TemplatePartKind.PlainText, "Acme order {{OrderNumber}}")]
+    [InlineData("body", TemplatePartKind.Html, "<p>Acme {{Name}}</p>")]
+    public async Task FindAsync_PartOfATemplateWithAScope_GivesTheTextOfTheScope(string part, TemplatePartKind kind, string expectedText)
     {
-        // Arrange
-        var lookup = new TemplateLookup(TestEvent, "en", "acme");
-
         // Act
-        var result = await Store.FindAsync(lookup, Ct);
+        var result = await Store.FindAsync(ALookup(scope: "acme", part: part, kind: kind), Ct);
 
         // Assert
-        Assert.Equal(
-            [("subject", TemplatePartKind.PlainText, "Acme order {{OrderNumber}}"), ("html", TemplatePartKind.Html, "<p>Acme {{Name}}</p>")],
-            PartsOf(result.Value));
+        Assert.Equal(expectedText, result.Value?.Text);
     }
 
     [Theory]
     [MemberData(nameof(TemplateStoreTestRows.ScopeFolderRows), MemberType = typeof(TemplateStoreTestRows))]
     public async Task FindAsync_ScopeFolder_GivesTheSubjectOfTheFolderOfTheScopeOrNull(string row, string scope, string? expectedSubject)
     {
-        // Arrange
-        var lookup = new TemplateLookup(TestEvent, "en", scope);
-
         // Act
-        var result = await Store.FindAsync(lookup, Ct);
+        var result = await Store.FindAsync(ALookup(scope: scope), Ct);
 
         // Assert
-        Assert.Equal((row, expectedSubject), (row, result.Value?.Parts[0].Text));
+        Assert.Equal((row, expectedSubject), (row, result.Value?.Text));
     }
 
     [Fact]
     public async Task FindAsync_ScopeWithNoTemplateOfItsOwn_GivesNullSoThatTheSelectorFallsBackToNoScope()
     {
-        // Arrange
-        var lookup = new TemplateLookup(TestEvent, "en", "other");
-
         // Act
-        var result = await Store.FindAsync(lookup, Ct);
+        var result = await Store.FindAsync(ALookup(scope: "other"), Ct);
+
+        // Assert
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public async Task FindAsync_ScopeFolderWithOnlyASubject_GivesNullForTheBodySoThatTheSelectorFallsBackToNoScope()
+    {
+        // Act
+        var result = await Store.FindAsync(ALookup(scope: "42", part: "body", kind: TemplatePartKind.Html), Ct);
 
         // Assert
         Assert.Null(result.Value);
@@ -82,45 +74,40 @@ public abstract partial class TemplateStoreTestsBase<TStore>
     public async Task FindAsync_OneTemplateTwoTimes_GivesTheSameSourceInstance()
     {
         // Arrange
-        var lookup = new TemplateLookup(TestEvent, "en", Scope: null);
-        var first = await Store.FindAsync(lookup, Ct);
+        var first = await Store.FindAsync(ALookup(), Ct);
 
         // Act
-        var second = await Store.FindAsync(lookup, Ct);
+        var second = await Store.FindAsync(ALookup(), Ct);
 
         // Assert
         Assert.Same(first.Value, second.Value);
     }
 
-    [Fact]
-    public async Task FindAsync_TemplateWithAccentedAndSpecialCharacters_GivesTheTextUnchanged()
+    [Theory]
+    [InlineData("subject", TemplatePartKind.PlainText, "Ödön Űr rendelése: ő ű \"\\ <&>")]
+    [InlineData("body", TemplatePartKind.Html, "<p>Kedves {{Name}}, ő ű</p>")]
+    [InlineData("body", TemplatePartKind.PlainText, "Kedves {{Name}}, ő ű")]
+    public async Task FindAsync_TemplateWithAccentedAndSpecialCharacters_GivesTheTextUnchanged(string part, TemplatePartKind kind, string expectedText)
     {
-        // Arrange
-        var lookup = new TemplateLookup(TestEvent, "hu", Scope: null);
-
         // Act
-        var result = await Store.FindAsync(lookup, Ct);
+        var result = await Store.FindAsync(ALookup(language: "hu", part: part, kind: kind), Ct);
 
         // Assert
-        Assert.Equal(
-            [
-                ("subject", TemplatePartKind.PlainText, "Ödön Űr rendelése: ő ű \"\\ <&>"),
-                ("html", TemplatePartKind.Html, "<p>Kedves {{Name}}, ő ű</p>"),
-                ("text", TemplatePartKind.PlainText, "Kedves {{Name}}, ő ű"),
-            ],
-            PartsOf(result.Value));
+        Assert.Equal(expectedText, result.Value?.Text);
     }
 
     [Fact]
-    public async Task FindAsync_TemplateWithOnlySomeParts_GivesTheExistingParts()
+    public async Task FindAsync_TemplateWithOnlyASubject_GivesTheSubjectAndNullForTheBody()
     {
         // Arrange
-        var lookup = new TemplateLookup(new("OnlySubject"), "en", Scope: null);
+        var subject = ALookup(part: "subject") with { Type = new("OnlySubject") };
+        var body = ALookup(part: "body", kind: TemplatePartKind.Html) with { Type = new("OnlySubject") };
 
         // Act
-        var result = await Store.FindAsync(lookup, Ct);
+        var subjectResult = await Store.FindAsync(subject, Ct);
+        var bodyResult = await Store.FindAsync(body, Ct);
 
         // Assert
-        Assert.Equal([("subject", TemplatePartKind.PlainText, "Only a subject")], PartsOf(result.Value));
+        Assert.Equal(("Only a subject", (TemplateSource?)null), (subjectResult.Value?.Text, bodyResult.Value));
     }
 }

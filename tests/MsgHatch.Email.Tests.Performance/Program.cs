@@ -1,4 +1,4 @@
 using BenchmarkDotNet.Running;
 using MsgHatch.Email.Tests.Performance;
 
-BenchmarkRunner.Run(typeof(PlaceholderEmailEnginePerfTests).Assembly, args: args);
+BenchmarkRunner.Run(typeof(PlaceholderTemplateEnginePerfTests).Assembly, args: args);

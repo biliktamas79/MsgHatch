@@ -16,7 +16,7 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
 {
     private const string _address = "client1@example.com";
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
-    private static readonly TemplateLookup _lookup = new(new MessageType("TestEvent"), "en", Scope: null);
+    private static readonly TemplateLookup _lookup = new(new MessageType("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -154,7 +154,7 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
     }
 
     private static TemplateSource ASource(string subject) =>
-        PlaceholderTemplateTestData.ASource([new TemplatePart("subject", TemplatePartKind.PlainText, subject)]);
+        PlaceholderTemplateTestData.ASource(subject);
 
     private static ITemplateStore AStore(ErrorOr<TemplateSource?> result)
     {

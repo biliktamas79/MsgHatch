@@ -28,13 +28,12 @@ internal sealed class TemplateStoreLoggingWrapper(
         {
             var level = ErrorLogLevels.For(result.Error);
             logger.FindFailed(
-                level, lookup.Type.Name, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
+                level, lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
                 result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            var partCount = result.Value?.Parts.Count ?? 0;
-            logger.FindSucceeded(lookup.Type.Name, partCount, key.Tenant?.Value, elapsedMs);
+            logger.FindSucceeded(lookup.Type.Name, lookup.Part, result.Value is not null, key.Tenant?.Value, elapsedMs);
         }
     }
 }

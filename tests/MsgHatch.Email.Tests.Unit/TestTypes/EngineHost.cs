@@ -30,8 +30,8 @@ public sealed class EngineHost : IAsyncDisposable
         _scope = _provider.CreateAsyncScope();
     }
 
-    public IEmailTemplateEngine<OrderEmail> Engine(TenantKey key) =>
-        _scope.ServiceProvider.GetRequiredKeyedService<IEmailTemplateEngine<OrderEmail>>(key);
+    public ITemplateEngine<OrderEmail> Engine(TenantKey key) =>
+        _scope.ServiceProvider.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(key);
 
     public async ValueTask DisposeAsync()
     {

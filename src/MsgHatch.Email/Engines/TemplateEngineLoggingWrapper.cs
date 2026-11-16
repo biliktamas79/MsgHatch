@@ -10,12 +10,12 @@ namespace MsgHatch.Email.Engines;
 /// address, a payload value, or rendered text.
 /// </summary>
 /// <typeparam name="TPayload">The type of the template payload.</typeparam>
-internal sealed class EmailTemplateEngineLoggingWrapper<TPayload>(
-    IEmailTemplateEngine<TPayload> inner, TenantKey key, ILogger<EmailTemplateEngineLoggingWrapper<TPayload>> logger, TimeProvider time)
-    : IEmailTemplateEngine<TPayload>
+internal sealed class TemplateEngineLoggingWrapper<TPayload>(
+    ITemplateEngine<TPayload> inner, TenantKey key, ILogger<TemplateEngineLoggingWrapper<TPayload>> logger, TimeProvider time)
+    : ITemplateEngine<TPayload>
 {
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    public async ValueTask<ErrorOr<IEmailTemplate<TPayload>>> PrepareAsync(EmailTemplateRequest request, CancellationToken ct)
+    public async ValueTask<ErrorOr<ITemplate<TPayload>>> PrepareAsync(TemplateRequest request, CancellationToken ct)
     {
         var started = time.GetTimestamp();
         var result = await inner.PrepareAsync(request, ct);
@@ -23,18 +23,18 @@ internal sealed class EmailTemplateEngineLoggingWrapper<TPayload>(
         return result;
     }
 
-    private void LogPrepare(EmailTemplateRequest request, ErrorOr<IEmailTemplate<TPayload>> result, double elapsedMs)
+    private void LogPrepare(TemplateRequest request, ErrorOr<ITemplate<TPayload>> result, double elapsedMs)
     {
         if (result.IsError)
         {
             var level = ErrorLogLevels.For(result.Error);
             logger.PrepareFailed(
-                level, request.Type.Name, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
+                level, request.Type.Name, request.Part, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
                 result.Error.Type.Name, result.Error.Message);
         }
         else
         {
-            logger.PrepareSucceeded(request.Type.Name, key.Tenant?.Value, elapsedMs);
+            logger.PrepareSucceeded(request.Type.Name, request.Part, key.Tenant?.Value, elapsedMs);
         }
     }
 }

@@ -6,13 +6,14 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email.DependencyInjection;
 using MsgHatch.Email.Engines;
+using MsgHatch.Email.Templates;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
 
 namespace MsgHatch.Email.Tests.Unit.Engines;
 
-/// <summary>The standard logging wrapper tests for <see cref="IEmailTemplateEngine{TPayload}"/>.</summary>
-public sealed class EmailTemplateEngineLoggingWrapperUnitTests
+/// <summary>The standard logging wrapper tests for <see cref="ITemplateEngine{TPayload}"/>.</summary>
+public sealed class TemplateEngineLoggingWrapperUnitTests
 {
     private const string _address = "client1@example.com";
     private const string _subject = "Order 1001 shipped";
@@ -24,8 +25,8 @@ public sealed class EmailTemplateEngineLoggingWrapperUnitTests
     public async Task PrepareAsync_InnerTemplate_ReturnsItUnchanged()
     {
         // Arrange
-        var template = Substitute.For<IEmailTemplate<OrderEmail>>();
-        await using var provider = BuildWith(AnEngine(ErrorOr<IEmailTemplate<OrderEmail>>.ForValue(template)));
+        var template = Substitute.For<ITemplate<OrderEmail>>();
+        await using var provider = BuildWith(AnEngine(ErrorOr<ITemplate<OrderEmail>>.ForValue(template)));
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -103,8 +104,8 @@ public sealed class EmailTemplateEngineLoggingWrapperUnitTests
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        await scope.ServiceProvider.GetRequiredService<IEmailTemplateEngine<OrderEmail>>()
-            .PrepareAsync(new EmailTemplateRequest(new MessageType("TestEvent"), "en", Scope: null), Ct);
+        await scope.ServiceProvider.GetRequiredService<ITemplateEngine<OrderEmail>>()
+            .PrepareAsync(new TemplateRequest(new MessageType("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
@@ -115,7 +116,7 @@ public sealed class EmailTemplateEngineLoggingWrapperUnitTests
     public async Task PrepareAsync_TenantServiceOfAKey_LogsTheTenantOfTheKey()
     {
         // Arrange
-        await using var provider = BuildWith(AnEngine(ErrorOr<IEmailTemplate<OrderEmail>>.ForValue(Substitute.For<IEmailTemplate<OrderEmail>>())));
+        await using var provider = BuildWith(AnEngine(ErrorOr<ITemplate<OrderEmail>>.ForValue(Substitute.For<ITemplate<OrderEmail>>())));
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -130,16 +131,16 @@ public sealed class EmailTemplateEngineLoggingWrapperUnitTests
     public async Task PrepareAsync_TemplateOfAnEmail_NoLogRecordContainsTheAddressOrTheSubject()
     {
         // Arrange
-        var template = Substitute.For<IEmailTemplate<OrderEmail>>();
-        template.RenderAsync(default!, default, default!, Ct)
-            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<RenderedEmail>.ForValue(new RenderedEmail(_subject, "<p>html</p>", null))));
-        await using var provider = BuildWith(AnEngine(ErrorOr<IEmailTemplate<OrderEmail>>.ForValue(template)));
+        var template = Substitute.For<ITemplate<OrderEmail>>();
+        template.RenderAsync(default!, default!, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<string>.ForValue(_subject)));
+        await using var provider = BuildWith(AnEngine(ErrorOr<ITemplate<OrderEmail>>.ForValue(template)));
         await using var scope = provider.CreateAsyncScope();
         var prepared = await PrepareAsync(scope.ServiceProvider);
 
         // Act
         await prepared.Value.RenderAsync(
-            new OrderEmail(_address, 1, 1m, TestMessages.CreatedAtUtc), TestRoutes.AnEmailRoute(address: _address), CultureInfo.InvariantCulture, Ct);
+            new OrderEmail(_address, 1, 1m, TestMessages.CreatedAtUtc), CultureInfo.InvariantCulture, Ct);
 
         // Assert
         Assert.NotEmpty(provider.LogRecords());
@@ -155,28 +156,28 @@ public sealed class EmailTemplateEngineLoggingWrapperUnitTests
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        var engine = scope.ServiceProvider.GetRequiredKeyedService<IEmailTemplateEngine<OrderEmail>>(_t1);
+        var engine = scope.ServiceProvider.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(_t1);
 
         // Assert
         Assert.Same(inner, engine);
     }
 
-    private static IEmailTemplateEngine<OrderEmail> AnEngine(ErrorOr<IEmailTemplate<OrderEmail>> result)
+    private static ITemplateEngine<OrderEmail> AnEngine(ErrorOr<ITemplate<OrderEmail>> result)
     {
-        var engine = Substitute.For<IEmailTemplateEngine<OrderEmail>>();
+        var engine = Substitute.For<ITemplateEngine<OrderEmail>>();
         engine.PrepareAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(result));
         return engine;
     }
 
-    private static ValueTask<ErrorOr<IEmailTemplate<OrderEmail>>> PrepareAsync(IServiceProvider scope) =>
-        scope.GetRequiredKeyedService<IEmailTemplateEngine<OrderEmail>>(_t1)
-            .PrepareAsync(new EmailTemplateRequest(new MessageType("TestEvent"), "en", Scope: null), Ct);
+    private static ValueTask<ErrorOr<ITemplate<OrderEmail>>> PrepareAsync(IServiceProvider scope) =>
+        scope.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(_t1)
+            .PrepareAsync(new TemplateRequest(new MessageType("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), Ct);
 
-    private static ServiceProvider BuildWith(IEmailTemplateEngine<OrderEmail> inner, bool enableLogging = true)
+    private static ServiceProvider BuildWith(ITemplateEngine<OrderEmail> inner, bool enableLogging = true)
     {
         var services = TestHost.CreateServices();
         services.AddMsgHatch(o => o.EnableLogging = enableLogging)
-            .AddMessage("TestEvent", 1, TestJsonContext.Default.TestEvent, m => m.WithPayload<OrderEmail, TestOrderLoader>(p => p.AsEmail("OrderEmail", (_, _) => inner)));
+            .AddMessage("TestEvent", 1, TestJsonContext.Default.TestEvent, m => m.WithPayload<OrderEmail, TestOrderLoader>(p => p.AsEmail("OrderEmail", new TestEngineFactory((_, _) => inner))));
         return services.Build();
     }
 }

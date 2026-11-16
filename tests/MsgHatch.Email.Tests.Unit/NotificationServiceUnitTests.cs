@@ -39,7 +39,7 @@ public sealed class NotificationServiceUnitTests
                 ((TenantId?)_tenant, new MessageType("OrderShipped"), new DeliveryTarget(DeliveryTargetKind.User, "u1"), "Email:OrderShippedEmail",
                     (RouteTrace?)new TestTrace("TestRouter"), new EmailMessage("client1@example.com", "Order 3 for u1", "<p>Total: 1234.5</p>", "Total: 1234.5")),
                 (_tenant, new MessageType("OrderShipped"), new DeliveryTarget(DeliveryTargetKind.User, "u2"), "Email:OrderShippedEmail",
-                    new TestTrace("TestRouter"), new EmailMessage("client2@example.com", "u2 rendelése: 3", "<p>Összeg: 1234,5</p>", null)),
+                    new TestTrace("TestRouter"), new EmailMessage("client2@example.com", "u2 rendelése: 3", "<p>Összeg: 1234,5</p>", "Total: 1234,5")),
             ],
             provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()
                 .Select(static message => (message.Tenant, message.Type, message.Target, message.ContentType, message.Trace, ((OutgoingMessage<EmailMessage>)message).Envelope)));
@@ -68,7 +68,7 @@ public sealed class NotificationServiceUnitTests
         var prepares = new List<(TenantKey Key, string Language)>();
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores()
-            .AddTestEvent(m => m.WithPayload<OrderEmail, TestOrderLoader>(p => p.AsEmail("OrderShippedEmail", (_, key) => AnEngineRecordingTo(prepares, key))));
+            .AddTestEvent(m => m.WithPayload<OrderEmail, TestOrderLoader>(p => p.AsEmail("OrderShippedEmail", new TestEngineFactory((_, key) => AnEngineRecordingTo(prepares, key)))));
         await using var provider = services.Build();
 
         // Act
@@ -78,13 +78,13 @@ public sealed class NotificationServiceUnitTests
         Assert.Equal([(TenantKey.For(_tenant), "en"), (TenantKey.For(_tenant), "hu")], prepares);
     }
 
-    private static IEmailTemplateEngine<OrderEmail> AnEngineRecordingTo(List<(TenantKey Key, string Language)> prepares, TenantKey key)
+    private static ITemplateEngine<OrderEmail> AnEngineRecordingTo(List<(TenantKey Key, string Language)> prepares, TenantKey key)
     {
-        var engine = Substitute.For<IEmailTemplateEngine<OrderEmail>>();
+        var engine = Substitute.For<ITemplateEngine<OrderEmail>>();
         engine.PrepareAsync(default, Ct).ReturnsForAnyArgs(call =>
         {
-            prepares.Add((key, call.ArgAt<EmailTemplateRequest>(0).Language));
-            return ValueTask.FromResult<ErrorOr<IEmailTemplate<OrderEmail>>>(new Error(Errors.NotFound));
+            prepares.Add((key, call.ArgAt<TemplateRequest>(0).Language));
+            return ValueTask.FromResult<ErrorOr<ITemplate<OrderEmail>>>(new Error(Errors.NotFound));
         });
         return engine;
     }

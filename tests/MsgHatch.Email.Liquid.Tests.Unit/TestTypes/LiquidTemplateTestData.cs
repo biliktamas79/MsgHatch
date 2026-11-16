@@ -20,7 +20,7 @@ namespace MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
 /// writes <c>{Name}</c> as <c>{{ Name }}</c>, and <c>{ShippedAt}</c> with the filter <c>format_date</c>, because
 /// Liquid writes a date in its own format.
 /// </summary>
-public sealed partial class LiquidTemplateTestData : IEmailTemplateTestData, IAsyncDisposable
+public sealed partial class LiquidTemplateTestData : ITemplateTestData, IAsyncDisposable
 {
     public const string Prefix = "MsgHatch.Email.Liquid.Tests.Unit.TemplateFiles";
 
@@ -45,23 +45,17 @@ public sealed partial class LiquidTemplateTestData : IEmailTemplateTestData, IAs
     }
 
     /// <summary>The engine of <see cref="OrderEmail"/> for the key <see cref="TenantKey.None"/>.</summary>
-    public IEmailTemplateEngine<OrderEmail> Engine => _scope.ServiceProvider.GetRequiredService<IEmailTemplateEngine<OrderEmail>>();
+    public ITemplateEngine<OrderEmail> Engine => _scope.ServiceProvider.GetRequiredService<ITemplateEngine<OrderEmail>>();
 
     /// <summary>The engine of <see cref="LineOrderEmail"/> for the key <see cref="TenantKey.None"/>.</summary>
-    public IEmailTemplateEngine<LineOrderEmail> LineEngine => _scope.ServiceProvider.GetRequiredService<IEmailTemplateEngine<LineOrderEmail>>();
+    public ITemplateEngine<LineOrderEmail> LineEngine => _scope.ServiceProvider.GetRequiredService<ITemplateEngine<LineOrderEmail>>();
 
-    public void Seed(MessageType type, string language, string subject, string html, string? text) =>
-        SeedParts(
-            new TemplateLookup(type, language, Scope: null),
-            [
-                new TemplatePart("subject", TemplatePartKind.PlainText, InLiquid(subject)),
-                new TemplatePart("html", TemplatePartKind.Html, InLiquid(html)),
-                .. text is null ? Array.Empty<TemplatePart>() : [new TemplatePart("text", TemplatePartKind.PlainText, InLiquid(text))],
-            ]);
+    public void Seed(MessageType type, string language, string part, TemplatePartKind kind, string text) =>
+        SeedText(new TemplateLookup(type, language, Scope: null, part, kind), InLiquid(text));
 
-    /// <summary>Puts a template with the given parts into the store, with a new key or the given key.</summary>
-    public void SeedParts(TemplateLookup lookup, TemplatePart[] parts, TemplateKey? key = null) =>
-        _templates[lookup] = new TemplateSource(key ?? new TemplateKey(Guid.NewGuid().ToString(), 0), parts);
+    /// <summary>Puts a text with no change into the store, with a new key or the given key.</summary>
+    public void SeedText(TemplateLookup lookup, string text, TemplateKey? key = null) =>
+        _templates[lookup] = new TemplateSource(key ?? new TemplateKey(Guid.NewGuid().ToString(), 0), text);
 
     public async ValueTask DisposeAsync()
     {

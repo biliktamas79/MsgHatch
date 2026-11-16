@@ -114,7 +114,7 @@ public sealed class LiquidEmailExtensionsUnitTests
             [
                 new EmailMessage(
                     "client1@example.com", "Order of u1", "<ul><li>Pump x2</li><li>Valve x1</li></ul><p>Leave it at the door</p>", "2 lines"),
-                new EmailMessage("client2@example.com", "u2 rendelése", "<ul><li>Pump: 2 db</li><li>Valve: 1 db</li></ul>", null),
+                new EmailMessage("client2@example.com", "u2 rendelése", "<ul><li>Pump: 2 db</li><li>Valve: 1 db</li></ul>", "2 lines"),
             ],
             provider.GetRequiredService<InMemoryOutboxStore>().GetMessages().Select(static message => ((OutgoingMessage<EmailMessage>)message).Envelope));
     }

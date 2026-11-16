@@ -1,9 +1,5 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
-using MsgHatch.Domain.Identity;
 using MsgHatch.Email.DependencyInjection;
-using MsgHatch.Email.Templates;
 
 namespace MsgHatch.Email.Liquid.DependencyInjection;
 
@@ -28,16 +24,6 @@ public static class LiquidEmailExtensions
     {
         ArgumentNullException.ThrowIfNull(payload);
         LiquidEmailSetup.Of(payload.Services).Registrations.Add($"{EmailChannel.Id.Name}:{name}");
-        return payload.AsEmail(name, LiquidEngine<TPayload>, configure);
-    }
-
-    private static LiquidEmailEngine<TPayload> LiquidEngine<TPayload>(IServiceProvider tenantServices, TenantKey key)
-    {
-        var services = tenantServices.GetRequiredService<IServiceProvider>();
-        var selector = new TemplateSelector(
-            key == TenantKey.None ? null : services.GetKeyedService<ITemplateStore>(key),
-            services.GetService<ITemplateStore>(),
-            services.GetRequiredService<IOptions<MsgHatchOptions>>().Value.DefaultLanguage);
-        return new LiquidEmailEngine<TPayload>(selector, services.GetRequiredService<TimeProvider>());
+        return payload.AsEmail(name, LiquidTemplates.Engine, configure);
     }
 }

@@ -26,6 +26,7 @@ public abstract partial class TemplateStoreTestsBase<TStore>(TStore store, ITemp
         return ValueTask.CompletedTask;
     }
 
-    protected static (string Name, TemplatePartKind Kind, string Text)[] PartsOf(TemplateSource? source) =>
-        [.. (source?.Parts ?? []).Select(static part => (part.Name, part.Kind, part.Text))];
+    protected static TemplateLookup ALookup(
+        string language = "en", string? scope = null, string part = "subject", TemplatePartKind kind = TemplatePartKind.PlainText) =>
+        new(TestEvent, language, scope, part, kind);
 }

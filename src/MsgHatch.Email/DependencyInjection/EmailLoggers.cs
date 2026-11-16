@@ -17,9 +17,9 @@ internal static class EmailLoggers
             ? new TemplateStoreLoggingWrapper(store, key, For<TemplateStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())
             : store;
 
-    public static IEmailTemplateEngine<TPayload> Wrap<TPayload>(IServiceProvider services, TenantKey key, IEmailTemplateEngine<TPayload> engine) =>
-        new EmailTemplateEngineLoggingWrapper<TPayload>(
-            engine, key, For<EmailTemplateEngineLoggingWrapper<TPayload>>(services), services.GetRequiredService<TimeProvider>());
+    public static ITemplateEngine<TPayload> Wrap<TPayload>(IServiceProvider services, TenantKey key, ITemplateEngine<TPayload> engine) =>
+        new TemplateEngineLoggingWrapper<TPayload>(
+            engine, key, For<TemplateEngineLoggingWrapper<TPayload>>(services), services.GetRequiredService<TimeProvider>());
 
     public static IEmailClient Wrap(IServiceProvider services, IEmailClient client) =>
         IsEnabled(services)

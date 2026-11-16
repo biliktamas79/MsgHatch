@@ -16,7 +16,7 @@ internal static class PlaceholderRenderer
     private static readonly HtmlEncoder _html = HtmlEncoder.Create(UnicodeRanges.All);
 
     public static string Render<TPayload>(
-        ParsedTemplate.Part part, in TPayload payload, IPlaceholderWriter<TPayload> writer, IFormatProvider culture,
+        ParsedTemplate part, in TPayload payload, IPlaceholderWriter<TPayload> writer, IFormatProvider culture,
         PooledCharBufferWriter output, PooledCharBufferWriter value)
     {
         output.Clear();

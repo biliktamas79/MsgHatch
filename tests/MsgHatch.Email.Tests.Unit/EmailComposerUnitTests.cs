@@ -2,6 +2,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Email.Engines;
+using MsgHatch.Email.Templates;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using static MsgHatch.Email.Tests.Unit.TestTypes.TestRoutes;
 
@@ -41,7 +42,24 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Equal(
-            [new EmailTemplateRequest(_type, "en", null), new EmailTemplateRequest(_type, "hu", null), new EmailTemplateRequest(_type, "en", "acme")],
+            [("en", null), ("hu", null), ("en", "acme")],
+            _doubles.Prepares.Select(static request => (request.Language, request.Scope)).Distinct());
+        Assert.Equal(9, _doubles.Prepares.Count);
+    }
+
+    [Fact]
+    public async Task ComposeAsync_OneGroup_PreparesTheSubjectTheHtmlBodyAndTheTextBody()
+    {
+        // Act
+        await _doubles.ComposeAsync(AnEmailRoute("u1"), AnEmailRoute("u2"));
+
+        // Assert
+        Assert.Equal(
+            [
+                new TemplateRequest(_type, "en", null, "subject", TemplatePartKind.PlainText),
+                new TemplateRequest(_type, "en", null, "body", TemplatePartKind.Html),
+                new TemplateRequest(_type, "en", null, "body", TemplatePartKind.PlainText),
+            ],
             _doubles.Prepares);
     }
 
@@ -75,23 +93,7 @@ public sealed class EmailComposerUnitTests
         // Assert
         Assert.Equal(
             [("u1", "en"), ("u3", "en"), ("u2", "hu-HU")],
-            _doubles.Renders.Select(static render => (render.Payload.Name, render.Culture.Name)));
-    }
-
-    [Fact]
-    public async Task ComposeAsync_RouteWithATrace_RendersWithTheRouteAndItsTraceUnchanged()
-    {
-        // Arrange
-        var trace = new TestTrace("TestRouter");
-        var route = AnEmailRoute("u1", trace: trace);
-
-        // Act
-        await _doubles.ComposeAsync(route);
-
-        // Assert
-        var render = Assert.Single(_doubles.Renders);
-        Assert.Equal(route, render.Route);
-        Assert.Same(trace, render.Route.Trace);
+            _doubles.Renders.Select(static render => (render.Payload.Name, render.Culture.Name)).Distinct());
     }
 
     [Fact]
@@ -171,16 +173,14 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Equal([0, 400], result.Value.Select(CodeOf));
-        Assert.Equal(["en"], _doubles.Prepares.Select(static request => request.Language));
+        Assert.Equal(["en"], _doubles.Prepares.Select(static request => request.Language).Distinct());
     }
 
     [Fact]
     public async Task ComposeAsync_RenderErrorForOneRoute_FailsOnlyThatRoute()
     {
         // Arrange
-        _doubles.RenderResult = static route => route.Target.Id == "u2"
-            ? new Error(Errors.TemplateInvalid)
-            : new RenderedEmail("Subject", "<p>Html</p>", null);
+        _doubles.RenderResult = static (_, payload) => payload.Name == "u2" ? new Error(Errors.TemplateInvalid) : "part";
 
         // Act
         var result = await _doubles.ComposeAsync(AnEmailRoute("u1"), AnEmailRoute("u2"));
@@ -200,26 +200,27 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Equal(new EmailMessage("client1@example.com", "Subject u1", null, "Text u1"), Assert.Single(result.Value).Value);
+        Assert.DoesNotContain(_doubles.Renders, static render => render.Request.Kind == TemplatePartKind.Html);
     }
 
     [Fact]
     public async Task ComposeAsync_HtmlFormatAndNoTextPart_GivesOnlyTheHtmlBody()
     {
         // Arrange
-        _doubles.RenderResult = static _ => new RenderedEmail("Subject", "<p>Html</p>", null);
+        _doubles.PrepareResult = NoTextPart;
 
         // Act
         var result = await _doubles.ComposeAsync(AnEmailRoute("u1"));
 
         // Assert
-        Assert.Equal(new EmailMessage("client1@example.com", "Subject", "<p>Html</p>", null), Assert.Single(result.Value).Value);
+        Assert.Equal(new EmailMessage("client1@example.com", "Subject u1", "<p>u1</p>", null), Assert.Single(result.Value).Value);
     }
 
     [Fact]
     public async Task ComposeAsync_PlainTextFormatAndNoTextPart_FailsThatRouteWithTemplateInvalid()
     {
         // Arrange
-        _doubles.RenderResult = static _ => new RenderedEmail("Subject", "<p>Html</p>", null);
+        _doubles.PrepareResult = NoTextPart;
 
         // Act
         var result = await _doubles.ComposeAsync(AnEmailRoute("u1"), AnEmailRoute("u2", format: EmailFormat.PlainText));
@@ -227,6 +228,39 @@ public sealed class EmailComposerUnitTests
         // Assert
         Assert.Equal([0, 422], result.Value.Select(CodeOf));
     }
+
+    [Theory]
+    [InlineData("subject", TemplatePartKind.PlainText)]
+    [InlineData("body", TemplatePartKind.Html)]
+    public async Task ComposeAsync_MissingRequiredPart_FailsTheGroupWithNotFound(string part, TemplatePartKind kind)
+    {
+        // Arrange
+        _doubles.PrepareResult = request => request.Part == part && request.Kind == kind ? new Error(Errors.NotFound) : _doubles.TheTemplate(request);
+
+        // Act
+        var result = await _doubles.ComposeAsync(AnEmailRoute("u1"));
+
+        // Assert
+        Assert.Equal([404], result.Value.Select(CodeOf));
+    }
+
+    [Fact]
+    public async Task ComposeAsync_TextPartWithAnErrorThatIsNotNotFound_FailsTheGroupWithThatError()
+    {
+        // Arrange
+        _doubles.PrepareResult = request => request.Part == "body" && request.Kind == TemplatePartKind.PlainText
+            ? new Error(Errors.Unavailable)
+            : _doubles.TheTemplate(request);
+
+        // Act
+        var result = await _doubles.ComposeAsync(AnEmailRoute("u1"));
+
+        // Assert
+        Assert.Equal([Errors.Unavailable.Code], result.Value.Select(CodeOf));
+    }
+
+    private ErrorOr<ITemplate<TestPayload>> NoTextPart(TemplateRequest request) =>
+        request.Part == "body" && request.Kind == TemplatePartKind.PlainText ? new Error(Errors.NotFound) : _doubles.TheTemplate(request);
 
     private static int CodeOf(ErrorOr<EmailMessage> email) => email.IsError ? email.Error.Type.Code : 0;
 }

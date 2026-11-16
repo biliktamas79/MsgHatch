@@ -20,8 +20,8 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
 {
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
-    private static readonly Func<IServiceProvider, TenantKey, IEmailTemplateEngine<OrderEmail>> _anotherEngine =
-        static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services);
+    private static readonly ITemplateEngineFactory _anotherEngine =
+        new TestEngineFactory(static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services));
 
     public static TheoryData<string, Action<MsgHatchBuilder>> OneEngineRows => new()
     {
@@ -37,7 +37,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
             static builder => TwoOrderEmails(
                 builder,
                 static p => p.AsEmail("OrderEmail", _anotherEngine),
-                static p => p.AsEmail("OtherEmail", static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services)))
+                static p => p.AsEmail("OtherEmail", new TestEngineFactory(static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services))))
         },
     };
 
@@ -102,12 +102,12 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         // Arrange
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores(enableLogging: false)
-            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services))));
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", _anotherEngine)));
         await using var provider = services.Build();
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        var engine = scope.ServiceProvider.GetRequiredKeyedService<IEmailTemplateEngine<OrderEmail>>(_t1);
+        var engine = scope.ServiceProvider.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(_t1);
 
         // Assert
         Assert.Equal(_t1, Assert.IsType<KeyCapturingEngine>(engine).Key);
@@ -202,10 +202,10 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         await using var provider = services.Build();
 
         // Act
-        var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(new TemplateLookup(new("TestEvent"), "en", Scope: null), Ct);
+        var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(new TemplateLookup(new("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), Ct);
 
         // Assert
-        Assert.Equal("Order {{OrderNumber}} shipped", result.Value?.Parts[0].Text);
+        Assert.Equal("Order {{OrderNumber}} shipped", result.Value?.Text);
     }
 
     [Fact]
@@ -218,10 +218,10 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         await using var provider = services.Build();
 
         // Act
-        var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(new TemplateLookup(new("TestEvent"), "en", Scope: null), Ct);
+        var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(new TemplateLookup(new("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), Ct);
 
         // Assert
-        Assert.Equal("Order {{OrderNumber}} shipped", result.Value?.Parts[0].Text);
+        Assert.Equal("Order {{OrderNumber}} shipped", result.Value?.Text);
     }
 
     [Fact]
@@ -235,10 +235,10 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         await using var provider = services.Build();
 
         // Act
-        var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(new TemplateLookup(new("TestEvent"), "en", Scope: null), Ct);
+        var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(new TemplateLookup(new("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), Ct);
 
         // Assert
-        Assert.Equal("Order {{OrderNumber}} shipped", result.Value?.Parts[0].Text);
+        Assert.Equal("Order {{OrderNumber}} shipped", result.Value?.Text);
     }
 
     [Fact]
@@ -310,7 +310,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatchWithStores().AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", static (services, _) => ActivatorUtilities.CreateInstance<KeyCapturingEngine>(services))));
+        services.AddMsgHatchWithStores().AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", _anotherEngine)));
         await using var provider = services.Build();
 
         // Act

@@ -11,7 +11,7 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
     private static readonly DateTime _firstWriteUtc = new(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public async Task FindAsync_FileTemplate_HasTheFullPathWithNoPartSuffixAsItsIdAndTheLatestWriteTimeAsItsVersion()
+    public async Task FindAsync_FileTemplate_HasTheFullPathOfItsFileAsItsIdAndTheWriteTimeOfThatFileAsItsVersion()
     {
         // Arrange
         folder.Write("Dated.en.subject.txt", "Subject", _firstWriteUtc);
@@ -19,10 +19,10 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         folder.Write("Dated.en.body.txt", "Text", _firstWriteUtc.AddMinutes(1));
 
         // Act
-        var result = await Store.FindAsync(new TemplateLookup(new("Dated"), "en", Scope: null), Ct);
+        var result = await Store.FindAsync(ALookup() with { Type = new("Dated") }, Ct);
 
         // Assert
-        Assert.Equal(new TemplateKey(Path.Combine(folder.Root, "Dated.en"), _firstWriteUtc.AddMinutes(2).Ticks), result.Value?.Key);
+        Assert.Equal(new TemplateKey(Path.Combine(folder.Root, "Dated.en.subject.txt"), _firstWriteUtc.Ticks), result.Value?.Key);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         // Arrange
         folder.Write("Changing.en.subject.txt", "First", _firstWriteUtc);
         folder.Write("Changing.en.body.html", "<p>Html</p>", _firstWriteUtc);
-        var lookup = new TemplateLookup(new("Changing"), "en", Scope: null);
+        var lookup = ALookup() with { Type = new("Changing") };
         var first = await Store.FindAsync(lookup, Ct);
         folder.Write("Changing.en.subject.txt", "Second", _firstWriteUtc.AddMinutes(1));
 
@@ -41,14 +41,14 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         // Assert
         Assert.Equal(
             [(_firstWriteUtc.Ticks, "First"), (_firstWriteUtc.AddMinutes(1).Ticks, "Second")],
-            new[] { first.Value!, second.Value! }.Select(static source => (source.Key.Version, source.Parts[0].Text)));
+            new[] { first.Value!, second.Value! }.Select(static source => (source.Key.Version, source.Text)));
     }
 
     [Fact]
     public async Task FindAsync_TemplateThatWasAMissAndThenExists_FindsIt()
     {
         // Arrange
-        var lookup = new TemplateLookup(new("Later"), "en", Scope: null);
+        var lookup = ALookup() with { Type = new("Later") };
         var miss = await Store.FindAsync(lookup, Ct);
         folder.Write("Later.en.subject.txt", "Later", _firstWriteUtc);
 
@@ -56,7 +56,7 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         var found = await Store.FindAsync(lookup, Ct);
 
         // Assert
-        Assert.Equal(((string?)null, (string?)"Later"), (miss.Value?.Parts[0].Text, found.Value?.Parts[0].Text));
+        Assert.Equal(((string?)null, (string?)"Later"), (miss.Value?.Text, found.Value?.Text));
     }
 
     [Fact]
@@ -66,10 +66,10 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         folder.Write("TestEvent.en.acme.subject.txt", "The name before D199", _firstWriteUtc);
 
         // Act
-        var result = await Store.FindAsync(new TemplateLookup(TestEvent, "en", "acme"), Ct);
+        var result = await Store.FindAsync(ALookup(scope: "acme"), Ct);
 
         // Assert
-        Assert.Equal("Acme order {{OrderNumber}}", result.Value?.Parts[0].Text);
+        Assert.Equal("Acme order {{OrderNumber}}", result.Value?.Text);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         folder.Write("secret.subject.txt", "Secret", _firstWriteUtc, folder.Parent);
 
         // Act
-        var result = await Store.FindAsync(new TemplateLookup(TestEvent, "en", "x/../../secret"), Ct);
+        var result = await Store.FindAsync(ALookup(scope: "x/../../secret"), Ct);
 
         // Assert
         Assert.Null(result.Value);
@@ -92,7 +92,7 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         Directory.CreateDirectory(Path.Combine(folder.Root, "Unreadable.en.subject.txt"));
 
         // Act
-        var result = await Store.FindAsync(new TemplateLookup(new("Unreadable"), "en", Scope: null), Ct);
+        var result = await Store.FindAsync(ALookup() with { Type = new("Unreadable") }, Ct);
 
         // Assert
         Assert.Equal(Errors.Unavailable, result.Error?.Type);
