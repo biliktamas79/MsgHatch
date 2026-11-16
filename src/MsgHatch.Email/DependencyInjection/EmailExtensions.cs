@@ -152,7 +152,7 @@ public static class EmailExtensions
 
     /// <summary>
     /// Registers the message type on the email channel for one payload type, with another template engine (D44), for
-    /// example <c>static (services, _) =&gt; ActivatorUtilities.CreateInstance&lt;RazorEngine&gt;(services)</c>, or a test
+    /// example <c>static (services, _) =&gt; ActivatorUtilities.CreateInstance&lt;MyEmailEngine&gt;(services)</c>, or a test
     /// substitute.
     /// </summary>
     /// <typeparam name="TEvent">The type of the domain event.</typeparam>
