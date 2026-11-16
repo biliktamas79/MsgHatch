@@ -18,13 +18,13 @@ public abstract partial class TemplateStoreTestsBase<TStore>
     }
 
     [Fact]
-    public async Task FindAsync_MissingTemplate_GivesNull()
+    public async Task FindAsync_MissingTemplate_GivesNullAndNoError()
     {
         // Act
         var result = await Store.FindAsync(ALookup(language: "de"), Ct);
 
         // Assert
-        Assert.Null(result.Value);
+        Assert.Equal((false, (TemplateSource?)null), (result.IsError, result.Value));
     }
 
     [Theory]

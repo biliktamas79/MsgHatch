@@ -7,15 +7,15 @@ namespace MsgHatch.Templates;
 /// The template store of a folder (section 4.10). It reads the file <c>[{Scope}/]{MessageType}.{Language}.{Part}.txt</c>
 /// or <c>.html</c> of a lookup (D214), with the scope folder of <see cref="ScopeFolders.FolderOf"/>. A scope with no
 /// folder gives a miss. The template id is the full path of the file, and the version is its last write time, in ticks.
-/// It caches its sources and its misses: on each lookup, it reads only the last write time of the file, and reads the
-/// file again only when the time changed.
+/// It caches its sources: on each lookup, it reads only the last write time of the file, and reads the file again only
+/// when the time changed. It does not cache a miss, because a missing file has no read to skip.
 /// </summary>
 public sealed class FileSystemTemplateStore : ITemplateStore
 {
     private static readonly DateTime _missingFileTimeUtc = DateTime.FromFileTimeUtc(0);
 
     private readonly string _rootPath;
-    private readonly ConcurrentDictionary<TemplateLookup, (long WriteTicks, TemplateSource? Source)> _entries = new();
+    private readonly ConcurrentDictionary<TemplateLookup, TemplateSource> _sources = new();
 
     /// <summary>Makes the store of a folder.</summary>
     /// <param name="rootPath">The folder of the template files.</param>
@@ -37,13 +37,18 @@ public sealed class FileSystemTemplateStore : ITemplateStore
             }
 
             var writeTicks = WriteTicksOf(path);
-            if (_entries.TryGetValue(lookup, out var entry) && entry.WriteTicks == writeTicks)
+            if (writeTicks == 0)
             {
-                return ErrorOr<TemplateSource?>.ForValue(entry.Source);
+                return ErrorOr<TemplateSource?>.ForValue(null);
             }
 
-            var source = writeTicks == 0 ? null : new TemplateSource(new TemplateKey(path, writeTicks), await File.ReadAllTextAsync(path, ct));
-            _entries[lookup] = (writeTicks, source);
+            if (_sources.TryGetValue(lookup, out var cached) && cached.Key.Version == writeTicks)
+            {
+                return ErrorOr<TemplateSource?>.ForValue(cached);
+            }
+
+            var source = new TemplateSource(new TemplateKey(path, writeTicks), await File.ReadAllTextAsync(path, ct));
+            _sources[lookup] = source;
             return ErrorOr<TemplateSource?>.ForValue(source);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
