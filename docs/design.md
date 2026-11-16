@@ -1931,6 +1931,8 @@ Measured budget (phase 13). The three projects `tests/*.Tests.Performance` ran o
 | `SubscriptionResolver.Resolve`, 10,000 users | 17,606 KB | 18.8 ms | None | Measured: about 1.76 KB for each user |
 | Subscription lookup with a cache hit for the defaults, one company, and one user | 448 B | 196 ns (1.6 ns with no cache) | The string cache keys and the work of the backend | Open (see below) |
 
+Phase 24 makes a template one part (D214), so the email composer prepares three parts for each group of routes and renders up to three parts for each email. The numbers of the placeholder engine and of the composer above are from phase 13, when one template held all parts. The benchmarks build with the new contract, and a later run measures them again.
+
 The open items, which a follow-up item of the roadmap attributes and reduces (D159):
 - The pipeline allocates about 770 B for each route: the outgoing message (about 250 B), two result arrays, a list and a copy of the routes, a set of the targets, and the groups by channel. Each one is a list of the event or the message, so the budget lines hold. But three copies of the routes and the set are avoidable, and about 150 B for each route are not attributed.
 - A send allocates the publish try (about 104 B) and about 150 B that are not attributed.
