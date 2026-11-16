@@ -1,7 +1,7 @@
 using System.Reflection;
 using Fluid;
 
-namespace MsgHatch.Email.Liquid;
+namespace MsgHatch.Templates.Liquid;
 
 /// <summary>
 /// The Fluid options of one payload type, built one time (D209, D210): a limit of 100,000 steps, the time zone UTC, an

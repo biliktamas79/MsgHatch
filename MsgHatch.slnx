@@ -17,11 +17,11 @@
     <Project Path="src/MsgHatch.Data.Sqlite/MsgHatch.Data.Sqlite.csproj" />
     <Project Path="src/MsgHatch.Domain/MsgHatch.Domain.csproj" />
     <Project Path="src/MsgHatch.Email.AmazonSES/MsgHatch.Email.AmazonSES.csproj" />
-    <Project Path="src/MsgHatch.Email.Liquid/MsgHatch.Email.Liquid.csproj" />
     <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
     <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
     <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
     <Project Path="src/MsgHatch.Templates/MsgHatch.Templates.csproj" />
+    <Project Path="src/MsgHatch.Templates.Liquid/MsgHatch.Templates.Liquid.csproj" />
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.AspNetCore/MsgHatch.Subscriptions.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Caching.FusionCache/MsgHatch.Subscriptions.Caching.FusionCache.csproj" />
@@ -47,7 +47,6 @@
     <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Integration/MsgHatch.Email.AmazonSES.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Unit/MsgHatch.Email.AmazonSES.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Email.Liquid.Tests.Unit/MsgHatch.Email.Liquid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.Resend.Tests.Integration/MsgHatch.Email.Resend.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Email.Resend.Tests.Unit/MsgHatch.Email.Resend.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.Tests.Performance/MsgHatch.Email.Tests.Performance.csproj" />
@@ -63,6 +62,7 @@
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Performance/MsgHatch.Subscriptions.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Templates.Liquid.Tests.Unit/MsgHatch.Templates.Liquid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Tests.Unit/MsgHatch.Templates.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />

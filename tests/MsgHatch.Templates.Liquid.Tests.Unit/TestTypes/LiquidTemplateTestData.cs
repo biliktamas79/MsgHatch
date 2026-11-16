@@ -7,13 +7,13 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email.DependencyInjection;
 using MsgHatch.Templates;
-using MsgHatch.Email.Liquid.DependencyInjection;
+using MsgHatch.Templates.Liquid;
 using MsgHatch.Templates.Tests.Unit.Contracts;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
 using MsgHatch.Templates.Tests.Unit.TestTypes;
 
-namespace MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
+namespace MsgHatch.Templates.Liquid.Tests.Unit.TestTypes;
 
 /// <summary>
 /// The test data of the Liquid engine, as an xUnit class fixture: a substitute shared template store with each seed,
@@ -23,7 +23,7 @@ namespace MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
 /// </summary>
 public sealed partial class LiquidTemplateTestData : ITemplateTestData, IAsyncDisposable
 {
-    public const string Prefix = "MsgHatch.Email.Liquid.Tests.Unit.TemplateFiles";
+    public const string Prefix = "MsgHatch.Templates.Liquid.Tests.Unit.TemplateFiles";
 
     private readonly ConcurrentDictionary<TemplateLookup, TemplateSource> _templates = new();
     private readonly ServiceProvider _provider;
@@ -37,10 +37,10 @@ public sealed partial class LiquidTemplateTestData : ITemplateTestData, IAsyncDi
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.DefaultLanguage = "en")
             .UseTemplateStore(_ => store)
-            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsLiquidEmail("OrderEmail")))
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", LiquidTemplates.Engine)))
             .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m
                 .WithRouter<TwoEmailRoutesRouter<OtherTestEvent>>()
-                .WithPayload<LineOrderEmail, LineOrderLoader<OtherTestEvent>>(static p => p.AsLiquidEmail("LineOrder")));
+                .WithPayload<LineOrderEmail, LineOrderLoader<OtherTestEvent>>(static p => p.AsEmail("LineOrder", LiquidTemplates.Engine)));
         _provider = services.Build();
         _scope = _provider.CreateAsyncScope();
     }

@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MsgHatch.Email.Liquid\MsgHatch.Email.Liquid.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Templates.Liquid\MsgHatch.Templates.Liquid.csproj" />
+    <ProjectReference Include="..\MsgHatch.Templates.Tests.Unit\MsgHatch.Templates.Tests.Unit.csproj" />
     <ProjectReference Include="..\MsgHatch.Email.Tests.Unit\MsgHatch.Email.Tests.Unit.csproj" />
   </ItemGroup>
 

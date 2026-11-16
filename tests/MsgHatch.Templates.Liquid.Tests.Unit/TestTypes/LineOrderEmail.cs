@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
+namespace MsgHatch.Templates.Liquid.Tests.Unit.TestTypes;
 
 /// <summary>
 /// The payload of the Liquid rules: an order with lines and no <c>[PlaceholderPayload]</c> (D209). It is a class and

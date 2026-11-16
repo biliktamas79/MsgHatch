@@ -3,7 +3,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 
-namespace MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
+namespace MsgHatch.Templates.Liquid.Tests.Unit.TestTypes;
 
 /// <summary>
 /// The payload loader of the Liquid registrations: one order with two lines for each route, with the target id as its

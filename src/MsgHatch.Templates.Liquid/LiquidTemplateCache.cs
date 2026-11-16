@@ -3,7 +3,7 @@ using Fluid;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Templates;
 
-namespace MsgHatch.Email.Liquid;
+namespace MsgHatch.Templates.Liquid;
 
 /// <summary>
 /// The parsed Liquid templates (D210). Each <see cref="TemplateKey"/> is parsed one time for the life of the process.

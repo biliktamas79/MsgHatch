@@ -6,20 +6,20 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email.DependencyInjection;
 using MsgHatch.Templates;
-using MsgHatch.Email.Liquid.DependencyInjection;
-using MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
+using MsgHatch.Templates.Liquid;
+using MsgHatch.Templates.Liquid.Tests.Unit.TestTypes;
 using MsgHatch.Templates.Tests.Unit.Contracts;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
 using MsgHatch.Templates.Tests.Unit.TestTypes;
 
-namespace MsgHatch.Email.Liquid.Tests.Unit;
+namespace MsgHatch.Templates.Liquid.Tests.Unit;
 
 /// <summary>
 /// The Liquid engine: the use cases of the engine contract, and the rules that only this engine has: the parse at
 /// prepare, the unknown names (D207), the partials (D208), the model (D209), the render (D210), the unknown filters
 /// (D211), the cache of the parsed templates, and the lookups of D123 and D199 for one part (D214). The engine class is
-/// internal, so the test data builds it with <c>AsLiquidEmail</c>.
+/// internal, so the test data builds it with <c>AsEmail</c> and <c>LiquidTemplates.Engine</c>.
 /// </summary>
 public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testData)
     : TemplateEngineTestsBase<ITemplateEngine<OrderEmail>>(testData.Engine, testData), IClassFixture<LiquidTemplateTestData>
@@ -145,7 +145,7 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.DefaultLanguage = "en")
             .UseEmbeddedTemplates(typeof(LiquidTemplateTestData).Assembly, LiquidTemplateTestData.Prefix)
-            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsLiquidEmail("OrderEmail")));
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", LiquidTemplates.Engine)));
         await using var provider = services.Build();
         await using var scope = provider.CreateAsyncScope();
         var engine = scope.ServiceProvider.GetRequiredService<ITemplateEngine<OrderEmail>>();
@@ -166,7 +166,7 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
         services.AddMsgHatch(static o => o.DefaultLanguage = "en")
             .UseTemplateStore(_ => AStoreWithTheText("Shared text"))
             .UseTenantTemplateStore((_, _) => AStoreWithTheText("Tenant text"))
-            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsLiquidEmail("OrderEmail")));
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", LiquidTemplates.Engine)));
         await using var provider = services.Build();
         await using var scope = provider.CreateAsyncScope();
         var engine = scope.ServiceProvider.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(TenantKey.For(new TenantId("t1")));

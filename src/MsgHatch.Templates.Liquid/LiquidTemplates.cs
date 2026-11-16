@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Templates;
 
-namespace MsgHatch.Email.Liquid;
+namespace MsgHatch.Templates.Liquid;
 
 /// <summary>The engine factory of the Liquid engine (D216), for example <c>p.AsEmail("OrderShipped", LiquidTemplates.Engine)</c>.</summary>
 public static class LiquidTemplates

@@ -5,16 +5,17 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Pipeline;
+using MsgHatch.Email;
 using MsgHatch.Email.DependencyInjection;
-using MsgHatch.Email.Liquid.DependencyInjection;
-using MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
+using MsgHatch.Templates.Liquid;
+using MsgHatch.Templates.Liquid.Tests.Unit.TestTypes;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using MsgHatch.Templates.Tests.Unit.TestTypes;
 
-namespace MsgHatch.Email.Liquid.Tests.Unit.DependencyInjection;
+namespace MsgHatch.Templates.Liquid.Tests.Unit;
 
-/// <summary>The setup method of the Liquid engine (section 4.7), its startup validation, and a Liquid email through the pipeline.</summary>
-public sealed class LiquidEmailExtensionsUnitTests
+/// <summary>The engine factory of the Liquid engine with <c>AsEmail</c> (D216), its startup validation, and a Liquid email through the pipeline.</summary>
+public sealed class LiquidTemplatesUnitTests
 {
     public static TheoryData<string, Action<MsgHatchBuilder>> FailingSetupRows => new()
     {
@@ -25,7 +26,7 @@ public sealed class LiquidEmailExtensionsUnitTests
                 .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")))
                 .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m
                     .WithRouter<TwoEmailRoutesRouter<OtherTestEvent>>()
-                    .WithPayload<OrderEmail, OtherOrderLoader>(static p => p.AsLiquidEmail("OtherEmail")))
+                    .WithPayload<OrderEmail, OtherOrderLoader>(static p => p.AsEmail("OtherEmail", LiquidTemplates.Engine)))
         },
     };
 
@@ -39,7 +40,7 @@ public sealed class LiquidEmailExtensionsUnitTests
                 .AddTestEvent(LiquidOrderEmail)
                 .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m
                     .WithRouter<TwoEmailRoutesRouter<OtherTestEvent>>()
-                    .WithPayload<OrderEmail, OtherOrderLoader>(static p => p.AsLiquidEmail("OtherEmail")))
+                    .WithPayload<OrderEmail, OtherOrderLoader>(static p => p.AsEmail("OtherEmail", LiquidTemplates.Engine)))
         },
     };
 
@@ -101,7 +102,7 @@ public sealed class LiquidEmailExtensionsUnitTests
         services.AddMsgHatchWithStores()
             .UseEmbeddedTemplates(typeof(LiquidTemplateTestData).Assembly, LiquidTemplateTestData.Prefix)
             .AddTestEvent(
-                static m => m.WithPayload<LineOrderEmail, LineOrderLoader<TestEvent>>(static p => p.AsLiquidEmail("LiquidOrder")),
+                static m => m.WithPayload<LineOrderEmail, LineOrderLoader<TestEvent>>(static p => p.AsEmail("LiquidOrder", LiquidTemplates.Engine)),
                 name: "LiquidOrder");
         await using var provider = services.Build();
         await using var scope = provider.CreateAsyncScope();
@@ -122,5 +123,5 @@ public sealed class LiquidEmailExtensionsUnitTests
     }
 
     private static void LiquidOrderEmail(MessageBuilder<TestEvent> message) =>
-        message.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsLiquidEmail("OrderEmail"));
+        message.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", LiquidTemplates.Engine));
 }

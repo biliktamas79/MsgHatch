@@ -21,7 +21,7 @@
     <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.0.106.7" />
   </ItemGroup>
 
-  <ItemGroup Label="MsgHatch.Email.Liquid">
+  <ItemGroup Label="MsgHatch.Templates.Liquid">
     <PackageVersion Include="Fluid.Core" Version="2.41.1" />
   </ItemGroup>
 

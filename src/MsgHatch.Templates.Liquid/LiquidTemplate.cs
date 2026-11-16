@@ -5,7 +5,7 @@ using Fluid;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Templates;
 
-namespace MsgHatch.Email.Liquid;
+namespace MsgHatch.Templates.Liquid;
 
 /// <summary>
 /// One prepared template of the Liquid engine: one part (D210). A render has the payload as its model (D209), the

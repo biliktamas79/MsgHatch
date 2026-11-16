@@ -1,7 +1,7 @@
 using MsgHatch.Domain.Failures;
 using MsgHatch.Templates;
 
-namespace MsgHatch.Email.Liquid;
+namespace MsgHatch.Templates.Liquid;
 
 /// <summary>
 /// The Liquid engine (D203, D216, section 4.10). It selects the template of one part with the fallback of D123 and the
