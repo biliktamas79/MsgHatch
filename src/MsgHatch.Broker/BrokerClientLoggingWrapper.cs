@@ -30,16 +30,11 @@ internal sealed class BrokerClientLoggingWrapper(IBrokerClient inner, ILogger<Br
         return error;
     }
 
-    private static LogLevel LevelOf(Error error) =>
-        error.Type == Errors.OperationCancelled ? LogLevel.Information
-        : error.Type.IsTransient ? LogLevel.Warning
-        : LogLevel.Error;
-
     private void LogPublish(Guid messageId, ErrorOr<PublishReceipt> result, double elapsedMs)
     {
         if (result.IsError)
         {
-            var level = LevelOf(result.Error);
+            var level = ErrorLogLevels.For(result.Error);
             logger.PublishFailed(
                 level, messageId, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
         }
@@ -57,7 +52,7 @@ internal sealed class BrokerClientLoggingWrapper(IBrokerClient inner, ILogger<Br
         }
         else
         {
-            var level = LevelOf(error);
+            var level = ErrorLogLevels.For(error);
             logger.CheckHealthFailed(level, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
         }
     }
