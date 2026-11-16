@@ -231,6 +231,24 @@ public sealed class EmailComposerUnitTests
     [Theory]
     [InlineData("subject", TemplatePartKind.PlainText)]
     [InlineData("body", TemplatePartKind.Html)]
+    [InlineData("body", TemplatePartKind.PlainText)]
+    public async Task ComposeAsync_RenderErrorOfOnePart_FailsTheRouteWithThatError(string part, TemplatePartKind kind)
+    {
+        // Arrange
+        var defaultRender = _doubles.RenderResult;
+        _doubles.RenderResult = (request, payload) =>
+            request.Part == part && request.Kind == kind ? new Error(Errors.TemplateInvalid) : defaultRender(request, payload);
+
+        // Act
+        var result = await _doubles.ComposeAsync(AnEmailRoute("u1"));
+
+        // Assert
+        Assert.Equal([422], result.Value.Select(CodeOf));
+    }
+
+    [Theory]
+    [InlineData("subject", TemplatePartKind.PlainText)]
+    [InlineData("body", TemplatePartKind.Html)]
     public async Task ComposeAsync_MissingRequiredPart_FailsTheGroupWithNotFound(string part, TemplatePartKind kind)
     {
         // Arrange
