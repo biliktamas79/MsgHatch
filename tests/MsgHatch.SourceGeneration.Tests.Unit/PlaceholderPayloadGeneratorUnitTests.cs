@@ -16,7 +16,7 @@ public sealed partial class PlaceholderPayloadGeneratorUnitTests
     {
         // Arrange
         const string source = """
-            using MsgHatch.Email.Placeholders;
+            using MsgHatch.Templates.Placeholders;
 
             namespace Consumer;
 
@@ -41,7 +41,7 @@ public sealed partial class PlaceholderPayloadGeneratorUnitTests
     {
         // Arrange
         const string source = """
-            using MsgHatch.Email.Placeholders;
+            using MsgHatch.Templates.Placeholders;
 
             [PlaceholderPayload]
             public sealed record OrderShippedEmail(string CustomerName);
@@ -60,7 +60,7 @@ public sealed partial class PlaceholderPayloadGeneratorUnitTests
         // Arrange
         const string source = """
             using System;
-            using MsgHatch.Email.Placeholders;
+            using MsgHatch.Templates.Placeholders;
 
             [PlaceholderPayload]
             public sealed partial class GlobalPayload { public string? Name { get; set; } }

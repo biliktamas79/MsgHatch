@@ -11,7 +11,7 @@ namespace MsgHatch.SourceGeneration;
 [Generator(LanguageNames.CSharp)]
 public sealed class PlaceholderPayloadGenerator : IIncrementalGenerator
 {
-    private const string _attributeName = "MsgHatch.Email.Placeholders.PlaceholderPayloadAttribute";
+    private const string _attributeName = "MsgHatch.Templates.Placeholders.PlaceholderPayloadAttribute";
 
     private static readonly DiagnosticDescriptor _notPartial = new(
         "MSGHATCH001",

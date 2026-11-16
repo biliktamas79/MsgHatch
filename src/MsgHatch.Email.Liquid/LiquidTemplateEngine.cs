@@ -1,6 +1,5 @@
 using MsgHatch.Domain.Failures;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Liquid;
 

@@ -1,13 +1,13 @@
 using System.Globalization;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Options;
+using MsgHatch.Templates.Placeholders;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Tests.Performance;
 

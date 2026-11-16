@@ -10,6 +10,7 @@ using MsgHatch.Domain.Routing;
 using MsgHatch.Email.AmazonSES.DependencyInjection;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.AmazonSES.Tests.Unit;
 

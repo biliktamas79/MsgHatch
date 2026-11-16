@@ -1,6 +1,7 @@
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email.Engines;
+using MsgHatch.Templates;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit.TestTypes;
 

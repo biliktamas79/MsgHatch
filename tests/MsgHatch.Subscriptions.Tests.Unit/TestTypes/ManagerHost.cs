@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;

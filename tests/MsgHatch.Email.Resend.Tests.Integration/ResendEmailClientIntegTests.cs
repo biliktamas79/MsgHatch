@@ -4,6 +4,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Email.Resend.DependencyInjection;
 using MsgHatch.Email.Resend.Tests.Integration.TestTypes;
 using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Resend.Tests.Integration;
 

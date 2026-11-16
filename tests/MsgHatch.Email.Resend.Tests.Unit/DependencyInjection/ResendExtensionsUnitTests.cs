@@ -7,6 +7,7 @@ using MsgHatch.Email.Resend.Tests.Unit.TestTypes;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Failures;
 using ResendConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Email.Resend.ResendEmailClient>;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Resend.Tests.Unit.DependencyInjection;
 

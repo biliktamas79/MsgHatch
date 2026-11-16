@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Outbox;
@@ -8,6 +9,7 @@ using MsgHatch.Email.DependencyInjection;
 using MsgHatch.Email.Liquid.DependencyInjection;
 using MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
 using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Liquid.Tests.Unit.DependencyInjection;
 

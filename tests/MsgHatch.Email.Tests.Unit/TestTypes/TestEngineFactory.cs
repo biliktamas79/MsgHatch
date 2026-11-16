@@ -1,5 +1,5 @@
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email.Engines;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Tests.Unit.TestTypes;
 

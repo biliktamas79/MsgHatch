@@ -23,7 +23,6 @@ public static class LiquidEmailExtensions
         this PayloadBuilder<TEvent, TPayload> payload, string name, Action<ChannelBuilder<EmailMessage>>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(payload);
-        LiquidEmailSetup.Of(payload.Services).Registrations.Add($"{EmailChannel.Id.Name}:{name}");
         return payload.AsEmail(name, LiquidTemplates.Engine, configure);
     }
 }

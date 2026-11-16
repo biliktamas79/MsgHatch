@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using MsgHatch.Email.Placeholders;
+using MsgHatch.Templates.Placeholders;
 
 namespace MsgHatch.SourceGeneration.Tests.Unit.TestTypes;
 

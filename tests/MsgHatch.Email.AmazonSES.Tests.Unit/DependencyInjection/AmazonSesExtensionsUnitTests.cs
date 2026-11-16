@@ -12,6 +12,7 @@ using MsgHatch.Domain.Failures;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using SesConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Email.AmazonSES.AmazonSimpleEmailServiceClient>;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.AmazonSES.Tests.Unit.DependencyInjection;
 

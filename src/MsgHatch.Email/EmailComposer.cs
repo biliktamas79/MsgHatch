@@ -4,8 +4,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email;
 

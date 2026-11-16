@@ -3,8 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Unicode;
 using Fluid;
 using MsgHatch.Domain.Failures;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Liquid;
 

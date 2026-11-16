@@ -1,6 +1,7 @@
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit.TestTypes;
 

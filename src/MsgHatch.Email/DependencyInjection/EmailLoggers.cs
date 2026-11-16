@@ -3,24 +3,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
-using MsgHatch.Domain.Identity;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
 
 namespace MsgHatch.Email.DependencyInjection;
 
-/// <summary>The logging wrappers of the email package. <see cref="MsgHatchOptions.EnableLogging"/> adds or removes them (D35).</summary>
+/// <summary>The logging wrapper of the email client. <see cref="MsgHatchOptions.EnableLogging"/> adds or removes it (D35).</summary>
 internal static class EmailLoggers
 {
-    public static ITemplateStore Wrap(IServiceProvider services, TenantKey key, ITemplateStore store) =>
-        IsEnabled(services)
-            ? new TemplateStoreLoggingWrapper(store, key, For<TemplateStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())
-            : store;
-
-    public static ITemplateEngine<TPayload> Wrap<TPayload>(IServiceProvider services, TenantKey key, ITemplateEngine<TPayload> engine) =>
-        new TemplateEngineLoggingWrapper<TPayload>(
-            engine, key, For<TemplateEngineLoggingWrapper<TPayload>>(services), services.GetRequiredService<TimeProvider>());
-
     public static IEmailClient Wrap(IServiceProvider services, IEmailClient client) =>
         IsEnabled(services)
             ? new EmailClientLoggingWrapper(client, For<EmailClientLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())

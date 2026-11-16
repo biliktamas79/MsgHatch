@@ -1,6 +1,6 @@
 using System.Buffers;
 using System.Globalization;
-using MsgHatch.Email.Placeholders;
+using MsgHatch.Templates.Placeholders;
 using MsgHatch.SourceGeneration.Tests.Unit.TestTypes;
 
 namespace MsgHatch.SourceGeneration.Tests.Unit;

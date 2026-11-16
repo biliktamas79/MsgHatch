@@ -1,9 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Liquid;
 
@@ -15,14 +12,9 @@ public static class LiquidTemplates
 
     private sealed class Factory : ITemplateEngineFactory
     {
-        public ITemplateEngine<TPayload> Create<TPayload>(IServiceProvider tenantServices, TenantKey key)
-        {
-            var services = tenantServices.GetRequiredService<IServiceProvider>();
-            var selector = new TemplateSelector(
-                key == TenantKey.None ? null : services.GetKeyedService<ITemplateStore>(key),
-                services.GetService<ITemplateStore>(),
-                services.GetRequiredService<IOptions<MsgHatchOptions>>().Value.DefaultLanguage);
-            return new LiquidTemplateEngine<TPayload>(selector, services.GetRequiredService<TimeProvider>());
-        }
+        public ITemplateEngine<TPayload> Create<TPayload>(IServiceProvider tenantServices, TenantKey key) =>
+            new LiquidTemplateEngine<TPayload>(
+                TemplateSelector.For(tenantServices, key),
+                tenantServices.GetRequiredService<TimeProvider>());
     }
 }

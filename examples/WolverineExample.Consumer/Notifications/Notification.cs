@@ -1,4 +1,4 @@
-using MsgHatch.Email.Placeholders;
+using MsgHatch.Templates.Placeholders;
 
 namespace WolverineExample.Consumer.Notifications;
 

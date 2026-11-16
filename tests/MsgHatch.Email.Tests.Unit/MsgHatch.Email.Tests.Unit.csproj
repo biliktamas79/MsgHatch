@@ -4,6 +4,7 @@
     <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.SourceGeneration\MsgHatch.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\MsgHatch.Domain.Tests.Unit\MsgHatch.Domain.Tests.Unit.csproj" />
+    <ProjectReference Include="..\MsgHatch.Templates.Tests.Unit\MsgHatch.Templates.Tests.Unit.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -12,8 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="TemplateFiles\**\*" WithCulture="false" />
-    <None Include="TemplateFiles\**\*" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Samples\*.json" />
   </ItemGroup>
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
@@ -8,10 +9,10 @@ using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Email.DependencyInjection;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit.DependencyInjection;
 
@@ -306,7 +307,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
     }
 
     [Fact]
-    public async Task Validate_RegistrationWithAnotherEngineAndNoTemplateStore_Succeeds()
+    public async Task Validate_ConsumerWithARegistrationOfAnotherEngineAndNoTemplateStore_ThrowsOptionsValidationException()
     {
         // Arrange
         var services = TestHost.CreateServices();
@@ -317,7 +318,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
 
         // Assert
-        Assert.Null(exception);
+        Assert.IsType<OptionsValidationException>(exception);
     }
 
     [Theory]

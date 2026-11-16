@@ -5,6 +5,7 @@ using MsgHatch.Email.AmazonSES.DependencyInjection;
 using MsgHatch.Email.AmazonSES.Tests.Integration.TestTypes;
 using MsgHatch.Email.AmazonSES.Tests.Unit.TestTypes;
 using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 [assembly: AssemblyFixture(typeof(NoAwsCredentials))]
 

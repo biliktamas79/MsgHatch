@@ -1,0 +1,54 @@
+using System.Buffers;
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
+using MsgHatch.Templates;
+
+namespace MsgHatch.Templates.Placeholders;
+
+/// <summary>
+/// Renders one parsed part for one payload (section 4.10). It writes each segment into a pooled buffer. In an
+/// <see cref="TemplatePartKind.Html"/> part, it encodes each value with an <see cref="HtmlEncoder"/> that allows all
+/// Unicode ranges, so that accented letters stay letters and the HTML characters are encoded. In the other parts, it
+/// does not encode.
+/// </summary>
+internal static class PlaceholderRenderer
+{
+    private static readonly HtmlEncoder _html = HtmlEncoder.Create(UnicodeRanges.All);
+
+    public static string Render<TPayload>(
+        ParsedTemplate part, in TPayload payload, IPlaceholderWriter<TPayload> writer, IFormatProvider culture,
+        PooledCharBufferWriter output, PooledCharBufferWriter value)
+    {
+        output.Clear();
+        foreach (var segment in part.Segments)
+        {
+            if (segment.Literal is not null)
+            {
+                output.Write(segment.Literal);
+            }
+            else if (part.Kind == TemplatePartKind.Html)
+            {
+                value.Clear();
+                writer.TryWrite(payload, segment.PropertyIndex, value, culture);
+                Encode(value.WrittenSpan, output);
+            }
+            else
+            {
+                writer.TryWrite(payload, segment.PropertyIndex, output, culture);
+            }
+        }
+
+        return output.WrittenSpan.ToString();
+    }
+
+    private static void Encode(ReadOnlySpan<char> source, PooledCharBufferWriter output)
+    {
+        var status = OperationStatus.DestinationTooSmall;
+        while (status != OperationStatus.Done)
+        {
+            status = _html.Encode(source, output.GetSpan(source.Length + 16), out var consumed, out var written);
+            output.Advance(written);
+            source = source[consumed..];
+        }
+    }
+}

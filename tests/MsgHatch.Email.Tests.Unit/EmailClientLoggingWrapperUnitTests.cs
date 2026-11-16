@@ -6,6 +6,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Email.DependencyInjection;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit;
 

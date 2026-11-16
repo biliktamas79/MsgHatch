@@ -5,6 +5,7 @@ using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.Contracts;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit;
 

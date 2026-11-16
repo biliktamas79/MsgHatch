@@ -1,16 +1,17 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email.DependencyInjection;
-using MsgHatch.Email.Engines;
+using MsgHatch.Templates;
 using MsgHatch.Email.Liquid.DependencyInjection;
-using MsgHatch.Email.Templates;
-using MsgHatch.Email.Tests.Unit.Contracts;
+using MsgHatch.Templates.Tests.Unit.Contracts;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Liquid.Tests.Unit.TestTypes;
 

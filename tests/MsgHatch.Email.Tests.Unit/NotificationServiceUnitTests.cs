@@ -7,9 +7,10 @@ using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Email.DependencyInjection;
-using MsgHatch.Email.Engines;
+using MsgHatch.Templates;
 using MsgHatch.Email.Tests.Unit.TestTypes;
 using NSubstitute;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit;
 

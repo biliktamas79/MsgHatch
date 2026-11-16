@@ -6,7 +6,7 @@ namespace MsgHatch.SourceGeneration;
 /// <summary>The C# source of the placeholder writer of one payload type (section 4.10).</summary>
 internal static class WriterSource
 {
-    private const string _placeholders = "global::MsgHatch.Email.Placeholders";
+    private const string _placeholders = "global::MsgHatch.Templates.Placeholders";
     private const string _writerClass = "MsgHatchPlaceholderWriter";
     private const string _output = "global::System.Buffers.IBufferWriter<char>";
 

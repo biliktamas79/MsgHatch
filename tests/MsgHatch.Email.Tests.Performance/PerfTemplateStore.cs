@@ -1,6 +1,6 @@
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Tests.Performance;
 

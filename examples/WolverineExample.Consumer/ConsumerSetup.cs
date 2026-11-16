@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization.Metadata;
+using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Data.Sqlite.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;

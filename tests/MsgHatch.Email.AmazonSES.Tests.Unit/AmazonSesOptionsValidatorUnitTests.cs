@@ -1,4 +1,5 @@
 using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.AmazonSES.Tests.Unit;
 

@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using MsgHatch.Domain.Failures;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Tests.Performance;
 

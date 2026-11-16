@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Email.DependencyInjection;
 using NSubstitute;
+using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Email.Tests.Unit.TestTypes;
 
@@ -17,7 +19,7 @@ public static class EmailHost
         builder.AddMessage(name, 1, TestJsonContext.Default.TestEvent, m => email(m.WithRouter<TwoEmailRoutesRouter<TestEvent>>()));
 
     public static MsgHatchBuilder UseTestTemplates(this MsgHatchBuilder builder) =>
-        builder.UseEmbeddedTemplates(typeof(EmailHost).Assembly, EmbeddedTemplateFiles.Prefix);
+        builder.UseEmbeddedTemplates(typeof(EmbeddedTemplateFiles).Assembly, EmbeddedTemplateFiles.Prefix);
 
     public static ITransport AnEmailTransport()
     {

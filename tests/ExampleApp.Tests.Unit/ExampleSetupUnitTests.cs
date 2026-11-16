@@ -6,6 +6,7 @@ using ExampleApp.Recipients;
 using ExampleApp.Startup;
 using ExampleApp.Tests.Unit.TestTypes;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Data.Sqlite;
 using MsgHatch.Data.Sqlite.DependencyInjection;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;

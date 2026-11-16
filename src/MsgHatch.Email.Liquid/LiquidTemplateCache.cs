@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Fluid;
 using MsgHatch.Domain.Failures;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 
 namespace MsgHatch.Email.Liquid;
 

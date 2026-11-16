@@ -3,8 +3,7 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email.Engines;
-using MsgHatch.Email.Templates;
+using MsgHatch.Templates;
 using NSubstitute;
 
 namespace MsgHatch.Email.Tests.Unit.TestTypes;

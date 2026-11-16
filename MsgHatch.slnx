@@ -21,6 +21,7 @@
     <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
     <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
     <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
+    <Project Path="src/MsgHatch.Templates/MsgHatch.Templates.csproj" />
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.AspNetCore/MsgHatch.Subscriptions.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Caching.FusionCache/MsgHatch.Subscriptions.Caching.FusionCache.csproj" />
@@ -62,6 +63,7 @@
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Performance/MsgHatch.Subscriptions.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Templates.Tests.Unit/MsgHatch.Templates.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />
   </Folder>
