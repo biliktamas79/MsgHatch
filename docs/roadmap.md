@@ -1404,6 +1404,9 @@ Checked facts (2026-11-16) for unknown filters. The probe is a console app in a 
 | A filter in a branch that does not run gives no error. An unknown filter in `{% assign %}` gives the error. Filter names are case-sensitive, so `Upcase` is unknown. | The probe |
 | The default filter collection of `TemplateOptions` has 72 filters, among them `raw` and `format_date`. | The probe |
 | `Fluid.Ast.AstVisitor` is public. It finds the filters of an output, `if`, `unless`, `for`, `case`, `assign`, and `capture`, but not of the `{% liquid %}` tag. Liquid allows no filter in the condition of `if`. | The probe |
+| The 22 unit test projects pass 3,469 tests and skip 1 test: the path limit test of the named pipe signal on Windows. `MsgHatch.Email.Liquid.Tests.Unit` passes 49 tests. The solution builds with no errors and no warnings. The line coverage is 99.3 %, and `MsgHatch.Email.Liquid` has 100 %. | `pwsh ./coverage.ps1` and `dotnet build MsgHatch.slnx` at commit 8 |
+| Commit 8 builds on its own with no errors and no warnings, and passes `MsgHatch.Email.Liquid.Tests.Unit` (49) and `MsgHatch.Email.Tests.Unit` (201). | `dotnet build MsgHatch.slnx` and `dotnet test` in a temporary worktree at commit 8, outside the repository |
+| The 3 rows of an unknown filter failed first, and they fail again with no `StrictFilters`. The row of a known filter fails with an empty filter collection. The row of a branch that does not run passes before and after the change: it records the limit of D211, and no break of the engine makes it fail. | The break script, outside the repository |
 
 Commits:
 7. "Record the decision of unknown Liquid filters in the plan (D211)"
