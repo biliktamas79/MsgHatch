@@ -5,8 +5,9 @@ namespace MsgHatch.Email.Liquid;
 
 /// <summary>
 /// The Fluid options of one payload type, built one time (D209, D210): a limit of 100,000 steps, the time zone UTC, an
-/// unknown name as a <see cref="FluidException"/> (D207), and the member types of the payload. A member type is each
-/// class, record, or struct that the public properties of the payload reach, also as the element type of a collection.
+/// unknown name and an unknown filter as a <see cref="FluidException"/> (D207, D211), and the member types of the
+/// payload. A member type is each class, record, or struct that the public properties of the payload reach, also as the
+/// element type of a collection.
 /// A type of the .NET runtime is not a member type, so a template cannot read its members.
 /// </summary>
 /// <typeparam name="TPayload">The payload type.</typeparam>
@@ -19,6 +20,7 @@ internal static class LiquidOptions<TPayload>
         var options = new TemplateOptions
         {
             MaxSteps = 100_000,
+            StrictFilters = true,
             TimeZone = TimeZoneInfo.Utc,
             Undefined = static name => throw new FluidException($"The template has the unknown name {name}."),
         };
