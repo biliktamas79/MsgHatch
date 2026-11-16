@@ -1384,6 +1384,36 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
+After the build, the owner asked that an unknown filter of a Liquid template gives an error (D211). Phase 23 has no tag yet, so these commits are part of phase 23:
+
+1. `LiquidOptions` in `src/MsgHatch.Email.Liquid/LiquidOptions.cs` sets `StrictFilters = true`. Fluid then throws a `FluidException` for an unknown filter, and `LiquidEmailTemplate` already gives `Errors.TemplateInvalid` for it.
+2. Section 4.10 of the design replaces the sentence "An unknown filter is not an error" with the rule of D211.
+
+Tests, as new rows of `RenderAsync_LiquidInTheHtml_GivesTheRuleOfTheRender`:
+- `{{ Name | upcse }}` gives 422 at render.
+- `{{ Name | Upcase }}` gives 422, because filter names are case-sensitive.
+- `{% assign x = Name | upcse %}{{ x }}` gives 422.
+- `{% if Note %}{{ Note | upcse }}{% endif %}` with no note renders an empty text, because the branch does not run.
+- `{{ Name | upcase }}` renders the name in upper case, encoded, so a known filter still works.
+
+Checked facts (2026-11-16) for unknown filters. The probe is a console app in a scratch folder, outside the repository, with `Fluid.Core` 2.41.1:
+
+| Fact | Source |
+|---|---|
+| With `TemplateOptions.StrictFilters`, an unknown filter throws a `FluidException` with the message `Undefined filter 'nofilter'` at render, from the assembly `Fluid`. The XML documentation of the option names an `InvalidOperationException`, but the probe gets a `FluidException`. | The probe |
+| A filter in a branch that does not run gives no error. An unknown filter in `{% assign %}` gives the error. Filter names are case-sensitive, so `Upcase` is unknown. | The probe |
+| The default filter collection of `TemplateOptions` has 72 filters, among them `raw` and `format_date`. | The probe |
+| `Fluid.Ast.AstVisitor` is public. It finds the filters of an output, `if`, `unless`, `for`, `case`, `assign`, and `capture`, but not of the `{% liquid %}` tag. Liquid allows no filter in the condition of `if`. | The probe |
+
+Commits:
+7. "Record the decision of unknown Liquid filters in the plan (D211)"
+8. "Give 422 for an unknown filter of a Liquid template"
+9. "Record the checked facts of the unknown Liquid filters in the plan"
+
+Commit 7 holds D211, this plan, and the decision range of AGENTS.md. Commit 8 holds items 1 and 2 with the tests. Commit 9 records the test results, the coverage, and the check of commit 8 in a temporary worktree. Each new test fails first, or fails with a break of the code that it covers.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
