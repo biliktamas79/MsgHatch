@@ -31,6 +31,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 21 Dispatch signal between processes | 2, 13 |
 | 22 Razor email templates | 3 |
 | 23 Liquid email templates | 3, 22 |
+| 24 Template library | 23 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -1417,9 +1418,57 @@ Commit 7 holds D211, this plan, and the decision range of AGENTS.md. Commit 8 ho
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
+### Phase 24: Template library
+
+Goal: a template library that knows no channel, as `MsgHatch.Subscriptions` knows no channel (D212). Each channel renders its texts through one engine contract that another implementation can replace (D213), and the email channel is a thin layer on the library (D215). No package is released yet, so the phase changes the public API of `MsgHatch.Email` with no compatibility types.
+
+1. Add `src/MsgHatch.Templates` (D212). It references `MsgHatch.Domain`, and its package includes `MsgHatch.SourceGeneration` as an analyzer, as `MsgHatch.Email` does today:
+   - The template code of `MsgHatch.Email` moves there, in the namespaces `MsgHatch.Templates`, `MsgHatch.Templates.Placeholders`, and `MsgHatch.Templates.DependencyInjection`: `ITemplateStore`, `TemplateLookup`, `TemplateSource`, `TemplateKey`, `TemplatePartKind`, `ScopeFolders`, the file and embedded stores with `FileTemplateOptions` and its validator, `TemplateStoreLoggingWrapper`, `TemplateSelector`, the placeholder parser, renderer, cache, and payload types, and their log events with their event ids.
+   - The generator reads the attribute `MsgHatch.Templates.Placeholders.PlaceholderPayloadAttribute` and writes `global::MsgHatch.Templates.Placeholders`.
+   - `UseTemplateStore`, `UseEmbeddedTemplates`, `UseFileTemplates`, and `UseTenantTemplateStore` move to `MsgHatch.Templates.DependencyInjection`, with their checks of D62. With the role `Consumer`, each registration of a template engine needs a template store.
+2. Change the contract to one text for each template (D213, D214):
+   - `TemplateRequest(MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind)`. `TemplateLookup` gets the same part and kind, and `TemplateSource` becomes `TemplateSource(TemplateKey Key, string Text)`.
+   - `ITemplateEngine<TPayload>.PrepareAsync(TemplateRequest, CancellationToken)` gives `ValueTask<ErrorOr<ITemplate<TPayload>>>`, or `Errors.NotFound` when no template exists. `ITemplate<TPayload>.RenderAsync(TPayload, CultureInfo, CancellationToken)` gives `ValueTask<ErrorOr<string>>`. A template of the kind `Html` encodes each value. The route is no longer an argument, because no engine reads it.
+   - The file store reads only `{RootPath}/[{CompanyFolder}/]{MessageType}.{Language}.{Part}.txt` or `.html`, and the embedded store reads the resource of the same name. `TemplateKey` is the key of one file. `TemplateSelector` finds one part with the lookups of D123, so each part falls back on its own.
+   - `PlaceholderTemplateEngine<TPayload>` parses one text for each `TemplateKey`. A cache hit of a prepare allocates nothing, and a render allocates only its output string (section 4.11). `TemplateEngineLoggingWrapper<TPayload>` replaces the email engine wrapper.
+3. The email layer (D215, D216):
+   - `MsgHatch.Email` references `MsgHatch.Templates`. The email composer prepares `subject` (`PlainText`), `body` (`Html`), and `body` (`PlainText`) one time for each group of routes, and renders the three parts of each email into `RenderedEmail`. `Errors.NotFound` of the text body gives no text body. Each other error is the error of the email.
+   - `AsEmail(name)` keeps the placeholder engine. `AsEmail(name, ITemplateEngineFactory engine)` replaces the overload with a factory delegate. Two registrations of one payload type with two engines fail the startup validation, as today.
+   - `IEmailTemplateEngine`, `IEmailTemplate`, `EmailTemplateRequest`, `PlaceholderEmailEngine`, and `PlaceholderEmailTemplate` are removed.
+4. Move the Liquid engine (D216). `src/MsgHatch.Email.Liquid` becomes `src/MsgHatch.Templates.Liquid`, which references only `MsgHatch.Templates` and `Fluid.Core`. `LiquidTemplateEngine<TPayload>` renders one text with the rules of D207 to D211, so the step limit applies to each part. `LiquidTemplates.Engine` is its `ITemplateEngineFactory`. `AsLiquidEmail` and the Liquid setup check are removed, because the check of item 1 covers them.
+5. The examples get the new namespaces. Sections 4.1, 4.2, 4.7, 4.10, 4.11, and 5.5 of the design get the library. Section 4.11 keeps the measured numbers of phase 13, with a note that a template is now one part.
+
+Tests:
+- `tests/MsgHatch.Templates.Tests.Unit` gets the tests of the stores, the selector, and the placeholder engine from `MsgHatch.Email.Tests.Unit`, with `TemplateStoreTestsBase<TStore>` and `TemplateEngineTestsBase<TEngine>`, which replaces `EmailTemplateEngineTestsBase` and checks one part. The fallback rows of D123 check one part. A company folder with only `subject.txt` gives the subject of the company and the body of the default folder (D214). A part with no translation takes the default language.
+- `tests/MsgHatch.Templates.Liquid.Tests.Unit` replaces the Liquid test project: the engine contract, the rows of the Liquid rules, and `LiquidTemplates.Engine`.
+- `tests/MsgHatch.Email.Tests.Unit` keeps the email layer: the three parts of an email, no text body for a missing text part, `Errors.NotFound` for a missing subject or html body, the error of one part as the error of the email, `AsEmail` with a factory, the startup check of two engines for one payload type, and a pipeline test with the Liquid templates of the test project.
+- The generator tests use the new namespace. The template benchmarks move to `tests/MsgHatch.Templates.Tests.Performance` and build. They do not run in this phase.
+- Each new test fails first, or fails with a break of the code that it covers. Each moved test passes before and after its move.
+
+Checked facts (2026-11-16). The probes are console apps in a scratch folder, outside the repository, with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| A generic method with a constraint cannot implement an interface method with no constraint: CS0425. So the placeholder engine, whose writer needs `IPlaceholderPayload<TPayload>`, cannot implement `ITemplateEngineFactory.Create<TPayload>`. | A probe |
+| C# cannot infer the type argument of a generic method group from the return type of the delegate: `AsEmail("x", Liquid.Engine)` gives CS0411. So an engine is selected with a factory object, not with a generic method. | A probe |
+| Outside `MsgHatch.Email`, the examples and `MsgHatch.Subscriptions.Tests.Unit` use `MsgHatch.Email.Placeholders` in 4 files and `UseEmbeddedTemplates` in 4 setups. The generator names `MsgHatch.Email.Placeholders` in 2 constants. `tests/MsgHatch.Email.Tests.Performance` has 5 files with template code. | A search of the repository |
+
+Commits:
+1. "Record the decisions of the template library in the plan (D212 to D217)"
+2. "Move the template code of MsgHatch.Email into MsgHatch.Templates"
+3. "Render one text for each template with a replaceable engine"
+4. "Move the Liquid engine into MsgHatch.Templates.Liquid"
+5. "Record the commits and the checked facts of phase 24 in the plan"
+6. "Record phase 24 as done in README and AGENTS.md"
+
+Commit 2 holds item 1 and its moved tests and benchmarks, and changes no behavior. Commit 3 holds items 2 and 3, and the Liquid engine of `MsgHatch.Email.Liquid` implements the new contract in it. Commit 4 holds item 4. Item 5 goes with the commit whose code it describes. Before the end of the phase, a worktree at each commit runs `dotnet build MsgHatch.slnx` and `dotnet test` of the changed unit test projects.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
+- An HTTP API of the templates (D217): `MsgHatch.Templates.AspNetCore` lists, reads, and writes the templates of a store, in the same way as `MsgHatch.Subscriptions.AspNetCore`.
 - Partials of the Liquid engine (D208): `render` and `include` read a partial from the template store, with the lookups of the tenant, the company, and the language, through the asynchronous `ITemplateFileProvider` of the first stable Fluid 3.
 - A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
