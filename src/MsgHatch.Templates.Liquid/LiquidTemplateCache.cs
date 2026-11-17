@@ -23,8 +23,13 @@ internal static class LiquidTemplateCache
             return ErrorOr<IFluidTemplate>.ForValue(cached);
         }
 
-        return _parser.TryParse(source.Text, out var template, out var error)
-            ? ErrorOr<IFluidTemplate>.ForValue(_templates.GetOrAdd(source.Key, template))
-            : new Error(Errors.TemplateInvalid, $"The template {source.Key.Id} is not valid Liquid: {error}");
+        var parsed = Parse(source);
+        return parsed.IsError ? parsed : ErrorOr<IFluidTemplate>.ForValue(_templates.GetOrAdd(source.Key, parsed.Value));
     }
+
+    /// <summary>Parses a text with no cache entry, for the check before a write (D219).</summary>
+    public static ErrorOr<IFluidTemplate> Parse(TemplateSource source) =>
+        _parser.TryParse(source.Text, out var template, out var error)
+            ? ErrorOr<IFluidTemplate>.ForValue(template)
+            : new Error(Errors.TemplateInvalid, $"The template {source.Key.Id} is not valid Liquid: {error}");
 }

@@ -11,4 +11,7 @@ public interface ITemplateTestData
     /// form <c>{Name}</c>, and the test data writes them in the syntax of its engine.
     /// </summary>
     void Seed(MessageType type, string language, string part, TemplatePartKind kind, string text);
+
+    /// <summary>Writes the placeholders <c>{Name}</c> of a text in the syntax of the engine.</summary>
+    string InEngineSyntax(string text);
 }

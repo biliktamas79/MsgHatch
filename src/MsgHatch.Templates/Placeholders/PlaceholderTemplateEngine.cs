@@ -47,4 +47,12 @@ public sealed class PlaceholderTemplateEngine<TPayload> : ITemplateEngine<TPaylo
         var template = ParsedTemplateCache<TPayload>.GetOrParse(source.Value);
         return template.IsError ? template.Error : ErrorOr<ITemplate<TPayload>>.ForValue(template.Value);
     }
+
+    /// <inheritdoc/>
+    public ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var source = new TemplateSource(new TemplateKey($"{lookup.Type.Name}.{lookup.Language}.{lookup.Part}", 0), text);
+        return ValueTask.FromResult(TemplateParser.Parse(source, lookup.Kind, TPayload.Writer).Error);
+    }
 }

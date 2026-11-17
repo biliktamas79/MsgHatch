@@ -23,6 +23,33 @@ internal sealed class TemplateEngineLoggingWrapper<TPayload>(
         return result;
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var error = await inner.CheckAsync(lookup, text, ct);
+        LogCheck(lookup, error, time.GetElapsedTime(started).TotalMilliseconds);
+        return error;
+    }
+
+    private void LogCheck(TemplateLookup lookup, Error? error, double elapsedMs)
+    {
+        if (error is null)
+        {
+            logger.CheckSucceeded(lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs);
+        }
+        else
+        {
+            var level = CheckLevelOf(error);
+            logger.CheckFailed(
+                level, lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+        }
+    }
+
+    /// <summary>A text that the check rejects is an expected answer to the input of an operator, not a fault of the system.</summary>
+    private static LogLevel CheckLevelOf(Error error) =>
+        error.Type == Errors.TemplateInvalid ? LogLevel.Information : ErrorLogLevels.For(error);
+
     private void LogPrepare(TemplateRequest request, ErrorOr<ITemplate<TPayload>> result, double elapsedMs)
     {
         if (result.IsError)

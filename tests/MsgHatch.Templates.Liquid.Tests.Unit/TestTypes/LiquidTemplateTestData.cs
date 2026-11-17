@@ -58,6 +58,8 @@ public sealed partial class LiquidTemplateTestData : ITemplateTestData, IAsyncDi
     public void SeedText(TemplateLookup lookup, string text, TemplateKey? key = null) =>
         _templates[lookup] = new TemplateSource(key ?? new TemplateKey(Guid.NewGuid().ToString(), 0), text);
 
+    public string InEngineSyntax(string text) => InLiquid(text);
+
     public async ValueTask DisposeAsync()
     {
         await _scope.DisposeAsync();

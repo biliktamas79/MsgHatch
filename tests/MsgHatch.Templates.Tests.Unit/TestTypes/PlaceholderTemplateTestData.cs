@@ -34,6 +34,8 @@ public sealed partial class PlaceholderTemplateTestData : ITemplateTestData
 
     public static TemplateSource ASource(string text) => new(new TemplateKey(Guid.NewGuid().ToString(), 0), text);
 
+    public string InEngineSyntax(string text) => InPlaceholderSyntax(text);
+
     private static string InPlaceholderSyntax(string text) => Placeholder().Replace(text, "{{$1}}");
 
     [GeneratedRegex(@"\{(\w+)\}")]

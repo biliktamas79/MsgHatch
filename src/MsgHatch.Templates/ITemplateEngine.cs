@@ -15,4 +15,14 @@ public interface ITemplateEngine<TPayload>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The prepared template, or <see cref="Errors.NotFound"/> when no template exists.</returns>
     ValueTask<ErrorOr<ITemplate<TPayload>>> PrepareAsync(TemplateRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Checks the text of one part before a write, as a prepare after a store read checks it, with no store read and no
+    /// cache entry (D219).
+    /// </summary>
+    /// <param name="lookup">The message type, the language, the template scope, the part, and its kind.</param>
+    /// <param name="text">The text of the part.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>Null for a valid text, or <see cref="Errors.TemplateInvalid"/>.</returns>
+    ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct);
 }

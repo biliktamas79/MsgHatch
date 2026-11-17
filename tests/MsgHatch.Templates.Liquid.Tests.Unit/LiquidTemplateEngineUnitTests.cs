@@ -54,6 +54,31 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
         { "a loop of 200,000 steps", "{% for i in (1..200000) %}{% endfor %}", "render 422" },
         { "a render tag", "{% render 'Footer' %}", "render 422" },
         { "an include tag", "{% include 'Footer' %}", "render 422" },
+        { "an echo in a liquid tag, which runs no statement", "{% liquid echo Name %}", "" },
+        { "an unknown filter in a liquid tag, which runs no statement", "{% liquid echo Name | upcse %}", "" },
+        { "a render tag in a liquid tag, which runs no statement", "{% liquid render 'Footer' %}", "" },
+    };
+
+    public static TheoryData<string, string, int?> CheckRows => new()
+    {
+        { "valid Liquid", "Order {{ Name }}", null },
+        { "an unclosed output", "Hello {{ Name ", 422 },
+        { "an unknown filter", "{{ Name | upcse }}", 422 },
+        { "a filter name in another case", "{{ Name | Upcase }}", 422 },
+        { "an unknown filter in an assign tag", "{% assign x = Name | upcse %}{{ x }}", 422 },
+        { "an unknown filter in a branch that does not run", "{% if Note %}{{ Note | upcse }}{% endif %}", 422 },
+        { "an unknown filter in a loop", "{% for line in Lines %}{{ line | nofilter }}{% endfor %}", 422 },
+        { "an unknown filter after a known filter", "{{ Name | append: Note | upcse }}", 422 },
+        { "an unknown filter in a capture tag", "{% capture c %}{{ Name | upcse }}{% endcapture %}{{ c }}", 422 },
+        { "an unknown filter in an echo tag", "{% echo Name | upcse %}", 422 },
+        { "a known filter", "{{ Name | upcase }}", null },
+        { "the filter format_date", "{{ ShippedAt | format_date: 'G' }}", null },
+        { "a render tag", "{% render 'Footer' %}", 422 },
+        { "an include tag", "{% include 'Footer' %}", 422 },
+        { "an unknown name, found at render", "{{ Nmae }}", null },
+        { "an unknown filter in a liquid tag, which runs no statement", "{% liquid echo Name | upcse %}", null },
+        { "a render tag in a liquid tag, which runs no statement", "{% liquid render 'Footer' %}", null },
+        { "a loop of 200,000 steps, found at render", "{% for i in (1..200000) %}{% endfor %}", null },
     };
 
     public static TheoryData<string, string?, string> CompanyRows => new()
@@ -89,6 +114,17 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
 
         // Assert
         Assert.Equal((row, expectedOutcome), (row, outcome));
+    }
+
+    [Theory]
+    [MemberData(nameof(CheckRows))]
+    public async Task CheckAsync_LiquidInAnHtmlPart_GivesTheRuleOfTheCheck(string row, string html, int? expectedCode)
+    {
+        // Act
+        var error = await Engine.CheckAsync(ALookup(TemplatePartKind.Html), html, Ct);
+
+        // Assert
+        Assert.Equal((row, expectedCode), (row, error?.Type.Code));
     }
 
     [Fact]

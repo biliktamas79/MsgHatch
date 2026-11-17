@@ -16,4 +16,16 @@ internal static partial class Log
     public static partial void PrepareFailed(
         this ILogger logger, LogLevel level, string messageType, string part, string? tenant, double elapsedMs, int errorCode, string errorName,
         string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 2008, Level = LogLevel.Debug,
+        Message = "Template engine of tenant {Tenant} checked a {Part} text of {MessageType} in {ElapsedMs} ms")]
+    public static partial void CheckSucceeded(this ILogger logger, string messageType, string part, string? tenant, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 2009,
+        Message = "Template engine of tenant {Tenant} rejected a {Part} text of {MessageType} after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void CheckFailed(
+        this ILogger logger, LogLevel level, string messageType, string part, string? tenant, double elapsedMs, int errorCode, string errorName,
+        string? errorMessage);
 }
