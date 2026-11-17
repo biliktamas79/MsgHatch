@@ -8,7 +8,7 @@ MsgHatch is a .NET 10 library for message routing, message templates, and delive
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D226), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D235), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -30,7 +30,7 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 | Dispatch signal | `MsgHatch.Dispatch.NamedPipes` |
 
-No phase after phase 25 has a detailed plan yet. The section "Later phases" of the roadmap lists the next items.
+Phase 26 (the query and command interfaces of the management APIs) and phase 27 (the HTTP API clients) have a detailed plan. No phase after phase 27 has one yet. The section "Later phases" of the roadmap lists the next items.
 
 ## Commands
 
