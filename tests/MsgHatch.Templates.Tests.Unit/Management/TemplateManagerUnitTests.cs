@@ -206,6 +206,21 @@ public sealed class TemplateManagerUnitTests(TemplateFolder folder) : IClassFixt
     }
 
     [Fact]
+    public async Task GetTemplateAsync_StoreError_GivesTheErrorOfTheStore()
+    {
+        // Arrange
+        var store = Substitute.For<ITemplateStore>();
+        store.FindAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<TemplateSource?>>(new Error(Errors.Unavailable)));
+        await using var host = new ManagerHost(b => b.UseTemplateStore(_ => store).AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, _type.Name));
+
+        // Act
+        var source = await host.Manager(TenantKey.None).GetTemplateAsync(ALookup(), Ct);
+
+        // Assert
+        Assert.Equal(503, source.Error?.Type.Code);
+    }
+
+    [Fact]
     public async Task GetTemplatesAsync_SavedTemplates_GivesTheirEntries()
     {
         // Arrange

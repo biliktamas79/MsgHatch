@@ -104,6 +104,36 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     }
 
     [Fact]
+    public async Task DeleteAsync_FileThatAReaderHoldsOpen_GivesUnavailableAndKeepsTheFile()
+    {
+        // Arrange
+        await Store.SaveAsync(ALookup(scope: "held"), "First", 0, Ct);
+        Error? error;
+
+        // Act
+        using (new FileStream(PathOf("held"), FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            error = await Store.DeleteAsync(ALookup(scope: "held"), Ct);
+        }
+
+        // Assert
+        Assert.Equal((503, true), (error?.Type.Code, File.Exists(PathOf("held"))));
+    }
+
+    [Fact]
+    public async Task FindAsync_EmptyScope_GivesNull()
+    {
+        // Arrange
+        await Store.SaveAsync(ALookup(), "No company", 0, Ct);
+
+        // Act
+        var result = await Store.FindAsync(ALookup(scope: string.Empty), Ct);
+
+        // Assert
+        Assert.Equal((false, null), (result.IsError, result.Value));
+    }
+
+    [Fact]
     public async Task ListAsync_NamesThatTheStoreDoesNotMake_AreSkipped()
     {
         // Arrange
