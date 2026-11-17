@@ -1,3 +1,6 @@
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Templates;
 using MsgHatch.Templates.Tests.Unit.Contracts;
@@ -193,6 +196,36 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
 
         // Assert
         Assert.Empty(entries.Value);
+    }
+
+    [Fact]
+    [SupportedOSPlatform("windows")]
+    public async Task ListAsync_CompanyFolderThatCannotBeListed_GivesUnavailable()
+    {
+        // Arrange
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The test denies the listing of a folder with a Windows access rule.");
+        await Store.SaveAsync(ALookup(scope: "unlisted"), "Text", 0, Ct);
+        var companyFolder = new DirectoryInfo(Path.Combine(folder.Root, "unlisted"));
+        using var user = WindowsIdentity.GetCurrent();
+        var denial = new FileSystemAccessRule(user.User!, FileSystemRights.ListDirectory, AccessControlType.Deny);
+        var security = companyFolder.GetAccessControl();
+        security.AddAccessRule(denial);
+        companyFolder.SetAccessControl(security);
+        ErrorOr<IReadOnlyList<TemplateEntry>> entries;
+
+        // Act
+        try
+        {
+            entries = await Store.ListAsync(new TemplateQuery(Scope: "unlisted"), Ct);
+        }
+        finally
+        {
+            security.RemoveAccessRule(denial);
+            companyFolder.SetAccessControl(security);
+        }
+
+        // Assert
+        Assert.Equal(503, entries.Error?.Type.Code);
     }
 
     private string PathOf(string? folderName = null) =>
