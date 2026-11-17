@@ -203,7 +203,7 @@ public sealed class ExampleSetupUnitTests : IDisposable
             .UseRecipientDirectory<ExampleRecipientDirectory>()
             .UseSqliteTenantStores<FixedTenantSource>()
             .UseSqliteTenantSubscriptionStore()
-            .UseEmbeddedTemplates(typeof(ExampleSetup).Assembly, ExampleSetup.TemplatePrefix)
+            .UseFileTemplates(ExampleSetup.TemplateFolder)
             .AddExampleMessages()
             .UseEmailClient<LogEmailClient>();
         return services.Build();

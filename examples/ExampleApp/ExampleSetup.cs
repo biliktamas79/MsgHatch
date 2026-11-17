@@ -25,14 +25,18 @@ namespace ExampleApp;
 /// </summary>
 public static class ExampleSetup
 {
-    /// <summary>The prefix of the embedded email templates.</summary>
-    public const string TemplatePrefix = "ExampleApp.Templates";
+    /// <summary>
+    /// The folder of the email templates in the output folder of the build (D221). The build copies the folder
+    /// <c>Templates</c> of the project there, so a write of the template endpoints never changes the source files.
+    /// </summary>
+    public static string TemplateFolder => Path.Combine(AppContext.BaseDirectory, "Templates");
 
     /// <summary>
     /// Registers MsgHatch with the subscription router, the example directory, the SQLite stores and the subscription
     /// store on one database file, the stored registry on the same file (section 4.20), the subscription cache on
-    /// FusionCache, the embedded templates, and the message types A to F. The connection string comes from
-    /// <c>MsgHatch:Sqlite:ConnectionString</c>.
+    /// FusionCache, the file template store, and the message types A to F. The connection string comes from
+    /// <c>MsgHatch:Sqlite:ConnectionString</c>. The template folder comes from <c>MsgHatch:FileTemplates:RootPath</c>, or
+    /// else it is <see cref="TemplateFolder"/>.
     /// </summary>
     /// <param name="services">The services of the host.</param>
     /// <param name="configure">Changes the options, for example the roles of the process.</param>
@@ -45,7 +49,7 @@ public static class ExampleSetup
             .UseStoredRegistry()
             .UseSqliteSubscriptionStore()
             .UseFusionSubscriptionCache()
-            .UseEmbeddedTemplates(typeof(ExampleSetup).Assembly, TemplatePrefix)
+            .UseFileTemplates(static o => o.RootPath = string.IsNullOrWhiteSpace(o.RootPath) ? TemplateFolder : o.RootPath)
             .AddExampleMessages();
 
     /// <summary>

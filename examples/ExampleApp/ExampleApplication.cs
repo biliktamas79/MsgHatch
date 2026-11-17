@@ -7,6 +7,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Email.DependencyInjection;
 using MsgHatch.SignalR.DependencyInjection;
 using MsgHatch.Subscriptions.AspNetCore;
+using MsgHatch.Templates.AspNetCore;
 using OpenTelemetry;
 using Wolverine;
 
@@ -14,7 +15,8 @@ namespace ExampleApp;
 
 /// <summary>
 /// The web app of the example, in one process with both roles (D101, D102): the event consumer, the publishers of email,
-/// SignalR, and the broker, the subscription endpoints, the delivery endpoints, the registry endpoints, and the SignalR hub.
+/// SignalR, and the broker, the subscription endpoints, the delivery endpoints, the registry endpoints, the template
+/// endpoints, and the SignalR hub.
 /// </summary>
 public static class ExampleApplication
 {
@@ -35,6 +37,12 @@ public static class ExampleApplication
 
     /// <summary>The policy and the role of the registry endpoints, which change the registry settings (D170).</summary>
     public const string RegistryAdmin = "RegistryAdmin";
+
+    /// <summary>The prefix of the template endpoints (section 4.22).</summary>
+    public const string TemplatesPrefix = "/api/templates";
+
+    /// <summary>The policy and the role of the template endpoints, which change the email texts (D225).</summary>
+    public const string TemplateAdmin = "TemplateAdmin";
 
     /// <summary>The route of the SignalR hub.</summary>
     public const string HubRoute = "/hubs/notifications";
@@ -60,6 +68,7 @@ public static class ExampleApplication
             options.AddPolicy(DeliveryAdmin, static policy => policy.RequireRole(DeliveryAdmin));
             options.AddPolicy(DeliveryContent, static policy => policy.RequireRole(DeliveryContent));
             options.AddPolicy(RegistryAdmin, static policy => policy.RequireRole(RegistryAdmin));
+            options.AddPolicy(TemplateAdmin, static policy => policy.RequireRole(TemplateAdmin));
         });
 
         var app = builder.Build();
@@ -71,6 +80,7 @@ public static class ExampleApplication
         app.MapMsgHatchDelivery(DeliveryPrefix).RequireAuthorization(DeliveryAdmin);
         app.MapMsgHatchDeliveryContent(DeliveryPrefix).RequireAuthorization(DeliveryContent);
         app.MapMsgHatchRegistry(RegistryPrefix).RequireAuthorization(RegistryAdmin);
+        app.MapMsgHatchTemplates(TemplatesPrefix).RequireAuthorization(TemplateAdmin);
         return app;
     }
 

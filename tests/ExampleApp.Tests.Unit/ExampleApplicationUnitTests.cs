@@ -44,7 +44,16 @@ public sealed class ExampleApplicationUnitTests : IDisposable
         _configuration["Authentication:Schemes:Bearer:SigningKeys:0:Value"] = Convert.ToBase64String(_signingKey);
     }
 
-    public void Dispose() => _configuration.Delete();
+    private string? _templateCopy;
+
+    public void Dispose()
+    {
+        _configuration.Delete();
+        if (_templateCopy is not null)
+        {
+            Directory.Delete(_templateCopy, recursive: true);
+        }
+    }
 
     [Fact]
     public async Task Build_FirstStart_SendsTheEmailsOfTheSubscriptionExampleAndOfThePasswordReset()
@@ -219,6 +228,85 @@ public sealed class ExampleApplicationUnitTests : IDisposable
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(ExampleApplication.TemplateAdmin, HttpStatusCode.OK)]
+    [InlineData(ExampleApplication.RegistryAdmin, HttpStatusCode.Forbidden)]
+    public async Task TemplateRoute_RoleOfTheToken_PassesOnlyTheTemplatePolicy(string role, HttpStatusCode expected)
+    {
+        // Arrange
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+
+        // Act
+        using var response = await SendAsync(example, HttpMethod.Get, ExampleApplication.TemplatesPrefix, body: null, role);
+
+        // Assert
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TemplateRoute_PutOfASubject_TheNextGetGivesTheNewTextAndTheBuildOutputKeepsItsText()
+    {
+        // Arrange
+        _configuration["MsgHatch:FileTemplates:RootPath"] = CopyOfTheTemplates();
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+        const string path = $"{ExampleApplication.TemplatesPrefix}/A/en/subject/PlainText";
+        using var read = await SendAsync(example, HttpMethod.Get, path, body: null, ExampleApplication.TemplateAdmin);
+        var version = JsonDocument.Parse(await read.Content.ReadAsStringAsync(Ct)).RootElement.GetProperty("version").GetInt64();
+
+        // Act
+        using var saved = await SendAsync(
+            example, HttpMethod.Put, path, "{\"text\":\"Changed A: {{Text}}\",\"version\":" + version.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}", ExampleApplication.TemplateAdmin);
+        using var changed = await SendAsync(example, HttpMethod.Get, path, body: null, ExampleApplication.TemplateAdmin);
+
+        // Assert
+        var text = JsonDocument.Parse(await changed.Content.ReadAsStringAsync(Ct)).RootElement.GetProperty("text").GetString();
+        Assert.Equal(
+            (HttpStatusCode.OK, "Changed A: {{Text}}", "Notification A: {{Text}}"),
+            (saved.StatusCode, text, File.ReadAllText(Path.Combine(ExampleSetup.TemplateFolder, "A.en.subject.txt"))));
+    }
+
+    [Fact]
+    public async Task TemplateRoute_PutOfAnUnknownPlaceholder_Gives422()
+    {
+        // Arrange
+        _configuration["MsgHatch:FileTemplates:RootPath"] = CopyOfTheTemplates();
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+
+        // Act
+        using var response = await SendAsync(
+            example, HttpMethod.Put, $"{ExampleApplication.TemplatesPrefix}/A/de/subject/PlainText", """{"text":"A: {{Txet}}","version":0}""",
+            ExampleApplication.TemplateAdmin);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    private static async Task<HttpResponseMessage> SendAsync(ExampleWebApp example, HttpMethod method, string path, string? body, string role)
+    {
+        using var request = new HttpRequestMessage(method, path)
+        {
+            Content = body is null ? null : new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TokenOf("1", role));
+        return await example.App.GetTestClient().SendAsync(request, Ct);
+    }
+
+    /// <summary>Copies the templates of the build output into a temporary folder, so a write of a test never changes the build output.</summary>
+    private string CopyOfTheTemplates()
+    {
+        _templateCopy = Path.Combine(Path.GetTempPath(), "msghatch-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_templateCopy);
+        foreach (var file in Directory.EnumerateFiles(ExampleSetup.TemplateFolder))
+        {
+            File.Copy(file, Path.Combine(_templateCopy, Path.GetFileName(file)));
+        }
+
+        return _templateCopy;
     }
 
     /// <summary>A token in the form of <c>dotnet user-jwts create --name {user} --role {role}</c> (D158, D165).</summary>
