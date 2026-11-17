@@ -41,17 +41,12 @@ public sealed class SqliteTenantStoreOptions : IValidatableObject
         }
     }
 
-    /// <summary>The connection string of the database of a key: the database of its tenant, or the system database.</summary>
+    /// <summary>
+    /// The connection string of the database of a key: the database of its tenant, with the tenant id escaped as a file
+    /// name (D172), or the system database.
+    /// </summary>
     internal string ConnectionStringOf(TenantKey key) =>
         key.Tenant is { } tenant
-            ? TenantConnectionString.Replace(_tenant, FileNameOf(tenant.Value), StringComparison.Ordinal)
+            ? TenantConnectionString.Replace(_tenant, FileNames.Escape(tenant.Value), StringComparison.Ordinal)
             : SystemConnectionString;
-
-    /// <summary>
-    /// The tenant id in a file name (D172): escaped with <see cref="Uri.EscapeDataString(string)"/>, and then each capital
-    /// letter A to Z as <c>^</c> and the small letter, because Windows and macOS ignore the case of a file name.
-    /// </summary>
-    private static string FileNameOf(string tenantId) =>
-        string.Concat(Uri.EscapeDataString(tenantId).Select(static character =>
-            char.IsAsciiLetterUpper(character) ? $"^{char.ToLowerInvariant(character)}" : character.ToString()));
 }

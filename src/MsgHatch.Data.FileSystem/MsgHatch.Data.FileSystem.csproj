@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\FileNames.cs" Link="Shared\FileNames.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="MsgHatch.Subscriptions.Data.FileSystem" />
   </ItemGroup>
 

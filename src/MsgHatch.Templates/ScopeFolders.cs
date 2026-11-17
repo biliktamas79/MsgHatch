@@ -16,21 +16,15 @@ public static partial class ScopeFolders
         SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_");
 
     /// <summary>
-    /// Gives the folder name of a scope in a file store: escaped with <see cref="Uri.EscapeDataString(string)"/>, with
-    /// each <c>.</c> as <c>%2E</c>, and each capital letter A to Z as <c>^</c> and the small letter, because Windows and
-    /// macOS ignore the case of a folder name, but a company id is case-sensitive.
+    /// Gives the folder name of a scope in a file store: the escaped id of <c>FileNames</c>, with each <c>.</c> as
+    /// <c>%2E</c>, so that no scope names the folder <c>.</c> or <c>..</c>.
     /// </summary>
     /// <param name="scope">The template scope.</param>
     /// <returns>The folder name, or null when the scope is empty.</returns>
     public static string? FolderOf(string scope)
     {
         ArgumentNullException.ThrowIfNull(scope);
-        return scope.Length == 0 ? null : string.Concat(Uri.EscapeDataString(scope).Select(static character => character switch
-        {
-            '.' => "%2E",
-            _ when char.IsAsciiLetterUpper(character) => $"^{char.ToLowerInvariant(character)}",
-            _ => character.ToString(),
-        }));
+        return scope.Length == 0 ? null : FileNames.Escape(scope).Replace(".", "%2E", StringComparison.Ordinal);
     }
 
     /// <summary>Gives the folder of a scope as a part of the name of an embedded resource.</summary>

@@ -6,6 +6,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\FileNames.cs" Link="Shared\FileNames.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\MsgHatch.SourceGeneration\bin\$(Configuration)\netstandard2.0\MsgHatch.SourceGeneration.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 

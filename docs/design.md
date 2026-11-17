@@ -2647,6 +2647,7 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   └── stores.md                                       (phase 13)
 ├── src/
 │   ├── GeneratedCodeSuppressions.cs                    (phase 1)
+│   ├── Shared/                                         (internal sources that several projects compile, after phase 25)
 │   ├── MsgHatch.Domain/                                (phase 1)
 │   ├── MsgHatch.SourceGeneration/                      (phase 3)
 │   ├── MsgHatch.Email/                                 (phase 3)
