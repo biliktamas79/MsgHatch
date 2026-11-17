@@ -2651,7 +2651,11 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   ├── MsgHatch.Data.EFCore/                           (phase 18)
 │   ├── MsgHatch.Subscriptions.Data.EFCore/             (phase 18)
 │   ├── MsgHatch.Data.MongoDb/                          (phase 19)
-│   └── MsgHatch.Subscriptions.Data.MongoDb/            (phase 19)
+│   ├── MsgHatch.Subscriptions.Data.MongoDb/            (phase 19)
+│   ├── MsgHatch.Dispatch.NamedPipes/                   (phase 21)
+│   ├── MsgHatch.Templates/                             (phase 24)
+│   ├── MsgHatch.Templates.Liquid/                      (phase 23, renamed in phase 24)
+│   └── MsgHatch.Templates.AspNetCore/                  (phase 25)
 ├── tests/                                                                   (section 5.5)
 │   ├── MsgHatch.Domain.Tests.Unit/                                          (phase 1)
 │   ├── MsgHatch.SourceGeneration.Tests.Unit/                                (phase 3)
@@ -2680,14 +2684,24 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   ├── MsgHatch.Data.EFCore.Tests.Integration/                              (phase 18)
 │   ├── MsgHatch.Subscriptions.Data.EFCore.Tests.Integration/                (phase 18)
 │   ├── MsgHatch.Data.MongoDb.Tests.Integration/                             (phase 19)
-│   └── MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration/               (phase 19)
+│   ├── MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration/               (phase 19)
+│   ├── MsgHatch.Dispatch.NamedPipes.Tests.Unit/                             (phase 21)
+│   ├── WolverineExample.Consumer.Tests.Unit/                                (phase 21)
+│   ├── WolverineExample.UserSimulator.Tests.Unit/                           (phase 21)
+│   ├── MsgHatch.Templates.Tests.Unit/                                       (phase 24)
+│   ├── MsgHatch.Templates.Liquid.Tests.Unit/                                (phase 23, renamed in phase 24)
+│   └── MsgHatch.Templates.AspNetCore.Tests.Unit/                            (phase 25)
 └── examples/
-    └── ExampleApp/                                     (phase 13)
+    ├── ExampleApp/                                     (phase 13)
+    ├── WolverineExample.Contracts/                     (phase 21)
+    ├── WolverineExample.Publisher/                     (phase 21)
+    ├── WolverineExample.Consumer/                      (phase 21)
+    └── WolverineExample.UserSimulator/                 (phase 21)
 ```
 
 A phase creates a project only when it puts code into it. Each project is added to `MsgHatch.slnx` with `dotnet sln add`.
 
-Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `Delivery`, `Persistence`, `Pipeline`, `Inbox`, `Outbox`, `Dispatch`, `Management`, `Telemetry`, `Time`, and `DependencyInjection`. Feature folders of `MsgHatch.Email`: the root for the channel types, `Templates`, `Placeholders`, `Engines`, and `DependencyInjection`. Feature folders of `MsgHatch.Subscriptions`: the root for the subscription types, `Resolution`, `Management`, `Caching`, `Verification`, and `DependencyInjection`.
+Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `Delivery`, `Persistence`, `Pipeline`, `Inbox`, `Outbox`, `Dispatch`, `Management`, `Telemetry`, `Time`, and `DependencyInjection`. Feature folders of `MsgHatch.Email`: the root for the channel types, and `DependencyInjection`. Feature folders of `MsgHatch.Templates`: the root for the template types and stores, `Placeholders`, `Management`, and `DependencyInjection`. Feature folders of `MsgHatch.Subscriptions`: the root for the subscription types, `Resolution`, `Management`, `Caching`, `Verification`, and `DependencyInjection`.
 
 ### 5.2 Build files
 
