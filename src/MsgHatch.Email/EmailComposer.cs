@@ -21,8 +21,8 @@ namespace MsgHatch.Email;
 public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayload> loader, ITemplateEngine<TPayload> engine)
     : IEnvelopeComposer<TEvent, EmailMessage>
 {
-    private const string _subjectPart = "subject";
-    private const string _bodyPart = "body";
+    private const string _subjectPart = EmailChannel.SubjectPart;
+    private const string _bodyPart = EmailChannel.BodyPart;
 
     /// <inheritdoc/>
     public async ValueTask<ErrorOr<IReadOnlyList<ErrorOr<EmailMessage>>>> ComposeAsync(

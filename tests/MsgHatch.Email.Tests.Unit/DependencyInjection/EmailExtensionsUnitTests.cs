@@ -438,6 +438,30 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         Assert.IsType<OptionsValidationException>(exception);
     }
 
+    [Theory]
+    [InlineData("subject", TemplatePartKind.PlainText, null)]
+    [InlineData("body", TemplatePartKind.Html, null)]
+    [InlineData("body", TemplatePartKind.PlainText, null)]
+    [InlineData("subject", TemplatePartKind.Html, 400)]
+    [InlineData("text", TemplatePartKind.PlainText, 400)]
+    public async Task AsEmail_Registration_DeclaresTheSubjectTheHtmlBodyAndTheTextBody(string part, TemplatePartKind kind, int? expectedCode)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseFileTemplates(folder.Root)
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail")));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+        var lookup = new TemplateLookup(new MessageType("TestEvent"), "en", $"parts-{part}-{kind}", part, kind);
+
+        // Act
+        var result = await scope.ServiceProvider.GetRequiredService<MsgHatch.Templates.Management.ITemplateManager>()
+            .SaveTemplateAsync(lookup, "Order of {{Name}}", 0, Ct);
+
+        // Assert
+        Assert.Equal(expectedCode, result.Error?.Type.Code);
+    }
+
     private static void TwoOrderEmails(
         MsgHatchBuilder builder, Action<PayloadBuilder<TestEvent, OrderEmail>> first, Action<PayloadBuilder<OtherTestEvent, OrderEmail>> second) =>
         builder.UseTestTemplates()

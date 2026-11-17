@@ -29,6 +29,9 @@ public sealed class PayloadBuilder<TEvent, TPayload>
     /// <summary>The builder of the setup, for the channel registrations of other packages, which call <c>AddChannelType</c>.</summary>
     public MsgHatchBuilder Parent => _message.Parent;
 
+    /// <summary>The message type, for the registrations of other packages, for example the template parts of a channel (D220).</summary>
+    public MessageType Type => _message.Type;
+
     /// <summary>
     /// Registers the message type on one channel, with a composer that gets the payload loader of this payload type
     /// (D96). The channel packages call it, after <c>AddChannelType</c>. The content type of the envelope is

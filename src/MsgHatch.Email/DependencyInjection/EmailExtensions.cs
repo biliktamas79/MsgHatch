@@ -86,8 +86,8 @@ public static class EmailExtensions
         Action<ChannelBuilder<EmailMessage>>? configure)
     {
         ArgumentNullException.ThrowIfNull(payload);
-        AddEmailChannel(payload.Parent).AddTemplateEngine($"{EmailChannel.Id.Name}:{name}", engine);
-        return payload.AsChannel<EmailMessage, EmailComposer<TEvent, TPayload>>(
+        AddEmailChannel(payload.Parent);
+        return payload.AddTemplateEngine($"{EmailChannel.Id.Name}:{name}", EmailChannel.TemplateParts, engine).AsChannel<EmailMessage, EmailComposer<TEvent, TPayload>>(
             EmailChannel.Id, name, 1, EmailJson.Default.EmailMessage, configure: configure);
     }
 }

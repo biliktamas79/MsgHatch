@@ -28,6 +28,8 @@ public sealed class MessageBuilder<TEvent>
 
     internal MsgHatchBuilder Parent => _parent;
 
+    internal MessageType Type => _registration.Type;
+
     /// <summary>Selects the router of this message type. It wins over the open generic router of <c>UseRouter</c> (D99).</summary>
     /// <typeparam name="TRouter">The router type, a tenant service.</typeparam>
     /// <returns>This builder.</returns>

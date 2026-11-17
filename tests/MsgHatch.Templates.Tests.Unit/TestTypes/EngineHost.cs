@@ -25,7 +25,7 @@ public sealed class EngineHost : IAsyncDisposable
             builder.UseTenantTemplateStore((_, _) => tenantStore);
         }
 
-        builder.AddTemplateEngine<OrderEmail>("Email:OrderEmail", PlaceholderTemplates.Engine<OrderEmail>);
+        builder.AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>);
         _provider = services.Build();
         _scope = _provider.CreateAsyncScope();
     }

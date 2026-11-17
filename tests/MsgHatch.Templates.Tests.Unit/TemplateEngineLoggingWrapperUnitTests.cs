@@ -280,7 +280,7 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
     {
         var services = TestHost.CreateServices();
         services.AddMsgHatch(o => o.EnableLogging = enableLogging)
-            .AddTemplateEngine<OrderEmail>("Email:OrderEmail", (_, _) => inner);
+            .AddOrderEmailEngine((_, _) => inner);
         return services.Build();
     }
 }

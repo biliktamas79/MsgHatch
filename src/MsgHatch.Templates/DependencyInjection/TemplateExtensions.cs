@@ -3,13 +3,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Templates.Management;
 
 namespace MsgHatch.Templates.DependencyInjection;
 
 /// <summary>
 /// The setup methods of the template library (D212, section 4.7): the template stores, and the template engine of each
-/// payload type. A channel package calls <see cref="AddTemplateEngine{TPayload}"/> for each registration that renders
+/// payload type. A channel package calls <see cref="AddTemplateEngine{TEvent, TPayload}"/> for each registration that renders
 /// templates.
 /// </summary>
 public static class TemplateExtensions
@@ -100,27 +102,68 @@ public static class TemplateExtensions
         builder.Services.AddKeyedSingleton(
             KeyedService.AnyKey,
             (services, key) => TemplateLoggers.Wrap(services, TenantKeyOf(key), factory(services, TenantKeyOf(key))));
-        return builder;
+        return AddManager(builder);
     }
 
     /// <summary>
     /// Registers the template engine of one payload type for one registration of a channel, as a tenant service with
-    /// its logging wrapper (D126, D213). The registrations of one payload type must give the same engine factory, and
-    /// with the role <see cref="MsgHatchRoles.Consumer"/> each registration needs a template store (D62).
+    /// its logging wrapper (D126, D213), with the parts that the channel reads (D220). The registrations of one payload
+    /// type must give the same engine factory, and with the role <see cref="MsgHatchRoles.Consumer"/> each registration
+    /// needs a template store (D62). The template manager checks a written text of a declared part with this engine (D219).
     /// </summary>
+    /// <typeparam name="TEvent">The type of the domain event.</typeparam>
     /// <typeparam name="TPayload">The payload type.</typeparam>
-    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="payload">The builder of the payload type, which gives the message type.</param>
     /// <param name="registration">The name of the registration for the errors of the startup validation, for example <c>Email:OrderShipped</c>.</param>
+    /// <param name="parts">The parts that the channel reads, at least one.</param>
     /// <param name="engine">The factory of the engine of one tenant key.</param>
-    /// <returns>The builder.</returns>
-    public static MsgHatchBuilder AddTemplateEngine<TPayload>(
-        this MsgHatchBuilder builder, string registration, Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine)
+    /// <returns>The builder of the payload type.</returns>
+    /// <exception cref="ArgumentException">The parts are empty, or a part name is not a name of ASCII letters, digits, and <c>_</c> that starts with a letter.</exception>
+    public static PayloadBuilder<TEvent, TPayload> AddTemplateEngine<TEvent, TPayload>(
+        this PayloadBuilder<TEvent, TPayload> payload, string registration, IReadOnlyList<TemplatePart> parts,
+        Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(payload);
         ArgumentException.ThrowIfNullOrWhiteSpace(registration);
+        ArgumentNullException.ThrowIfNull(parts);
         ArgumentNullException.ThrowIfNull(engine);
-        TemplateSetup.Of(builder.Services).EngineSelections.Add((typeof(TPayload), registration, engine));
-        return builder.AddTenantService(ServiceLifetime.Scoped, engine, TemplateLoggers.Wrap);
+        CheckParts(parts);
+        TemplateSetup.Of(payload.Services).EngineSelections.Add(
+            new EngineSelection(typeof(TPayload), registration, engine, payload.Type, [.. parts], CheckWithTheEngineOfTheKey<TPayload>));
+        AddManager(payload.Parent).AddTenantService(ServiceLifetime.Scoped, engine, TemplateLoggers.Wrap);
+        return payload;
+    }
+
+    private static void CheckParts(IReadOnlyList<TemplatePart> parts)
+    {
+        if (parts.Count == 0)
+        {
+            throw new ArgumentException("A registration of a template engine declares at least one part.", nameof(parts));
+        }
+
+        foreach (var part in parts)
+        {
+            if (!TemplatePartNames.IsValid(part.Name))
+            {
+                throw new ArgumentException($"The part name {part.Name} is not a name of ASCII letters, digits, and _ that starts with a letter.", nameof(parts));
+            }
+        }
+    }
+
+    private static ValueTask<Error?> CheckWithTheEngineOfTheKey<TPayload>(
+        IServiceProvider tenantServices, TemplateLookup lookup, string text, CancellationToken ct) =>
+        tenantServices.GetRequiredService<ITemplateEngine<TPayload>>().CheckAsync(lookup, text, ct);
+
+    private static MsgHatchBuilder AddManager(MsgHatchBuilder builder)
+    {
+        var setup = TemplateSetup.Of(builder.Services);
+        if (!setup.ManagerRegistered)
+        {
+            setup.ManagerRegistered = true;
+            builder.AddTenantService<ITemplateManager>(ServiceLifetime.Scoped, TemplateManager.For);
+        }
+
+        return builder;
     }
 
     private static MsgHatchBuilder AddSharedStore(MsgHatchBuilder builder, Func<IServiceProvider, ITemplateStore> factory, string setupMethod)
@@ -129,7 +172,7 @@ public static class TemplateExtensions
         ArgumentNullException.ThrowIfNull(factory);
         TemplateSetup.Of(builder.Services).SharedStoreSelections.Add(setupMethod);
         builder.Services.AddSingleton(services => TemplateLoggers.Wrap(services, TenantKey.None, factory(services)));
-        return builder;
+        return AddManager(builder);
     }
 
     private static TenantKey TenantKeyOf(object? key) =>

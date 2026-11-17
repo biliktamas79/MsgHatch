@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
 
 namespace MsgHatch.Templates.DependencyInjection;
 
@@ -15,7 +17,9 @@ internal sealed class TemplateSetup
 
     public List<string> TenantStoreSelections { get; } = [];
 
-    public List<(Type PayloadType, string Registration, Delegate Engine)> EngineSelections { get; } = [];
+    public List<EngineSelection> EngineSelections { get; } = [];
+
+    public bool ManagerRegistered { get; set; }
 
     public static TemplateSetup Of(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(TemplateSetup))?.ImplementationInstance as TemplateSetup
@@ -70,3 +74,15 @@ internal sealed class TemplateSetupValidator(IServiceProvider services, Template
             : setup.EngineSelections.Select(static selection =>
                 $"The registration {selection.Registration} uses a template engine, but no setup method selects a template store, for example UseEmbeddedTemplates.");
 }
+
+/// <summary>
+/// One registration of a template engine (D62, D220): its payload type, its name, its engine factory, its message type,
+/// the parts that it reads, and the check of a text with the engine of the payload type of a tenant key (D219).
+/// </summary>
+internal sealed record EngineSelection(
+    Type PayloadType,
+    string Registration,
+    Delegate Engine,
+    MessageType Type,
+    IReadOnlyList<TemplatePart> Parts,
+    Func<IServiceProvider, TemplateLookup, string, CancellationToken, ValueTask<Error?>> Check);
