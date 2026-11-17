@@ -10,10 +10,18 @@ namespace MsgHatch.Templates.DependencyInjection;
 /// <summary>The logging wrappers of the template library. <see cref="MsgHatchOptions.EnableLogging"/> adds or removes them (D35).</summary>
 internal static class TemplateLoggers
 {
-    public static ITemplateStore Wrap(IServiceProvider services, TenantKey key, ITemplateStore store) =>
-        IsEnabled(services)
-            ? new TemplateStoreLoggingWrapper(store, key, For<TemplateStoreLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())
-            : store;
+    public static ITemplateStore Wrap(IServiceProvider services, TenantKey key, ITemplateStore store)
+    {
+        if (!IsEnabled(services))
+        {
+            return store;
+        }
+
+        var logger = For<TemplateStoreLoggingWrapper>(services);
+        var time = services.GetRequiredService<TimeProvider>();
+        var reader = new TemplateStoreLoggingWrapper(store, key, logger, time);
+        return store is ITemplateWriter writer ? new TemplateWriterLoggingWrapper(reader, writer, key, logger, time) : reader;
+    }
 
     public static ITemplateEngine<TPayload> Wrap<TPayload>(IServiceProvider services, TenantKey key, ITemplateEngine<TPayload> engine) =>
         new TemplateEngineLoggingWrapper<TPayload>(

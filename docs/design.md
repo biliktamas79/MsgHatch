@@ -1856,6 +1856,8 @@ public readonly record struct TemplateKey(string Id, long Version);
 public readonly record struct TemplateLookup(MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind);
 public enum TemplatePartKind { PlainText, Html }
 public sealed record TemplateSource(TemplateKey Key, string Text);
+public sealed record TemplateEntry(TemplateLookup Lookup, long Version);
+public sealed record TemplateQuery(MessageType? Type = null, string? Scope = null);
 ```
 
 A lookup and a source are one part (D214). The kind gives the file extension: `.txt` for `PlainText` and `.html` for `Html`.
@@ -1866,6 +1868,15 @@ Template stores:
 - A host can use `FileSystemTemplateStore` as the template store of each tenant, with the factory overload of `UseTenantTemplateStore`, for example on the folder `tenants/{tenantId}`, with the tenant id escaped by `Uri.EscapeDataString`.
 - `EmbeddedResourceTemplateStore(Assembly assembly, string prefix)` reads the resources `{prefix}.{file name}`, with the same file names, and the template of a scope from `{prefix}.{segment}.{file name}`, for example `{prefix}._42.OrderShipped.en.subject.txt`. These are the names that MSBuild gives to the files of a folder and its scope folders, with no `LogicalName`. The template id is `{assembly name}:{resource name}`. The version is 0, because an embedded resource does not change while the process runs. It is a shared template store only, because the resources are the same for all tenants.
 - Each library template store caches its sources. The embedded store keeps its sources and its misses for the life of the process. On each lookup, the file store reads only the last write time of the file, and reads the file again only when the time changed. The file store does not cache a miss, because a missing file has no read to skip. Thus its cache does not grow with the lookups of scopes that have no folder.
+
+Template writer (D218, D223). `ITemplateWriter` lists, saves, and deletes the templates of one store: `ListAsync(TemplateQuery)`, `SaveAsync(TemplateLookup, text, expectedVersion)`, and `DeleteAsync(TemplateLookup)`. A store is writable when it implements `ITemplateStore` and `ITemplateWriter`. For a writable store, the logging wrapper is a writer too (section 4.15), so a cast of the registered store finds the writer, with and without logging. `FileSystemTemplateStore` is writable, as the shared store and as the store of each tenant. `EmbeddedResourceTemplateStore` is not, because the build fixes its resources. The file store writes in this way:
+- A save writes the file of the lookup, in the folder of `ScopeFolders.FolderOf` (D201), so no request leaves the template folder. An empty scope has no folder, and gives `Errors.ValidationFailed`. The store creates a missing company folder.
+- It writes the text into a temporary file `.{guid}.tmp` in the same folder, and moves that file over the file of the lookup, so a reader never reads half a text. It deletes the temporary file also after an error.
+- The version of a save is the last write time of the file in ticks. When that time is not later than the version before the save, the store sets it one tick after that version. So each save gives a new `TemplateKey`, and the parse caches of the engines parse the new text.
+- `expectedVersion` is the version that the caller read, or 0 for a new file. Another stored version gives `Errors.Conflict` (D79). One lock for each store makes the check of the version and the move atomic in one process. It has the comment `ponytail: one write lock for each store, and two processes on one folder can race between the check and the move; a lock file if two operators write one part at the same time`.
+- On Windows, a move over a file that a reader holds open gives `UnauthorizedAccessException`, so the save gives `Errors.Unavailable` and keeps the old text (checked facts of phase 25). The store reads a file only when its time changed, so a reader holds it open only for a short time.
+- A delete removes the file. A missing file is not an error.
+- A list reads the root folder and each company folder, or only the folder of `query.Scope`, and gives the entries in the order of scope, language, part, and kind. `ScopeFolders.ScopeOf(folder)` gives the scope of a folder name, the reverse of `FolderOf`. The store skips each folder and each file whose name the library does not make from the parts of a lookup, for example the temporary file of a save, a folder `Acme` with a capital letter, or a name with an empty language.
 
 Placeholder payloads (`MsgHatch.Templates.Placeholders`):
 
@@ -2049,6 +2060,7 @@ These interfaces get a logging wrapper (D36):
 | `IEmailClient` | Library (SES, Resend) or consumer | `EmailClientLoggingWrapper` |
 | `ITemplateEngine<TPayload>` | Library or consumer | `TemplateEngineLoggingWrapper<TPayload>` |
 | `ITemplateStore` | Library or consumer | `TemplateStoreLoggingWrapper` |
+| `ITemplateWriter` of a writable `ITemplateStore` | Library or consumer | `TemplateWriterLoggingWrapper`, which is also the `ITemplateStore` of the store, so a cast of the registered store finds the writer (D218) |
 | `IBrokerClient` | Library (Wolverine) or consumer | `BrokerClientLoggingWrapper` |
 
 Pure in-memory components get no wrapper: `IMessageRegistry`, the template selector, the parser, the renderer, the composers, `RouteGrouping`, `SubscriptionResolver`, `DeterministicId`, and the in-process dispatch signal. They do no I/O, and a wrapper call for each message costs time in the hot path. A composer does its I/O through the loader and the template engine, which have wrappers. The cache backend gets no logging wrapper, because the caching wrapper logs each hit, each miss, and each backend error.

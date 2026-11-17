@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Text.RegularExpressions;
 
 namespace MsgHatch.Templates;
 
@@ -9,7 +10,7 @@ namespace MsgHatch.Templates;
 /// character that is not valid in a namespace, so only a scope of ASCII letters, digits, and <c>_</c>, which does not
 /// start with <c>_</c>, has a folder there, with <c>_</c> before a leading digit. Each other scope has no folder.
 /// </summary>
-public static class ScopeFolders
+public static partial class ScopeFolders
 {
     private static readonly SearchValues<char> _segmentCharacters =
         SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_");
@@ -42,4 +43,20 @@ public static class ScopeFolders
             : char.IsAsciiDigit(scope[0]) ? "_" + scope
             : scope;
     }
+
+    /// <summary>
+    /// Gives the scope of a folder name in a file store, the reverse of <see cref="FolderOf"/>. A name that
+    /// <see cref="FolderOf"/> does not make from its scope, for example <c>Acme</c> with a capital letter, has no scope.
+    /// </summary>
+    /// <param name="folder">The folder name.</param>
+    /// <returns>The scope, or null when no scope has this folder.</returns>
+    public static string? ScopeOf(string folder)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        var scope = Uri.UnescapeDataString(CapitalLetter().Replace(folder, static match => match.Groups[1].Value.ToUpperInvariant()));
+        return scope.Length > 0 && FolderOf(scope) == folder ? scope : null;
+    }
+
+    [GeneratedRegex(@"\^([a-z])")]
+    private static partial Regex CapitalLetter();
 }
