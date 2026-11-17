@@ -20,10 +20,10 @@
     <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
     <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
     <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
-    <Project Path="src/MsgHatch.Templates/MsgHatch.Templates.csproj" />
-    <Project Path="src/MsgHatch.Templates.AspNetCore/MsgHatch.Templates.AspNetCore.csproj" />
-    <Project Path="src/MsgHatch.Templates.Liquid/MsgHatch.Templates.Liquid.csproj" />
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
+  </Folder>
+  <Folder Name="/src/Subscriptions/">
+    <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.AspNetCore/MsgHatch.Subscriptions.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Caching.FusionCache/MsgHatch.Subscriptions.Caching.FusionCache.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Caching.Hybrid/MsgHatch.Subscriptions.Caching.Hybrid.csproj" />
@@ -31,7 +31,11 @@
     <Project Path="src/MsgHatch.Subscriptions.Data.FileSystem/MsgHatch.Subscriptions.Data.FileSystem.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Data.MongoDb/MsgHatch.Subscriptions.Data.MongoDb.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Data.Sqlite/MsgHatch.Subscriptions.Data.Sqlite.csproj" />
-    <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
+  </Folder>
+  <Folder Name="/src/Templates/">
+    <Project Path="src/MsgHatch.Templates/MsgHatch.Templates.csproj" />
+    <Project Path="src/MsgHatch.Templates.AspNetCore/MsgHatch.Templates.AspNetCore.csproj" />
+    <Project Path="src/MsgHatch.Templates.Liquid/MsgHatch.Templates.Liquid.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ExampleApp.Tests.Unit/ExampleApp.Tests.Unit.csproj" />
