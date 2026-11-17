@@ -54,9 +54,13 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
         { "a loop of 200,000 steps", "{% for i in (1..200000) %}{% endfor %}", "render 422" },
         { "a render tag", "{% render 'Footer' %}", "render 422" },
         { "an include tag", "{% include 'Footer' %}", "render 422" },
-        { "an echo in a liquid tag, which runs no statement", "{% liquid echo Name %}", "" },
-        { "an unknown filter in a liquid tag, which runs no statement", "{% liquid echo Name | upcse %}", "" },
-        { "a render tag in a liquid tag, which runs no statement", "{% liquid render 'Footer' %}", "" },
+        { "an echo in a liquid tag", "{% liquid echo Name %}", "prepare 422" },
+        { "an unknown filter in a liquid tag", "{% liquid echo Name | upcse %}", "prepare 422" },
+        { "a render tag in a liquid tag", "{% liquid render 'Footer' %}", "prepare 422" },
+        { "an empty liquid tag, which drops the text after it", "a{% liquid %}b", "prepare 422" },
+        { "a liquid tag before an output, which drops the text after it", "a{% liquid echo Name %}{{ Name }}b", "prepare 422" },
+        { "a liquid tag with a dash and no space", "a{%-liquid%}b", "prepare 422" },
+        { "a liquid tag in a raw tag, which the check of the text also finds", "{% raw %}{% liquid %}{% endraw %}", "prepare 422" },
     };
 
     public static TheoryData<string, string, int?> CheckRows => new()
@@ -76,8 +80,11 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
         { "a render tag", "{% render 'Footer' %}", 422 },
         { "an include tag", "{% include 'Footer' %}", 422 },
         { "an unknown name, found at render", "{{ Nmae }}", null },
-        { "an unknown filter in a liquid tag, which runs no statement", "{% liquid echo Name | upcse %}", null },
-        { "a render tag in a liquid tag, which runs no statement", "{% liquid render 'Footer' %}", null },
+        { "an echo in a liquid tag", "{% liquid echo Name %}", 422 },
+        { "an empty liquid tag, which drops the text after it", "a{% liquid %}b", 422 },
+        { "an unknown filter in a liquid tag", "{% liquid echo Name | upcse %}", 422 },
+        { "a render tag in a liquid tag", "{% liquid render 'Footer' %}", 422 },
+        { "a variable with the name liquid", "{% assign liquid = Name %}{{ liquid }}", null },
         { "a loop of 200,000 steps, found at render", "{% for i in (1..200000) %}{% endfor %}", null },
     };
 

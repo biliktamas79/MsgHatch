@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Fluid;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Templates;
@@ -7,9 +8,10 @@ namespace MsgHatch.Templates.Liquid;
 
 /// <summary>
 /// The parsed Liquid templates (D210). Each <see cref="TemplateKey"/> is parsed one time for the life of the process.
-/// A text with a parse error is parsed again on each lookup, so that its error stays visible.
+/// A text with a parse error is parsed again on each lookup, so that its error stays visible. A text with a
+/// <c>{% liquid %}</c> tag is a parse error (D226).
 /// </summary>
-internal static class LiquidTemplateCache
+internal static partial class LiquidTemplateCache
 {
     private static readonly FluidParser _parser = new();
 
@@ -29,7 +31,13 @@ internal static class LiquidTemplateCache
 
     /// <summary>Parses a text with no cache entry, for the check before a write (D219).</summary>
     public static ErrorOr<IFluidTemplate> Parse(TemplateSource source) =>
-        _parser.TryParse(source.Text, out var template, out var error)
-            ? ErrorOr<IFluidTemplate>.ForValue(template)
-            : new Error(Errors.TemplateInvalid, $"The template {source.Key.Id} is not valid Liquid: {error}");
+        LiquidTag().IsMatch(source.Text)
+            ? new Error(Errors.TemplateInvalid, $"The template {source.Key.Id} has a liquid tag, which the engine does not allow.")
+            : _parser.TryParse(source.Text, out var template, out var error)
+                ? ErrorOr<IFluidTemplate>.ForValue(template)
+                : new Error(Errors.TemplateInvalid, $"The template {source.Key.Id} is not valid Liquid: {error}");
+
+    // Fluid 2.41.1 parses "a{% liquid %}b" with no error and drops all text after the tag, also with AllowLiquidTag.
+    [GeneratedRegex(@"\{%-?\s*liquid\b")]
+    private static partial Regex LiquidTag();
 }
