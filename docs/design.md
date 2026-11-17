@@ -404,6 +404,7 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Email` | `net10.0` | `MsgHatch.Templates` | none | The email channel, the email composer as the thin layer on the template library (D215), and `IEmailClient` |
 | `src/MsgHatch.Email.AmazonSES` | `net10.0` | `MsgHatch.Email` | `AWSSDK.SimpleEmailV2` | The SES implementation of `IEmailClient` |
 | `src/MsgHatch.Templates.Liquid` | `net10.0` | `MsgHatch.Templates` | `Fluid.Core` | The Liquid template engine, with its engine factory `LiquidTemplates.Engine` (D205, D216) |
+| `src/MsgHatch.Templates.AspNetCore` | `net10.0` | `MsgHatch.Templates` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the template administration (D217, D224) |
 | `src/MsgHatch.Email.Resend` | `net10.0` | `MsgHatch.Email` | `Microsoft.Extensions.Http` | The Resend implementation of `IEmailClient` (D138) |
 | `src/MsgHatch.SignalR` | `net10.0` | `MsgHatch.Domain` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The SignalR channel |
 | `src/MsgHatch.Broker` | `net10.0` | `MsgHatch.Domain` | none | The broker channel, the broker composer and transport, and `IBrokerClient` |
@@ -1644,6 +1645,8 @@ Shared options (D59). A subscription store package uses the options class of its
 
 `MsgHatch.AspNetCore` needs no setup method either, because its endpoints need only `IDeliveryManager`, `IMessageRegistry`, and `IRegistryWriter`. `MapMsgHatchDelivery(prefix)` and `MapMsgHatchDeliveryContent(prefix)` map the HTTP endpoints of section 4.19, and `MapMsgHatchRegistry(prefix)` the endpoints of section 4.20.
 
+`MsgHatch.Templates.AspNetCore` needs no setup method either, because its endpoints need only `ITemplateManager`, which each template setup method registers. `MapMsgHatchTemplates(prefix)` maps the HTTP endpoints of section 4.22.
+
 Setup methods of the other implementation packages (D60):
 
 | Method | Package | One call registers |
@@ -2585,6 +2588,21 @@ Validation gives `Errors.ValidationFailed`, and calls no store, in these cases:
 
 A save of a message type with no registration of a template engine gives `Errors.NotFound`. A key with no template store gives `Errors.NotFound`. The manager has no logging wrapper of its own: the store wrapper logs each change, and the engine wrapper logs each check (section 4.15).
 
+HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, string prefix = "/templates")` in `MsgHatch.Templates.AspNetCore` maps these minimal API endpoints, and returns the `RouteGroupBuilder`. The host adds the authorization, for example `.RequireAuthorization("TemplateAdmin")` (D225). The library adds no authorization.
+
+| Method | Path | Body | Success |
+|---|---|---|---|
+| GET | `{prefix}?messageType=&companyId=` | none | 200 with the entries: `messageType`, `language`, `companyId`, `part`, `kind`, and `version` |
+| GET | `{prefix}/{messageType}/{language}/{part}/{kind}?companyId=` | none | 200 with the entry and its `text` |
+| PUT | `{prefix}/{messageType}/{language}/{part}/{kind}?companyId=` | `text` and `version` | 200 with the saved entry |
+| DELETE | `{prefix}/{messageType}/{language}/{part}/{kind}?companyId=` | none | 204 |
+
+- Each route takes the optional query parameter `tenantId`. The endpoint resolves `ITemplateManager` with `TenantKey.For(tenantId)`, and with `TenantKey.None` when the parameter is missing (D126).
+- An endpoint checks only the values that need a type: the message type, the kind (`PlainText` or `Html`, in this case), and the tenant id. An invalid value of them gives 400, and calls no manager. The manager checks the language, the part, and the company id, so these rules have one place.
+- The endpoints read and write each body with their own source-generated `TemplateEndpointJson`: camelCase names, enum values as strings, and the required properties `text` and `version`, which are not nullable. A `PUT` with a content type that is not JSON gives 415 (D156). Invalid JSON, a missing required property, and a null `text` give 400.
+- `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, `Errors.Conflict` gives 409, `Errors.TemplateInvalid` gives 422, and each other error gives 500. The body is a `ProblemDetails` with the error name as the title and the error message as the detail.
+- A response never has the template id, because the id of the file store is a path on the host.
+
 ## 5. Repository and conventions
 
 ### 5.1 Layout
@@ -2810,6 +2828,7 @@ The tests follow the `core:automated-tests` skill of the Transcend agent tooling
 | `MsgHatch.Data.MongoDb.Tests.Integration` | Integration | The MongoDB of `appsettings.Local.json`, which git ignores, or else MongoDB in a container through Testcontainers (D124, D183) | 19 |
 | `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` | Integration | The MongoDB of `appsettings.Local.json`, which git ignores, or else MongoDB in a container through Testcontainers (D124, D183) | 19 |
 | `MsgHatch.Dispatch.NamedPipes.Tests.Unit` | Unit | The named pipes of the operating system, between DI containers in the test process | 21 |
+| `MsgHatch.Templates.AspNetCore.Tests.Unit` | Unit | none. A `TestServer` runs the endpoints in memory, with a manager substitute for each key. | 25 |
 
 Packages:
 - `Directory.Build.props` gives each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance` the property `OutputType` `Exe`. It gives each unit and integration test project references to `xunit.v3`, `Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, `NSubstitute`, `NSubstitute.Analyzers.CSharp`, `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.Extensions.Diagnostics.Testing`, and `coverlet.collector` (D70).

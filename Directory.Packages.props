@@ -70,7 +70,7 @@
     <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
   </ItemGroup>
 
-  <ItemGroup Label="MsgHatch.AspNetCore.Tests.Unit and MsgHatch.Subscriptions.AspNetCore.Tests.Unit">
+  <ItemGroup Label="MsgHatch.AspNetCore.Tests.Unit, MsgHatch.Subscriptions.AspNetCore.Tests.Unit, and MsgHatch.Templates.AspNetCore.Tests.Unit">
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
   </ItemGroup>
 
