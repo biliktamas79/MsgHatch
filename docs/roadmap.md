@@ -35,6 +35,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 25 HTTP API of the templates | 13, 24 |
 | 26 Query and command interfaces | 12, 14, 25 |
 | 27 HTTP API clients | 26 |
+| 28 Admin UIs | 27 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -1624,7 +1625,7 @@ Done when: the build has no errors and no warnings, all unit tests pass, and `pw
 
 ### Phase 26: query and command interfaces
 
-Goal: each management API gets a query interface and a command interface (D231), one error contract (D233), and stateless rules that run first (D234). The HTTP bodies move into the core packages (D228). So the HTTP clients of phase 27 need no change of a core package. No package is released yet, so the phase changes the public API with no compatibility types. The first commit of this phase also holds the plan of phase 27.
+Goal: each management API gets a query interface and a command interface (D231), one error contract (D233), and stateless rules that run first (D234). The HTTP bodies move into contracts packages (D227, D228), an error type gets its identity from its code (D238), and the packages of the API boundary become AOT-compatible (D237). So the HTTP clients of phase 27 need no change of a core package. No package is released yet, so the phase changes the public API with no compatibility types. The first two commits of this phase hold the plan of phases 27 and 28.
 
 1. Split the subscription manager (D231):
    - `ISubscriptionQueries` and `ISubscriptionCommands` in `MsgHatch.Subscriptions.Management` get the methods of `ISubscriptionManager`, with the same signatures and documentation. `ISubscriptionManager` goes away.
@@ -1632,27 +1633,42 @@ Goal: each management API gets a query interface and a command interface (D231),
    - The endpoints of `MsgHatch.Subscriptions.AspNetCore` use the queries for a read. An update and a delete of a `/me` route also use the queries, because they read the owner first (D154).
    - `ExampleApp`, `WolverineExample.Consumer`, and the tests use the new interfaces.
 2. Split the template manager (D231): `ITemplateQueries` and `ITemplateCommands` in `MsgHatch.Templates.Management` get the methods of `ITemplateManager`. `ITemplateManager` goes away, `TemplateManager` implements both interfaces, and the template endpoints use them.
-3. Select an implementation of each interface (D231):
+3. Give the template queries the parts and the check of a draft (D240, D241):
+   - Check first, before the code: the parse error of Fluid 2.41.1 has a line and a column that the engine can read with no parse of the message text.
+   - `ITemplateEngineFactory` gets `string Name`: `placeholder` for the placeholder engine, and `liquid` for `LiquidTemplates.Engine`.
+   - `ITemplateEngine<TPayload>.CheckAsync` gives `ErrorOr<IReadOnlyList<TemplateIssue>>`. The placeholder engine and the Liquid engine give one issue for each problem that they find today, and the Liquid engine adds the line and the column of a parse error.
+   - `ITemplateQueries` gets `GetTemplatePartsAsync(MessageType? type, CancellationToken ct)`, which gives `TemplatePartInfo(MessageType Type, TemplatePart Part, IReadOnlyList<string> Engines)` for each declared part (D220), and `CheckTemplateAsync`. A save with an issue gives `Errors.TemplateInvalid` with the message of the first issue, as today.
+   - The template endpoints map `GET {prefix}/parts` and `POST {prefix}/{messageType}/{language}/{part}/{kind}/check`.
+4. Select an implementation of each interface (D231):
    - `UseSubscriptions` registers the in-process `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` as the defaults. Each template setup method and `AddTemplateEngine` register the in-process `ITemplateQueries` and `ITemplateCommands` as the defaults, one time.
    - `UseSubscriptionQueries`, `UseSubscriptionCommands`, `UseRoutingVerifier`, `UseTemplateQueries`, and `UseTemplateCommands` take a factory `Func<IServiceProvider, TenantKey, TService>`. Each one replaces the default of its interface only, adds the logging wrapper of its package, and calls `Setup.Select`.
    - So two selections of one interface give the existing setup error "… select an implementation of …". The order of the setup calls does not matter.
    - Each interface stays a scoped tenant service (D126).
-4. Run the stateless rules first (D234):
+5. Run the stateless rules first (D234):
    - `SubscriptionDraftRules.Check(SubscriptionDraft draft)` in `MsgHatch.Subscriptions.Management` gives `Error?` for these rules: the owner matches its level. An opt-out has no settings, is for the scope users, and is not mandatory. A channel subscription has a channel and settings. A user subscription is for the scope users. A mandatory subscription is a default or company subscription for the scope users. Named users are 1 to 100 different users.
    - `TemplateLookupRules` in `MsgHatch.Templates.Management` has `Check(TemplateLookup lookup)` and `CheckText(string text)`: the scope is a valid `CompanyId`, its folder name has at most 255 characters, the part is a name, and the text has at most 1,000,000 characters.
    - A null argument gives an `ArgumentNullException` in each implementation.
    - The managers run these rules first. Then the template manager checks the language. Then each manager runs the checks that need the registry, the directory, the store, or the engines, in their current order. So an input that breaks a rule and another check gives the error of the rule.
-5. Write the errors of the HTTP APIs (D233):
-   - `ErrorProblems` in `MsgHatch.Domain.Failures` has `int StatusCodeOf(ErrorType type)`, the record `ErrorTypeBody(int Code, string Name, bool IsTransient)` with its source-generated JSON context, and `Error ErrorOf(int statusCode, ErrorTypeBody? errorType, string? detail)` with the rules of D233 for a body with no `errorType`.
+6. Give each error type its identity from its code (D238): `ErrorType` compares and hashes by `Code` only. `Errors.Find(int code)` gives the type of a code of `Errors`, or null.
+7. Write the errors of the HTTP APIs (D233):
+   - Add `src/MsgHatch.Api.Contracts`. It references `MsgHatch.Domain`, and has the record `ErrorTypeBody(int Code, string Name, bool IsTransient)` with `From(ErrorType type)`, `ToErrorType()`, and its source-generated JSON context. `ToErrorType()` gives the type of `Errors.Find` for a known code.
+   - `src/Shared/ErrorProblems.cs` is the internal class `ErrorProblems`, with `int StatusCodeOf(ErrorType type)`, and `Error ErrorOf(int statusCode, ErrorTypeBody? errorType, string? detail)` with the rules of D233 for a body with no `errorType`. `MsgHatch.Subscriptions.AspNetCore` and `MsgHatch.Templates.AspNetCore` compile it, and reference `MsgHatch.Api.Contracts`.
    - The routes of `MsgHatch.Subscriptions.AspNetCore` and `MsgHatch.Templates.AspNetCore` write each error with `title`, `detail`, the status of `StatusCodeOf`, and the extension member `errorType`. `Unavailable` then gives 503 in place of 500, and `Rejected`, `Expired`, and `RateLimited` give 403, 410, and 429.
    - The delivery and registry endpoints of `MsgHatch.AspNetCore` keep their table. A later phase changes them.
-6. Move the HTTP contract (D228, D229):
-   - The body records, the JSON contexts `SubscriptionEndpointJson` and `TemplateEndpointJson`, `SettingsJson`, and the route paths move into `MsgHatch.Subscriptions.Api` and `MsgHatch.Templates.Api`. The template records become public.
+8. Move the HTTP contract (D227, D228, D229):
+   - Add `src/MsgHatch.Subscriptions.Api.Contracts` and `src/MsgHatch.Templates.Api.Contracts`. Each one references its core package and `MsgHatch.Api.Contracts`, and the `.AspNetCore` package of its API references it.
+   - The body records, the JSON contexts `SubscriptionEndpointJson` and `TemplateEndpointJson`, and `SettingsJson` move into the contracts packages. The template records become public.
+   - The route paths move into the internal classes `SubscriptionApiRoutes` and `TemplateApiRoutes` in `src/Shared`, which the `.AspNetCore` packages compile. No contracts package has a route path, a status code, an HTTP type, or an exception type.
    - Each record gets public mappings in both directions. A mapping from the wire checks each string with `Create`, and gives `Errors.SerializationFailed` for a value that is not valid.
-   - `JsonChannelSettings(JsonElement Json)` in `MsgHatch.Subscriptions.Api` is a `ChannelSettings`. The mapping of a response gives it for a channel with no settings type in the registry, and the mapping of a request writes its JSON with no change. The server still gives `Errors.ValidationFailed` for the settings of a channel with no settings type.
+   - `JsonChannelSettings(JsonElement Json)` in `MsgHatch.Subscriptions.Api.Contracts` is a `ChannelSettings`. The mapping of a response gives it for a channel with no settings type in the registry, and the mapping of a request writes its JSON with no change. The server still gives `Errors.ValidationFailed` for the settings of a channel with no settings type.
    - `RequestValues` and `Caller` stay in `MsgHatch.Subscriptions.AspNetCore`.
-7. Allow a host with no role (D230): `MsgHatchOptions` accepts `MsgHatchRoles.None`. The setup check gives an error for `None` with a registered message type.
-8. Sections 4.7, 4.12, 4.15, 4.16, 4.17, 4.18, 4.22, and 5.5 of the design get the interfaces, the selections, the rules, and the error contract.
+9. Allow a host with no role (D230): `MsgHatchOptions` accepts `MsgHatchRoles.None`. The setup check gives an error for `None` with a registered message type.
+10. Make the packages of the API boundary AOT-compatible (D237):
+   - Check first, before the code: set `IsAotCompatible` on each package of D237 that exists after step 8, and record the warnings of each package in the checked facts. Also check that `EnableRequestDelegateGenerator` works in a class library with the framework reference `Microsoft.AspNetCore.App`.
+   - `MsgHatch.Domain` replaces its 4 `MakeGenericType` calls with code that the compiler sees, for example a generic method of the registration that knows `TEvent`.
+   - `MsgHatch.Subscriptions.AspNetCore` and `MsgHatch.Templates.AspNetCore` set `EnableRequestDelegateGenerator`.
+   - Each package of D237 builds with `IsAotCompatible` and no warning.
+11. Sections 4.2, 4.7, 4.12, 4.15, 4.16, 4.17, 4.18, 4.22, 5.1, 5.2, and 5.5 of the design get the contracts packages, the interfaces, the selections, the parts and the check of a draft, the rules, the error contract, the identity of an error, and the AOT setting.
 
 Tests:
 - The test base classes `SubscriptionQueriesTestsBase<T>`, `SubscriptionCommandsTestsBase<T>`, `RoutingVerifierTestsBase<T>`, `TemplateQueriesTestsBase<T>`, and `TemplateCommandsTestsBase<T>` hold the use cases of the current tests of the managers and the verifier. The in-process subclass of each one only builds the implementation.
@@ -1661,7 +1677,10 @@ Tests:
   - A selection replaces only its interface, before and after the setup method of the defaults.
   - Two selections of one interface give the setup error.
   - Each selection has its logging wrapper with `EnableLogging`, and none without.
+- The parts and the check of a draft: `GetTemplatePartsAsync` gives each declared part with the names of its engines. `CheckTemplateAsync` gives no issue for a valid text, the issues of each engine for a text that is not valid, the line and the column of a Liquid parse error, and stores nothing. A save of a text with an issue still gives `TemplateInvalid` and 422.
 - The rules: a row for each rule of each rule class. An input that breaks a rule and a check with state gives the error of the rule. An unknown language with a part that is not a name gives the error of the part.
+- The identity of an error: two types with one code and other names are equal and have one hash. `Errors.Find` gives each type of `Errors` for its code, and null for an unknown code. `ErrorTypeBody.From(type).ToErrorType()` gives the same instance for each type of `Errors`, and an equal type for a type of the consumer.
+- The contracts packages: no contracts assembly references an assembly whose name starts with `Microsoft.AspNetCore` or is `System.Net.Http`, and none has a public type that derives from `Exception`.
 - `ErrorProblems`:
   - Each type of `Errors` gives the status of D233.
   - `ErrorOf(StatusCodeOf(type), body, detail)` gives an error equal to the original error, for each type of `Errors` and for a type of the consumer.
@@ -1669,19 +1688,24 @@ Tests:
 - The endpoints: each error type gives its status, its `ProblemDetails`, and the member `errorType`.
 - The contract records: the existing JSON tests of the endpoints pass with no change. A domain value mapped to a response and back gives an equal value, with typed settings and with `JsonChannelSettings`. A response with an invalid id gives `SerializationFailed`.
 - `MsgHatchRoles.None` starts a host with no message type, and gives the setup error with one.
+- AOT: the build of each package of D237 is the test, because `IsAotCompatible` turns on the analyzers, and each warning is an error.
 - Each new test fails first, or fails with a break of the code that it covers. Each changed test passes before and after its change.
 
 Commits:
 1. "Record the decisions of the HTTP API clients in the plan (D227 to D235)"
-2. "Split the subscription manager into queries and commands"
-3. "Split the template manager into queries and commands"
-4. "Select the implementation of each management interface"
-5. "Run the stateless rules of the managers first"
-6. "Write each error of the management APIs with its error type"
-7. "Move the HTTP bodies of the management APIs to the core packages"
-8. "Allow a host with no role and no message type"
-9. "Record the commits and the checked facts of phase 26 in the plan"
-10. "Record phase 26 as done in README and AGENTS.md"
+2. "Align the plan of the HTTP APIs with contracts packages, generated clients, AOT, and admin UIs (D236 to D242)"
+3. "Split the subscription manager into queries and commands"
+4. "Split the template manager into queries and commands"
+5. "Give the template queries the parts and the check of a draft"
+6. "Select the implementation of each management interface"
+7. "Run the stateless rules of the managers first"
+8. "Compare error types by their code"
+9. "Write each error of the management APIs with its error type"
+10. "Move the HTTP bodies of the management APIs to contracts packages"
+11. "Allow a host with no role and no message type"
+12. "Make the packages of the API boundary AOT-compatible"
+13. "Record the commits and the checked facts of phase 26 in the plan"
+14. "Record phase 26 as done in README and AGENTS.md"
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
@@ -1690,23 +1714,30 @@ Done when: the build has no errors and no warnings, all unit tests pass, and `pw
 Goal: a host calls the subscription and template management APIs of another host through the interfaces of phase 26 (D227). A consumer cannot see which implementation it uses: the same input gives the same result and the same error (D233, D234). A host can read over HTTP and write in process, or the reverse, or use one implementation for both (D231).
 
 1. Check first that a routing verification changes no stored subscription (D232). If it does, the verifier goes with the commands, and the plan changes before the code.
-2. Add `src/MsgHatch.Templates.Api.Client` (D227). It references `MsgHatch.Templates` and the package `Microsoft.Extensions.Http`:
-   - `TemplateApiClientOptions` from the section `MsgHatch:TemplateApiClient`, with a source-generated validator: `BaseAddress`, a required absolute URI, and `Prefix`, with the default `/templates` of `MapMsgHatchTemplates`.
-   - `TemplateApiClientExtensions.HttpClientName` is `MsgHatch.Templates.Api`. The host adds its handlers to that named client, for example the authentication.
-   - `UseTemplateApiClient` selects the queries and the commands. `UseTemplateQueriesApiClient` selects the queries, and `UseTemplateCommandsApiClient` selects the commands. Each method takes `Action<TemplateApiClientOptions>? configure = null`, and has an overload with `Uri baseAddress`. Each one calls the selection methods of phase 26.
-   - `HttpTemplateQueries` and `HttpTemplateCommands` call the routes of D224. A request adds `tenantId` when the key has a tenant, and escapes each path segment. Each method runs `TemplateLookupRules` first, and maps each error with `ErrorProblems`.
+2. Add the generator of the HTTP clients to `MsgHatch.SourceGeneration` (D236):
+   - The internal attributes, which the generator adds with `RegisterPostInitializationOutput`: one on an internal interface with the type of a JSON context, and one on each method with the HTTP method and the route.
+   - A parameter whose name is in the route is a route value. One parameter with the body attribute is the body. Each other parameter, except the last `CancellationToken`, is a query value, which a request leaves out when it is null. A route value or a query value is a string, a `Guid`, a number, a `bool`, or an enum, which the request writes with its name.
+   - A method returns `Task<ErrorOr<TResponse>>`, or `Task<Error?>` for a success with no body. The generator writes an internal sealed class with a constructor that takes the `HttpClient`. It finds the `JsonTypeInfo` of each body in the JSON context, and calls `ErrorProblems.ErrorOf` for each failure (D233).
+   - An interface or a method that the generator cannot write gives an error diagnostic with its own id, for example a route value with no parameter, a second body, or a type that is not in the JSON context.
+3. Add `src/MsgHatch.Templates.Api.Client` (D227, D236). It references `MsgHatch.Templates.Api.Contracts`, the package `Microsoft.Extensions.Http`, and `MsgHatch.SourceGeneration` as an analyzer. It compiles `src/Shared/TemplateApiRoutes.cs` and `src/Shared/ErrorProblems.cs`, and sets `IsAotCompatible` (D237):
+   - `TemplateApiClientOptions` from the section `MsgHatch:TemplateApiClient`, with a source-generated validator: `BaseAddress`, a required absolute URI with no default, `Prefix`, with the default `/templates` of `MapMsgHatchTemplates`, and `Timeout`, from 1 second to 10 minutes, with the default 30 seconds.
+   - `UseTemplateApiClient` selects the queries and the commands. `UseTemplateQueriesApiClient` selects the queries, and `UseTemplateCommandsApiClient` selects the commands. Each method takes `Action<TemplateApiClientOptions>? configure = null` and `Action<IHttpClientBuilder>? configureHttp = null`, and has an overload with `Uri baseAddress`. The host adds its handlers with `configureHttp`, for example the authentication. The name of the HTTP client stays internal. Each method calls the selection methods of phase 26.
+   - The internal interface `ITemplateApi` has a method for each route of D224, D240, and D241, and the generator writes `TemplateApi`.
+   - The internal adapters `HttpTemplateQueries` and `HttpTemplateCommands` implement the interfaces of phase 26. Each method runs `TemplateLookupRules` first, maps the domain values to the bodies, adds `tenantId` when the key has a tenant, calls `TemplateApi`, and maps the response back.
    - The API has no template id (D224), so `TemplateSource.Key.Id` is a stable id from the lookup. A caller reads it as opaque, and sends back only the version.
-3. Add `src/MsgHatch.Subscriptions.Api.Client` (D227) in the same way:
-   - `SubscriptionApiClientOptions` from the section `MsgHatch:SubscriptionApiClient`, with the default `Prefix` `/subscriptions` of `MapMsgHatchSubscriptions`. The named client is `MsgHatch.Subscriptions.Api`.
+4. Add `src/MsgHatch.Subscriptions.Api.Client` (D227, D236) in the same way:
+   - `SubscriptionApiClientOptions` from the section `MsgHatch:SubscriptionApiClient`, with the default `Prefix` `/subscriptions` of `MapMsgHatchSubscriptions`. It compiles `src/Shared/SubscriptionApiRoutes.cs`.
    - `UseSubscriptionApiClient` selects the queries, the commands, and the verifier. `UseSubscriptionQueriesApiClient` selects the queries and the verifier. `UseSubscriptionCommandsApiClient` selects the commands.
-   - `HttpSubscriptionQueries`, `HttpSubscriptionCommands`, and `HttpRoutingVerifier` call the routes of section 4.17 with no `/me`. A `/me` route narrows each query to the signed-in user, and a browser calls it (D154). Each command runs `SubscriptionDraftRules` first.
-   - `GetChannelsAsync` gives an `HttpChannelDescriptor`, with the settings type of the registry entry of the channel, or `typeof(ChannelSettings)` (D229).
+   - The internal interface `ISubscriptionApi` has the routes of section 4.17 with no `/me`. A `/me` route narrows each query to the signed-in user, and a browser calls it (D154). The internal adapters `HttpSubscriptionQueries`, `HttpSubscriptionCommands`, and `HttpRoutingVerifier` call the generated `SubscriptionApi`. Each command runs `SubscriptionDraftRules` first.
+   - `GetChannelsAsync` gives an internal `HttpChannelDescriptor`, with the settings type of the registry entry of the channel, or `typeof(ChannelSettings)` (D229).
    - A create is not idempotent. The design tells the host not to retry a `POST`.
-4. Logging: `IHttpClientFactory` logs the URI of each request, and the query can hold a user id or a company id. A test checks the log of .NET 10. If the log holds the query, the setup method calls `RemoveAllLoggers()` on the named client, and the logging wrappers of phase 26 log each call.
-5. Add the section 4.23 "HTTP API clients" to the design, with the setup of a Blazor admin UI (D235): `AddMsgHatch` with `MsgHatchRoles.None`, `UseSubscriptionApiClient()`, `UseTemplateApiClient()`, and a token handler on both named clients. In Interactive Server mode, a handler of `IHttpClientFactory` runs in its own DI scope, so it reads the token through a circuit services accessor. The repository gets no Blazor project. Sections 4.2 and 5.1 get the two packages.
+5. Logging: `IHttpClientFactory` logs the URI of each request, and the query can hold a user id or a company id. A test checks the log of .NET 10. If the log holds the query, the setup method calls `RemoveAllLoggers()` on its HTTP client, and the logging wrappers of phase 26 log each call.
+6. Add the section 4.23 "HTTP API clients" to the design, with the generator and the setup of a Blazor admin UI (D235): `AddMsgHatch` with `MsgHatchRoles.None`, `UseSubscriptionApiClient()`, `UseTemplateApiClient()`, and a token handler through `configureHttp` of both. In Interactive Server mode, a handler of `IHttpClientFactory` runs in its own DI scope, so it reads the token through a circuit services accessor. Phase 28 adds the admin UIs. Sections 4.2 and 5.1 get the two packages.
 
-Tests, in `tests/MsgHatch.Templates.Api.Client.Tests.Unit` and `tests/MsgHatch.Subscriptions.Api.Client.Tests.Unit`:
-- The HTTP subclass of each test base class of phase 26. A `TestServer` maps the endpoints on a real store, and the named client of the client host uses the handler of the `TestServer` as its primary handler.
+Tests, in `tests/MsgHatch.SourceGeneration.Tests.Unit`, `tests/MsgHatch.Templates.Api.Client.Tests.Unit`, and `tests/MsgHatch.Subscriptions.Api.Client.Tests.Unit`:
+- The generator: a row for each diagnostic. An interface of each supported shape compiles with no warning, also with `IsAotCompatible`.
+- The public types of each client package are only its options, their validator, and its setup class. No public member has a type of `System.Net.Http`.
+- The HTTP subclass of each test base class of phase 26. A `TestServer` maps the endpoints on a real store, and the HTTP client of the client host uses the handler of the `TestServer` as its primary handler.
 - Parity: the same failing inputs run on both implementations, and `local.Error with { Exception = null }` equals the error of the client. No test asserts the text of a message.
 - The mixed hosts: reads over HTTP and writes in process on one store, and the reverse. A write in process followed by a read over HTTP gives the new version.
 - Validation before HTTP: a handler counts the requests, and each rule gives `ValidationFailed` with 0 requests.
@@ -1727,11 +1758,55 @@ Tests, in `tests/MsgHatch.Templates.Api.Client.Tests.Unit` and `tests/MsgHatch.S
 - Each new test fails first, or fails with a break of the code that it covers.
 
 Commits:
-1. "Add the HTTP client of the template management API"
-2. "Add the HTTP client of the subscription management API"
-3. "Describe the HTTP clients and the setup of an admin UI in the design"
-4. "Record the commits and the checked facts of phase 27 in the plan"
-5. "Record phase 27 as done in README and AGENTS.md"
+1. "Add the generator of the HTTP API clients"
+2. "Add the HTTP client of the template management API"
+3. "Add the HTTP client of the subscription management API"
+4. "Describe the HTTP clients and the setup of an admin UI in the design"
+5. "Record the commits and the checked facts of phase 27 in the plan"
+6. "Record phase 27 as done in README and AGENTS.md"
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
+### Phase 28: admin UIs
+
+Goal: MsgHatch ships the list and edit pages of the subscriptions and the templates as Razor class libraries (D239). A host adds them in its setup, selects the HTTP clients or the in-process implementations (D235), and adds its own authorization. The template text has the editor of its engine, and the Liquid editor is a package of its own (D240, D242).
+
+1. Check first, before the code:
+   - A Razor class library with `IsAotCompatible` builds with no warning, and a WebAssembly host with `PublishTrimmed` renders its components with no trim warning, also with `DynamicComponent` and a registered editor type.
+   - The current version and the license of bUnit.
+2. Add `src/MsgHatch.AdminUI` (`Microsoft.NET.Sdk.Razor`). It references `MsgHatch.Api.Contracts` and the package `Microsoft.AspNetCore.Components.Web`. It has the parts of both admin UIs: the list layout with the states loading, error, and empty, the pager, the delete dialog, and the error text of each error type (D239).
+3. Add `src/MsgHatch.Templates.AdminUI`. It references `MsgHatch.Templates.Api.Contracts` and `MsgHatch.AdminUI`:
+   - The template list, with filters for the message type and the company, and a new template from the declared parts of `GetTemplatePartsAsync` (D240).
+   - The edit page of one part: the editor of its engine, the version, a save with the expected version, and a delete after a question. `TemplateInvalid` shows its message next to the text, and `Conflict` loads the stored version again.
+   - `TemplateEditorBase`, the plain editor, `AddTemplateEditor<TEditor>(string engine)`, and the setup method `AddMsgHatchTemplatesAdminUI()` (D240).
+   - The public route builders `TemplateAdminRoutes`, with the pages under `/msghatch/templates`.
+4. Add `src/MsgHatch.Templates.Liquid.AdminUI` (D242). It references `MsgHatch.Templates.AdminUI` only:
+   - `LiquidTokenizer`, `LiquidTemplateEditor` with its JavaScript module for the scroll, and `AddLiquidTemplateEditor()`.
+   - The editor marks an open `{{` or `{%` and a `{% liquid %}` tag with no call. It calls `CheckTemplateAsync` 500 ms after the last key and before a save, and marks the line and the column of each issue (D241).
+5. Add `src/MsgHatch.Subscriptions.AdminUI`. It references `MsgHatch.Subscriptions.Api.Contracts` and `MsgHatch.AdminUI`:
+   - The message types with their states, the subscriptions with filters for the owner level, the message type, and the channel, and the edit page of a subscription with a create, an update, and a delete.
+   - The page edits the settings of a channel as JSON text, with the entry `Settings:{channel}` of the content type registry, or as `JsonChannelSettings` (D229).
+   - A page runs a routing verification and shows its report (D163).
+   - The public route builders `SubscriptionAdminRoutes`, with the pages under `/msghatch/subscriptions`, and the setup method `AddMsgHatchSubscriptionsAdminUI()`.
+6. Add `examples/AdminUiExample`, an Interactive Server host. It uses `AddMsgHatch` with `MsgHatchRoles.None`, `UseSubscriptionApiClient`, `UseTemplateApiClient`, both admin UIs, and the Liquid editor. It calls the APIs of `ExampleApp` with a token from its configuration, which git ignores. It loads Bootstrap 5.3 as a static file of its `wwwroot`, has no sign-in, and listens only on localhost.
+7. Add the section 4.24 "Admin UIs" to the design, with the editor extension point. Sections 4.2 and 5.1 get the packages, and `AGENTS.md` gets the command that runs the example.
+
+Tests, with bUnit, in `tests/MsgHatch.AdminUI.Tests.Unit`, `tests/MsgHatch.Templates.AdminUI.Tests.Unit`, `tests/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit`, `tests/MsgHatch.Subscriptions.AdminUI.Tests.Unit`, and `tests/AdminUiExample.Tests.Unit`:
+- Each page with substitutes of the interfaces of phase 26: the rows of a list, the empty state, and the text of `Unavailable` and `Rejected`. A save sends the expected version. `Conflict` loads the stored version again. `ValidationFailed` and `TemplateInvalid` show their message next to the form. A delete runs only after the question.
+- The editors: a part with one engine and a registered editor gets that editor. A part with two engines, or an engine with no editor, gets the plain editor. No page type of a library sets a render mode.
+- The Liquid editor: a row of `LiquidTokenizer` for each kind of span. The marks of an open delimiter and of a `{% liquid %}` tag come with no call. An issue with a line and a column gets its mark, and an issue with no position shows only its message. The editor calls the check one time after a pause in typing. A test that references `MsgHatch.Templates.Liquid` checks that the engine name of the editor equals `LiquidTemplates.Engine.Name`.
+- The example host resolves each interface to its HTTP client.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Add the shared parts of the admin UIs"
+2. "Add the admin UI of the templates with the editor extension point"
+3. "Add the Liquid editor of the template admin UI"
+4. "Add the admin UI of the subscriptions"
+5. "Add the example host of the admin UIs"
+6. "Describe the admin UIs in the design"
+7. "Record the commits and the checked facts of phase 28 in the plan"
+8. "Record phase 28 as done in README and AGENTS.md"
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
@@ -1752,4 +1827,5 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
 - More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
 - The open allocations of section 4.11 (D159): an allocation profile, for example an EventPipe trace with `GcVerbose`, attributes the bytes that phase 13 did not attribute, and the phase removes the avoidable ones: the three copies of the routes and the set of the targets in the pipeline, about 150 B for each send, and the owner part strings and the empty list of a subscription cache hit. It also gives the resolution a budget line, because it allocates about 1.7 KB for each user.
-- The delivery and registry endpoints of `MsgHatch.AspNetCore` write their errors with `ErrorProblems` (D233), and get HTTP clients in the same way as phase 27.
+- The delivery and registry endpoints of `MsgHatch.AspNetCore` write their errors with `ErrorProblems` (D233), and get contracts packages, generated HTTP clients, and admin pages in the same way as phases 26 to 28.
+- AOT for the other packages (D237): each package outside the API boundary sets `IsAotCompatible` when its dependencies allow it, or the design records why not.
