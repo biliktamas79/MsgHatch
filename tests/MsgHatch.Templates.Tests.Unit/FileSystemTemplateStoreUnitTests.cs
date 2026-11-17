@@ -11,6 +11,26 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
     private static readonly DateTime _firstWriteUtc = new(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public async Task FindAsync_ScopeWithADash_GivesTheTemplateOfTheFolderOfThatScope()
+    {
+        // Act
+        var result = await Store.FindAsync(ALookup(scope: "acme-1"), Ct);
+
+        // Assert
+        Assert.Equal("Company acme-1 order {{OrderNumber}}", result.Value?.Text);
+    }
+
+    [Fact]
+    public async Task FindAsync_ScopeThatDiffersFromTheFolderOfAnotherScopeOnlyInCase_GivesNull()
+    {
+        // Act
+        var result = await Store.FindAsync(ALookup(scope: "ACME"), Ct);
+
+        // Assert
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
     public async Task FindAsync_FileTemplate_HasTheFullPathOfItsFileAsItsIdAndTheWriteTimeOfThatFileAsItsVersion()
     {
         // Arrange

@@ -21,6 +21,16 @@ public sealed class EmbeddedResourceTemplateStoreUnitTests()
     };
 
     [Fact]
+    public async Task FindAsync_ScopeWithADash_GivesNullBecauseMsBuildChangesTheDashInTheResourceName()
+    {
+        // Act
+        var result = await Store.FindAsync(ALookup(scope: "acme-1"), Ct);
+
+        // Assert
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
     public async Task FindAsync_EmbeddedTemplate_HasTheAssemblyAndTheResourceNameAsItsIdAndTheVersion0()
     {
         // Arrange
