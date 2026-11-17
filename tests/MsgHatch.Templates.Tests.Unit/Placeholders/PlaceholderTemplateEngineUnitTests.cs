@@ -239,6 +239,35 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
     }
 
     [Fact]
+    public async Task PrepareAsync_OptionalRequestWithNoTemplateOfItsLanguageAndScope_LooksUpOnlyThemAndGivesNotFound()
+    {
+        // Arrange
+        var stores = new FallbackStores(["tenant:en:", "shared:hu:"]);
+        await using var host = new EngineHost(stores.Tenant, stores.Shared);
+
+        // Act
+        var result = await host.Engine(_t1).PrepareAsync(ARequest("hu") with { Scope = "acme", Optional = true }, Ct);
+
+        // Assert
+        Assert.Equal(404, CodeOf(result));
+        Assert.Equal(["tenant:hu:acme", "shared:hu:acme"], stores.Lookups);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_OptionalRequestWithATemplateOfItsLanguageAndScopeInTheSharedStore_GivesIt()
+    {
+        // Arrange
+        var stores = new FallbackStores(["shared:hu:acme"]);
+        await using var host = new EngineHost(stores.Tenant, stores.Shared);
+
+        // Act
+        var outcome = await OutcomeOfAsync(host.Engine(_t1), ARequest("hu") with { Scope = "acme", Optional = true });
+
+        // Assert
+        Assert.Equal("shared:hu:acme", outcome);
+    }
+
+    [Fact]
     public async Task PrepareAsync_StoreError_GivesTheErrorAndLooksUpNoOtherTemplate()
     {
         // Arrange

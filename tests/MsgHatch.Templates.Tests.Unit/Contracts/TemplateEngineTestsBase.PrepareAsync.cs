@@ -28,6 +28,19 @@ public abstract partial class TemplateEngineTestsBase<TEngine>
     }
 
     [Fact]
+    public async Task PrepareAsync_TemplateOfTheDefaultLanguage_GivesTheLookupThatFoundIt()
+    {
+        // Arrange
+        TestData.Seed(Type, "en", Part, TemplatePartKind.PlainText, "Order {Name}");
+
+        // Act
+        var result = await Engine.PrepareAsync(ARequest("hu"), Ct);
+
+        // Assert
+        Assert.Equal(new TemplateLookup(Type, "en", Scope: null, Part, TemplatePartKind.PlainText), result.Value?.Lookup);
+    }
+
+    [Fact]
     public async Task PrepareAsync_ExistingTemplate_GivesATemplate()
     {
         // Arrange

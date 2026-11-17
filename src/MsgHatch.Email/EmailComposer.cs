@@ -84,7 +84,7 @@ public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayl
             return html.Error;
         }
 
-        var text = await engine.PrepareAsync(new TemplateRequest(type, language, scope, _bodyPart, TemplatePartKind.PlainText, Optional: true), ct);
+        var text = await engine.PrepareAsync(TextBodyLike(html.Value.Lookup), ct);
         if (text.IsError && text.Error.Type != Errors.NotFound)
         {
             return text.Error;
@@ -92,6 +92,10 @@ public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayl
 
         return new EmailTemplate(subject.Value, html.Value, text.IsError ? null : text.Value, culture);
     }
+
+    /// <summary>The optional text body in the language and scope where the html body was found, so no email mixes two languages (D214).</summary>
+    private static TemplateRequest TextBodyLike(TemplateLookup html) =>
+        new(html.Type, html.Language, html.Scope, _bodyPart, TemplatePartKind.PlainText, Optional: true);
 
     private static async ValueTask<ErrorOr<EmailMessage>> RenderAsync(EmailTemplate template, MessageRoute route, TPayload payload, CancellationToken ct)
     {

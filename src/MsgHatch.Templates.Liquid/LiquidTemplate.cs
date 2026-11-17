@@ -14,11 +14,13 @@ namespace MsgHatch.Templates.Liquid;
 /// </summary>
 /// <typeparam name="TPayload">The payload type.</typeparam>
 /// <param name="template">The parsed text.</param>
-/// <param name="kind">The kind of the part.</param>
+/// <param name="lookup">The lookup that found the text, with the kind of the part.</param>
 /// <param name="time">The clock of the value <c>now</c>.</param>
-internal sealed class LiquidTemplate<TPayload>(IFluidTemplate template, TemplatePartKind kind, TimeProvider time) : ITemplate<TPayload>
+internal sealed class LiquidTemplate<TPayload>(IFluidTemplate template, TemplateLookup lookup, TimeProvider time) : ITemplate<TPayload>
 {
     private static readonly HtmlEncoder _html = HtmlEncoder.Create(UnicodeRanges.All);
+
+    public TemplateLookup Lookup => lookup;
 
     public async ValueTask<ErrorOr<string>> RenderAsync(TPayload payload, CultureInfo culture, CancellationToken ct)
     {
@@ -26,7 +28,7 @@ internal sealed class LiquidTemplate<TPayload>(IFluidTemplate template, Template
         var context = new TemplateContext(payload, LiquidOptions<TPayload>.Options) { CultureInfo = culture, Now = time.GetUtcNow };
         try
         {
-            return await template.RenderAsync(context, kind == TemplatePartKind.Html ? _html : NullEncoder.Default);
+            return await template.RenderAsync(context, lookup.Kind == TemplatePartKind.Html ? _html : NullEncoder.Default);
         }
         catch (Exception exception) when (IsTemplateError(exception))
         {

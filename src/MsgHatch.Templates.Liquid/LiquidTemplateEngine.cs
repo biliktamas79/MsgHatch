@@ -20,9 +20,9 @@ internal sealed class LiquidTemplateEngine<TPayload>(TemplateSelector selector, 
             return source.Error;
         }
 
-        var template = LiquidTemplateCache.GetOrParse(source.Value);
+        var template = LiquidTemplateCache.GetOrParse(source.Value.Source);
         return template.IsError
             ? template.Error
-            : ErrorOr<ITemplate<TPayload>>.ForValue(new LiquidTemplate<TPayload>(template.Value, request.Kind, time));
+            : ErrorOr<ITemplate<TPayload>>.ForValue(new LiquidTemplate<TPayload>(template.Value, source.Value.Lookup, time));
     }
 }

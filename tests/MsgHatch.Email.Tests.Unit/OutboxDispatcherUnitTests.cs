@@ -42,7 +42,7 @@ public sealed class OutboxDispatcherUnitTests
         Assert.Equal(
             [
                 new EmailMessage("client1@example.com", "Order 3 for u1", "<p>Total: 1234.5</p>", "Total: 1234.5"),
-                new EmailMessage("client2@example.com", "u2 rendelése: 3", "<p>Összeg: 1234,5</p>", "Total: 1234,5"),
+                new EmailMessage("client2@example.com", "u2 rendelése: 3", "<p>Összeg: 1234,5</p>", null),
             ],
             client.ReceivedCalls().Select(static call => (EmailMessage)call.GetArguments()[1]!).OrderBy(static email => email.To, StringComparer.Ordinal));
     }

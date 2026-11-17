@@ -48,7 +48,7 @@ public sealed partial class SubscriptionRouterUnitTests
         // Assert
         Assert.Equal(
             ("2 stored, 0 failed",
-                "c:100 / Email / admin@acme.example / B magyarul / html and text / #10 CompanyDefaultLanguage; "
+                "c:100 / Email / admin@acme.example / B magyarul / html / #10 CompanyDefaultLanguage; "
                 + "u:1 / Email / client1@acme.example / B in English / text / #6 ChannelSettings"),
             (ResultText(result.Value), OutboxText(provider)));
     }

@@ -37,7 +37,7 @@ public sealed class TemplateSelectorUnitTests
         var body = await selector.FindAsync(new TemplateRequest(type, "en", "42", "body", TemplatePartKind.Html), ct);
 
         // Assert
-        Assert.Equal(("Company 42 order {{OrderNumber}}", "<p>Hello {{Name}}</p>"), (subject.Value.Text, body.Value.Text));
+        Assert.Equal(("Company 42 order {{OrderNumber}}", "<p>Hello {{Name}}</p>"), (subject.Value.Source.Text, body.Value.Source.Text));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class TemplateSelectorUnitTests
         var body = await selector.FindAsync(new TemplateRequest(type, "en", "acme", "body", TemplatePartKind.Html), ct);
 
         // Assert
-        Assert.Equal(("Acme order {{OrderNumber}}", "<p>Acme {{Name}}</p>"), (subject.Value.Text, body.Value.Text));
+        Assert.Equal(("Acme order {{OrderNumber}}", "<p>Acme {{Name}}</p>"), (subject.Value.Source.Text, body.Value.Source.Text));
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class TemplateSelectorUnitTests
         var text = await selector.FindAsync(new TemplateRequest(type, "hu", Scope: null, "body", TemplatePartKind.PlainText), ct);
 
         // Assert
-        Assert.Equal((OrderShippedText("hu", "subject.txt"), OrderShippedText("en", "body.txt")), (subject.Value.Text, text.Value.Text));
+        Assert.Equal((OrderShippedText("hu", "subject.txt"), OrderShippedText("en", "body.txt")), (subject.Value.Source.Text, text.Value.Source.Text));
     }
 
     private static string OrderShippedText(string language, string file) =>

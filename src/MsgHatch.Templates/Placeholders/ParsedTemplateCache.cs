@@ -17,14 +17,15 @@ internal static class ParsedTemplateCache<TPayload>
     // ponytail: unbounded cache, add a size limit if a store produces many versions
     private static readonly ConcurrentDictionary<(TemplateKey Key, TemplatePartKind Kind), PlaceholderTemplate<TPayload>> _templates = new();
 
-    public static ErrorOr<PlaceholderTemplate<TPayload>> GetOrParse(TemplateSource source, TemplatePartKind kind)
+    public static ErrorOr<PlaceholderTemplate<TPayload>> GetOrParse(TemplateMatch match)
     {
-        if (_templates.TryGetValue((source.Key, kind), out var cached))
+        var (source, lookup) = match;
+        if (_templates.TryGetValue((source.Key, lookup.Kind), out var cached))
         {
             return cached;
         }
 
-        var parsed = TemplateParser.Parse(source, kind, TPayload.Writer);
-        return parsed.IsError ? parsed.Error : _templates.GetOrAdd((source.Key, kind), new PlaceholderTemplate<TPayload>(parsed.Value));
+        var parsed = TemplateParser.Parse(source, lookup.Kind, TPayload.Writer);
+        return parsed.IsError ? parsed.Error : _templates.GetOrAdd((source.Key, lookup.Kind), new PlaceholderTemplate<TPayload>(parsed.Value, lookup));
     }
 }

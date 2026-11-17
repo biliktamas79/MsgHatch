@@ -12,9 +12,12 @@ namespace MsgHatch.Templates.Placeholders;
 /// </summary>
 /// <typeparam name="TPayload">The payload type.</typeparam>
 /// <param name="parsed">The parsed and bound part.</param>
-internal sealed class PlaceholderTemplate<TPayload>(ParsedTemplate parsed) : ITemplate<TPayload>
+/// <param name="lookup">The lookup that found the text. A store gives one key for each lookup, so the cache keeps it.</param>
+internal sealed class PlaceholderTemplate<TPayload>(ParsedTemplate parsed, TemplateLookup lookup) : ITemplate<TPayload>
     where TPayload : IPlaceholderPayload<TPayload>
 {
+    public TemplateLookup Lookup => lookup;
+
     public ValueTask<ErrorOr<string>> RenderAsync(TPayload payload, CultureInfo culture, CancellationToken ct)
     {
         using var output = new PooledCharBufferWriter();

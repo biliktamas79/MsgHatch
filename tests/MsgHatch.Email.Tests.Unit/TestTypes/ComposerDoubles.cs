@@ -49,6 +49,10 @@ public sealed class ComposerDoubles
 
     public Func<TemplateRequest, ErrorOr<ITemplate<TestPayload>>> PrepareResult { get; set; }
 
+    /// <summary>The lookup that found each prepared template. By default, the language and the scope of its request.</summary>
+    public Func<TemplateRequest, TemplateLookup> LookupOf { get; set; } =
+        static request => new(request.Type, request.Language, request.Scope, request.Part, request.Kind);
+
     public Func<TemplateRequest, TestPayload, ErrorOr<string>> RenderResult { get; set; } = static (request, payload) =>
         request.Part == "subject" ? $"Subject {payload.Name}"
         : request.Kind == TemplatePartKind.Html ? $"<p>{payload.Name}</p>"
@@ -64,6 +68,8 @@ public sealed class ComposerDoubles
 
     private sealed class RecordingTemplate(ComposerDoubles doubles, TemplateRequest request) : ITemplate<TestPayload>
     {
+        public TemplateLookup Lookup => doubles.LookupOf(request);
+
         public ValueTask<ErrorOr<string>> RenderAsync(TestPayload payload, CultureInfo culture, CancellationToken ct)
         {
             doubles.Renders.Add((payload, request, culture));

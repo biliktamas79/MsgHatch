@@ -63,6 +63,27 @@ public sealed class EmailComposerUnitTests
     }
 
     [Fact]
+    public async Task ComposeAsync_HtmlBodyFoundInTheDefaultLanguageWithNoScope_PreparesTheOptionalTextBodyInThatLanguageAndScope()
+    {
+        // Arrange
+        _doubles.LookupOf = static request => request.Kind == TemplatePartKind.Html
+            ? new TemplateLookup(request.Type, "en", Scope: null, request.Part, request.Kind)
+            : new TemplateLookup(request.Type, request.Language, request.Scope, request.Part, request.Kind);
+
+        // Act
+        await _doubles.ComposeAsync(AnEmailRoute("u1", "hu", templateScope: "acme"));
+
+        // Assert
+        Assert.Equal(
+            [
+                new TemplateRequest(_type, "hu", "acme", "subject", TemplatePartKind.PlainText),
+                new TemplateRequest(_type, "hu", "acme", "body", TemplatePartKind.Html),
+                new TemplateRequest(_type, "en", null, "body", TemplatePartKind.PlainText, Optional: true),
+            ],
+            _doubles.Prepares);
+    }
+
+    [Fact]
     public async Task ComposeAsync_TwoRoutes_GivesAnEmailToTheAddressOfEachRouteWithItsRenderedParts()
     {
         // Arrange

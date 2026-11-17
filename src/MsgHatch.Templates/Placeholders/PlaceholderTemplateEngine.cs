@@ -44,7 +44,7 @@ public sealed class PlaceholderTemplateEngine<TPayload> : ITemplateEngine<TPaylo
             return source.Error;
         }
 
-        var template = ParsedTemplateCache<TPayload>.GetOrParse(source.Value, request.Kind);
+        var template = ParsedTemplateCache<TPayload>.GetOrParse(source.Value);
         return template.IsError ? template.Error : ErrorOr<ITemplate<TPayload>>.ForValue(template.Value);
     }
 }
