@@ -69,7 +69,7 @@ public sealed class TemplateSelector
 
         return source.Value is { } found
             ? found
-            : new Error(Errors.NotFound, $"No {request.Part} template of {request.Type.Name} exists in the language {request.Language} or {_defaultLanguage}.");
+            : new Error(Errors.NotFound, $"No {request.Part} template of {request.Type.Name} exists in the language {LanguagesOf(request)}.");
     }
 
     private async ValueTask<ErrorOr<TemplateSource?>> FindInLanguageAsync(TemplateRequest request, string language, CancellationToken ct)
@@ -95,4 +95,7 @@ public sealed class TemplateSelector
     private static bool IsMissing(ErrorOr<TemplateSource?> source) => source.IsSuccess && source.Value is null;
 
     private bool IsDefaultLanguage(string language) => string.Equals(language, _defaultLanguage, StringComparison.OrdinalIgnoreCase);
+
+    private string LanguagesOf(TemplateRequest request) =>
+        IsDefaultLanguage(request.Language) ? request.Language : $"{request.Language} or {_defaultLanguage}";
 }

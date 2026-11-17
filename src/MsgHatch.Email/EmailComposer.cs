@@ -84,7 +84,7 @@ public sealed class EmailComposer<TEvent, TPayload>(IPayloadLoader<TEvent, TPayl
             return html.Error;
         }
 
-        var text = await engine.PrepareAsync(new TemplateRequest(type, language, scope, _bodyPart, TemplatePartKind.PlainText), ct);
+        var text = await engine.PrepareAsync(new TemplateRequest(type, language, scope, _bodyPart, TemplatePartKind.PlainText, Optional: true), ct);
         if (text.IsError && text.Error.Type != Errors.NotFound)
         {
             return text.Error;

@@ -9,4 +9,8 @@ namespace MsgHatch.Templates;
 /// <param name="Scope">The template scope, or null for the templates with no scope.</param>
 /// <param name="Part">The name of the part, for example <c>subject</c> or <c>body</c>.</param>
 /// <param name="Kind">The kind of the part. An <see cref="TemplatePartKind.Html"/> part encodes each value.</param>
-public readonly record struct TemplateRequest(MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind);
+/// <param name="Optional">
+/// True for a part that a message can omit, for example the text body of an email. A missing optional part is no
+/// fault, so the logging wrapper logs its <see cref="Domain.Failures.Errors.NotFound"/> at the Debug level.
+/// </param>
+public readonly record struct TemplateRequest(MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind, bool Optional = false);

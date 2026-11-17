@@ -27,7 +27,7 @@ internal sealed class TemplateEngineLoggingWrapper<TPayload>(
     {
         if (result.IsError)
         {
-            var level = ErrorLogLevels.For(result.Error);
+            var level = LevelOf(request, result.Error);
             logger.PrepareFailed(
                 level, request.Type.Name, request.Part, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
                 result.Error.Type.Name, result.Error.Message);
@@ -37,4 +37,7 @@ internal sealed class TemplateEngineLoggingWrapper<TPayload>(
             logger.PrepareSucceeded(request.Type.Name, request.Part, key.Tenant?.Value, elapsedMs);
         }
     }
+
+    private static LogLevel LevelOf(TemplateRequest request, Error error) =>
+        request.Optional && error.Type == Errors.NotFound ? LogLevel.Debug : ErrorLogLevels.For(error);
 }

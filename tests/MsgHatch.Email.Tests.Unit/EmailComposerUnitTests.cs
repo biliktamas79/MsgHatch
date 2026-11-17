@@ -47,7 +47,7 @@ public sealed class EmailComposerUnitTests
     }
 
     [Fact]
-    public async Task ComposeAsync_OneGroup_PreparesTheSubjectTheHtmlBodyAndTheTextBody()
+    public async Task ComposeAsync_OneGroup_PreparesTheSubjectTheHtmlBodyAndTheOptionalTextBody()
     {
         // Act
         await _doubles.ComposeAsync(AnEmailRoute("u1"), AnEmailRoute("u2"));
@@ -57,7 +57,7 @@ public sealed class EmailComposerUnitTests
             [
                 new TemplateRequest(_type, "en", null, "subject", TemplatePartKind.PlainText),
                 new TemplateRequest(_type, "en", null, "body", TemplatePartKind.Html),
-                new TemplateRequest(_type, "en", null, "body", TemplatePartKind.PlainText),
+                new TemplateRequest(_type, "en", null, "body", TemplatePartKind.PlainText, Optional: true),
             ],
             _doubles.Prepares);
     }

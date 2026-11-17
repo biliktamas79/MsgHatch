@@ -81,6 +81,36 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
     }
 
     [Fact]
+    public async Task PrepareAsync_NotFoundOfAnOptionalPart_LogsDebugWithItsEventId()
+    {
+        // Arrange
+        await using var provider = BuildWith(AnEngine(new Error(Errors.NotFound)));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await PrepareAsync(scope.ServiceProvider, optional: true);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((LogLevel.Debug, 2003), (record.Level, record.Id.Id));
+    }
+
+    [Fact]
+    public async Task PrepareAsync_TransientErrorOfAnOptionalPart_LogsAWarningWithItsEventId()
+    {
+        // Arrange
+        await using var provider = BuildWith(AnEngine(new Error(Errors.Unavailable)));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await PrepareAsync(scope.ServiceProvider, optional: true);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((LogLevel.Warning, 2003), (record.Level, record.Id.Id));
+    }
+
+    [Fact]
     public async Task PrepareAsync_CancelledError_LogsInformationWithItsEventId()
     {
         // Arrange
@@ -168,9 +198,9 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
         return engine;
     }
 
-    private static ValueTask<ErrorOr<ITemplate<OrderEmail>>> PrepareAsync(IServiceProvider scope) =>
+    private static ValueTask<ErrorOr<ITemplate<OrderEmail>>> PrepareAsync(IServiceProvider scope, bool optional = false) =>
         scope.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(_t1)
-            .PrepareAsync(new TemplateRequest(new MessageType("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), Ct);
+            .PrepareAsync(new TemplateRequest(new MessageType("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText, optional), Ct);
 
     private static ServiceProvider BuildWith(ITemplateEngine<OrderEmail> inner, bool enableLogging = true)
     {

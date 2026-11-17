@@ -1373,7 +1373,8 @@ public interface IEmailClient
 }
 
 // MsgHatch.Templates
-public readonly record struct TemplateRequest(MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind);
+public readonly record struct TemplateRequest(
+    MessageType Type, string Language, string? Scope, string Part, TemplatePartKind Kind, bool Optional = false);
 
 public interface ITemplateEngine<TPayload>
 {
@@ -2048,6 +2049,7 @@ What a logging wrapper logs:
 | Permanent error | Error | The same fields as for a transient error |
 
 - The public method `ErrorLogLevels.For` in `MsgHatch.Domain.Failures` gives the level of a failed call. Each wrapper of the library uses it, and a wrapper of another package can use it too.
+- One exception: `TemplateEngineLoggingWrapper` logs `Errors.NotFound` of a `TemplateRequest` with `Optional` true at the Debug level, because a message can omit an optional part, for example the text body of an email. So each email with no text template does not log an error.
 - A wrapper logs only these values: message ids, outgoing message ids, tenant ids, message types, channels, content types, message flags, try numbers, counts, error data, elapsed times, and the subscription ids, levels, and sources of a resolution trace. The structured property `MessageFlags` lets log analytics leave test messages out.
 - The wrapper of a tenant service logs the tenant of its key.
 - A wrapper never logs a channel address, a payload value, rendered text, or a domain event (D37).
