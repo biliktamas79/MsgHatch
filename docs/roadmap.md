@@ -1470,7 +1470,7 @@ The implementation changed the plan in these points:
 - The commits 2 and 3 change places. The contract change comes first, as `dcc5e0a` "Render one text for each template with a replaceable engine", because the placeholder engine implemented the email contract with internal parser types, so a move with no change of behavior was not possible. The move follows as `b52e686`, and the Liquid move as `52ac7d5`. A test commit `e32aa14` "Test the render error of each part of an email" follows, because the coverage showed that no test gave a render error of the html body or of the text body.
 - The first try of the contract commit made a partial commit `9d51d31`, because `git add` stopped at a path that `git rm` had staged. That commit did not build. It was local and not pushed, so it was amended to `dcc5e0a`.
 - `RenderedEmail` is removed, because the composer builds the `EmailMessage` from the three output strings.
-- The library gives a channel the public method `AddTemplateEngine<TPayload>(registration, engine)`, which registers the engine of a payload type with its logging wrapper and its startup checks. `TemplateSelector.For(tenantServices, key)` and `PlaceholderTemplates.Engine<TPayload>` build an engine from a container with no channel. The email setup check `EmailSetup` moves into the library as `TemplateSetup`, and `MsgHatch.Templates` has its own internal `ErrorLogLevels`, as each package has.
+- The library gives a channel the public method `AddTemplateEngine<TPayload>(registration, engine)`, which registers the engine of a payload type with its logging wrapper and its startup checks. `TemplateSelector.For(tenantServices, key)` and `PlaceholderTemplates.Engine<TPayload>` build an engine from a container with no channel. The email setup check `EmailSetup` moves into the library as `TemplateSetup`.
 - With the role `Consumer`, each registration of an engine needs a template store, also with a custom engine factory (item 1). The test of a custom engine with no store now expects the error.
 - The startup check of the Liquid package goes away in commit 3 already, because the check of `AddTemplateEngine` failed the same setup a second time.
 - The tests of the template setup methods stay in `EmailExtensionsUnitTests`, because they check the methods with an email registration. The template benchmarks stay in `MsgHatch.Email.Tests.Performance`, because the benchmark of the email composer uses the same store and payload.
@@ -1478,6 +1478,11 @@ The implementation changed the plan in these points:
 - D214 shows in three tests: a Hungarian email with no Hungarian text part now gets the English text body (`NotificationServiceUnitTests`, `OutboxDispatcherUnitTests`, and the example P2 of `docs/subscription-domain.md`, whose text now says so).
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
+After the phase, the owner asked for two more changes. The tag `phase-24` includes both commits:
+- `5f969b0` "Share the log level rule of the wrappers from MsgHatch.Domain". `ErrorLogLevels` in `MsgHatch.Domain.Failures` is now public (section 4.15). The copies in `MsgHatch.Email`, `MsgHatch.Templates`, and `MsgHatch.Subscriptions` are removed. The private `LevelOf` of the broker client wrapper is removed too.
+- `6878fa2` "Cache only the found sources in the file template store". A missing file has no read to skip, so the file store does not cache a miss (section 4.10). The contract test of a missing template now also checks that the result is not an error, because `ErrorOr.Value` gives null for an error too.
+- After both commits, 3,492 unit tests pass, 1 is skipped, and the line coverage is 99.3 %.
 
 ### Later phases
 
