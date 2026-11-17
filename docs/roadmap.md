@@ -32,6 +32,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 22 Razor email templates | 3 |
 | 23 Liquid email templates | 3, 22 |
 | 24 Template library | 23 |
+| 25 HTTP API of the templates | 13, 24 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -1484,10 +1485,111 @@ After the phase, the owner asked for two more changes. The tag `phase-24` includ
 - `6878fa2` "Cache only the found sources in the file template store". A missing file has no read to skip, so the file store does not cache a miss (section 4.10). The contract test of a missing template now also checks that the result is not an error, because `ErrorOr.Value` gives null for an error too.
 - After both commits, 3,492 unit tests pass, 1 is skipped, and the line coverage is 99.3 %.
 
+### Phase 25: HTTP API of the templates
+
+Goal: an operator lists, reads, writes, and deletes the templates of a store over HTTP, with no build, no deployment, and no access to the folders of the host (D217). The engine of the payload type checks each written text before the store keeps it, so a bad text gives 422 and the store keeps the old text (D219). `MsgHatch.Templates.AspNetCore` maps the endpoints, as `MsgHatch.Subscriptions.AspNetCore` does for the subscriptions. No package is released yet, so the phase changes the public API of `MsgHatch.Templates` with no compatibility types.
+
+1. Check a template text (D219):
+   - `ITemplateEngine<TPayload>` gets `ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)`. It checks the text of one part as `PrepareAsync` does after a store read, with no store read and no cache entry. A bad text gives `Errors.TemplateInvalid`.
+   - `PlaceholderTemplateEngine<TPayload>` parses and binds the text with `TemplateParser`, so a syntax error and an unknown placeholder give the error (D5).
+   - `LiquidTemplateEngine<TPayload>` parses the text, and walks the parsed tree with `Fluid.Ast.AstVisitor`. A filter that the filter collection of `LiquidOptions<TPayload>` does not have (D211), and a `render` or `include` tag (D208), give the error. An unknown name stays an error at render (D207), because the check has no payload. A filter or a tag in a `{% liquid %}` tag stays an error at render, because the visitor does not enter that tag (checked facts of phase 23).
+   - `TemplateEngineLoggingWrapper<TPayload>` logs each check with the next event ids of the area 2000 to 2099. A check that passes logs at the Debug level. The test engines of the email tests implement the new method.
+2. Write the templates of a file template store (D218, D223):
+   - `ITemplateWriter` in `MsgHatch.Templates`: `ListAsync(TemplateQuery query, CancellationToken ct)` gives `ErrorOr<IReadOnlyList<TemplateEntry>>`, `SaveAsync(TemplateLookup lookup, string text, long expectedVersion, CancellationToken ct)` gives `ErrorOr<TemplateEntry>`, and `DeleteAsync(TemplateLookup lookup, CancellationToken ct)` gives `Error?`. `TemplateEntry(TemplateLookup Lookup, long Version)`. `TemplateQuery(MessageType? Type = null, string? Scope = null)`, where a null value matches each value.
+   - A store is writable when it implements `ITemplateWriter`. `FileSystemTemplateStore` implements it. `EmbeddedResourceTemplateStore` does not. For a writable store, the logging wrapper also implements `ITemplateWriter`. It logs each save and each delete at the Information level, and each list at the Debug level, never with the text.
+   - A save writes the file of `TemplateFiles.PathOf`. So the company folder comes from `ScopeFolders.FolderOf` (D201), and no request can leave the template folder. The store creates a missing company folder. It writes the text into a temporary file in the same folder, and moves that file over the file of the lookup.
+   - The version is the last write time of the file in ticks. When it is not later than the version before the save, the store sets it one tick after that version. So each save gives a new `TemplateKey`, and the parse caches of both engines parse the new text.
+   - `expectedVersion` is the version that the caller read, or 0 for a new file. Another version gives `Errors.Conflict` (D79). One write lock for each store makes the check of the version and the move atomic in one process. The lock has the comment `ponytail: one write lock for each store, and two processes on one folder can race between the check and the move; a lock file if two operators write one part at the same time`.
+   - `DeleteAsync` deletes the file. A missing file is not an error.
+   - `ListAsync` reads the root folder and each company folder, or only the folder of `query.Scope`. It gives one entry for each file whose name `TemplateFiles` makes. The new public method `ScopeFolders.ScopeOf(folder)` gives the scope of a folder name, the reverse of `FolderOf`. The store skips each folder and each file whose name the library does not make from its own parts, for example the temporary file of a save, or a folder `Acme` with a capital letter.
+3. Manage the templates of a tenant (D220, D222):
+   - `PayloadBuilder<TEvent, TPayload>` gets the public property `MessageType Type`.
+   - `AddTemplateEngine` becomes an extension method of `PayloadBuilder<TEvent, TPayload>`: `AddTemplateEngine(string registration, IReadOnlyList<TemplatePart> parts, Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine)`, with `TemplatePart(string Name, TemplatePartKind Kind)`. A part list that is empty, or a part name that is not a name of ASCII letters, digits, and `_` that starts with a letter, gives an `ArgumentException`. The email layer declares `subject` (`PlainText`), `body` (`Html`), and `body` (`PlainText`).
+   - `ITemplateManager` in `MsgHatch.Templates.Management` is a tenant service. Each template setup method and `AddTemplateEngine` registers it one time. The manager of `TenantKey.None` uses the shared store. The manager of a tenant uses only the template store of that tenant. Its methods:
+     - `GetTemplatesAsync(TemplateQuery query, CancellationToken ct)` calls `ITemplateWriter.ListAsync`.
+     - `GetTemplateAsync(TemplateLookup lookup, CancellationToken ct)` calls `ITemplateStore.FindAsync` with the exact lookup, with no fallback, so it works also on the embedded store. A miss gives `Errors.NotFound`.
+     - `SaveTemplateAsync(TemplateLookup lookup, string text, long expectedVersion, CancellationToken ct)` validates the request, checks the text with the engine of each payload type that has a registration of the message type, and then calls `ITemplateWriter.SaveAsync`.
+     - `DeleteTemplateAsync(TemplateLookup lookup, CancellationToken ct)` validates the lookup, and calls `ITemplateWriter.DeleteAsync`. It accepts each part, also a part that no registration declares (D220).
+   - Validation gives `Errors.ValidationFailed`, and calls no store, in these cases:
+     - The language is not a culture that `CultureInfo.GetCultureInfo` knows, as for a subscription (section 4.17).
+     - The scope is not a valid `CompanyId`, or its folder name has more than 255 characters.
+     - The part is not a name.
+     - A save has a part and a kind that no registration of the message type declares (D220).
+     - A save has a text with more than 1,000,000 characters.
+     - The store of the key is not an `ITemplateWriter`, for a list, a save, or a delete.
+   - A save of a message type with no registration of a template engine gives `Errors.NotFound`. A key with no template store gives `Errors.NotFound`.
+   - The manager has no logging wrapper of its own: the store wrapper logs each change, and the engine wrapper logs each check.
+4. Add `src/MsgHatch.Templates.AspNetCore` (D224). It references `MsgHatch.Templates` and the framework `Microsoft.AspNetCore.App`. `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, string prefix = "/templates")` maps these endpoints, and returns the `RouteGroupBuilder`. The library adds no authorization.
+
+   | Method | Path | Body | Success |
+   |---|---|---|---|
+   | GET | `{prefix}?messageType=&companyId=` | none | 200 with the entries: `messageType`, `language`, `companyId`, `part`, `kind`, and `version` |
+   | GET | `{prefix}/{messageType}/{language}/{part}/{kind}?companyId=` | none | 200 with the entry and its `text` |
+   | PUT | `{prefix}/{messageType}/{language}/{part}/{kind}?companyId=` | `text` and `version` | 200 with the saved entry |
+   | DELETE | `{prefix}/{messageType}/{language}/{part}/{kind}?companyId=` | none | 204 |
+
+   - Each route takes the optional query parameter `tenantId`. The endpoint resolves `ITemplateManager` with `TenantKey.For(tenantId)`, and with `TenantKey.None` when the parameter is missing (D126).
+   - `kind` is `PlainText` or `Html`. An invalid message type, part, kind, company id, or tenant id gives 400, and calls no manager.
+   - The endpoints read and write each body with their own source-generated `TemplateEndpointJson`: camelCase names, enum values as strings, and the required properties `text` and `version`. A `PUT` with a content type that is not JSON gives 415 (D156). Invalid JSON and a missing required property give 400.
+   - `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, `Errors.Conflict` gives 409, `Errors.TemplateInvalid` gives 422, and each other error gives 500. The body is a `ProblemDetails` with the error name as the title and the error message as the detail.
+   - A response never has the template id, because the id of the file store is a path on the host.
+5. The example app (D221, D225):
+   - The build copies `examples/ExampleApp/Templates` to the output folder, in place of the embedded resources. The app selects `UseFileTemplates` on the folder `Templates` of `AppContext.BaseDirectory`.
+   - The app maps `MapMsgHatchTemplates("/templates")` with the policy `TemplateAdmin`, which needs the role of its name.
+   - `tests/ExampleApp.Tests.Unit` copies the templates into its temporary folder, so a test write never changes the build output.
+6. Sections 4.2, 4.7, 4.10, 4.15, 4.16, 5.1, and 5.5 of the design get the writer, the check, the manager, and the package. A new section 4.22 "Template administration" describes the manager and the endpoints, as section 4.20 does for the registry.
+
+Tests:
+- The check, in `TemplateEngineTestsBase<TEngine>`: a valid text gives null, and a text with a syntax error gives 422. The placeholder engine: an unknown placeholder gives 422, and a check reads no store.
+- The Liquid check, in `LiquidTemplateEngineUnitTests`: `{{ Name | upcse }}`, `{{ Name | Upcase }}`, `{% assign x = Name | upcse %}`, `{% render 'Footer' %}`, and `{% include 'Footer' %}` give 422. `{{ Name | upcase }}` gives null. `{{ Nmae }}` and `{% liquid echo Name | upcse %}` give null, and the next render of them gives 422, so the tests record the limits of D219.
+- The logging wrapper logs a check that passes at the Debug level, and a failed check with the error code, and never the text.
+- The writer contract, in `TemplateWriterTestsBase<TStore>`, which `FileSystemTemplateStoreWriterUnitTests` builds on a temporary folder:
+  - A save with the version 0 makes the file, and `FindAsync` then gives the text with the new version.
+  - A save with an old version, and a save with the version 0 of an existing file, give 409 and do not change the file.
+  - A save after the last write time of the file is set one hour into the future gives a version later than that time.
+  - Ten parallel saves with the same expected version give one entry and nine conflicts.
+  - A delete removes the file, and a delete of a missing file gives null.
+  - The list gives the entries of the root folder and of the company folders, filters by message type and by scope, and skips other files, the temporary file of a save, and a folder `Acme`.
+  - The company ids `ACME`, `acme-1`, `..`, and a GUID write into their escaped folders, and no file is written outside the root folder.
+- `ScopeFolders.ScopeOf` gives back each scope of the rows of `FolderOf`, and null for a name that `FolderOf` does not make.
+- The setup: the shared file store and a file store of each tenant resolve as an `ITemplateWriter` with and without logging. The embedded store does not. `AddTemplateEngine` with no parts, or with a part name that is not a name, gives an `ArgumentException`.
+- The manager, in `TemplateManagerUnitTests`, with a file store on a temporary folder and the placeholder engine:
+  - A save gives the entry, and the next prepare of the engine renders the new text.
+  - A save with an unknown placeholder gives 422, and writes no file.
+  - A save of a part or a kind that no registration declares gives 400. A delete of such a part removes the file.
+  - A save of a message type with no registration gives 404.
+  - An unknown language, an invalid company id, a company id whose folder name is too long, and a text of 1,000,001 characters each give 400.
+  - A list, a save, and a delete on the embedded store give 400, and a read of an embedded template gives its text.
+  - The manager of a tenant writes into the store of the tenant, and not into the shared store. A tenant with no template store gives 404.
+- The Liquid manager check, in `MsgHatch.Templates.Liquid.Tests.Unit`: a save of a text with an unknown filter gives 422, and writes no file.
+- The endpoints, in `tests/MsgHatch.Templates.AspNetCore.Tests.Unit`, on a `TestServer` with an `ITemplateManager` substitute for each key:
+  - Each route calls the matching manager method one time, with the lookup of the path and the query.
+  - `tenantId` selects the manager of the tenant.
+  - A `PUT` with `text/plain` gives 415. Invalid JSON and a missing `version` give 400.
+  - An invalid path value or query value gives 400, and calls no manager.
+  - Each error type gives its status code and a `ProblemDetails` with the error name.
+  - The JSON of a list, a read, and a save has the exact field names and enum values, and no template id.
+- The example app: a token with no role `TemplateAdmin` gives 403. With the role, a `PUT` of a template followed by a `GET` gives the new text.
+- Each new test fails first, or fails with a break of the code that it covers. Each changed test passes before and after its change.
+
+Commits:
+1. "Record the decisions of the template HTTP API in the plan (D218 to D225)"
+2. "Check a template text with the engine of its payload type"
+3. "Write the templates of a file template store"
+4. "Manage the templates of a tenant with a check before each write"
+5. "Add the HTTP endpoints of the templates"
+6. "Use a file template store and the template endpoints in the example app"
+7. "Record the commits and the checked facts of phase 25 in the plan"
+8. "Record phase 25 as done in README and AGENTS.md"
+
+Commit 2 holds item 1, commit 3 item 2, commit 4 item 3, commit 5 item 4 with the new projects in `MsgHatch.slnx`, and commit 6 item 5. Item 6 goes with the commit whose code it describes. Before the end of the phase, a worktree at each of the commits 2 to 6 runs `dotnet build MsgHatch.slnx` and `dotnet test` of the changed unit test projects. The build first checks `Fluid.Ast.AstVisitor`, the move of a file over another file, and the change of a last write time with probes in a scratch folder, outside the repository.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
-- An HTTP API of the templates (D217): `MsgHatch.Templates.AspNetCore` lists, reads, and writes the templates of a store, in the same way as `MsgHatch.Subscriptions.AspNetCore`.
+- A template store in a database, for example SQLite, EF Core, or MongoDB, with `ITemplateWriter` (D218), so that a written template survives a deployment that replaces the template folder.
 - Partials of the Liquid engine (D208): `render` and `include` read a partial from the template store, with the lookups of the tenant, the company, and the language, through the asynchronous `ITemplateFileProvider` of the first stable Fluid 3.
 - A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
