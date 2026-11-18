@@ -1996,7 +1996,8 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
   - The builder stores no block model. It reads the model again from the template text: each block has a marker, for example a `data-msghatch-block` attribute, and the adapter reads the data blocks. A region with no valid marker becomes a raw HTML block, so a hand edit of the text does not break the other blocks.
   - The variable names come from the server, for example from the sample payload of D254, with no reflection that breaks AOT (D237).
   - The edit page offers the builder and the raw editor for one part, so the extension point of D240 changes from one editor for each engine to a choice of editors.
-  - The phase checks the email clients that keep or remove the marker attributes, and the license of each JavaScript library that it uses.
+  - The markers are needed only in the text of the template store. An email client can remove them from a sent email, because the builder never reads a sent email.
+  - The phase checks the license of each JavaScript library that it uses.
 - A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
 - SMS and push channels.
