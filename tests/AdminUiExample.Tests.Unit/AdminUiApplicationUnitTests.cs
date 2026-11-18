@@ -95,6 +95,18 @@ public sealed class AdminUiApplicationUnitTests
                 page.Contains("data-theme-toggle", StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public async Task Get_Home_HasTheMenuLinksInTheOrderOfTheAdminPages()
+    {
+        await using var app = Build(new RecordingHandler(available: false));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        var page = await app.GetTestClient().GetStringAsync(new Uri("/", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        var links = Regex.Matches(page, "<a\\b(?=[^>]*\\bclass=\"nav-link[^\"]*\")[^>]*>(?<text>[^<]*)</a>");
+
+        Assert.Equal(["Channels", "Message types", "Subscriptions", "Templates", "Verification"], links.Select(static match => match.Groups["text"].Value));
+    }
+
     [Theory]
     [InlineData("/msghatch/subscriptions", "Subscriptions")]
     [InlineData("/msghatch/subscriptions/00000000-0000-0000-0000-000000000001", "Subscriptions")]
