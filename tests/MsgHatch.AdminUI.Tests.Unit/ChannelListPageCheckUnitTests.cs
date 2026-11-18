@@ -81,7 +81,7 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
         var cut = Render<ChannelListPage>();
 
         Assert.Empty(cut.FindAll("[data-check-result]"));
-        Commands.DidNotReceiveWithAnyArgs().CheckChannelAsync(default, default);
+        Commands.DidNotReceiveWithAnyArgs().CheckChannelAsync(default, Xunit.TestContext.Current.CancellationToken);
     }
 
     private static string DisabledFlagsOf(IRenderedComponent<ChannelListPage> cut) =>

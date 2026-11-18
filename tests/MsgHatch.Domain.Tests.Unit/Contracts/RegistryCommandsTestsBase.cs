@@ -184,7 +184,7 @@ public abstract class RegistryCommandsTestsBase<T>
         await host.Service(TenantKey.None).CheckChannelAsync(TestChannel.Id, Ct);
 
         // Assert
-        await signal.DidNotReceiveWithAnyArgs().NotifyAsync(default, default);
+        await signal.DidNotReceiveWithAnyArgs().NotifyAsync(default, Ct);
     }
 
     /// <summary>Starts a host of the implementation, whose server has the services of a test.</summary>
