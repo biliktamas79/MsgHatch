@@ -39,6 +39,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 29 Template preview | 28 |
 | 30 Layout of the admin pages | 29 |
 | 31 Registry queries and pages | 16, 30 |
+| 32 Channel state and page order | 31 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2224,6 +2225,105 @@ The implementation changed the plan in these points:
 - Commit 10 also changes the sections 4.2, 4.7, and 5.1 of the design and the list of the AOT packages, because they name the packages, the setup methods, and the files.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
+### Phase 32: channel state and page order
+
+Goal: an operator sees if each channel is up or down, since when, and the down and up events of the last 30 days. The admin menu has the order Channels, Message types, Subscriptions, Templates, and Verification. The message types page shows the number of subscriptions of each owner level, and the page "Applied subscriptions" goes away (D274 to D279).
+
+Starting point: the commits of phase 31, `2d8a9bc` to `df73dab`. The owner looked at the pages of phase 31 and asked for these changes:
+- "change page order to: Channels, Message Types, Subscriptions, Templates and Verification".
+- The applied subscriptions as a column of the message types page, with "one number per each SubscriptionLevel".
+- An up or down indicator, an "up since" time with the time since the last down state, and a button History with the down and restored events "in a dialog, or a timeline with segments colored red where the channel was down".
+
+The owner chose "Registry queries" for the channel state, and "Timeline and list" for the history.
+
+1. Check first, before the code:
+   - Each of the five outbox stores can write or remove the down state of a channel, and add its event, in one atomic operation: the in-memory store, the file store, a SQLite transaction, an EF Core transaction on SQL Server, and MongoDB. For MongoDB, the check finds how the store keeps two writes atomic now, also on a server with no replica set. If a store cannot do it, the plan changes before the code.
+   - The SQLite and EF Core stores add a table to an existing database with their current schema setup, and keep the data. The check names the step of the schema version that each store needs.
+   - Bootstrap 5.3.3 of the example host has the class `progress-stacked`.
+2. Record the down and up events of a channel in the outbox dispatch store (D277):
+   - `ChannelEvent` and `ChannelEventKind` with `Down` and `Up` in `MsgHatch.Domain.Dispatch`. An event has the channel, the kind, the time, the reason, and the error code, the error name, and the note of the down state.
+   - `SetChannelDownAsync` adds a `Down` event with the time `SinceUtc` when it writes. `SetChannelUpAsync` gets the parameter `DateTime upAtUtc`, and adds an `Up` event with the reason of the removed state when it removes a down state. Each change and its event are one atomic operation.
+   - The new `GetChannelEventsAsync(DateTime fromUtc, CancellationToken ct)` gives the events of all channels at or after `fromUtc`, newest first.
+   - An add of an event removes the events of its channel that are older than `ChannelEvent.HistoryWindow`, 30 days.
+   - The in-memory store, `TenantOutboxDispatchStore`, the logging wrapper with the events 1320 and 1321, `OutboxChannelWork`, and `DeliveryManager` change. `TenantOutboxDispatchStore` calls the system store, as it does for the down state. The callers give the time of `TimeProvider`.
+3. Record the channel events in the file store, with the format in section 2 of `docs/stores.md` (D277).
+4. Record the channel events in the SQLite store, in the new table `MsgHatchChannelEvents` (D277).
+5. Record the channel events in the EF Core store, in the same table on SQL Server (D277).
+6. Record the channel events in the MongoDB store, in a new collection (D277).
+7. Add the channel state to the registry queries (D278):
+   - `RegistryChannel` gets `ChannelDown? Down` and `DateTime? UpSinceUtc`. `UpSinceUtc` is the time of the newest `Up` event of the channel in the window of 30 days. It is null for a down channel, and for an up channel with no `Up` event in the window.
+   - `IRegistryQueries.GetChannelHistoryAsync(ChannelId channel, CancellationToken ct)` gives the events of one channel in the window, newest first. An unknown channel gives `Errors.NotFound`.
+   - `RegistryManager` reads `GetDownChannelsAsync` and `GetChannelEventsAsync` of `IOutboxDispatchStore`. An error of the store is the error of the query.
+   - The logging wrapper logs the history call with the events 2913 and 2914.
+8. Add the channel history to the registry contracts, route, and client (D278):
+   - `ChannelDownResponse` moves from `MsgHatch.AspNetCore` to `MsgHatch.Api.Contracts`, with a public `From` and the mapping back. The delivery body `ChannelStatusResponse` keeps it.
+   - `RegistryChannelResponse` gets `down` and `upSinceUtc`. The new `ChannelEventResponse` and its list go into `RegistryEndpointJson`.
+   - `RegistryApiRoutes.ChannelHistory` holds `/channels/{channel}/history`. The GET route calls `IRegistryQueries` of `TenantKey.None`, in the registry group with its policy.
+   - `IRegistryApi` and `HttpRegistryQueries` get the history call.
+9. Show the channel state and history on the channel list (D279):
+   - The column "State" shows the badge "Up" with `text-bg-success`, or "Down" with `text-bg-danger`. A down channel also shows its reason: the error name for `Errors`, or "Paused" and the note for `Operator`.
+   - The column "Since" shows the start of the current state in UTC and the time since then, for example "2026-11-18 13:32 UTC (3 d 4 h)". An up channel with no `UpSinceUtc` shows "No down state in 30 days".
+   - The page reads the current time from `TimeProvider`. `AddMsgHatchAdminUI` adds `TimeProvider.System` when the host has none.
+   - The button "History" opens `AdminDialog`. The dialog shows a timeline bar of the last 30 days with `progress-stacked`: red with `bg-danger` where the channel was down, and green with `bg-success` where it was up. Under the bar, it lists the events, newest first: the time, "Down" or "Restored", the reason, the error name, and the note.
+   - The state before the first event of the window is the opposite of the kind of that event. With no event in the window, the current state fills the bar. An error shows in the dialog, and the dialog has Close on the left (D261).
+   - `AddMsgHatchAdminUI` keeps the pages with `DynamicDependency` (D250).
+10. Add message type columns and the subscription counts of each level (D275, D276):
+    - `MsgHatch.AdminUI` gets `IMessageTypeColumn` with `Header` and `GetCellsAsync(CancellationToken ct)`, which gives `ErrorOr<IReadOnlyDictionary<MessageType, IReadOnlyList<string>>>`. `AddMessageTypeColumn<TColumn>()` registers a column, with `DynamicallyAccessedMembers(PublicConstructors)` on `TColumn`.
+    - `MessageTypeListPage` shows each registered column after its own columns, in the order of registration, and each text of a cell as a badge. An error of a column shows above the list with its header. The cells of that column stay empty, and the other columns still show.
+    - `MsgHatch.Subscriptions.AdminUI` gets the internal column "Subscriptions". It counts the stored subscriptions of each message type for each `SubscriptionLevel`, with one call `GetSubscriptionsAsync(new SubscriptionQuery())` of `TenantKey.None`. Each cell has "Default N", "Company N", and "User N", also for 0. `AddMsgHatchSubscriptionsAdminUI` registers it.
+11. Remove the page "Applied subscriptions" (D274): `MessageTypesPage`, `SubscriptionAdminRoutes.MessageTypes`, its `DynamicDependency`, and its link on the subscription list. `ISubscriptionQueries.GetMessageTypesAsync`, its HTTP route, and its client stay.
+12. Put the admin pages of the example host in the new order (D274):
+    - The menu and the home page have the order Channels, Message types, Subscriptions, Templates, and Verification. "Subscriptions" keeps its mark on the subscription pages, and the menu has no "Applied subscriptions".
+    - The README of the example app names the channel state, the history, and the subscription counts, and no longer names the page "Applied subscriptions".
+13. Describe the phase in the design and the store guide:
+    - The design: the sections 4.19, 4.20, 4.23, and 4.24.
+    - `docs/stores.md`: the format of the events in each store, the removal after 30 days, the new parameter of `SetChannelUpAsync`, and what a store for another storage must do.
+    - AGENTS.md: the exception of D275 to the rule of the admin pages.
+
+Tests:
+- `OutboxStoreTestsBase<TStore>`:
+  - A written down state adds a `Down` event. A down state with the reason `Errors` that is not written adds no event.
+  - A removed down state adds an `Up` event with the removed reason. A call that removes nothing adds no event.
+  - `GetChannelEventsAsync` gives the events of each channel at or after `fromUtc`, newest first.
+  - An add removes the events of its channel that are older than 30 days, and keeps the events of the other channels.
+  - The in-memory, file, and SQLite stores get these tests in the unit tests, and the EF Core and MongoDB stores in their integration tests.
+- A golden-file sample of the event format of the file store (section 1.8 of `docs/stores.md`).
+- `OutboxChannelWork` and `DeliveryManager` give the time of `TimeProvider` to `SetChannelUpAsync`, and the logging wrapper logs the new store call.
+- `RegistryQueriesTestsBase<T>`:
+  - An up channel with no event, and a down channel with each reason.
+  - `UpSinceUtc` from the newest `Up` event, and null with no `Up` event in the window.
+  - The history of one channel, newest first, `NotFound` for an unknown channel, and the error of the store.
+  - `RegistryManager` and the HTTP client get the new rows.
+- The logging wrapper of the registry queries: one event for each history call, with the count or the error type.
+- The contracts: `ChannelDownResponse` and `ChannelEventResponse` map to their domain types and back, and a name that is not valid gives `SerializationFailed`.
+- The pages, with bUnit and `FakeTimeProvider`:
+  - The cells "State" and "Since" of an up channel, of a down channel with each reason, and of an up channel with no `UpSinceUtc`.
+  - The dialog "History": the widths and the colors of the segments of a known list of events, the rows of the events, and the text of an error.
+  - The message types page: the cells of a registered column as badges, and the error of a column above the list.
+  - The column "Subscriptions": the counts of each level, also 0.
+  - The subscription list has no link to "Applied subscriptions", and the test of the `DynamicDependency` attributes still names each routed page.
+- The example host: the menu order, and the mark of each menu link on its page.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phase 32: the channel state and the order of the admin pages"
+2. "Record the down and up events of a channel in the outbox dispatch store"
+3. "Record the channel events in the file store"
+4. "Record the channel events in the SQLite store"
+5. "Record the channel events in the EF Core store"
+6. "Record the channel events in the MongoDB store"
+7. "Add the channel state and history to the registry queries"
+8. "Add the channel history to the registry contracts, route, and client"
+9. "Show the channel state and history on the channel list"
+10. "Add message type columns and the subscription counts of each level"
+11. "Remove the Applied subscriptions page"
+12. "Put the admin pages of the example host in the new order"
+13. "Describe the channel state and the new page order in the design"
+14. "Record the commits and the checked facts of phase 32 in the plan"
+15. "Record phase 32 as done in README and AGENTS.md"
+
+Done when: the build has no errors and no warnings, all unit tests pass, the integration tests of the EF Core and MongoDB outbox stores pass, and `pwsh ./coverage.ps1` passes.
 
 ### Later phases
 
