@@ -25,6 +25,7 @@
   </Folder>
   <Folder Name="/src/Subscriptions/">
     <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
+    <Project Path="src/MsgHatch.Subscriptions.Api.Client/MsgHatch.Subscriptions.Api.Client.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Api.Contracts/MsgHatch.Subscriptions.Api.Contracts.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.AspNetCore/MsgHatch.Subscriptions.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Subscriptions.Caching.FusionCache/MsgHatch.Subscriptions.Caching.FusionCache.csproj" />
@@ -63,6 +64,7 @@
     <Project Path="tests/MsgHatch.Email.Tests.Unit/MsgHatch.Email.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SignalR.Tests.Unit/MsgHatch.SignalR.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Api.Client.Tests.Unit/MsgHatch.Subscriptions.Api.Client.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Api.Contracts.Tests.Unit/MsgHatch.Subscriptions.Api.Contracts.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.AspNetCore.Tests.Unit/MsgHatch.Subscriptions.AspNetCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit.csproj" />
