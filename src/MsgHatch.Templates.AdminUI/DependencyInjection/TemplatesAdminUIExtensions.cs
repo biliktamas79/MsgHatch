@@ -11,7 +11,8 @@ public static class TemplatesAdminUIExtensions
     /// Adds the template admin UI. The pages use <c>ITemplateQueries</c> and <c>ITemplateCommands</c> of
     /// <c>TenantKey.None</c>, so the host selects the HTTP client or the in-process implementation in its setup (D235). The
     /// host adds the authorization, and maps the pages with the assembly of <see cref="TemplateAdminRoutes"/> as an additional
-    /// assembly of its router. The method keeps the pages in a trimmed host.
+    /// assembly of its router. The method keeps the pages in a trimmed host, and registers <see cref="TimeProvider.System"/>
+    /// for the pause of the preview when the host has no time provider (D257).
     /// </summary>
     /// <param name="services">The services of the host.</param>
     /// <returns>The same services.</returns>
@@ -23,6 +24,7 @@ public static class TemplatesAdminUIExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<TemplateEditors>();
+        services.TryAddSingleton(TimeProvider.System);
         return services;
     }
 

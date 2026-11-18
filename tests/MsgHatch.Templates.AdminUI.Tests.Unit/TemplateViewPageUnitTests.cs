@@ -2,6 +2,7 @@ using Bunit;
 using MsgHatch.AdminUI;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Templates.AdminUI.Tests.Unit.TestTypes;
+using MsgHatch.Templates.Management;
 using NSubstitute;
 using static MsgHatch.Templates.AdminUI.Tests.Unit.TestTypes.TemplateTestData;
 
@@ -12,7 +13,45 @@ public sealed class TemplateViewPageUnitTests : TemplatePageContext
     public TemplateViewPageUnitTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Queries.GetTemplatePartsAsync(Requests, Arg.Any<CancellationToken>())
+            .Returns(Ok<IReadOnlyList<TemplatePartInfo>>([Part(), Part("body", TemplatePartKind.Html)]));
         Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(Source("Hello {{Name}}", 7)));
+    }
+
+    [Fact]
+    public void Render_StoredTemplateWithASample_ShowsThePreviewOfTheStoredTextNextToTheText()
+    {
+        Queries.PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>())
+            .Returns(Ok<IReadOnlyList<TemplatePreview>>([new TemplatePreview("Email:Requests", "Hello Sample")]));
+
+        var cut = RenderPage();
+
+        Assert.Equal("Hello Sample", cut.Find("[data-column=preview] pre[data-preview=text]").TextContent);
+        Assert.Equal(("col-lg-6", "col-lg-6"), (cut.Find("[data-column=text]").ClassName, cut.Find("[data-column=preview]").ClassName));
+        Queries.ReceivedWithAnyArgs(1).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Render_PartWithNoSample_ShowsNoSampleDataAndCallsNoPreview()
+    {
+        Queries.GetTemplatePartsAsync(Requests, Arg.Any<CancellationToken>())
+            .Returns(Ok<IReadOnlyList<TemplatePartInfo>>([Part() with { HasSample = false }]));
+
+        var cut = RenderPage();
+
+        Assert.Single(cut.FindAll("[data-column=preview] [data-state=no-sample]"));
+        Queries.DidNotReceiveWithAnyArgs().PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Render_PartsRejected_ShowsTheTextOfRejectedAndReadsNoTemplate()
+    {
+        Queries.GetTemplatePartsAsync(Requests, Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<TemplatePartInfo>>(Errors.Rejected));
+
+        var cut = RenderPage();
+
+        Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        Queries.DidNotReceiveWithAnyArgs().GetTemplateAsync(default, Arg.Any<CancellationToken>());
     }
 
     [Fact]

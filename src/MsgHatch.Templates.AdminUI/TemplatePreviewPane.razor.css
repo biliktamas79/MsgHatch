@@ -1,0 +1,15 @@
+.template-preview {
+    display: block;
+    width: 100%;
+    min-height: 20rem;
+    margin: 0;
+    background-color: var(--bs-body-bg);
+}
+
+pre.template-preview {
+    font-family: var(--bs-font-monospace);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

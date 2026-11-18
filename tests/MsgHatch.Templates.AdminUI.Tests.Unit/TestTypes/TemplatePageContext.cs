@@ -1,6 +1,7 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Templates.AdminUI.DependencyInjection;
 using MsgHatch.Templates.Management;
@@ -14,9 +15,13 @@ public abstract class TemplatePageContext : BunitContext
     {
         Services.AddKeyedSingleton(TenantKey.None, Queries);
         Services.AddKeyedSingleton(TenantKey.None, Commands);
+        Services.AddSingleton<TimeProvider>(Clock);
         Services.AddMsgHatchTemplatesAdminUI();
         Services.AddSingleton(EditorSettings);
+        Queries.PreviewTemplateAsync(default, default!, default).ReturnsForAnyArgs(TemplateTestData.Ok<IReadOnlyList<TemplatePreview>>([]));
     }
+
+    protected FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
     protected TestEditorSettings EditorSettings { get; } = new();
 

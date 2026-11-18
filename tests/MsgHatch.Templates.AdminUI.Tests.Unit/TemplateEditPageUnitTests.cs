@@ -54,6 +54,38 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Input_ThreeChangesAndAPause_CallsThePreviewForTheStoredTextAndThenOneTimeForTheLastText()
+    {
+        var cut = RenderPage();
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>());
+
+        cut.Find("textarea").Input("Hi");
+        Clock.Advance(TimeSpan.FromMilliseconds(300));
+        cut.Find("textarea").Input("Hi {{Name}}");
+        Clock.Advance(TimeSpan.FromMilliseconds(300));
+        cut.Find("textarea").Input("Hi {{Name}}!");
+        Clock.Advance(TimeSpan.FromMilliseconds(499));
+        Queries.ReceivedWithAnyArgs(1).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>());
+
+        Clock.Advance(TimeSpan.FromMilliseconds(1));
+
+        cut.WaitForAssertion(() => Queries.ReceivedWithAnyArgs(2).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>()));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hi {{Name}}!", Arg.Any<CancellationToken>());
+        Assert.Equal(("col-lg-6", "col-lg-6"), (cut.Find("[data-column=text]").ClassName, cut.Find("[data-column=preview]").ClassName));
+    }
+
+    [Fact]
+    public void Render_PartWithNoSample_ShowsNoSampleDataAndCallsNoPreview()
+    {
+        GivenParts(Part(engines: "liquid") with { HasSample = false });
+
+        var cut = RenderPage();
+
+        Assert.Single(cut.FindAll("[data-column=preview] [data-state=no-sample]"));
+        Queries.DidNotReceiveWithAnyArgs().PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void Render_CompanyInTheQuery_ReadsTheTemplateOfTheCompany()
     {
         Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));

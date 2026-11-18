@@ -22,7 +22,14 @@ else
         <p class="text-secondary" data-state="new">There is no template for this part. A save makes it.</p>
     }
 
-    <DynamicComponent @ref="_editor" Type="_editorType" Parameters="EditorParameters(lookup)" />
+    <div class="row g-3">
+        <div class="col-lg-6" data-column="text">
+            <DynamicComponent @ref="_editor" Type="_editorType" Parameters="EditorParameters(lookup)" />
+        </div>
+        <div class="col-lg-6" data-column="preview">
+            <TemplatePreviewPane Lookup="lookup" Text="@_text" HasSample="_hasSample" />
+        </div>
+    </div>
 
     @if (!string.Equals(_text, _storedText, StringComparison.Ordinal))
     {
@@ -55,6 +62,7 @@ else
     private string _text = string.Empty;
     private long _version;
     private bool _exists;
+    private bool _hasSample;
     private bool _busy;
     private bool _saved;
     private bool _confirmDelete;
@@ -108,7 +116,8 @@ else
         _loadError = parts.IsError ? parts.Error : await LoadAsync(lookup.Value);
         if (_loadError is null)
         {
-            _editorType = Editors.EditorOf(EnginesOf(parts.Value, lookup.Value));
+            var part = TemplateParts.Of(parts.Value, lookup.Value);
+            (_editorType, _hasSample) = (Editors.EditorOf(part?.Engines ?? []), part?.HasSample == true);
             _lookup = lookup.Value;
         }
     }
@@ -202,7 +211,4 @@ else
         [nameof(TemplateEditorBase.Issues)] = _issues,
         [nameof(TemplateEditorBase.Disabled)] = _busy,
     };
-
-    private static IReadOnlyList<string> EnginesOf(IReadOnlyList<TemplatePartInfo> parts, TemplateLookup lookup) =>
-        parts.FirstOrDefault(part => part.Part == new TemplatePart(lookup.Part, lookup.Kind))?.Engines ?? [];
 }

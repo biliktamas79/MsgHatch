@@ -1,0 +1,116 @@
+@implements IDisposable
+@* The preview of a template text with the sample payload of each registration (D254, D256, D257). An html part is in an iframe with sandbox="" and srcdoc, so no script of a template runs, and a text part is in a pre. *@
+<div class="template-preview-pane" data-preview-pane>
+    @if (!HasSample)
+    {
+        <p class="text-secondary" data-state="no-sample">No sample data</p>
+    }
+    else if (_error is not null)
+    {
+        <ErrorAlert Error="_error" />
+    }
+    else if (_previews is null)
+    {
+        <p class="text-secondary" role="status" data-state="loading">Loading the preview.</p>
+    }
+    else if (_previews.Count == 0)
+    {
+        <p class="text-secondary" data-state="no-sample">No sample data</p>
+    }
+    else
+    {
+        var preview = SelectedOf(_previews);
+        if (_previews.Count > 1)
+        {
+            <select class="form-select form-select-sm mb-2" aria-label="Registration" data-field="registration" @bind="_registration">
+                @foreach (var item in _previews)
+                {
+                    <option value="@item.Registration">@item.Registration</option>
+                }
+            </select>
+        }
+
+        if (Lookup.Kind == TemplatePartKind.Html)
+        {
+            <iframe class="template-preview border rounded" sandbox="" srcdoc="@preview.Text" title="Preview of @preview.Registration" data-preview="html"></iframe>
+        }
+        else
+        {
+            <pre class="template-preview border rounded p-2" data-preview="text">@preview.Text</pre>
+        }
+    }
+</div>
+
+@code {
+    private static readonly TimeSpan _pause = TimeSpan.FromMilliseconds(500);
+    private CancellationTokenSource? _pending;
+    private (TemplateLookup Lookup, string Text)? _requested;
+    private IReadOnlyList<TemplatePreview>? _previews;
+    private Error? _error;
+    private string? _registration;
+
+    /// <summary>The message type, the language, the template scope, the part, and the kind of the text.</summary>
+    [Parameter, EditorRequired]
+    public TemplateLookup Lookup { get; set; }
+
+    /// <summary>The text to preview. The pane asks for the first text at once, and for each later text after a pause of 500 ms.</summary>
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>True when a registration that reads the part has a sample payload (D254). With false, the pane makes no call.</summary>
+    [Parameter, EditorRequired]
+    public bool HasSample { get; set; }
+
+    [Inject]
+    private IServiceProvider Services { get; set; } = default!;
+
+    [Inject]
+    private TimeProvider Clock { get; set; } = default!;
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _pending?.Cancel();
+        _pending?.Dispose();
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!HasSample || _requested == (Lookup, Text))
+        {
+            return;
+        }
+
+        var first = _requested is null;
+        _requested = (Lookup, Text);
+        var pending = Restart();
+        try
+        {
+            if (!first)
+            {
+                await Task.Delay(_pause, Clock, pending.Token);
+            }
+
+            var previews = await Services.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None).PreviewTemplateAsync(Lookup, Text, pending.Token);
+            if (!pending.IsCancellationRequested)
+            {
+                (_previews, _error) = previews.IsError ? (null, previews.Error) : (previews.Value, (Error?)null);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private CancellationTokenSource Restart()
+    {
+        _pending?.Cancel();
+        _pending?.Dispose();
+        _pending = new CancellationTokenSource();
+        return _pending;
+    }
+
+    private TemplatePreview SelectedOf(IReadOnlyList<TemplatePreview> previews) =>
+        previews.FirstOrDefault(preview => preview.Registration == _registration) ?? previews[0];
+}

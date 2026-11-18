@@ -17,8 +17,15 @@ else
 {
     <TemplateMetadata Lookup="lookup" Version="_source.Key.Version" />
 
-    <div data-view="text">
-        <HighlightedTextArea Text="@_source.Text" Segments="TextSegments.Of(_source.Text, lookup.Kind)" ReadOnly="true" />
+    <div class="row g-3">
+        <div class="col-lg-6" data-column="text">
+            <div data-view="text">
+                <HighlightedTextArea Text="@_source.Text" Segments="TextSegments.Of(_source.Text, lookup.Kind)" ReadOnly="true" />
+            </div>
+        </div>
+        <div class="col-lg-6" data-column="preview">
+            <TemplatePreviewPane Lookup="lookup" Text="@_source.Text" HasSample="_hasSample" />
+        </div>
     </div>
 
     <div class="d-flex gap-2 mt-2">
@@ -30,6 +37,7 @@ else
 @code {
     private TemplateLookup? _lookup;
     private TemplateSource? _source;
+    private bool _hasSample;
     private Error? _loadError;
 
     /// <summary>The name of the message type, from the address.</summary>
@@ -65,13 +73,14 @@ else
             return;
         }
 
-        var source = await Queries.GetTemplateAsync(lookup.Value, CancellationToken.None);
+        var parts = await Queries.GetTemplatePartsAsync(lookup.Value.Type, CancellationToken.None);
+        var source = parts.IsError ? parts.Error : await Queries.GetTemplateAsync(lookup.Value, CancellationToken.None);
         if (source.IsError)
         {
             _loadError = source.Error;
             return;
         }
 
-        (_lookup, _source) = (lookup.Value, source.Value);
+        (_lookup, _source, _hasSample) = (lookup.Value, source.Value, TemplateParts.Of(parts.Value, lookup.Value)?.HasSample == true);
     }
 }
