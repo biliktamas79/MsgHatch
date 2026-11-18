@@ -28,7 +28,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         var rows = cut.FindAll("tr[data-row]");
         Assert.Equal(2, rows.Count);
         Assert.Equal(["Requests", "en", "All companies", "subject", "PlainText", "7"], rows[0].Children.SkipLast(1).Select(static cell => cell.TextContent));
-        Assert.Equal(["View", "Edit"], rows[0].Children[^1].Children.Select(static button => button.TextContent));
+        Assert.Equal(["View", "Edit", "Delete"], rows[0].Children[^1].Children.Select(static button => button.TextContent));
         Assert.Equal(
             (TemplateAdminRoutes.View(company).TrimStart('/'), TemplateAdminRoutes.Edit(company).TrimStart('/')),
             (rows[1].QuerySelector("[data-action=view]")!.GetAttribute("href"), rows[1].QuerySelector("[data-action=edit]")!.GetAttribute("href")));
@@ -198,6 +198,63 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         cut.Find("[data-action=new]").Click();
 
         Assert.Equal((0, "http://localhost/"), (cut.FindAll(".modal-body .alert-danger").Count, Navigation.Uri));
+    }
+
+    [Fact]
+    public void ClickDelete_Row_ShowsTheQuestionWithTheDetailsOfThatRow()
+    {
+        GivenTemplates(new TemplateEntry(Lookup(), 7), new TemplateEntry(Lookup("hu", "42", "body", TemplatePartKind.Html), 3));
+        var cut = Render<TemplateListPage>();
+
+        cut.FindAll("tr[data-row]")[1].QuerySelector("[data-action=delete]")!.Click();
+
+        Assert.Equal(
+            ("Do you want to delete the body (Html) template of Requests in hu?", "Message type Requests | Language hu | Company 42 | Part body (Html) | Version 3", 1),
+            (cut.Find(".modal-body p").TextContent,
+                string.Join(" | ", cut.Find(".modal [data-delete-details] [data-metadata]").Children.Select(static item => item.TextContent)),
+                cut.FindAll(".modal [data-delete-effect]").Count));
+    }
+
+    [Fact]
+    public void ClickConfirmDelete_Row_DeletesTheTemplateOfThatRowAndLoadsTheListAgain()
+    {
+        var company = Lookup("hu", "42", "body", TemplatePartKind.Html);
+        GivenTemplates(new TemplateEntry(Lookup(), 7), new TemplateEntry(company, 3));
+        Commands.DeleteTemplateAsync(company, Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult<Error?>(null));
+        var cut = Render<TemplateListPage>();
+        cut.FindAll("tr[data-row]")[1].QuerySelector("[data-action=delete]")!.Click();
+
+        cut.Find("[data-action=confirm-delete]").Click();
+
+        Commands.Received(1).DeleteTemplateAsync(company, Arg.Any<CancellationToken>());
+        Queries.ReceivedWithAnyArgs(2).GetTemplatesAsync(default!, Arg.Any<CancellationToken>());
+        Assert.Empty(cut.FindAll(".modal"));
+    }
+
+    [Fact]
+    public void ClickCancelDelete_Row_DeletesNothing()
+    {
+        GivenTemplates(new TemplateEntry(Lookup(), 7));
+        var cut = Render<TemplateListPage>();
+        cut.Find("tr[data-row] [data-action=delete]").Click();
+
+        cut.Find("[data-action=cancel-delete]").Click();
+
+        Assert.Empty(cut.FindAll(".modal"));
+        Commands.DidNotReceiveWithAnyArgs().DeleteTemplateAsync(default, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClickConfirmDelete_Rejected_ShowsTheTextOfRejectedAboveTheList()
+    {
+        GivenTemplates(new TemplateEntry(Lookup(), 7));
+        Commands.DeleteTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult<Error?>(new Error(Errors.Rejected)));
+        var cut = Render<TemplateListPage>();
+        cut.Find("tr[data-row] [data-action=delete]").Click();
+
+        cut.Find("[data-action=confirm-delete]").Click();
+
+        Assert.Equal((AdminErrors.RejectedText, 1), (cut.Find("[data-list-body] > .alert-danger").TextContent, cut.FindAll("tr[data-row]").Count));
     }
 
     private void GivenTemplates(params TemplateEntry[] entries) =>

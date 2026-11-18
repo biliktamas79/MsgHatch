@@ -113,17 +113,8 @@ else
         <Details>
             @if (_subscription is { } stored)
             {
-                <dl class="row small mb-2">
-                    <dt class="col-4">Owner</dt><dd class="col-8" data-detail="owner">@SubscriptionTexts.OwnerOf(stored.Owner)</dd>
-                    <dt class="col-4">Message type</dt><dd class="col-8" data-detail="type">@stored.Type.Name</dd>
-                    <dt class="col-4">Kind</dt><dd class="col-8" data-detail="kind">@stored.Kind</dd>
-                    <dt class="col-4">Channel</dt><dd class="col-8" data-detail="channel">@(stored.Channel?.Name ?? "All channels")</dd>
-                    <dt class="col-4">Recipients</dt><dd class="col-8" data-detail="recipients">@SubscriptionTexts.RecipientsOf(stored.Recipients)</dd>
-                    <dt class="col-4">Mandatory</dt><dd class="col-8" data-detail="mandatory">@(stored.Mandatory ? "Yes" : "No")</dd>
-                    <dt class="col-4">Revision</dt><dd class="col-8 mb-0" data-detail="revision">@stored.Revision</dd>
-                </dl>
+                <SubscriptionDeleteDetails Subscription="stored" />
             }
-            <p class="small text-secondary mb-0" data-delete-effect>After the delete, the router does not use this subscription for the next messages.</p>
         </Details>
     </DeleteDialog>
 }

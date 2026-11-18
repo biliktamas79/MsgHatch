@@ -47,6 +47,7 @@
     </div>
 </Filters>
 <ChildContent>
+<ErrorAlert Error="_deleteError" />
 <AdminList TItem="Subscription" Items="_subscriptions" EmptyText="There are no subscriptions.">
     <Head>
         <tr><th>Owner</th><th>Message type</th><th>Kind</th><th>Channel</th><th>Recipients</th><th>Mandatory</th><th>Revision</th><th></th></tr>
@@ -60,7 +61,10 @@
             <td>@SubscriptionTexts.RecipientsOf(subscription.Recipients)</td>
             <td>@(subscription.Mandatory ? "Yes" : "No")</td>
             <td>@subscription.Revision</td>
-            <td class="text-end"><a class="btn btn-sm btn-outline-primary" data-action="edit" href="@SubscriptionAdminRoutes.Edit(subscription.Id).TrimStart('/')">Edit</a></td>
+            <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-primary" data-action="edit" href="@SubscriptionAdminRoutes.Edit(subscription.Id).TrimStart('/')">Edit</a>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" @onclick="() => _deleting = subscription">Delete</button>
+            </td>
         </tr>
     </Row>
 </AdminList>
@@ -71,8 +75,19 @@
     <SubscriptionEditor Cancelled="CloseNewAsync" Created="OnCreatedAsync" />
 </AdminDialog>
 
+<DeleteDialog Open="_deleting is not null" Question="Do you want to delete this subscription?" Confirmed="DeleteAsync" Cancelled="() => _deleting = null">
+    <Details>
+        @if (_deleting is { } stored)
+        {
+            <SubscriptionDeleteDetails Subscription="stored" />
+        }
+    </Details>
+</DeleteDialog>
+
 @code {
     private bool _newOpen;
+    private Subscription? _deleting;
+    private Error? _deleteError;
     private ErrorOr<IReadOnlyList<Subscription>>? _subscriptions;
     private IReadOnlyList<string> _types = [];
     private IReadOnlyList<string> _channels = [];
@@ -85,6 +100,8 @@
     public bool? New { get; set; }
 
     private ISubscriptionQueries Queries => Services.GetRequiredKeyedService<ISubscriptionQueries>(TenantKey.None);
+
+    private ISubscriptionCommands Commands => Services.GetRequiredKeyedService<ISubscriptionCommands>(TenantKey.None);
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -112,6 +129,21 @@
     {
         await CloseNewAsync();
         await LoadAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_deleting is not { } subscription)
+        {
+            return;
+        }
+
+        _deleting = null;
+        _deleteError = await Commands.DeleteAsync(subscription.Id, CancellationToken.None);
+        if (_deleteError is null)
+        {
+            await LoadAsync();
+        }
     }
 
     private async Task LoadAsync()

@@ -19,7 +19,8 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         var cut = Render<SubscriptionListPage>();
 
         var rows = cut.FindAll("tr[data-row]");
-        Assert.Equal(["Company 42", "Requests", "Channel", "Fax", "Scope users", "No", "3", "Edit"], rows[0].Children.Select(static cell => cell.TextContent));
+        Assert.Equal(["Company 42", "Requests", "Channel", "Fax", "Scope users", "No", "3"], rows[0].Children.SkipLast(1).Select(static cell => cell.TextContent));
+        Assert.Equal(["Edit", "Delete"], rows[0].Children[^1].Children.Select(static button => button.TextContent));
         Assert.Equal(["User 7", "Notices", "OptOut", "All channels"], rows[1].Children.Take(4).Select(static cell => cell.TextContent));
         Assert.Equal("msghatch/subscriptions/3f2c6b1e-7a40-4c1d-9a7e-1b2c3d4e5f60", rows[0].QuerySelector("a")!.GetAttribute("href"));
     }
@@ -202,6 +203,61 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         cut.Find(".modal [data-action=cancel]").Click();
 
         Assert.Equal((1, 0, "http://localhost/msghatch/subscriptions"), (opened, cut.FindAll(".modal").Count, Navigation.Uri));
+    }
+
+    [Fact]
+    public void ClickDelete_Row_ShowsTheQuestionWithTheDetailsOfThatRow()
+    {
+        GivenSubscriptions(Subscription());
+        var cut = Render<SubscriptionListPage>();
+
+        cut.Find("tr[data-row] [data-action=delete]").Click();
+
+        Assert.Equal(
+            "owner: Company 42, type: Requests, kind: Channel, channel: Fax, recipients: Scope users, mandatory: No, revision: 3",
+            string.Join(", ", cut.FindAll(".modal [data-delete-details] [data-detail]").Select(static dd => $"{dd.GetAttribute("data-detail")}: {dd.TextContent}")));
+        Assert.Single(cut.FindAll(".modal [data-delete-effect]"));
+    }
+
+    [Fact]
+    public void ClickConfirmDelete_Row_DeletesTheSubscriptionAndLoadsTheListAgain()
+    {
+        GivenSubscriptions(Subscription());
+        Commands.DeleteAsync(Id, Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult<Error?>(null));
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("tr[data-row] [data-action=delete]").Click();
+
+        cut.Find("[data-action=confirm-delete]").Click();
+
+        Commands.Received(1).DeleteAsync(Id, Arg.Any<CancellationToken>());
+        Queries.ReceivedWithAnyArgs(2).GetSubscriptionsAsync(default!, Arg.Any<CancellationToken>());
+        Assert.Empty(cut.FindAll(".modal"));
+    }
+
+    [Fact]
+    public void ClickCancelDelete_Row_DeletesNothing()
+    {
+        GivenSubscriptions(Subscription());
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("tr[data-row] [data-action=delete]").Click();
+
+        cut.Find("[data-action=cancel-delete]").Click();
+
+        Assert.Empty(cut.FindAll(".modal"));
+        Commands.DidNotReceiveWithAnyArgs().DeleteAsync(default, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClickConfirmDelete_Rejected_ShowsTheTextOfRejectedAboveTheList()
+    {
+        GivenSubscriptions(Subscription());
+        Commands.DeleteAsync(Id, Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult<Error?>(new Error(Errors.Rejected)));
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("tr[data-row] [data-action=delete]").Click();
+
+        cut.Find("[data-action=confirm-delete]").Click();
+
+        Assert.Equal((AdminErrors.RejectedText, 1), (cut.Find("[data-list-body] > .alert-danger").TextContent, cut.FindAll("tr[data-row]").Count));
     }
 
     private void GivenSubscriptions(params Subscription[] subscriptions) =>

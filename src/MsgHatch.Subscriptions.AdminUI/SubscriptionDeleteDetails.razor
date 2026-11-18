@@ -1,0 +1,17 @@
+@* The details of a subscription in the delete question (D262): its stored values, and what the router does after the delete. *@
+<dl class="row small mb-2">
+    <dt class="col-4">Owner</dt><dd class="col-8" data-detail="owner">@SubscriptionTexts.OwnerOf(Subscription.Owner)</dd>
+    <dt class="col-4">Message type</dt><dd class="col-8" data-detail="type">@Subscription.Type.Name</dd>
+    <dt class="col-4">Kind</dt><dd class="col-8" data-detail="kind">@Subscription.Kind</dd>
+    <dt class="col-4">Channel</dt><dd class="col-8" data-detail="channel">@(Subscription.Channel?.Name ?? "All channels")</dd>
+    <dt class="col-4">Recipients</dt><dd class="col-8" data-detail="recipients">@SubscriptionTexts.RecipientsOf(Subscription.Recipients)</dd>
+    <dt class="col-4">Mandatory</dt><dd class="col-8" data-detail="mandatory">@(Subscription.Mandatory ? "Yes" : "No")</dd>
+    <dt class="col-4">Revision</dt><dd class="col-8 mb-0" data-detail="revision">@Subscription.Revision</dd>
+</dl>
+<p class="small text-secondary mb-0" data-delete-effect>After the delete, the router does not use this subscription for the next messages.</p>
+
+@code {
+    /// <summary>The stored subscription to delete.</summary>
+    [Parameter, EditorRequired]
+    public Subscription Subscription { get; set; } = default!;
+}

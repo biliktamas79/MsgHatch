@@ -27,6 +27,7 @@
     </div>
 </Filters>
 <ChildContent>
+<ErrorAlert Error="_deleteError" />
 <AdminList TItem="TemplateEntry" Items="_entries" EmptyText="There are no templates.">
     <Head>
         <tr><th>Message type</th><th>Language</th><th>Company</th><th>Part</th><th>Kind</th><th>Version</th><th></th></tr>
@@ -42,12 +43,23 @@
             <td class="text-end text-nowrap">
                 <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@TemplateAdminRoutes.View(entry.Lookup).TrimStart('/')">View</a>
                 <a class="btn btn-sm btn-outline-primary" data-action="edit" href="@TemplateAdminRoutes.Edit(entry.Lookup).TrimStart('/')">Edit</a>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete" @onclick="() => _deleting = entry">Delete</button>
             </td>
         </tr>
     </Row>
 </AdminList>
 </ChildContent>
 </AdminListPage>
+
+<DeleteDialog Open="_deleting is not null" Question="@(_deleting is { } asked ? TemplateDeleteDetails.QuestionOf(asked.Lookup) : string.Empty)"
+              Confirmed="DeleteAsync" Cancelled="() => _deleting = null">
+    <Details>
+        @if (_deleting is { } entry)
+        {
+            <TemplateDeleteDetails Lookup="entry.Lookup" Version="entry.Version" />
+        }
+    </Details>
+</DeleteDialog>
 
 <AdminDialog Open="_newOpen" Title="New template">
     <ChildContent>
@@ -105,14 +117,33 @@
     private string _newCompany = string.Empty;
     private Error? _newError;
     private bool _newOpen;
+    private TemplateEntry? _deleting;
+    private Error? _deleteError;
 
     private ITemplateQueries Queries => Services.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None);
+
+    private ITemplateCommands Commands => Services.GetRequiredKeyedService<ITemplateCommands>(TenantKey.None);
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
         _parts = await Queries.GetTemplatePartsAsync(type: null, CancellationToken.None);
         await LoadEntriesAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_deleting is not { } entry)
+        {
+            return;
+        }
+
+        _deleting = null;
+        _deleteError = await Commands.DeleteTemplateAsync(entry.Lookup, CancellationToken.None);
+        if (_deleteError is null)
+        {
+            await LoadEntriesAsync();
+        }
     }
 
     private async Task LoadEntriesAsync()
