@@ -23,7 +23,7 @@ public sealed class MessageTypesPageUnitTests : SubscriptionPageContext
         Assert.Equal(["Requests", "Fax, Pager", "1"], rows[0].Children.Select(static cell => cell.TextContent));
         Assert.Equal(["Notices", "None", "0"], rows[1].Children.Select(static cell => cell.TextContent));
         Assert.Equal(
-            ("Message types", 2, SubscriptionAdminRoutes.List.TrimStart('/'), true),
+            ("Applied subscriptions", 2, SubscriptionAdminRoutes.List.TrimStart('/'), true),
             (cut.Find("[data-list-header] h1").TextContent, cut.FindAll("[data-list-filters] input").Count,
                 cut.Find("[data-list-header] a").GetAttribute("href"), cut.Find("[data-list-body]").QuerySelector("[data-list-scroll] table") is not null));
     }

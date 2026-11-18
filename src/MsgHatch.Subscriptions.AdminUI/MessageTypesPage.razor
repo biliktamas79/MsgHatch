@@ -1,8 +1,8 @@
 @attribute [Route(SubscriptionAdminRoutes.MessageTypes)]
 @inject IServiceProvider Services
-@* The message types with their states: the channels and the applied subscriptions of a scope (D239). *@
+@* The applied subscriptions of each message type: the channels and the applied subscriptions of a scope (D239, D273). *@
 
-<AdminListPage Title="Message types">
+<AdminListPage Title="Applied subscriptions">
 <Links>
     <a class="btn btn-link btn-sm" href="@SubscriptionAdminRoutes.List.TrimStart('/')">Back to the subscriptions</a>
 </Links>

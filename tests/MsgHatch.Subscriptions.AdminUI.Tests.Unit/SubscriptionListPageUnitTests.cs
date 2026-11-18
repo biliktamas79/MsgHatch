@@ -40,6 +40,15 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void Render_Page_LinksToTheAppliedSubscriptions()
+    {
+        var cut = Render<SubscriptionListPage>();
+
+        var link = cut.FindAll("[data-list-header] a.btn-link")[0];
+        Assert.Equal(("Applied subscriptions", SubscriptionAdminRoutes.MessageTypes.TrimStart('/')), (link.TextContent, link.GetAttribute("href")));
+    }
+
+    [Fact]
     public void Render_CompanyAndNamedUsersRecipients_ShowsTheTextOfEachKind()
     {
         GivenSubscriptions(Subscription(recipients: SubscriptionRecipients.Company),

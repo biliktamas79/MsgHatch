@@ -78,7 +78,7 @@ public sealed class AdminUiApplicationUnitTests
     [Theory]
     [InlineData("/msghatch/subscriptions", "Subscriptions")]
     [InlineData("/msghatch/subscriptions/00000000-0000-0000-0000-000000000001", "Subscriptions")]
-    [InlineData("/msghatch/subscriptions/message-types", "Message types")]
+    [InlineData("/msghatch/subscriptions/message-types", "Applied subscriptions")]
     [InlineData("/msghatch/subscriptions/verification", "Verification")]
     [InlineData("/msghatch/templates", "Templates")]
     public async Task Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive(string path, string link)
