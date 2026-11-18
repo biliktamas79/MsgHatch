@@ -32,6 +32,30 @@ internal sealed class TemplateEngineLoggingWrapper<TPayload>(
         return result;
     }
 
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<string>> RenderAsync(TemplateLookup lookup, string text, TPayload payload, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.RenderAsync(lookup, text, payload, ct);
+        LogRender(lookup, result, time.GetElapsedTime(started).TotalMilliseconds);
+        return result;
+    }
+
+    private void LogRender(TemplateLookup lookup, ErrorOr<string> result, double elapsedMs)
+    {
+        if (result.IsError)
+        {
+            var level = CheckLevelOf(result.Error);
+            logger.RenderDraftFailed(
+                level, lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs, result.Error.Type.Code,
+                result.Error.Type.Name, result.Error.Message);
+        }
+        else
+        {
+            logger.RenderDraftSucceeded(lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs);
+        }
+    }
+
     private void LogCheck(TemplateLookup lookup, ErrorOr<IReadOnlyList<TemplateIssue>> result, double elapsedMs)
     {
         if (result.IsError)
@@ -51,7 +75,10 @@ internal sealed class TemplateEngineLoggingWrapper<TPayload>(
         }
     }
 
-    /// <summary>A text that the check rejects is an expected answer to the input of an operator, not a fault of the system.</summary>
+    /// <summary>
+    /// A text that the check or the render of a draft rejects is an expected answer to the input of an operator, not a fault of
+    /// the system.
+    /// </summary>
     private static LogLevel CheckLevelOf(Error error) =>
         error.Type == Errors.TemplateInvalid ? LogLevel.Information : ErrorLogLevels.For(error);
 

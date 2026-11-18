@@ -19,9 +19,8 @@ internal sealed partial class LiquidTemplateCheck(FilterCollection filters) : As
 
     public static IReadOnlyList<TemplateIssue> Check(TemplateLookup lookup, string text, FilterCollection filters)
     {
-        ArgumentNullException.ThrowIfNull(text);
-        var id = $"{lookup.Type.Name}.{lookup.Language}.{lookup.Part}";
-        var template = LiquidTemplateCache.Parse(new TemplateSource(new TemplateKey(id, 0), text));
+        var draft = DraftOf(lookup, text);
+        var template = LiquidTemplateCache.Parse(draft);
         if (template.IsError)
         {
             return [ParseIssueOf(template.Error.Message ?? template.Error.Type.Name)];
@@ -29,7 +28,14 @@ internal sealed partial class LiquidTemplateCheck(FilterCollection filters) : As
 
         var check = new LiquidTemplateCheck(filters);
         check.VisitTemplate(template.Value);
-        return check._fault is { } fault ? [new TemplateIssue($"The template {id} {fault}.", Line: null, Column: null)] : [];
+        return check._fault is { } fault ? [new TemplateIssue($"The template {draft.Key.Id} {fault}.", Line: null, Column: null)] : [];
+    }
+
+    /// <summary>Gives a text that is not stored the key of its lookup, so that a check and a render of a draft name it in one way (D255).</summary>
+    public static TemplateSource DraftOf(TemplateLookup lookup, string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return new TemplateSource(new TemplateKey($"{lookup.Type.Name}.{lookup.Language}.{lookup.Part}", 0), text);
     }
 
     protected override Expression VisitFilterExpression(FilterExpression filterExpression)

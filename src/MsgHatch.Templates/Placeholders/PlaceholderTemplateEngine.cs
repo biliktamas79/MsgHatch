@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
@@ -51,11 +52,24 @@ public sealed class PlaceholderTemplateEngine<TPayload> : ITemplateEngine<TPaylo
     /// <inheritdoc/>
     public ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(text);
-        var source = new TemplateSource(new TemplateKey($"{lookup.Type.Name}.{lookup.Language}.{lookup.Part}", 0), text);
-        IReadOnlyList<TemplateIssue> issues = TemplateParser.Parse(source, lookup.Kind, TPayload.Writer).Error is { } error
+        IReadOnlyList<TemplateIssue> issues = TemplateParser.Parse(DraftOf(lookup, text), lookup.Kind, TPayload.Writer).Error is { } error
             ? [new TemplateIssue(error.Message ?? error.Type.Name, Line: null, Column: null)]
             : [];
         return ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues));
+    }
+
+    /// <inheritdoc/>
+    public ValueTask<ErrorOr<string>> RenderAsync(TemplateLookup lookup, string text, TPayload payload, CancellationToken ct)
+    {
+        var parsed = TemplateParser.Parse(DraftOf(lookup, text), lookup.Kind, TPayload.Writer);
+        return parsed.IsError
+            ? ValueTask.FromResult<ErrorOr<string>>(parsed.Error)
+            : new PlaceholderTemplate<TPayload>(parsed.Value, lookup).RenderAsync(payload, CultureInfo.GetCultureInfo(lookup.Language), ct);
+    }
+
+    private static TemplateSource DraftOf(TemplateLookup lookup, string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return new TemplateSource(new TemplateKey($"{lookup.Type.Name}.{lookup.Language}.{lookup.Part}", 0), text);
     }
 }

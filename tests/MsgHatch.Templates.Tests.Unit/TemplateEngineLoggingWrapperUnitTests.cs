@@ -256,6 +256,81 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_subject));
     }
 
+    [Fact]
+    public async Task RenderAsync_InnerResult_ReturnsItUnchanged()
+    {
+        // Arrange
+        await using var provider = BuildWith(ARenderingEngine(_subject));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var result = await RenderAsync(scope.ServiceProvider);
+
+        // Assert
+        Assert.Equal(_subject, result.Value);
+    }
+
+    public static TheoryData<string, LogLevel, int> RenderLogRows => new()
+    {
+        { "rendered", LogLevel.Debug, 2031 },
+        { nameof(Errors.TemplateInvalid), LogLevel.Information, 2032 },
+        { nameof(Errors.Unavailable), LogLevel.Warning, 2032 },
+        { nameof(Errors.ValidationFailed), LogLevel.Error, 2032 },
+    };
+
+    [Theory]
+    [MemberData(nameof(RenderLogRows))]
+    public async Task RenderAsync_Result_LogsItsLevelAndEventIdWithTheTenant(string result, LogLevel expectedLevel, int expectedEventId)
+    {
+        // Arrange
+        ErrorOr<string> rendered = result switch
+        {
+            nameof(Errors.TemplateInvalid) => new Error(Errors.TemplateInvalid),
+            nameof(Errors.Unavailable) => new Error(Errors.Unavailable),
+            nameof(Errors.ValidationFailed) => new Error(Errors.ValidationFailed),
+            _ => "Rendered",
+        };
+        await using var provider = BuildWith(ARenderingEngine(rendered));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await RenderAsync(scope.ServiceProvider);
+
+        // Assert
+        var record = Assert.Single(provider.LogRecords());
+        Assert.Equal((expectedLevel, expectedEventId, "t1"), (record.Level, record.Id.Id, record.GetStructuredStateValue("Tenant")));
+    }
+
+    [Fact]
+    public async Task RenderAsync_DraftAndPayloadOfAnEmail_NoLogRecordContainsTheTextThePayloadOrTheOutput()
+    {
+        // Arrange
+        const string output = "Rendered for client1@example.com";
+        await using var provider = BuildWith(ARenderingEngine(output));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await RenderAsync(scope.ServiceProvider);
+
+        // Assert
+        Assert.NotEmpty(provider.LogRecords());
+        Assert.DoesNotContain(
+            provider.LogRecords(),
+            static record => record.ContainsText(_subject) || record.ContainsText(_address) || record.ContainsText(output));
+    }
+
+    private static ITemplateEngine<OrderEmail> ARenderingEngine(ErrorOr<string> result)
+    {
+        var engine = Substitute.For<ITemplateEngine<OrderEmail>>();
+        engine.RenderAsync(default, default!, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(result));
+        return engine;
+    }
+
+    private static ValueTask<ErrorOr<string>> RenderAsync(IServiceProvider scope) =>
+        scope.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(_t1).RenderAsync(
+            new TemplateLookup(new MessageType("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), _subject,
+            new OrderEmail(_address, 1, 2m, new DateTime(2030, 1, 2, 0, 0, 0, DateTimeKind.Utc)), Ct);
+
     private static ITemplateEngine<OrderEmail> ACheckingEngine(ErrorOr<IReadOnlyList<TemplateIssue>> result)
     {
         var engine = Substitute.For<ITemplateEngine<OrderEmail>>();

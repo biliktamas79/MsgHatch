@@ -1,3 +1,4 @@
+using System.Globalization;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Templates;
 
@@ -28,4 +29,12 @@ internal sealed class LiquidTemplateEngine<TPayload>(TemplateSelector selector, 
 
     public ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct) =>
         ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(LiquidTemplateCheck.Check(lookup, text, LiquidOptions<TPayload>.Options.Filters)));
+
+    public async ValueTask<ErrorOr<string>> RenderAsync(TemplateLookup lookup, string text, TPayload payload, CancellationToken ct)
+    {
+        var template = LiquidTemplateCache.Parse(LiquidTemplateCheck.DraftOf(lookup, text));
+        return template.IsError
+            ? template.Error
+            : await new LiquidTemplate<TPayload>(template.Value, lookup, time).RenderAsync(payload, CultureInfo.GetCultureInfo(lookup.Language), ct);
+    }
 }

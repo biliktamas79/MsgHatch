@@ -15,4 +15,7 @@ public sealed class KeyCapturingEngine(TenantKey key) : ITemplateEngine<OrderEma
 
     public ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct) =>
         ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue([]));
+
+    public ValueTask<ErrorOr<string>> RenderAsync(TemplateLookup lookup, string text, OrderEmail payload, CancellationToken ct) =>
+        ValueTask.FromResult<ErrorOr<string>>(new Error(Errors.NotFound));
 }

@@ -28,4 +28,20 @@ public interface ITemplateEngine<TPayload>
     /// (D241).
     /// </returns>
     ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct);
+
+    /// <summary>
+    /// Renders the text of one part that is not stored, for example the draft of an editor, with no store read and no cache
+    /// entry (D255). It renders with the culture of the language of the lookup, an html part with the HTML encoder, and a text
+    /// part with no encoder (D210).
+    /// </summary>
+    /// <param name="lookup">The message type, the language, the template scope, the part, and its kind.</param>
+    /// <param name="text">The text of the part.</param>
+    /// <param name="payload">The payload, for example the sample of a registration (D254).</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// The output string, <see cref="Errors.TemplateInvalid"/> with the message of the first issue for a text that does not
+    /// parse, or the error of the render.
+    /// </returns>
+    /// <exception cref="System.Globalization.CultureNotFoundException">The language of the lookup is not the name of a culture.</exception>
+    ValueTask<ErrorOr<string>> RenderAsync(TemplateLookup lookup, string text, TPayload payload, CancellationToken ct);
 }
