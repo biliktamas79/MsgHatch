@@ -1788,7 +1788,7 @@ Goal: MsgHatch ships the list and edit pages of the subscriptions and the templa
    - The page edits the settings of a channel as JSON text, with the entry `Settings:{channel}` of the content type registry, or as `JsonChannelSettings` (D229).
    - A page runs a routing verification and shows its report (D163).
    - The public route builders `SubscriptionAdminRoutes`, with the pages under `/msghatch/subscriptions`, and the setup method `AddMsgHatchSubscriptionsAdminUI()`.
-6. Add `examples/AdminUiExample`, an Interactive Server host. It uses `AddMsgHatch` with `MsgHatchRoles.None`, `UseSubscriptionApiClient`, `UseTemplateApiClient`, both admin UIs, and the Liquid editor. It calls the APIs of `ExampleApp` with a token from its configuration, which git ignores. It loads Bootstrap 5.3 as a static file of its `wwwroot`, has no sign-in, and listens only on localhost.
+6. Add `examples/AdminUiExample`, an Interactive Server host. It uses `AddMsgHatch` with `MsgHatchRoles.None`, `UseSubscriptionApiClient`, `UseTemplateApiClient`, both admin UIs, and the Liquid editor. It calls the APIs of `ExampleApp` with a token from its configuration, which git ignores. It loads Bootstrap 5.3 from a pinned CDN address, so the repository holds no copy and no step downloads a file. It has no sign-in, and listens only on localhost.
 7. Add the section 4.24 "Admin UIs" to the design, with the editor extension point. Sections 4.2 and 5.1 get the packages, and `AGENTS.md` gets the command that runs the example.
 
 Tests, with bUnit, in `tests/MsgHatch.AdminUI.Tests.Unit`, `tests/MsgHatch.Templates.AdminUI.Tests.Unit`, `tests/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit`, `tests/MsgHatch.Subscriptions.AdminUI.Tests.Unit`, and `tests/AdminUiExample.Tests.Unit`:
