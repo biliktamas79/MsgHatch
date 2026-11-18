@@ -40,6 +40,19 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_StoredTemplate_HasTheUppercaseTitlesEditorAndLivePreviewAboveTheColumns()
+    {
+        var cut = RenderPage();
+
+        var editor = cut.Find("[data-column=text] > h2[data-column-title]");
+        var preview = cut.Find("[data-column=preview] > h2[data-column-title]");
+        Assert.Equal(
+            ("Editor", "Live preview", true, true),
+            (editor.TextContent, preview.TextContent, editor.ClassList.Contains("text-uppercase"), preview.ClassList.Contains("text-uppercase")));
+        Assert.Equal("h2", cut.Find("[data-column=text]").FirstElementChild!.LocalName);
+    }
+
+    [Fact]
     public void Render_StoredTemplate_PutsBackOnTheLeftAndDeleteAndSaveOnTheRight()
     {
         var cut = RenderPage();

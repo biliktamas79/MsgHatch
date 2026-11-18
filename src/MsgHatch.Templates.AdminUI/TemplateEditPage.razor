@@ -24,9 +24,11 @@ else
 
     <div class="row g-3">
         <div class="col-lg-6" data-column="text">
+            <h2 class="h6 text-uppercase text-body-secondary mb-2" data-column-title>Editor</h2>
             <DynamicComponent @ref="_editor" Type="_editorType" Parameters="EditorParameters(lookup)" />
         </div>
         <div class="col-lg-6" data-column="preview">
+            <h2 class="h6 text-uppercase text-body-secondary mb-2" data-column-title>Live preview</h2>
             <TemplatePreviewPane Lookup="lookup" Text="@_text" HasSample="_hasSample" />
         </div>
     </div>
