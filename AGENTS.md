@@ -4,7 +4,7 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 30 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, the query and command interfaces of the management APIs with their contracts packages, the HTTP clients of the management APIs with their source generator, the admin UIs of the subscriptions and the templates with the Liquid editor, the template preview with sample payloads, and one layout of the admin pages.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 31 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, the query and command interfaces of the management APIs with their contracts packages, the HTTP clients of the management APIs with their source generator, the admin UIs of the subscriptions and the templates with the Liquid editor, the template preview with sample payloads, one layout of the admin pages, and the registry queries with their HTTP client and the read-only pages of the channels and the message types.
 
 The plan has two documents:
 
@@ -30,10 +30,10 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 | Dispatch signal | `MsgHatch.Dispatch.NamedPipes` |
 | API contracts | `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts` |
-| API clients | `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
+| API clients | `MsgHatch.Api.Client`, `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
 | Admin UIs | `MsgHatch.AdminUI`, `MsgHatch.Subscriptions.AdminUI`, `MsgHatch.Templates.AdminUI`, `MsgHatch.Templates.Liquid.AdminUI` |
 
-Phase 31 (the registry queries and pages) has a detailed plan. No phase after phase 31 has one yet. The section "Later phases" of the roadmap lists the next items.
+No phase after phase 31 has a detailed plan yet. The section "Later phases" of the roadmap lists the next items.
 
 ## Commands
 
