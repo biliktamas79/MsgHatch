@@ -33,7 +33,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         var cut = Render<SubscriptionListPage>();
 
         Assert.Equal(
-            ("Subscriptions", 3, "+ New subscription", 2, true),
+            ("Subscriptions", 5, "+ New subscription", 2, true),
             (cut.Find("[data-list-header] h1").TextContent, cut.FindAll("[data-list-filters] select").Count,
                 cut.Find("[data-list-actions] [data-action=new]").TextContent, cut.FindAll("[data-list-header] a.btn-link").Count,
                 cut.Find("[data-list-body]").QuerySelector("[data-list-scroll] table") is not null));
@@ -89,6 +89,34 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         Assert.Equal(["", "Requests", "Notices"], cut.FindAll("#msghatch-subscription-type option").Select(static option => option.GetAttribute("value")));
         Assert.Equal(["", "Fax", "Pager"], cut.FindAll("#msghatch-subscription-channel option").Select(static option => option.GetAttribute("value")));
+    }
+
+    [Fact]
+    public void Render_Filters_OffersEachKindAndBothValuesOfMandatory()
+    {
+        GivenSubscriptions();
+
+        var cut = Render<SubscriptionListPage>();
+
+        Assert.Equal(["", "Channel", "OptOut"], cut.FindAll("#msghatch-subscription-kind option").Select(static option => option.GetAttribute("value")));
+        Assert.Equal(["", "Yes", "No"], cut.FindAll("#msghatch-subscription-mandatory option").Select(static option => option.GetAttribute("value")));
+    }
+
+    [Fact]
+    public void ClickShow_KindAndMandatory_ShowsOnlyTheSubscriptionsThatMatchBoth()
+    {
+        GivenSubscriptions(
+            Subscription() with { Mandatory = true },
+            Subscription(id: Guid.Empty),
+            Subscription(kind: SubscriptionKind.OptOut, id: new Guid("00000000-0000-0000-0000-000000000002")) with { Mandatory = true, Channel = null, Settings = null });
+        var cut = Render<SubscriptionListPage>();
+
+        cut.Find("#msghatch-subscription-kind").Change("Channel");
+        cut.Find("#msghatch-subscription-mandatory").Change("Yes");
+        cut.Find("[data-action=filter]").Click();
+
+        var row = Assert.Single(cut.FindAll("tr[data-row]"));
+        Assert.Equal(("Channel", "Yes"), (row.Children[2].TextContent, row.Children[5].TextContent));
     }
 
     [Fact]

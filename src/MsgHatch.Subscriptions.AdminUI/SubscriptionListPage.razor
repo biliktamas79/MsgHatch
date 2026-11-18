@@ -1,7 +1,7 @@
 @attribute [Route(SubscriptionAdminRoutes.List)]
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
-@* The subscriptions, with filters for the owner level, the message type, and the channel (D239), and the dialog of a new subscription (D260). *@
+@* The subscriptions, with filters for the owner level, the message type, the kind, the channel, and the mandatory flag (D239), and the dialog of a new subscription (D260). *@
 
 <AdminListPage Title="Subscriptions">
 <Links>
@@ -33,6 +33,16 @@
         </select>
     </div>
     <div>
+        <label class="form-label small mb-1" for="msghatch-subscription-kind">Kind</label>
+        <select id="msghatch-subscription-kind" class="form-select form-select-sm" @bind="_kindFilter">
+            <option value="">All</option>
+            @foreach (var kind in Enum.GetValues<SubscriptionKind>())
+            {
+                <option value="@kind">@kind</option>
+            }
+        </select>
+    </div>
+    <div>
         <label class="form-label small mb-1" for="msghatch-subscription-channel">Channel</label>
         <select id="msghatch-subscription-channel" class="form-select form-select-sm" @bind="_channelFilter">
             <option value="">All</option>
@@ -40,6 +50,14 @@
             {
                 <option value="@channel">@channel</option>
             }
+        </select>
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-subscription-mandatory">Mandatory</label>
+        <select id="msghatch-subscription-mandatory" class="form-select form-select-sm" @bind="_mandatoryFilter">
+            <option value="">All</option>
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
         </select>
     </div>
     <div>
@@ -94,6 +112,8 @@
     private string _levelFilter = string.Empty;
     private string _typeFilter = string.Empty;
     private string _channelFilter = string.Empty;
+    private string _kindFilter = string.Empty;
+    private string _mandatoryFilter = string.Empty;
 
     /// <summary>True from the query <c>new=true</c> of <see cref="SubscriptionAdminRoutes.New"/>, which opens the dialog of a new subscription.</summary>
     [SupplyParameterFromQuery(Name = "new")]
@@ -164,7 +184,11 @@
 
         SubscriptionLevel? level = Enum.TryParse<SubscriptionLevel>(_levelFilter, out var known) && Enum.IsDefined(known) ? known : null;
         var found = await Queries.GetSubscriptionsAsync(new SubscriptionQuery(Type: type, Level: level), CancellationToken.None);
-        _subscriptions = found.IsError || _channelFilter.Length == 0 ? found
-            : ErrorOr<IReadOnlyList<Subscription>>.ForValue([.. found.Value.Where(subscription => subscription.Channel?.Name == _channelFilter)]);
+        _subscriptions = found.IsError ? found : ErrorOr<IReadOnlyList<Subscription>>.ForValue([.. found.Value.Where(MatchesTheListFilters)]);
     }
+
+    private bool MatchesTheListFilters(Subscription subscription) =>
+        (_channelFilter.Length == 0 || subscription.Channel?.Name == _channelFilter)
+        && (_kindFilter.Length == 0 || string.Equals(subscription.Kind.ToString(), _kindFilter, StringComparison.Ordinal))
+        && (_mandatoryFilter.Length == 0 || subscription.Mandatory == (_mandatoryFilter == "Yes"));
 }
