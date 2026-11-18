@@ -172,6 +172,38 @@ public sealed class RegistryResponsesUnitTests
         Assert.Equal(Errors.SerializationFailed.Code, mapped.Error?.Type.Code);
     }
 
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData(503, "Unavailable", true)]
+    public void ToCheck_BodyOfACheck_GivesTheCheckOfTheChannel(int? errorCode, string? errorName, bool changed)
+    {
+        // Arrange
+        var check = new ChannelCheck(_sms, errorCode, errorName, changed);
+
+        // Act
+        var mapped = ChannelCheckResponse.From(check).ToCheck();
+
+        // Assert
+        Assert.Equal(check, mapped.Value);
+    }
+
+    [Theory]
+    [InlineData("not a name", null, null)]
+    [InlineData(null, null, null)]
+    [InlineData("Sms", 503, null)]
+    [InlineData("Sms", null, "Unavailable")]
+    public void ToCheck_ValueThatIsNotValid_GivesSerializationFailed(string? channel, int? errorCode, string? errorName)
+    {
+        // Arrange
+        var body = new ChannelCheckResponse(channel!, errorCode, errorName, Changed: false);
+
+        // Act
+        var mapped = body.ToCheck();
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed.Code, mapped.Error?.Type.Code);
+    }
+
     private static RegistryChannelResponse AChannelResponse() => new("Email", "Email", null, ChannelFeatures.None, Enabled: true, Revision: 0);
 
     private static RegistryMessageTypeResponse AMessageTypeResponse() => new("Invoices", null, null, ["Email"], Enabled: true, [], Revision: 0);

@@ -9,6 +9,7 @@ internal static class RegistryApiRoutes
     public const string Channels = "/channels";
     public const string Channel = Channels + "/{channel}";
     public const string ChannelHistory = Channel + "/history";
+    public const string ChannelCheck = Channel + "/check";
     public const string MessageTypes = "/message-types";
     public const string MessageType = MessageTypes + "/{type}";
 }

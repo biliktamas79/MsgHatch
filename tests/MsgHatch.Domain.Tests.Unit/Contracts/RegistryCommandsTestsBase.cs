@@ -201,7 +201,7 @@ public abstract class RegistryCommandsTestsBase<T>
             var transport = Substitute.For<ITransport>();
             transport.Channel.Returns(TestChannel.Id);
             transport.CheckHealthAsync(Ct).ReturnsForAnyArgs(_ => ValueTask.FromResult(error));
-            RegistryTestHost.AddRegistry(services).UseTransport(_ => transport);
+            RegistryTestHost.AddRegistry(services).UseTransport(_ => transport).Services.AddSingleton<TimeProvider>(TestHost.NewFakeTime());
             addServices?.Invoke(services);
         });
 

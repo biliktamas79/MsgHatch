@@ -14,10 +14,11 @@ public static class RegistryEndpoints
     /// <summary>
     /// Maps the registry routes. <c>GET {prefix}/channels</c> and <c>GET {prefix}/message-types</c> give the values of
     /// <see cref="IMessageRegistry"/> with the revision of each entry, through <c>IRegistryQueries</c> of <c>TenantKey.None</c>
-    /// (D270). With an <see cref="IRegistryWriter"/>, for example
+    /// (D270). <c>POST {prefix}/channels/{channel}/check</c> runs the channel check of <c>IRegistryCommands</c> of
+    /// <c>TenantKey.None</c> (D283). With an <see cref="IRegistryWriter"/>, for example
     /// from <c>UseStoredRegistry</c>, it also maps <c>PUT</c> and <c>DELETE {prefix}/channels/{channel}</c> and
-    /// <c>{prefix}/message-types/{type}</c>. With the in-memory reader of a setup in code, it maps only the GET routes,
-    /// and each revision is 0.
+    /// <c>{prefix}/message-types/{type}</c>. With the in-memory reader of a setup in code, it maps only the GET routes and
+    /// the check, and each revision is 0.
     /// </summary>
     /// <param name="routes">The endpoint route builder, for example the web application.</param>
     /// <param name="prefix">The path of the route group.</param>

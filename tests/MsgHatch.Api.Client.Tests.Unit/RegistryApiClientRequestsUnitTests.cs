@@ -145,6 +145,20 @@ public sealed class RegistryApiClientRequestsUnitTests
         Assert.Equal(Errors.SerializationFailed, history.Error?.Type);
     }
 
+    [Fact]
+    public async Task CheckChannelAsync_ErrorCodeWithNoErrorName_GivesSerializationFailed()
+    {
+        // Arrange
+        await using var provider = AProvider(new StubHandler(HttpStatusCode.OK, """{"channel":"Email","errorCode":503,"errorName":null,"changed":true}"""));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var check = await scope.ServiceProvider.GetRequiredService<IRegistryCommands>().CheckChannelAsync(new ChannelId("Email"), Ct);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, check.Error?.Type);
+    }
+
     private static ServiceProvider AProvider(StubHandler handler) =>
         TestHost.CreateServices().AddMsgHatch(static o => o.Roles = MsgHatchRoles.None)
             .UseRegistryApiClient(HttpRegistryHost.BaseAddress, http => http.ConfigurePrimaryHttpMessageHandler(() => handler)).Services.Build();

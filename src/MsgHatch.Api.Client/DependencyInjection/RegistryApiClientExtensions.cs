@@ -7,9 +7,10 @@ using MsgHatch.Domain.Management;
 namespace MsgHatch.Api.Client.DependencyInjection;
 
 /// <summary>
-/// The setup methods of the HTTP client of the registry API (D271, section 4.23). Each method selects the HTTP client in
-/// place of the in-process default of <see cref="IRegistryQueries"/>, as a scoped tenant service with its logging wrapper,
-/// through <see cref="MsgHatchBuilder.UseRegistryQueries"/>. So a second selection gives a setup error. The options bind
+/// The setup methods of the HTTP client of the registry API (D271, D283, section 4.23). Each method selects the HTTP client
+/// in place of the in-process defaults of <see cref="IRegistryQueries"/> and <see cref="IRegistryCommands"/>, as scoped
+/// tenant services with their logging wrappers, through <see cref="MsgHatchBuilder.UseRegistryQueries"/> and
+/// <see cref="MsgHatchBuilder.UseRegistryCommands"/>. So a second selection gives a setup error. The options bind
 /// from the section <c>MsgHatch:RegistryApiClient</c>, a value from code wins, and an options error stops the start of the
 /// host. The host adds its own handlers, for example the authentication, with <c>configureHttp</c>.
 /// </summary>
@@ -17,7 +18,7 @@ public static class RegistryApiClientExtensions
 {
     private const string _queriesClient = "MsgHatch.RegistryApi.Queries";
 
-    /// <summary>Selects the HTTP client for <see cref="IRegistryQueries"/>.</summary>
+    /// <summary>Selects the HTTP client for <see cref="IRegistryQueries"/> and <see cref="IRegistryCommands"/>.</summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
     /// <param name="configureHttp">An optional change of the HTTP client, for example a handler that adds a token.</param>
@@ -41,10 +42,12 @@ public static class RegistryApiClientExtensions
             client.Timeout = settings.Timeout;
         });
         configureHttp?.Invoke(http);
-        return builder.UseRegistryQueries(static (services, _) => new HttpRegistryQueries(ApiOf(services)), nameof(UseRegistryApiClient));
+        return builder
+            .UseRegistryQueries(static (services, _) => new HttpRegistryQueries(ApiOf(services)), nameof(UseRegistryApiClient))
+            .UseRegistryCommands(static (services, _) => new HttpRegistryCommands(ApiOf(services)), nameof(UseRegistryApiClient));
     }
 
-    /// <summary>Selects the HTTP client of the API at a base address for <see cref="IRegistryQueries"/>.</summary>
+    /// <summary>Selects the HTTP client of the API at a base address for <see cref="IRegistryQueries"/> and <see cref="IRegistryCommands"/>.</summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="baseAddress">The absolute URI of the host of the API.</param>
     /// <param name="configureHttp">An optional change of the HTTP client, for example a handler that adds a token.</param>

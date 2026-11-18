@@ -117,6 +117,37 @@ public sealed record ChannelStateResponse(
     }
 }
 
+/// <summary>The body of <c>POST {prefix}/channels/{channel}/check</c> (section 4.20, D283).</summary>
+/// <param name="Channel">The channel name.</param>
+/// <param name="ErrorCode">The code of the error of the health check, or null when the check gave no error.</param>
+/// <param name="ErrorName">The name of the error of the health check, or null when the check gave no error.</param>
+/// <param name="Changed">True when the check added a state row of the channel.</param>
+public sealed record ChannelCheckResponse(string Channel, int? ErrorCode, string? ErrorName, bool Changed)
+{
+    /// <summary>Gives the body of a channel check (D228).</summary>
+    /// <param name="check">The result of the check.</param>
+    /// <returns>The body.</returns>
+    /// <exception cref="ArgumentNullException">The check is null.</exception>
+    public static ChannelCheckResponse From(ChannelCheck check)
+    {
+        ArgumentNullException.ThrowIfNull(check);
+        return new ChannelCheckResponse(check.Channel.Name, check.ErrorCode, check.ErrorName, check.Changed);
+    }
+
+    /// <summary>
+    /// Gives the check of the body. A channel name that is not valid, or an error code with no error name or an error name
+    /// with no error code, gives <see cref="Errors.SerializationFailed"/> (D228).
+    /// </summary>
+    /// <returns>The check, or an error.</returns>
+    public ErrorOr<ChannelCheck> ToCheck()
+    {
+        var channel = RegistryWireValues.ChannelOf(Channel);
+        return channel.IsError ? channel.Error
+            : ErrorCode is null != ErrorName is null ? RegistryWireValues.Invalid("A failed check has an error code and an error name.")
+            : new ChannelCheck(channel.Value, ErrorCode, ErrorName, Changed);
+    }
+}
+
 /// <summary>One message type in the body of <c>GET {prefix}/message-types</c> (section 4.20, D270).</summary>
 /// <param name="Name">The message type name.</param>
 /// <param name="DisplayName">The display name, or null.</param>

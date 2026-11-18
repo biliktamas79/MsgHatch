@@ -17,7 +17,8 @@ namespace MsgHatch.AspNetCore;
 /// <summary>
 /// The routes of the registry administration (section 4.20). The GET routes call <see cref="IRegistryQueries"/> of
 /// <see cref="TenantKey.None"/>, because the registry belongs to the whole system (D269, D270). Each route writes its
-/// errors as problem details with the status of <see cref="ErrorProblems"/> and the member <c>errorType</c> (D233).
+/// errors as problem details with the status of <see cref="ErrorProblems"/> and the member <c>errorType</c> (D233). The
+/// POST route of the channel check calls <see cref="IRegistryCommands"/> of <see cref="TenantKey.None"/> (D283).
 /// </summary>
 internal static class RegistryRoutes
 {
@@ -27,6 +28,7 @@ internal static class RegistryRoutes
     {
         group.MapGet(RegistryApiRoutes.Channels, (Delegate)GetChannelsAsync);
         group.MapGet(RegistryApiRoutes.ChannelHistory, GetChannelHistoryAsync);
+        group.MapPost(RegistryApiRoutes.ChannelCheck, CheckChannelAsync);
         group.MapGet(RegistryApiRoutes.MessageTypes, (Delegate)GetMessageTypesAsync);
         if (writable)
         {
@@ -55,6 +57,13 @@ internal static class RegistryRoutes
         var history = await Queries(context).GetChannelHistoryAsync(id.Value, context.RequestAborted);
         return history.IsError ? Problem(history.Error) : TypedResults.Json<IReadOnlyList<ChannelStateResponse>>(
             [.. history.Value.Select(ChannelStateResponse.From)], _json.IReadOnlyListChannelStateResponse);
+    }
+
+    private static async Task<IResult> CheckChannelAsync(HttpContext context, string channel)
+    {
+        var id = ChannelOf(channel);
+        return id.IsError ? Problem(id.Error!) : Json(
+            await Commands(context).CheckChannelAsync(id.Value, context.RequestAborted), ChannelCheckResponse.From, _json.ChannelCheckResponse);
     }
 
     private static async Task<IResult> GetMessageTypesAsync(HttpContext context)
@@ -102,6 +111,8 @@ internal static class RegistryRoutes
     private static IRegistryWriter Writer(HttpContext context) => context.RequestServices.GetRequiredService<IRegistryWriter>();
 
     private static IRegistryQueries Queries(HttpContext context) => context.RequestServices.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
+
+    private static IRegistryCommands Commands(HttpContext context) => context.RequestServices.GetRequiredKeyedService<IRegistryCommands>(TenantKey.None);
 
     private static ErrorOr<IReadOnlyList<ChannelId>> ChannelsOf(IReadOnlyList<string> names)
     {

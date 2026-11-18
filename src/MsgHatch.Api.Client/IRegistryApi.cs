@@ -5,7 +5,7 @@ using MsgHatch.Http;
 namespace MsgHatch.Api.Client;
 
 /// <summary>
-/// The GET routes of the registry API (section 4.20, D271). The generator writes <c>RegistryApi</c>, which sends each call
+/// The GET routes and the channel check of the registry API (section 4.20, D271, D283). The generator writes <c>RegistryApi</c>, which sends each call
 /// and gives each failure as an <see cref="Error"/> (D233, D236). The registry belongs to the whole system, so a route takes
 /// no <c>tenantId</c> (D269).
 /// </summary>
@@ -17,6 +17,9 @@ internal interface IRegistryApi
 
     [HttpCall("GET", RegistryApiRoutes.ChannelHistory)]
     Task<ErrorOr<IReadOnlyList<ChannelStateResponse>>> GetChannelHistoryAsync(string channel, CancellationToken ct);
+
+    [HttpCall("POST", RegistryApiRoutes.ChannelCheck)]
+    Task<ErrorOr<ChannelCheckResponse>> CheckChannelAsync(string channel, CancellationToken ct);
 
     [HttpCall("GET", RegistryApiRoutes.MessageTypes)]
     Task<ErrorOr<IReadOnlyList<RegistryMessageTypeResponse>>> GetMessageTypesAsync(CancellationToken ct);
