@@ -221,7 +221,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
         var response = await host.GetAsync($"/subscriptions/me/{_anId}", user: "1");
 
         // Assert
-        Assert.Equal((500, "Unavailable"), await EndpointHost.ProblemOf(response));
+        Assert.Equal((503, "Unavailable"), await EndpointHost.ProblemOf(response));
     }
 
     [Fact]

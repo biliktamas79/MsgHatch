@@ -6,6 +6,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
+    <ProjectReference Include="..\MsgHatch.Api.Contracts\MsgHatch.Api.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" />
   </ItemGroup>
 
 </Project>

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
@@ -187,13 +188,14 @@ internal sealed class SubscriptionRoutes(
         result.IsError ? Problem(result.Error) : TypedResults.Json(toResponse(result.Value), typeInfo);
 
     private static ProblemHttpResult Problem(Error error) =>
-        TypedResults.Problem(detail: error.Message, statusCode: StatusCodeOf(error.Type), title: error.Type.Name);
+        TypedResults.Problem(
+            detail: error.Message,
+            statusCode: ErrorProblems.StatusCodeOf(error.Type),
+            title: error.Type.Name,
+            extensions: new Dictionary<string, object?> { ["errorType"] = ErrorTypeJsonOf(error.Type) });
 
-    private static int StatusCodeOf(ErrorType type) =>
-        type == Errors.ValidationFailed ? StatusCodes.Status400BadRequest
-        : type == Errors.NotFound ? StatusCodes.Status404NotFound
-        : type == Errors.Conflict ? StatusCodes.Status409Conflict
-        : StatusCodes.Status500InternalServerError;
+    private static JsonElement ErrorTypeJsonOf(ErrorType type) =>
+        JsonSerializer.SerializeToElement(ErrorTypeBody.From(type), ApiErrorJson.Default.ErrorTypeBody);
 
     private static ProblemHttpResult UnsupportedMediaType() => TypedResults.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType);
 }

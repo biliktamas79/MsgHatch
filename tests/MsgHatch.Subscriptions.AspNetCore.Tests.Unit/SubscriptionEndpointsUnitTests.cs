@@ -1,4 +1,5 @@
 using System.Net;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
@@ -52,10 +53,18 @@ public sealed partial class SubscriptionEndpointsUnitTests
     public static TheoryData<string, ErrorType, int> ErrorRows => new()
     {
         { "ValidationFailed", Errors.ValidationFailed, 400 },
+        { "Rejected", Errors.Rejected, 403 },
         { "NotFound", Errors.NotFound, 404 },
         { "Conflict", Errors.Conflict, 409 },
-        { "Unavailable", Errors.Unavailable, 500 },
+        { "Expired", Errors.Expired, 410 },
         { "SerializationFailed", Errors.SerializationFailed, 500 },
+        { "TemplateInvalid", Errors.TemplateInvalid, 422 },
+        { "UnsupportedVersion", Errors.UnsupportedVersion, 500 },
+        { "RateLimited", Errors.RateLimited, 429 },
+        { "OperationCancelled", Errors.OperationCancelled, 500 },
+        { "Uninitialized", Errors.Uninitialized, 500 },
+        { "Exception", Errors.Exception, 500 },
+        { "Unavailable", Errors.Unavailable, 503 },
     };
 
     [Fact]
@@ -222,7 +231,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
     [Theory]
     [MemberData(nameof(ErrorRows))]
-    public async Task GetSubscription_ManagerError_GivesItsStatusWithAProblemWithTheErrorName(string row, ErrorType error, int status)
+    public async Task GetSubscription_ManagerError_GivesItsStatusWithAProblemWithTheErrorNameAndTheMemberErrorType(string row, ErrorType error, int status)
     {
         // Arrange
         await using var host = await EndpointHost.StartAsync();
@@ -232,7 +241,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
         var response = await host.GetAsync($"/subscriptions/{_anId}");
 
         // Assert
-        Assert.Equal((status, row), await EndpointHost.ProblemOf(response));
+        Assert.Equal((status, row, "The test failure.", ErrorTypeBody.From(error)), await EndpointHost.ProblemWithErrorTypeOf(response));
     }
 
     private static string CallsOf(ISubscriptionManagement manager) =>

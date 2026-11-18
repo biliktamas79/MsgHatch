@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Templates.AspNetCore.Tests.Unit.TestTypes;
@@ -60,11 +61,18 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     public static TheoryData<int, HttpStatusCode> ErrorRows => new()
     {
         { 400, HttpStatusCode.BadRequest },
+        { 403, HttpStatusCode.Forbidden },
         { 404, HttpStatusCode.NotFound },
         { 409, HttpStatusCode.Conflict },
+        { 410, HttpStatusCode.Gone },
+        { 415, HttpStatusCode.InternalServerError },
         { 422, HttpStatusCode.UnprocessableEntity },
+        { 426, HttpStatusCode.InternalServerError },
+        { 429, HttpStatusCode.TooManyRequests },
+        { 460, HttpStatusCode.InternalServerError },
+        { 499, HttpStatusCode.InternalServerError },
         { 500, HttpStatusCode.InternalServerError },
-        { 503, HttpStatusCode.InternalServerError },
+        { 503, HttpStatusCode.ServiceUnavailable },
     };
 
     [Theory]
@@ -264,7 +272,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
 
     [Theory]
     [MemberData(nameof(ErrorRows))]
-    public async Task PutTemplate_ManagerError_GivesItsStatusWithAProblemDetailsOfTheErrorNameAndMessage(int errorCode, HttpStatusCode expected)
+    public async Task PutTemplate_ManagerError_GivesItsStatusWithAProblemDetailsOfTheErrorNameMessageAndErrorType(int errorCode, HttpStatusCode expected)
     {
         // Arrange
         var error = new Error(ErrorTypeOf(errorCode), "The manager failed.");
@@ -275,7 +283,9 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         var problem = await ProblemOf(response);
-        Assert.Equal((expected, error.Type.Name, "The manager failed."), (response.StatusCode, problem.Title, problem.Detail));
+        Assert.Equal(
+            (expected, error.Type.Name, "The manager failed.", ErrorTypeBody.From(error.Type)),
+            (response.StatusCode, problem.Title, problem.Detail, problem.ErrorType));
     }
 
     [Theory]
@@ -303,21 +313,16 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
             (list.StatusCode, read.StatusCode, delete.StatusCode, parts.StatusCode, check.StatusCode));
     }
 
-    private static ErrorType ErrorTypeOf(int code) =>
-        code switch
-        {
-            400 => Errors.ValidationFailed,
-            404 => Errors.NotFound,
-            409 => Errors.Conflict,
-            422 => Errors.TemplateInvalid,
-            500 => Errors.Exception,
-            _ => Errors.Unavailable,
-        };
+    private static ErrorType ErrorTypeOf(int code) => Errors.Find(code)!;
 
-    private static async Task<(string? Title, string? Detail)> ProblemOf(HttpResponseMessage response)
+    private static async Task<(string? Title, string? Detail, ErrorTypeBody? ErrorType)> ProblemOf(HttpResponseMessage response)
     {
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
-        return (document.RootElement.GetProperty("title").GetString(), document.RootElement.GetProperty("detail").GetString());
+        var root = document.RootElement;
+        return (
+            root.GetProperty("title").GetString(),
+            root.GetProperty("detail").GetString(),
+            root.TryGetProperty("errorType", out var errorType) ? errorType.Deserialize(ApiErrorJson.Default.ErrorTypeBody) : null);
     }
 
     private static HttpRequestMessage RequestOf(string method, string path, string? body) =>

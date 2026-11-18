@@ -247,6 +247,6 @@ public sealed partial class SubscriptionEndpointsUnitTests
         var response = await host.DeleteAsync($"/subscriptions/{_anId}");
 
         // Assert
-        Assert.Equal((500, "Unavailable"), await EndpointHost.ProblemOf(response));
+        Assert.Equal((503, "Unavailable"), await EndpointHost.ProblemOf(response));
     }
 }

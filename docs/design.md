@@ -418,12 +418,13 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | Project | Target | References | Packages | Content |
 |---|---|---|---|---|
 | `src/MsgHatch.Domain` | `net10.0` | none | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Options.ConfigurationExtensions`, `Microsoft.Extensions.Diagnostics` | Failures, identities, the tenant key, the routing contract, the registry reader and writer, delivery types, persistence, the in-memory stores, pipeline, inbox, outbox, dispatch, telemetry, and the DI builder |
+| `src/MsgHatch.Api.Contracts` | `net10.0` | `MsgHatch.Domain` | none | The error metadata of the HTTP APIs: `ErrorTypeBody` and its JSON context `ApiErrorJson` (D227, D233) |
 | `src/MsgHatch.SourceGeneration` | `netstandard2.0` | none | `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Analyzers` | The generator of placeholder writers (D18) |
 | `src/MsgHatch.Templates` | `net10.0` | `MsgHatch.Domain`, and `MsgHatch.SourceGeneration` as an analyzer | none | The template library, which knows no channel (D212): the template engine contract, the template stores, the template selector, the placeholder engine, and the template setup methods |
 | `src/MsgHatch.Email` | `net10.0` | `MsgHatch.Templates` | none | The email channel, the email composer as the thin layer on the template library (D215), and `IEmailClient` |
 | `src/MsgHatch.Email.AmazonSES` | `net10.0` | `MsgHatch.Email` | `AWSSDK.SimpleEmailV2` | The SES implementation of `IEmailClient` |
 | `src/MsgHatch.Templates.Liquid` | `net10.0` | `MsgHatch.Templates` | `Fluid.Core` | The Liquid template engine, with its engine factory `LiquidTemplates.Engine` (D205, D216) |
-| `src/MsgHatch.Templates.AspNetCore` | `net10.0` | `MsgHatch.Templates` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the template administration (D217, D224) |
+| `src/MsgHatch.Templates.AspNetCore` | `net10.0` | `MsgHatch.Templates`, `MsgHatch.Api.Contracts` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the template administration (D217, D224) |
 | `src/MsgHatch.Email.Resend` | `net10.0` | `MsgHatch.Email` | `Microsoft.Extensions.Http` | The Resend implementation of `IEmailClient` (D138) |
 | `src/MsgHatch.SignalR` | `net10.0` | `MsgHatch.Domain` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The SignalR channel |
 | `src/MsgHatch.Broker` | `net10.0` | `MsgHatch.Domain` | none | The broker channel, the broker composer and transport, and `IBrokerClient` |
@@ -441,7 +442,7 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Subscriptions.Data.MongoDb` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Data.MongoDb` | none | The MongoDB subscription store |
 | `src/MsgHatch.Subscriptions.Caching.Hybrid` | `net10.0` | `MsgHatch.Subscriptions` | `Microsoft.Extensions.Caching.Hybrid` | The HybridCache backend of the subscription cache (D39) |
 | `src/MsgHatch.Subscriptions.Caching.FusionCache` | `net10.0` | `MsgHatch.Subscriptions` | `ZiggyCreatures.FusionCache` | The FusionCache backend of the subscription cache (D39) |
-| `src/MsgHatch.Subscriptions.AspNetCore` | `net10.0` | `MsgHatch.Subscriptions` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the subscription management API (D54) |
+| `src/MsgHatch.Subscriptions.AspNetCore` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Api.Contracts` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the subscription management API (D54) |
 | `tests/{Project}.Tests.{Level}` | `net10.0`, `Exe` | The production project under test, and the test project with its contract base classes | The test packages of section 5.5 | One test project for each production project and each level (D66, section 5.5) |
 | `examples/ExampleApp` | `net10.0`, `Microsoft.NET.Sdk.Web` | The `src` projects of the finished phases (roadmap), and `MsgHatch.SourceGeneration` as an analyzer | `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `Microsoft.AspNetCore.Authentication.JwtBearer` (D158), `WolverineFx.RuntimeCompilation` for the code of its Wolverine handler | The subscription example end to end, as a web app |
 
@@ -2014,6 +2015,7 @@ Exceptions stay at the edges:
 - The SES client, the Resend client, the Wolverine client, and the SignalR transport ask the `IExceptionClassifier<TClient>` registrations of the host before their built-in mapping (D141). A cancelled operation gives `Errors.OperationCancelled` before each classifier.
 - The pipeline and the dispatchers catch an unexpected exception from consumer code one time, at their outer boundary. They convert it into `Errors.Exception`, so a defective store cannot stop the dispatcher loop.
 - Cancellation becomes `Errors.OperationCancelled`.
+- The HTTP APIs of the management interfaces write each `Error` as problem details with the extension member `errorType` (D233). The internal class `ErrorProblems` in `src/Shared/ErrorProblems.cs` holds the status of each type, and the error of a failed response, so no public type has an HTTP status. The server never sends `Error.Exception`.
 - Only standard .NET exceptions remain. They are for programmer errors at a public entry point, for example `ArgumentNullException`, and for invalid configuration at startup (`OptionsValidationException`).
 
 ### 4.13 Contract versioning
@@ -2257,7 +2259,7 @@ HTTP endpoints (D54). `MapMsgHatchSubscriptions(this IEndpointRouteBuilder route
 - The `settings` object is read with the `JsonTypeInfo` of the settings type of the given channel, from the content type registry. For example, `{ "channel": "Email", "settings": { "language": "hu", "format": "PlainText" } }`.
 - The consumer adds the authorization on the returned group, for example `.RequireAuthorization("SubscriptionAdmin")`. The library adds no authorization.
 - With `o => o.CurrentUser = user => ...` and, for several tenants, `o.CurrentTenant = user => ...`, the same endpoints also exist under `{prefix}/me`. They take the user id from the signed-in user, and the tenant from `CurrentTenant` in place of the query parameter. They use only user-level subscriptions of that user. A subscription of another owner gives 404 there. They ignore the owner fields of a body and the owner filters of a query. An unknown id gives the same 404 as another owner, and a signed-in user with no user id gives 403 (D154).
-- `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, `Errors.Conflict` gives 409, and each other error gives 500. The body is a `ProblemDetails` with the error name as the title and the error message as the detail. A `POST` or a `PUT` body with a content type that is not JSON gives 415 (D156).
+- Each error is problem details (RFC 9457) with the status of `ErrorProblems.StatusCodeOf` (D233): `Errors.ValidationFailed` gives 400, `Rejected` 403, `NotFound` 404, `Conflict` 409, `Expired` 410, `TemplateInvalid` 422, `RateLimited` 429, `Unavailable` 503, and each other error 500. The body has the error name as the title, the error message as the detail, and the extension member `errorType` with `code`, `name`, and `isTransient` of `ErrorTypeBody`. A `POST` or a `PUT` body with a content type that is not JSON gives 415 (D156), with no `errorType`.
 - The JSON of the endpoints uses camelCase names and enum values as strings, through a source-generated `JsonSerializerContext`. A flags value is one text, for example `"Languages, RichText"` (D155). A subscription in a response has the field names of the draft, with `id`, `revision`, `createdAtUtc`, and `lastModifiedAtUtc`, so a client can send it back as the body of a `PUT`.
 - `POST {prefix}/verification` with a `RoutingVerificationRequest` runs the routing verification of section 4.18, and gives 200 with the report. Only the route group with no `/me` has it (D163).
 
@@ -2636,7 +2638,7 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 - Each route takes the optional query parameter `tenantId`. The endpoint resolves `ITemplateQueries` or `ITemplateCommands` with `TenantKey.For(tenantId)`, and with `TenantKey.None` when the parameter is missing (D126).
 - An endpoint checks only the values that need a type: the message type, the kind (`PlainText` or `Html`, in this case), and the tenant id. An invalid value of them gives 400, and calls no manager. The manager checks the language, the part, and the company id, so these rules have one place.
 - The endpoints read and write each body with their own source-generated `TemplateEndpointJson`: camelCase names, enum values as strings, and the required properties `text` and `version`, which are not nullable. A `PUT` or a check with a content type that is not JSON gives 415 (D156). Invalid JSON, a missing required property, and a null `text` give 400.
-- `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, `Errors.Conflict` gives 409, `Errors.TemplateInvalid` gives 422, and each other error gives 500. The body is a `ProblemDetails` with the error name as the title and the error message as the detail.
+- Each error is problem details with the status of `ErrorProblems.StatusCodeOf`, the error name as the title, the error message as the detail, and the extension member `errorType` (D233), as for the subscription endpoints (section 4.17). So `Errors.TemplateInvalid` gives 422, and `Errors.Unavailable` gives 503.
 - A response never has the template id, because the id of the file store is a path on the host.
 
 ## 5. Repository and conventions
@@ -2667,6 +2669,8 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 ├── src/
 │   ├── GeneratedCodeSuppressions.cs                    (phase 1)
 │   ├── Shared/                                         (internal sources that several projects compile, after phase 25)
+│   │   ├── FileNames.cs                                (after phase 25)
+│   │   └── ErrorProblems.cs                            (phase 26, D233)
 │   ├── MsgHatch.Domain/                                (phase 1)
 │   ├── MsgHatch.SourceGeneration/                      (phase 3)
 │   ├── MsgHatch.Email/                                 (phase 3)
@@ -2691,7 +2695,8 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   ├── MsgHatch.Dispatch.NamedPipes/                   (phase 21)
 │   ├── MsgHatch.Templates/                             (phase 24)
 │   ├── MsgHatch.Templates.Liquid/                      (phase 23, renamed in phase 24)
-│   └── MsgHatch.Templates.AspNetCore/                  (phase 25)
+│   ├── MsgHatch.Templates.AspNetCore/                  (phase 25)
+│   └── MsgHatch.Api.Contracts/                         (phase 26)
 ├── tests/                                                                   (section 5.5)
 │   ├── MsgHatch.Domain.Tests.Unit/                                          (phase 1)
 │   ├── MsgHatch.SourceGeneration.Tests.Unit/                                (phase 3)
@@ -2726,7 +2731,8 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   ├── WolverineExample.UserSimulator.Tests.Unit/                           (phase 21)
 │   ├── MsgHatch.Templates.Tests.Unit/                                       (phase 24)
 │   ├── MsgHatch.Templates.Liquid.Tests.Unit/                                (phase 23, renamed in phase 24)
-│   └── MsgHatch.Templates.AspNetCore.Tests.Unit/                            (phase 25)
+│   ├── MsgHatch.Templates.AspNetCore.Tests.Unit/                            (phase 25)
+│   └── MsgHatch.Api.Contracts.Tests.Unit/                                   (phase 26, with src/Shared/ErrorProblems.cs)
 └── examples/
     ├── ExampleApp/                                     (phase 13)
     ├── WolverineExample.Contracts/                     (phase 21)

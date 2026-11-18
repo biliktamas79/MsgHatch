@@ -1,12 +1,14 @@
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Management;
@@ -114,6 +116,18 @@ public sealed class EndpointHost : IAsyncDisposable
     {
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Ct);
         return ((int)response.StatusCode, problem?.Title);
+    }
+
+    /// <summary>Gives the status, the title, the detail, and the member <c>errorType</c> of a problem response (D233).</summary>
+    public static async Task<(int Status, string? Title, string? Detail, ErrorTypeBody? ErrorType)> ProblemWithErrorTypeOf(HttpResponseMessage response)
+    {
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        var root = document.RootElement;
+        return (
+            (int)response.StatusCode,
+            root.GetProperty("title").GetString(),
+            root.GetProperty("detail").GetString(),
+            root.TryGetProperty("errorType", out var errorType) ? errorType.Deserialize(ApiErrorJson.Default.ErrorTypeBody) : null);
     }
 
     /// <summary>A manager result with an error, for example for <c>Returns</c>.</summary>
