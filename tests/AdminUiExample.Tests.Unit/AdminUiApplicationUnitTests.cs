@@ -75,6 +75,23 @@ public sealed class AdminUiApplicationUnitTests
                 page.Contains("data-theme-toggle", StringComparison.Ordinal)));
     }
 
+    [Theory]
+    [InlineData("/msghatch/subscriptions", "Subscriptions")]
+    [InlineData("/msghatch/subscriptions/00000000-0000-0000-0000-000000000001", "Subscriptions")]
+    [InlineData("/msghatch/subscriptions/message-types", "Message types")]
+    [InlineData("/msghatch/subscriptions/verification", "Verification")]
+    [InlineData("/msghatch/templates", "Templates")]
+    public async Task Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive(string path, string link)
+    {
+        await using var app = Build(new RecordingHandler(available: false));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        var page = await app.GetTestClient().GetStringAsync(new Uri(path, UriKind.Relative), TestContext.Current.CancellationToken);
+
+        var active = Regex.Matches(page, "<a\\b(?=[^>]*\\bclass=\"nav-link active\")[^>]*>(?<text>[^<]*)</a>");
+
+        Assert.Equal([link], active.Select(static match => match.Groups["text"].Value));
+    }
+
     [Fact]
     public async Task Start_NoApiToken_StopsTheStartWithAnOptionsError()
     {

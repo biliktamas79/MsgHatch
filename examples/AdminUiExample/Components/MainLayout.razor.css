@@ -1,0 +1,13 @@
+.navbar ::deep .nav-link {
+    padding-block: .75rem;
+    border-bottom: 2px solid transparent;
+}
+
+.navbar ::deep .nav-link:hover {
+    border-bottom-color: var(--bs-secondary-color);
+}
+
+.navbar ::deep .nav-link.active {
+    color: var(--bs-link-color);
+    border-bottom-color: var(--bs-link-color);
+}

@@ -2,11 +2,11 @@
 @* One column with the height of the window: the main area fills the rest, so a list page scrolls only its list (D259). *@
 
 <div class="d-flex flex-column vh-100">
-    <nav class="navbar navbar-expand bg-body-tertiary flex-shrink-0">
+    <nav class="navbar navbar-expand bg-body-tertiary border-bottom py-0 flex-shrink-0">
         <div class="container">
             <a class="navbar-brand" href="">MsgHatch admin</a>
             <ul class="navbar-nav">
-                <li class="nav-item"><NavLink class="nav-link" href="@SubscriptionAdminRoutes.List.TrimStart('/')">Subscriptions</NavLink></li>
+                <li class="nav-item"><SectionNavLink class="nav-link" href="@SubscriptionAdminRoutes.List.TrimStart('/')" Except="[SubscriptionAdminRoutes.MessageTypes, SubscriptionAdminRoutes.Verification]">Subscriptions</SectionNavLink></li>
                 <li class="nav-item"><NavLink class="nav-link" href="@SubscriptionAdminRoutes.MessageTypes.TrimStart('/')">Message types</NavLink></li>
                 <li class="nav-item"><NavLink class="nav-link" href="@SubscriptionAdminRoutes.Verification.TrimStart('/')">Verification</NavLink></li>
                 <li class="nav-item"><NavLink class="nav-link" href="@TemplateAdminRoutes.List.TrimStart('/')">Templates</NavLink></li>
