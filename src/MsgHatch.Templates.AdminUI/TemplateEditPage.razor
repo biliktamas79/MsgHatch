@@ -41,14 +41,16 @@ else
     }
     <div class="mt-2"><ErrorAlert Error="_formError" /></div>
 
-    <div class="d-flex gap-2 mt-2">
-        <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
-        @if (_exists)
-        {
-            <button type="button" class="btn btn-outline-danger" data-action="delete" disabled="@_busy" @onclick="() => _confirmDelete = true">Delete</button>
-        }
-        <a class="btn btn-link" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a>
-    </div>
+    <AdminActions Class="mt-3">
+        <Start><a class="btn btn-outline-secondary" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a></Start>
+        <End>
+            @if (_exists)
+            {
+                <button type="button" class="btn btn-outline-danger" data-action="delete" disabled="@_busy" @onclick="() => _confirmDelete = true">Delete</button>
+            }
+            <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
+        </End>
+    </AdminActions>
 
     <DeleteDialog Open="_confirmDelete" Question="@($"Do you want to delete the {lookup.Part} ({lookup.Kind}) template of {lookup.Type.Name} in {lookup.Language}?")"
                   Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false" />

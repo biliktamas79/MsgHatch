@@ -40,6 +40,17 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_StoredTemplate_PutsBackOnTheLeftAndDeleteAndSaveOnTheRight()
+    {
+        var cut = RenderPage();
+
+        Assert.Equal(
+            ("back", TemplateAdminRoutes.List.TrimStart('/'), "delete save"),
+            (cut.Find("[data-actions-start] a").GetAttribute("data-action"), cut.Find("[data-actions-start] a").GetAttribute("href"),
+                string.Join(' ', cut.FindAll("[data-actions-end] button").Select(static button => button.GetAttribute("data-action")))));
+    }
+
+    [Fact]
     public void Render_StoredTemplateOfACompany_ShowsTheMetadataInOneRowOfLabelsAndValues()
     {
         Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));

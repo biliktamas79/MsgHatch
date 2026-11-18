@@ -34,6 +34,17 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void Render_StoredSubscription_PutsBackOnTheLeftAndDeleteAndSaveOnTheRight()
+    {
+        var cut = RenderEdit();
+
+        Assert.Equal(
+            ("back", SubscriptionAdminRoutes.List.TrimStart('/'), "delete save"),
+            (cut.Find("[data-actions-start] a").GetAttribute("data-action"), cut.Find("[data-actions-start] a").GetAttribute("href"),
+                string.Join(' ', cut.FindAll("[data-actions-end] button").Select(static button => button.GetAttribute("data-action")))));
+    }
+
+    [Fact]
     public void Render_NotFound_ShowsTheMessageOfTheError()
     {
         Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.NotFound, "The subscription does not exist."));

@@ -87,7 +87,7 @@ public sealed class TemplateViewPageUnitTests : TemplatePageContext
 
         Assert.Equal(
             (TemplateAdminRoutes.Edit(Lookup(scope: "42")).TrimStart('/'), TemplateAdminRoutes.List.TrimStart('/')),
-            (cut.Find("[data-action=edit]").GetAttribute("href"), cut.Find("[data-action=back]").GetAttribute("href")));
+            (cut.Find("[data-actions-end] [data-action=edit]").GetAttribute("href"), cut.Find("[data-actions-start] [data-action=back]").GetAttribute("href")));
         Assert.Equal("For 42", cut.Find("textarea").GetAttribute("value"));
     }
 
