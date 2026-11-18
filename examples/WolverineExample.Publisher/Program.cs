@@ -7,6 +7,7 @@ using Wolverine.RabbitMQ;
 using WolverineExample.Contracts;
 using WolverineExample.Publisher;
 
+Console.Title = "WolverineExample.Publisher";
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { Args = args, ContentRootPath = AppContext.BaseDirectory });
 var rabbitMq = RabbitMqOptions.Load(builder.Configuration);
 builder.Services.AddWolverine(options => ConfigureWolverine(options, rabbitMq.Uri!));
