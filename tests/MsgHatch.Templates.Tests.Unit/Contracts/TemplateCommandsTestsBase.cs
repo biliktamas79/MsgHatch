@@ -229,6 +229,11 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
             [TenantKey.None] = Substitute.For<ITemplateEngine<OrderEmail>>(),
             [_t1] = Substitute.For<ITemplateEngine<OrderEmail>>(),
         };
+        foreach (var engine in engines.Values)
+        {
+            engine.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues());
+        }
+
         await using var host = await StartAsync(ManagerHost.Services(b => b
             .UseTenantTemplateStore((_, key) => new FileSystemTemplateStore(Path.Combine(folder.Parent, "tenants", key.Tenant!.Value.Value)))
             .AddOrderEmailEngine((_, key) => engines[key], _type.Name)));
@@ -246,15 +251,16 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
     {
         // Arrange
         var orders = Substitute.For<ITemplateEngine<OrderEmail>>();
+        orders.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues());
         var notes = Substitute.For<ITemplateEngine<string>>();
-        notes.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.TemplateInvalid)));
+        notes.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues(new TemplateIssue("The note is not valid.", Line: null, Column: null)));
         await using var host = await StartAsync(ManagerHost.Services(b => b.UseFileTemplates(folder.Root).AddMessage(_type.Name, 1, TestJsonContext.Default.TestEvent, m => m
             .WithPayload<OrderEmail>(
                 static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
-                p => p.AddTemplateEngine("Email:Orders", [new TemplatePart("subject", TemplatePartKind.PlainText)], (_, _) => orders))
+                p => p.AddTemplateEngine("Email:Orders", "orders", [new TemplatePart("subject", TemplatePartKind.PlainText)], (_, _) => orders))
             .WithPayload<string>(
                 static (_, _) => Substitute.For<IPayloadLoader<TestEvent, string>>(),
-                p => p.AddTemplateEngine("Sms:Notes", [new TemplatePart("sms", TemplatePartKind.PlainText)], (_, _) => notes)))));
+                p => p.AddTemplateEngine("Sms:Notes", "notes", [new TemplatePart("sms", TemplatePartKind.PlainText)], (_, _) => notes)))));
         var commands = host.Service(TenantKey.None);
 
         // Act
@@ -271,6 +277,9 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
     /// <param name="addServices">Adds the services of the host with the template stores and the engines.</param>
     /// <returns>The started host.</returns>
     protected abstract ValueTask<IManagementTestHost<T>> StartAsync(Action<IServiceCollection> addServices);
+
+    private static ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> Issues(params TemplateIssue[] issues) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues));
 
     private ValueTask<IManagementTestHost<T>> AHostAsync() =>
         StartAsync(ManagerHost.Services(b => b

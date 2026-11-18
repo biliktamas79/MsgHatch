@@ -83,16 +83,16 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
     [Theory]
     [MemberData(nameof(ParserRows))]
-    public async Task CheckAsync_PlaceholderSyntax_GivesTheErrorOfTheParserWithNoStoreRead(string row, string text, string expectedOutcome)
+    public async Task CheckAsync_PlaceholderSyntax_GivesTheIssueOfTheParserWithNoStoreRead(string row, string text, string expectedOutcome)
     {
         // Arrange
         var store = Substitute.For<ITemplateStore>();
 
         // Act
-        var error = await EngineWith(tenantStore: null, store).CheckAsync(ALookup(), text, Ct);
+        var issues = await EngineWith(tenantStore: null, store).CheckAsync(ALookup(), text, Ct);
 
         // Assert
-        Assert.Equal((row, expectedOutcome == "422" ? 422 : (int?)null, 0), (row, error?.Type.Code, store.ReceivedCalls().Count()));
+        Assert.Equal((row, expectedOutcome == "422" ? 1 : 0, 0), (row, issues.Value.Count, store.ReceivedCalls().Count()));
     }
 
     [Theory]

@@ -66,6 +66,27 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
             : new Error(Errors.NotFound, $"No {lookup.Kind} {lookup.Part} template of {lookup.Type.Name} in the language {lookup.Language} exists in this store.");
     }
 
+    public ValueTask<ErrorOr<IReadOnlyList<TemplatePartInfo>>> GetTemplatePartsAsync(MessageType? type, CancellationToken ct)
+    {
+        IReadOnlyList<TemplatePartInfo> parts =
+        [
+            .. setup.EngineSelections
+                .Where(selection => type is null || selection.Type == type)
+                .SelectMany(static selection => selection.Parts.Select(part => (selection.Type, Part: part, selection.EngineName)))
+                .GroupBy(static declared => (declared.Type, declared.Part))
+                .Select(static group => new TemplatePartInfo(
+                    group.Key.Type, group.Key.Part, [.. group.Select(static declared => declared.EngineName).Distinct(StringComparer.Ordinal)])),
+        ];
+        return ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue(parts));
+    }
+
+    public async ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckTemplateAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var invalid = LookupError(lookup) ?? TextError(text);
+        return invalid is not null ? invalid : await IssuesOfAsync(lookup, text, ct);
+    }
+
     public async ValueTask<ErrorOr<TemplateEntry>> SaveTemplateAsync(TemplateLookup lookup, string text, long expectedVersion, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -81,22 +102,10 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
             return writer.Error;
         }
 
-        var readers = ReadersOf(lookup);
-        if (readers.IsError)
-        {
-            return readers.Error;
-        }
-
-        foreach (var reader in readers.Value)
-        {
-            var rejected = await reader.Check(tenantServices, lookup, text, ct);
-            if (rejected is not null)
-            {
-                return rejected;
-            }
-        }
-
-        return await writer.Value.SaveAsync(lookup, text, expectedVersion, ct);
+        var issues = await IssuesOfAsync(lookup, text, ct);
+        return issues.IsError ? issues.Error
+            : issues.Value.Count > 0 ? new Error(Errors.TemplateInvalid, issues.Value[0].Message)
+            : await writer.Value.SaveAsync(lookup, text, expectedVersion, ct);
     }
 
     public async ValueTask<Error?> DeleteTemplateAsync(TemplateLookup lookup, CancellationToken ct)
@@ -109,6 +118,29 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
 
         var writer = Writer();
         return writer.IsError ? writer.Error : await writer.Value.DeleteAsync(lookup, ct);
+    }
+
+    private async ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> IssuesOfAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    {
+        var readers = ReadersOf(lookup);
+        if (readers.IsError)
+        {
+            return readers.Error;
+        }
+
+        List<TemplateIssue> issues = [];
+        foreach (var reader in readers.Value)
+        {
+            var checkedText = await reader.Check(tenantServices, lookup, text, ct);
+            if (checkedText.IsError)
+            {
+                return checkedText.Error;
+            }
+
+            issues.AddRange(checkedText.Value);
+        }
+
+        return issues;
     }
 
     private ErrorOr<ITemplateWriter> Writer() =>

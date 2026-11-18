@@ -17,3 +17,18 @@ internal sealed record TemplateResponse(
     public static TemplateResponse From(TemplateLookup lookup, TemplateSource source) =>
         new(lookup.Type.Name, lookup.Language, lookup.Scope, lookup.Part, lookup.Kind, source.Key.Version, source.Text);
 }
+
+/// <summary>The body of a check of a draft: the text (D241).</summary>
+internal sealed record TemplateCheckRequest(string Text);
+
+/// <summary>One issue of a checked text, with the line and the column of the engine, or null (D241).</summary>
+internal sealed record TemplateIssueResponse(string Message, int? Line, int? Column)
+{
+    public static TemplateIssueResponse From(TemplateIssue issue) => new(issue.Message, issue.Line, issue.Column);
+}
+
+/// <summary>One declared part of a message type, with the names of the engines that read it (D240).</summary>
+internal sealed record TemplatePartResponse(string MessageType, string Part, TemplatePartKind Kind, IReadOnlyList<string> Engines)
+{
+    public static TemplatePartResponse From(Management.TemplatePartInfo info) => new(info.Type.Name, info.Part.Name, info.Part.Kind, info.Engines);
+}

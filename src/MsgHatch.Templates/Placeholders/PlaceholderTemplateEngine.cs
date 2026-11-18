@@ -49,10 +49,13 @@ public sealed class PlaceholderTemplateEngine<TPayload> : ITemplateEngine<TPaylo
     }
 
     /// <inheritdoc/>
-    public ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    public ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(text);
         var source = new TemplateSource(new TemplateKey($"{lookup.Type.Name}.{lookup.Language}.{lookup.Part}", 0), text);
-        return ValueTask.FromResult(TemplateParser.Parse(source, lookup.Kind, TPayload.Writer).Error);
+        IReadOnlyList<TemplateIssue> issues = TemplateParser.Parse(source, lookup.Kind, TPayload.Writer).Error is { } error
+            ? [new TemplateIssue(error.Message ?? error.Type.Name, Line: null, Column: null)]
+            : [];
+        return ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues));
     }
 }

@@ -76,13 +76,15 @@ internal sealed class TemplateSetupValidator(IServiceProvider services, Template
 }
 
 /// <summary>
-/// One registration of a template engine (D62, D220): its payload type, its name, its engine factory, its message type,
-/// the parts that it reads, and the check of a text with the engine of the payload type of a tenant key (D219).
+/// One registration of a template engine (D62, D220, D240): its payload type, its name, the name of its engine, its
+/// engine factory, its message type, the parts that it reads, and the check of a text with the engine of the payload type
+/// of a tenant key (D219, D241).
 /// </summary>
 internal sealed record EngineSelection(
     Type PayloadType,
     string Registration,
+    string EngineName,
     Delegate Engine,
     MessageType Type,
     IReadOnlyList<TemplatePart> Parts,
-    Func<IServiceProvider, TemplateLookup, string, CancellationToken, ValueTask<Error?>> Check);
+    Func<IServiceProvider, TemplateLookup, string, CancellationToken, ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>>> Check);

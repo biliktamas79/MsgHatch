@@ -23,6 +23,9 @@ public interface ITemplateEngine<TPayload>
     /// <param name="lookup">The message type, the language, the template scope, the part, and its kind.</param>
     /// <param name="text">The text of the part.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>Null for a valid text, or <see cref="Errors.TemplateInvalid"/>.</returns>
-    ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct);
+    /// <returns>
+    /// One issue for each problem of the text, an empty list for a valid text, or an error when the check did not run
+    /// (D241).
+    /// </returns>
+    ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct);
 }

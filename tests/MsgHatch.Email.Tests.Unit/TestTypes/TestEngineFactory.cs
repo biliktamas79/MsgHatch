@@ -7,6 +7,8 @@ namespace MsgHatch.Email.Tests.Unit.TestTypes;
 /// <param name="create">The function that makes the engine of one tenant key.</param>
 public sealed class TestEngineFactory(Func<IServiceProvider, TenantKey, object> create) : ITemplateEngineFactory
 {
+    public string Name => "test";
+
     public ITemplateEngine<TPayload> Create<TPayload>(IServiceProvider tenantServices, TenantKey key) =>
         (ITemplateEngine<TPayload>)create(tenantServices, key);
 }

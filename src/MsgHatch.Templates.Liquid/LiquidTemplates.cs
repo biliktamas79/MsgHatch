@@ -12,6 +12,8 @@ public static class LiquidTemplates
 
     private sealed class Factory : ITemplateEngineFactory
     {
+        public string Name => "liquid";
+
         public ITemplateEngine<TPayload> Create<TPayload>(IServiceProvider tenantServices, TenantKey key) =>
             new LiquidTemplateEngine<TPayload>(
                 TemplateSelector.For(tenantServices, key),

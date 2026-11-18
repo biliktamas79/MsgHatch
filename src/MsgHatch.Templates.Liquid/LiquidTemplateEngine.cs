@@ -26,6 +26,6 @@ internal sealed class LiquidTemplateEngine<TPayload>(TemplateSelector selector, 
             : ErrorOr<ITemplate<TPayload>>.ForValue(new LiquidTemplate<TPayload>(template.Value, source.Value.Lookup, time));
     }
 
-    public ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct) =>
-        ValueTask.FromResult(LiquidTemplateCheck.Check(lookup, text, LiquidOptions<TPayload>.Options.Filters));
+    public ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(LiquidTemplateCheck.Check(lookup, text, LiquidOptions<TPayload>.Options.Filters)));
 }

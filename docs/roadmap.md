@@ -1707,6 +1707,11 @@ Commits:
 13. "Record the commits and the checked facts of phase 26 in the plan"
 14. "Record phase 26 as done in README and AGENTS.md"
 
+The implementation changed the plan in these points:
+- Fluid 2.41.1 gives a parse error only as text, with ` at (line:column)` at the end of the first line of its message. The grammar of `FluidParser` gives a Parlot `ParseError` with a position for most errors, but an unknown tag, for example `{% endif %}` with no `if`, throws `Fluid.ParseException` with only a message. So the check-first item of step 3 fails, and the Liquid engine reads the position from the text of the message (D243, Recommended).
+- The placeholder engine has no factory object, because its payload type needs the constraint `IPlaceholderPayload<TPayload>`. So `PlaceholderTemplates.EngineName` is the constant `placeholder`, and `AddTemplateEngine` takes the name of the engine as a parameter. `AsEmail` gives `PlaceholderTemplates.EngineName` or `ITemplateEngineFactory.Name`.
+- Each engine gives one issue for the first problem that it finds, as each engine finds one problem today. A check with issues logs the event 2016 with the number of the issues, at the Information level, and no message of an issue.
+
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
 ### Phase 27: HTTP API clients

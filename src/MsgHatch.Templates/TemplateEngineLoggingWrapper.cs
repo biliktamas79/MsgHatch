@@ -24,25 +24,30 @@ internal sealed class TemplateEngineLoggingWrapper<TPayload>(
     }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    public async ValueTask<Error?> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    public async ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(TemplateLookup lookup, string text, CancellationToken ct)
     {
         var started = time.GetTimestamp();
-        var error = await inner.CheckAsync(lookup, text, ct);
-        LogCheck(lookup, error, time.GetElapsedTime(started).TotalMilliseconds);
-        return error;
+        var result = await inner.CheckAsync(lookup, text, ct);
+        LogCheck(lookup, result, time.GetElapsedTime(started).TotalMilliseconds);
+        return result;
     }
 
-    private void LogCheck(TemplateLookup lookup, Error? error, double elapsedMs)
+    private void LogCheck(TemplateLookup lookup, ErrorOr<IReadOnlyList<TemplateIssue>> result, double elapsedMs)
     {
-        if (error is null)
+        if (result.IsError)
         {
-            logger.CheckSucceeded(lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs);
+            var level = CheckLevelOf(result.Error);
+            logger.CheckFailed(
+                level, lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs, result.Error.Type.Code, result.Error.Type.Name,
+                result.Error.Message);
+        }
+        else if (result.Value.Count > 0)
+        {
+            logger.CheckFoundIssues(lookup.Type.Name, lookup.Part, result.Value.Count, key.Tenant?.Value, elapsedMs);
         }
         else
         {
-            var level = CheckLevelOf(error);
-            logger.CheckFailed(
-                level, lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs, error.Type.Code, error.Type.Name, error.Message);
+            logger.CheckSucceeded(lookup.Type.Name, lookup.Part, key.Tenant?.Value, elapsedMs);
         }
     }
 

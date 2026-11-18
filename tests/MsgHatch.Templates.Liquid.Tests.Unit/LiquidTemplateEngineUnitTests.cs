@@ -128,10 +128,10 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
     public async Task CheckAsync_LiquidInAnHtmlPart_GivesTheRuleOfTheCheck(string row, string html, int? expectedCode)
     {
         // Act
-        var error = await Engine.CheckAsync(ALookup(TemplatePartKind.Html), html, Ct);
+        var issues = await Engine.CheckAsync(ALookup(TemplatePartKind.Html), html, Ct);
 
         // Assert
-        Assert.Equal((row, expectedCode), (row, error?.Type.Code));
+        Assert.Equal((row, expectedCode is null ? 0 : 1), (row, issues.Value.Count));
     }
 
     [Fact]

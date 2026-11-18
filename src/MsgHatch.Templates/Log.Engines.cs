@@ -28,4 +28,9 @@ internal static partial class Log
     public static partial void CheckFailed(
         this ILogger logger, LogLevel level, string messageType, string part, string? tenant, double elapsedMs, int errorCode, string errorName,
         string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 2016, Level = LogLevel.Information,
+        Message = "Template engine of tenant {Tenant} found {IssueCount} issues in a {Part} text of {MessageType} in {ElapsedMs} ms")]
+    public static partial void CheckFoundIssues(this ILogger logger, string messageType, string part, int issueCount, string? tenant, double elapsedMs);
 }

@@ -14,4 +14,7 @@ namespace MsgHatch.Templates.AspNetCore;
 [JsonSerializable(typeof(TemplateEntryResponse))]
 [JsonSerializable(typeof(TemplateResponse))]
 [JsonSerializable(typeof(IReadOnlyList<TemplateEntryResponse>))]
+[JsonSerializable(typeof(TemplateCheckRequest))]
+[JsonSerializable(typeof(IReadOnlyList<TemplateIssueResponse>))]
+[JsonSerializable(typeof(IReadOnlyList<TemplatePartResponse>))]
 internal sealed partial class TemplateEndpointJson : JsonSerializerContext;

@@ -115,21 +115,26 @@ public static class TemplateExtensions
     /// <typeparam name="TPayload">The payload type.</typeparam>
     /// <param name="payload">The builder of the payload type, which gives the message type.</param>
     /// <param name="registration">The name of the registration for the errors of the startup validation, for example <c>Email:OrderShipped</c>.</param>
+    /// <param name="engineName">
+    /// The name of the engine, for example <see cref="ITemplateEngineFactory.Name"/> or <c>PlaceholderTemplates.EngineName</c>,
+    /// which <c>ITemplateQueries.GetTemplatePartsAsync</c> gives for each part (D240).
+    /// </param>
     /// <param name="parts">The parts that the channel reads, at least one.</param>
     /// <param name="engine">The factory of the engine of one tenant key.</param>
     /// <returns>The builder of the payload type.</returns>
     /// <exception cref="ArgumentException">The parts are empty, or a part name is not a name of ASCII letters, digits, and <c>_</c> that starts with a letter.</exception>
     public static PayloadBuilder<TEvent, TPayload> AddTemplateEngine<TEvent, TPayload>(
-        this PayloadBuilder<TEvent, TPayload> payload, string registration, IReadOnlyList<TemplatePart> parts,
+        this PayloadBuilder<TEvent, TPayload> payload, string registration, string engineName, IReadOnlyList<TemplatePart> parts,
         Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine)
     {
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentException.ThrowIfNullOrWhiteSpace(registration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(engineName);
         ArgumentNullException.ThrowIfNull(parts);
         ArgumentNullException.ThrowIfNull(engine);
         CheckParts(parts);
         TemplateSetup.Of(payload.Services).EngineSelections.Add(
-            new EngineSelection(typeof(TPayload), registration, engine, payload.Type, [.. parts], CheckWithTheEngineOfTheKey<TPayload>));
+            new EngineSelection(typeof(TPayload), registration, engineName, engine, payload.Type, [.. parts], CheckWithTheEngineOfTheKey<TPayload>));
         AddManager(payload.Parent).AddTenantService(ServiceLifetime.Scoped, engine, TemplateLoggers.Wrap);
         return payload;
     }
@@ -150,7 +155,7 @@ public static class TemplateExtensions
         }
     }
 
-    private static ValueTask<Error?> CheckWithTheEngineOfTheKey<TPayload>(
+    private static ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckWithTheEngineOfTheKey<TPayload>(
         IServiceProvider tenantServices, TemplateLookup lookup, string text, CancellationToken ct) =>
         tenantServices.GetRequiredService<ITemplateEngine<TPayload>>().CheckAsync(lookup, text, ct);
 

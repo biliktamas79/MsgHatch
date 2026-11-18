@@ -203,12 +203,13 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
         var result = await CheckAsync(scope.ServiceProvider);
 
         // Assert
-        Assert.Same(error, result);
+        Assert.Same(error, result.Error);
     }
 
     public static TheoryData<string, LogLevel, int> CheckLogRows => new()
     {
         { "passed", LogLevel.Debug, 2008 },
+        { "issues", LogLevel.Information, 2016 },
         { nameof(Errors.TemplateInvalid), LogLevel.Information, 2009 },
         { nameof(Errors.Unavailable), LogLevel.Warning, 2009 },
         { nameof(Errors.Exception), LogLevel.Warning, 2009 },
@@ -220,15 +221,16 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
     public async Task CheckAsync_Result_LogsItsLevelAndEventIdWithTheTenant(string result, LogLevel expectedLevel, int expectedEventId)
     {
         // Arrange
-        Error? error = result switch
+        ErrorOr<IReadOnlyList<TemplateIssue>> checkResult = result switch
         {
             nameof(Errors.TemplateInvalid) => new Error(Errors.TemplateInvalid),
             nameof(Errors.Unavailable) => new Error(Errors.Unavailable),
             nameof(Errors.Exception) => new Error(Errors.Exception),
             nameof(Errors.ValidationFailed) => new Error(Errors.ValidationFailed),
-            _ => null,
+            "issues" => ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue([new TemplateIssue("An issue.", 1, 2)]),
+            _ => ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue([]),
         };
-        await using var provider = BuildWith(ACheckingEngine(error));
+        await using var provider = BuildWith(ACheckingEngine(checkResult));
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -243,7 +245,7 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
     public async Task CheckAsync_TextOfATemplate_NoLogRecordContainsTheText()
     {
         // Arrange
-        await using var provider = BuildWith(ACheckingEngine(new Error(Errors.TemplateInvalid)));
+        await using var provider = BuildWith(ACheckingEngine(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue([new TemplateIssue(_subject, 1, 1)])));
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -254,14 +256,14 @@ public sealed class TemplateEngineLoggingWrapperUnitTests
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_subject));
     }
 
-    private static ITemplateEngine<OrderEmail> ACheckingEngine(Error? error)
+    private static ITemplateEngine<OrderEmail> ACheckingEngine(ErrorOr<IReadOnlyList<TemplateIssue>> result)
     {
         var engine = Substitute.For<ITemplateEngine<OrderEmail>>();
-        engine.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(error));
+        engine.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(result));
         return engine;
     }
 
-    private static ValueTask<Error?> CheckAsync(IServiceProvider scope) =>
+    private static ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckAsync(IServiceProvider scope) =>
         scope.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(_t1)
             .CheckAsync(new TemplateLookup(new MessageType("TestEvent"), "en", Scope: null, "subject", TemplatePartKind.PlainText), _subject, Ct);
 

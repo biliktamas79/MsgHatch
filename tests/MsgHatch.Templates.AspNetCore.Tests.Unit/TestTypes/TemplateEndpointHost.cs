@@ -12,7 +12,8 @@ namespace MsgHatch.Templates.AspNetCore.Tests.Unit.TestTypes;
 /// <summary>
 /// A web application on a <see cref="TestServer"/> with the template endpoints, and a manager substitute for
 /// <see cref="TenantKey.None"/> and for the tenant <c>t2</c>. Each substitute gives the entry of a save with the version
-/// 7, the text <c>Order of {{Name}}</c> with the version 5 for a read, two entries for a list, and no error for a delete.
+/// 7, the text <c>Order of {{Name}}</c> with the version 5 for a read, two entries for a list, no error for a delete, one part
+/// with two engines, and two issues for a check.
 /// </summary>
 public sealed class TemplateEndpointHost : IAsyncDisposable
 {
@@ -78,6 +79,10 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
             new TemplateEntry(new TemplateLookup(new MessageType("A"), "hu", "42", "body", TemplatePartKind.Html), 6),
         ])));
         manager.DeleteTemplateAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(null));
+        manager.GetTemplatePartsAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue(
+            [new TemplatePartInfo(new MessageType("A"), new TemplatePart("subject", TemplatePartKind.PlainText), ["placeholder", "liquid"])])));
+        manager.CheckTemplateAsync(default, default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(
+            [new TemplateIssue("An issue.", 2, 5), new TemplateIssue("Another issue.", Line: null, Column: null)])));
         return manager;
     }
 }

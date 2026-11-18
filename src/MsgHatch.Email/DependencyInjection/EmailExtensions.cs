@@ -55,7 +55,7 @@ public static class EmailExtensions
         where TPayload : IPlaceholderPayload<TPayload>
     {
         ArgumentNullException.ThrowIfNull(payload);
-        return Register(payload, name, PlaceholderTemplates.Engine<TPayload>, configure);
+        return Register(payload, name, PlaceholderTemplates.EngineName, PlaceholderTemplates.Engine<TPayload>, configure);
     }
 
     /// <summary>
@@ -75,19 +75,19 @@ public static class EmailExtensions
         Action<ChannelBuilder<EmailMessage>>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(engine);
-        return Register(payload, name, engine.Create<TPayload>, configure);
+        return Register(payload, name, engine.Name, engine.Create<TPayload>, configure);
     }
 
     private static MsgHatchBuilder AddEmailChannel(MsgHatchBuilder builder) =>
         builder.AddChannelType(EmailChannel.Descriptor, 1, EmailJson.Default.EmailChannelSettings, new EmailChannelSettingsValidator());
 
     private static PayloadBuilder<TEvent, TPayload> Register<TEvent, TPayload>(
-        PayloadBuilder<TEvent, TPayload> payload, string name, Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine,
+        PayloadBuilder<TEvent, TPayload> payload, string name, string engineName, Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine,
         Action<ChannelBuilder<EmailMessage>>? configure)
     {
         ArgumentNullException.ThrowIfNull(payload);
         AddEmailChannel(payload.Parent);
-        return payload.AddTemplateEngine($"{EmailChannel.Id.Name}:{name}", EmailChannel.TemplateParts, engine).AsChannel<EmailMessage, EmailComposer<TEvent, TPayload>>(
+        return payload.AddTemplateEngine($"{EmailChannel.Id.Name}:{name}", engineName, EmailChannel.TemplateParts, engine).AsChannel<EmailMessage, EmailComposer<TEvent, TPayload>>(
             EmailChannel.Id, name, 1, EmailJson.Default.EmailMessage, configure: configure);
     }
 }

@@ -8,6 +8,9 @@ namespace MsgHatch.Templates;
 /// </summary>
 public interface ITemplateEngineFactory
 {
+    /// <summary>Gets the name of the engine, for example <c>liquid</c>, which selects the editor of an admin UI (D240).</summary>
+    string Name { get; }
+
     /// <summary>Makes the engine of one payload type and tenant key.</summary>
     /// <typeparam name="TPayload">The type of the template payload.</typeparam>
     /// <param name="tenantServices">The service provider of the tenant services of the key.</param>

@@ -2,6 +2,8 @@ using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Pipeline;
+using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Templates;
 using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Templates.Management;
@@ -30,7 +32,7 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
 
     [Theory]
     [MemberData(nameof(TemplateManagementTestRows.InvalidLookupRows), MemberType = typeof(TemplateManagementTestRows))]
-    public async Task GetTemplateAsync_InvalidLookup_GivesValidationFailedAndCallsNoStore(string row, string language, string? scope, string part)
+    public async Task GetAndCheckTemplateAsync_InvalidLookup_GiveValidationFailedAndCallNoStore(string row, string language, string? scope, string part)
     {
         // Arrange
         var store = Substitute.For<ITemplateStore, ITemplateWriter>();
@@ -40,9 +42,10 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
 
         // Act
         var read = await host.Service(TenantKey.None).GetTemplateAsync(lookup, Ct);
+        var check = await host.Service(TenantKey.None).CheckTemplateAsync(lookup, "Text", Ct);
 
         // Assert
-        Assert.Equal((row, 400, 0), (row, read.Error?.Type.Code, store.ReceivedCalls().Count()));
+        Assert.Equal((row, 400, 400, 0), (row, read.Error?.Type.Code, check.Error?.Type.Code, store.ReceivedCalls().Count()));
     }
 
     [Theory]
@@ -167,6 +170,132 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
         Assert.Equal((404, 404), (list.Error?.Type.Code, read.Error?.Type.Code));
     }
 
+    [Fact]
+    public async Task GetTemplatePartsAsync_TwoRegistrationsOfOneMessageType_GivesEachDeclaredPartWithTheNamesOfItsEngines()
+    {
+        // Arrange
+        await using var host = await StartAsync(ManagerHost.Services(b => b
+            .AddMessage(_type.Name, 1, TestJsonContext.Default.TestEvent, m => m
+                .WithPayload<OrderEmail>(
+                    static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
+                    p => p.AddTemplateEngine("Email:Orders", PlaceholderTemplates.EngineName, TemplateEngineRegistrations.EmailParts, PlaceholderTemplates.Engine<OrderEmail>))
+                .WithPayload<string>(
+                    static (_, _) => Substitute.For<IPayloadLoader<TestEvent, string>>(),
+                    p => p.AddTemplateEngine(
+                        "Sms:Notes", "notes", [new TemplatePart("subject", TemplatePartKind.PlainText), new TemplatePart("sms", TemplatePartKind.PlainText)],
+                        (_, _) => Substitute.For<ITemplateEngine<string>>())))
+            .AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, "OtherType")));
+
+        // Act
+        var parts = await host.Service(TenantKey.None).GetTemplatePartsAsync(_type, Ct);
+
+        // Assert
+        Assert.Equal(
+            ["subject PlainText: placeholder, notes", "body Html: placeholder", "body PlainText: placeholder", "sms PlainText: notes"],
+            parts.Value.Select(part => $"{part.Part.Name} {part.Part.Kind}: {string.Join(", ", part.Engines)}{(part.Type == _type ? "" : " of another type")}"));
+    }
+
+    [Fact]
+    public async Task GetTemplatePartsAsync_NoMessageType_GivesThePartsOfEachMessageType()
+    {
+        // Arrange
+        await using var host = await StartAsync(ManagerHost.Services(b => b
+            .AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, _type.Name)
+            .AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, "OtherType", [new TemplatePart("subject", TemplatePartKind.PlainText)])));
+
+        // Act
+        var parts = await host.Service(TenantKey.None).GetTemplatePartsAsync(type: null, Ct);
+
+        // Assert
+        Assert.Equal(
+            [$"{_type.Name} subject", $"{_type.Name} body", $"{_type.Name} body", "OtherType subject"],
+            parts.Value.Select(static part => $"{part.Type.Name} {part.Part.Name}"));
+    }
+
+    [Theory]
+    [InlineData("Order of {{Name}}", 0)]
+    [InlineData("Order of {{Nmae}}", 1)]
+    [InlineData("Order of {{Name", 1)]
+    public async Task CheckTemplateAsync_Text_GivesTheIssuesOfThePlaceholderEngineAndStoresNothing(string text, int expectedIssues)
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var issues = await host.Service(TenantKey.None).CheckTemplateAsync(ALookup(), text, Ct);
+
+        // Assert
+        Assert.Equal((text, expectedIssues, 0), (text, issues.Value.Count, Directory.EnumerateFiles(folder.Root, $"{_type.Name}.*").Count()));
+    }
+
+    [Fact]
+    public async Task CheckTemplateAsync_TwoEnginesReadThePart_GivesTheIssuesOfEachEngine()
+    {
+        // Arrange
+        var orders = Substitute.For<ITemplateEngine<OrderEmail>>();
+        orders.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues(new TemplateIssue("The order is not valid.", 1, 2)));
+        var notes = Substitute.For<ITemplateEngine<string>>();
+        notes.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues(new TemplateIssue("The note is not valid.", Line: null, Column: null)));
+        await using var host = await StartAsync(ManagerHost.Services(b => b.AddMessage(_type.Name, 1, TestJsonContext.Default.TestEvent, m => m
+            .WithPayload<OrderEmail>(
+                static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
+                p => p.AddTemplateEngine("Email:Orders", "orders", [new TemplatePart("subject", TemplatePartKind.PlainText)], (_, _) => orders))
+            .WithPayload<string>(
+                static (_, _) => Substitute.For<IPayloadLoader<TestEvent, string>>(),
+                p => p.AddTemplateEngine("Sms:Notes", "notes", [new TemplatePart("subject", TemplatePartKind.PlainText)], (_, _) => notes)))));
+
+        // Act
+        var issues = await host.Service(TenantKey.None).CheckTemplateAsync(ALookup(), "Text", Ct);
+
+        // Assert
+        Assert.Equal(
+            [new TemplateIssue("The order is not valid.", 1, 2), new TemplateIssue("The note is not valid.", Line: null, Column: null)],
+            issues.Value);
+    }
+
+    [Fact]
+    public async Task CheckTemplateAsync_ErrorOfAnEngine_GivesThatError()
+    {
+        // Arrange
+        var engine = Substitute.For<ITemplateEngine<OrderEmail>>();
+        engine.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<TemplateIssue>>>(new Error(Errors.Unavailable)));
+        await using var host = await StartAsync(ManagerHost.Services(b => b.AddOrderEmailEngine((_, _) => engine, _type.Name)));
+
+        // Act
+        var issues = await host.Service(TenantKey.None).CheckTemplateAsync(ALookup(), "Text", Ct);
+
+        // Assert
+        Assert.Equal(Errors.Unavailable.Code, issues.Error?.Type.Code);
+    }
+
+    [Theory]
+    [InlineData("subject", TemplatePartKind.Html, 400)]
+    [InlineData("footer", TemplatePartKind.PlainText, 400)]
+    public async Task CheckTemplateAsync_PartAndKindThatNoRegistrationDeclares_GivesValidationFailed(string part, TemplatePartKind kind, int expectedCode)
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var issues = await host.Service(TenantKey.None).CheckTemplateAsync(ALookup(part: part, kind: kind), "Text", Ct);
+
+        // Assert
+        Assert.Equal(expectedCode, issues.Error?.Type.Code);
+    }
+
+    [Fact]
+    public async Task CheckTemplateAsync_MessageTypeWithNoRegistration_GivesNotFound()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var issues = await host.Service(TenantKey.None).CheckTemplateAsync(ALookup() with { Type = new("Unregistered") }, "Text", Ct);
+
+        // Assert
+        Assert.Equal(404, issues.Error?.Type.Code);
+    }
+
     /// <summary>Starts a host of the implementation on the services of a test.</summary>
     /// <param name="addServices">Adds the services of the host with the template stores and the engines.</param>
     /// <returns>The started host.</returns>
@@ -178,6 +307,9 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
         Assert.False(saved.IsError);
         return saved.Value;
     }
+
+    private static ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> Issues(params TemplateIssue[] issues) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues));
 
     private ValueTask<IManagementTestHost<T>> AHostAsync() =>
         StartAsync(ManagerHost.Services(b => b

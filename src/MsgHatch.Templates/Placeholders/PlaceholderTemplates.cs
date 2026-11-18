@@ -5,6 +5,9 @@ namespace MsgHatch.Templates.Placeholders;
 /// <summary>The engine factory of the placeholder engine, for a channel that registers it with <c>AddTemplateEngine</c> (D212).</summary>
 public static class PlaceholderTemplates
 {
+    /// <summary>The name of the placeholder engine (D240).</summary>
+    public const string EngineName = "placeholder";
+
     /// <summary>Makes the placeholder engine of a payload type for one tenant key, with the selector of <see cref="TemplateSelector.For"/>.</summary>
     /// <typeparam name="TPayload">The payload type, with the placeholder writer of the source generator.</typeparam>
     /// <param name="tenantServices">The service provider of the tenant services of the key.</param>

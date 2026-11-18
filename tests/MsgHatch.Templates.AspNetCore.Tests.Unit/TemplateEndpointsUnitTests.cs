@@ -29,6 +29,8 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         { "GET", _path, null, nameof(ITemplateQueries.GetTemplateAsync) },
         { "PUT", _path, """{"text":"Rendelés","version":0}""", nameof(ITemplateCommands.SaveTemplateAsync) },
         { "DELETE", _path, null, nameof(ITemplateCommands.DeleteTemplateAsync) },
+        { "GET", "/templates/parts", null, nameof(ITemplateQueries.GetTemplatePartsAsync) },
+        { "POST", $"{_path}/check", """{"text":"Rendelés"}""", nameof(ITemplateQueries.CheckTemplateAsync) },
     };
 
     public static TheoryData<string, string, string> InvalidValueRows => new()
@@ -41,6 +43,8 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         { "a tenant id with a control character", "DELETE", $"{_path}?tenantId=t%01" },
         { "a message type filter that is not a name", "GET", "/templates?messageType=Order-Shipped" },
         { "an empty tenant id of a list", "GET", "/templates?tenantId=" },
+        { "an unknown kind of a check", "POST", "/templates/OrderShipped/hu/subject/Text/check" },
+        { "a message type filter of the parts that is not a name", "GET", "/templates/parts?messageType=1A" },
     };
 
     public static TheoryData<string, string> InvalidBodyRows => new()
@@ -174,12 +178,56 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GetTemplateParts_Parts_Gives200WithEachPartAndItsEngines()
+    {
+        // Act
+        var response = await _host.Client.SendAsync(RequestOf("GET", "/templates/parts?messageType=A", null), Ct);
+
+        // Assert
+        await _host.Manager.Received(1).GetTemplatePartsAsync(new MessageType("A"), Arg.Any<CancellationToken>());
+        Assert.Equal(
+            (HttpStatusCode.OK, """[{"messageType":"A","part":"subject","kind":"PlainText","engines":["placeholder","liquid"]}]"""),
+            (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+    }
+
+    [Fact]
+    public async Task PostCheck_PathQueryAndBody_Gives200WithTheIssuesOfTheLookupAndTheText()
+    {
+        // Act
+        var response = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/check?companyId=42", """{"text":"Rendelés {{Name"}"""), Ct);
+
+        // Assert
+        await _host.Manager.Received(1).CheckTemplateAsync(
+            new TemplateLookup(new MessageType("OrderShipped"), "hu", "42", "subject", TemplatePartKind.PlainText), "Rendelés {{Name",
+            Arg.Any<CancellationToken>());
+        Assert.Equal(
+            (HttpStatusCode.OK, """[{"message":"An issue.","line":2,"column":5},{"message":"Another issue.","line":null,"column":null}]"""),
+            (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+    }
+
+    [Fact]
+    public async Task PostCheck_BodyThatIsNotJson_Gives415AndCallsNoManager()
+    {
+        // Arrange
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_path}/check")
+        {
+            Content = new StringContent("""{"text":"Rendelés"}""", Encoding.UTF8, "text/plain"),
+        };
+
+        // Act
+        var response = await _host.Client.SendAsync(request, Ct);
+
+        // Assert
+        Assert.Equal((HttpStatusCode.UnsupportedMediaType, 0), (response.StatusCode, _host.Manager.ReceivedCalls().Count()));
+    }
+
     [Theory]
     [MemberData(nameof(InvalidValueRows))]
     public async Task Route_InvalidPathOrQueryValue_Gives400AndCallsNoManager(string row, string method, string path)
     {
         // Act
-        var response = await _host.Client.SendAsync(RequestOf(method, path, method == "PUT" ? """{"text":"a","version":0}""" : null), Ct);
+        var response = await _host.Client.SendAsync(RequestOf(method, path, method is "PUT" or "POST" ? """{"text":"a","version":0}""" : null), Ct);
 
         // Assert
         Assert.Equal(
@@ -239,14 +287,20 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         _host.Manager.Configure().GetTemplatesAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateEntry>>.ForError(error)));
         _host.Manager.Configure().GetTemplateAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<TemplateSource>.ForError(error)));
         _host.Manager.Configure().DeleteTemplateAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(error));
+        _host.Manager.Configure().GetTemplatePartsAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForError(error)));
+        _host.Manager.Configure().CheckTemplateAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForError(error)));
 
         // Act
         var list = await _host.Client.SendAsync(RequestOf("GET", "/templates", null), Ct);
         var read = await _host.Client.SendAsync(RequestOf("GET", _path, null), Ct);
         var delete = await _host.Client.SendAsync(RequestOf("DELETE", _path, null), Ct);
+        var parts = await _host.Client.SendAsync(RequestOf("GET", "/templates/parts", null), Ct);
+        var check = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/check", """{"text":"Rendelés"}"""), Ct);
 
         // Assert
-        Assert.Equal((expected, expected, expected), (list.StatusCode, read.StatusCode, delete.StatusCode));
+        Assert.Equal(
+            (expected, expected, expected, expected, expected),
+            (list.StatusCode, read.StatusCode, delete.StatusCode, parts.StatusCode, check.StatusCode));
     }
 
     private static ErrorType ErrorTypeOf(int code) =>

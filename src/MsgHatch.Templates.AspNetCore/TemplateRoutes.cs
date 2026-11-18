@@ -24,9 +24,11 @@ internal static class TemplateRoutes
     public static void MapTo(RouteGroupBuilder group)
     {
         group.MapGet(string.Empty, GetTemplatesAsync);
+        group.MapGet("/parts", GetTemplatePartsAsync);
         group.MapGet(_templatePath, GetTemplateAsync);
         group.MapPut(_templatePath, SaveTemplateAsync);
         group.MapDelete(_templatePath, DeleteTemplateAsync);
+        group.MapPost(_templatePath + "/check", CheckTemplateAsync);
     }
 
     private static Task<IResult> GetTemplatesAsync(HttpContext context, string? messageType, string? companyId) =>
@@ -37,6 +39,16 @@ internal static class TemplateRoutes
                 await queries.GetTemplatesAsync(new TemplateQuery(type.Value, companyId), context.RequestAborted),
                 static entries => [.. entries.Select(TemplateEntryResponse.From)],
                 _json.IReadOnlyListTemplateEntryResponse);
+        });
+
+    private static Task<IResult> GetTemplatePartsAsync(HttpContext context, string? messageType) =>
+        RunAsync(context, async (ITemplateQueries queries) =>
+        {
+            var type = Optional(messageType, MessageTypeOf);
+            return type.IsError ? Problem(type.Error) : Json(
+                await queries.GetTemplatePartsAsync(type.Value, context.RequestAborted),
+                static parts => [.. parts.Select(TemplatePartResponse.From)],
+                _json.IReadOnlyListTemplatePartResponse);
         });
 
     private static Task<IResult> GetTemplateAsync(
@@ -67,6 +79,25 @@ internal static class TemplateRoutes
                     await commands.SaveTemplateAsync(lookup.Value, body.Value.Text, body.Value.Version, context.RequestAborted),
                     TemplateEntryResponse.From,
                     _json.TemplateEntryResponse);
+            });
+
+    private static Task<IResult> CheckTemplateAsync(
+        HttpContext context, string messageType, string language, string part, string kind, string? companyId) =>
+        !context.Request.HasJsonContentType()
+            ? Task.FromResult<IResult>(TypedResults.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType))
+            : RunAsync(context, async (ITemplateQueries queries) =>
+            {
+                var lookup = LookupOf(messageType, language, part, kind, companyId);
+                if (lookup.IsError)
+                {
+                    return Problem(lookup.Error);
+                }
+
+                var body = await ReadAsync(context, _json.TemplateCheckRequest);
+                return body.IsError ? Problem(body.Error) : Json(
+                    await queries.CheckTemplateAsync(lookup.Value, body.Value.Text, context.RequestAborted),
+                    static issues => [.. issues.Select(TemplateIssueResponse.From)],
+                    _json.IReadOnlyListTemplateIssueResponse);
             });
 
     private static Task<IResult> DeleteTemplateAsync(

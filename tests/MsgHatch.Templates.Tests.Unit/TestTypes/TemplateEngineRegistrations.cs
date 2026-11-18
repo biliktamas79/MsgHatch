@@ -4,6 +4,7 @@ using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Templates;
 using MsgHatch.Templates.DependencyInjection;
+using MsgHatch.Templates.Placeholders;
 using NSubstitute;
 
 namespace MsgHatch.Templates.Tests.Unit.TestTypes;
@@ -20,8 +21,8 @@ public static class TemplateEngineRegistrations
 
     public static MsgHatchBuilder AddOrderEmailEngine(
         this MsgHatchBuilder builder, Func<IServiceProvider, TenantKey, ITemplateEngine<OrderEmail>> engine, string messageType = "TestEvent",
-        IReadOnlyList<TemplatePart>? parts = null) =>
+        IReadOnlyList<TemplatePart>? parts = null, string engineName = PlaceholderTemplates.EngineName) =>
         builder.AddMessage(messageType, 1, TestJsonContext.Default.TestEvent, m => m.WithPayload<OrderEmail>(
             static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
-            p => p.AddTemplateEngine($"Email:{messageType}", parts ?? EmailParts, engine)));
+            p => p.AddTemplateEngine($"Email:{messageType}", engineName, parts ?? EmailParts, engine)));
 }
