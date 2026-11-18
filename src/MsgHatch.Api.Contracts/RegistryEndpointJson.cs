@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace MsgHatch.AspNetCore;
+namespace MsgHatch.Api.Contracts;
 
 /// <summary>
 /// The JSON type information of the request and response bodies of the registry endpoints, with camelCase names and
@@ -15,4 +15,4 @@ namespace MsgHatch.AspNetCore;
 [JsonSerializable(typeof(IReadOnlyList<RegistryMessageTypeResponse>))]
 [JsonSerializable(typeof(ChannelEntryResponse))]
 [JsonSerializable(typeof(MessageTypeEntryResponse))]
-internal sealed partial class RegistryEndpointJson : JsonSerializerContext;
+public sealed partial class RegistryEndpointJson : JsonSerializerContext;

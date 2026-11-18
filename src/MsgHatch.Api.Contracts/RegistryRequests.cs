@@ -1,4 +1,4 @@
-namespace MsgHatch.AspNetCore;
+namespace MsgHatch.Api.Contracts;
 
 /// <summary>The body of <c>PUT {prefix}/channels/{channel}</c> (section 4.20).</summary>
 /// <param name="Enabled">False when the pipeline skips each route on the channel.</param>

@@ -13,7 +13,8 @@ public static class RegistryEndpoints
 {
     /// <summary>
     /// Maps the registry routes. <c>GET {prefix}/channels</c> and <c>GET {prefix}/message-types</c> give the values of
-    /// <see cref="IMessageRegistry"/> with the revision of each entry. With an <see cref="IRegistryWriter"/>, for example
+    /// <see cref="IMessageRegistry"/> with the revision of each entry, through <c>IRegistryQueries</c> of <c>TenantKey.None</c>
+    /// (D270). With an <see cref="IRegistryWriter"/>, for example
     /// from <c>UseStoredRegistry</c>, it also maps <c>PUT</c> and <c>DELETE {prefix}/channels/{channel}</c> and
     /// <c>{prefix}/message-types/{type}</c>. With the in-memory reader of a setup in code, it maps only the GET routes,
     /// and each revision is 0.

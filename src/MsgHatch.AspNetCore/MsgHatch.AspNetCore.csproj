@@ -6,6 +6,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
+    <ProjectReference Include="..\MsgHatch.Api.Contracts\MsgHatch.Api.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\RegistryApiRoutes.cs" Link="Shared\RegistryApiRoutes.cs" />
   </ItemGroup>
 
 </Project>

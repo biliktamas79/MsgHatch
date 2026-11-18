@@ -4,16 +4,18 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Routing;
 using static MsgHatch.AspNetCore.DeliveryRequestValues;
 
 namespace MsgHatch.AspNetCore;
 
 /// <summary>
-/// The routes of the registry administration (section 4.20). The GET routes join <see cref="IMessageRegistry"/> with
-/// the revisions of <see cref="IRegistryWriter.GetEntriesAsync"/>, or give the revision 0 with no writer.
+/// The routes of the registry administration (section 4.20). The GET routes call <see cref="IRegistryQueries"/> of
+/// <see cref="TenantKey.None"/>, because the registry belongs to the whole system (D269, D270).
 /// </summary>
 internal static class RegistryRoutes
 {
@@ -21,33 +23,29 @@ internal static class RegistryRoutes
 
     public static void MapTo(RouteGroupBuilder group, bool writable)
     {
-        group.MapGet("/channels", (Delegate)GetChannelsAsync);
-        group.MapGet("/message-types", (Delegate)GetMessageTypesAsync);
+        group.MapGet(RegistryApiRoutes.Channels, (Delegate)GetChannelsAsync);
+        group.MapGet(RegistryApiRoutes.MessageTypes, (Delegate)GetMessageTypesAsync);
         if (writable)
         {
-            group.MapPut("/channels/{channel}", SaveChannelAsync);
-            group.MapDelete("/channels/{channel}", ResetChannelAsync);
-            group.MapPut("/message-types/{type}", SaveMessageTypeAsync);
-            group.MapDelete("/message-types/{type}", ResetMessageTypeAsync);
+            group.MapPut(RegistryApiRoutes.Channel, SaveChannelAsync);
+            group.MapDelete(RegistryApiRoutes.Channel, ResetChannelAsync);
+            group.MapPut(RegistryApiRoutes.MessageType, SaveMessageTypeAsync);
+            group.MapDelete(RegistryApiRoutes.MessageType, ResetMessageTypeAsync);
         }
     }
 
     private static async Task<IResult> GetChannelsAsync(HttpContext context)
     {
-        var revisions = await RevisionsAsync(context);
-        var registry = context.RequestServices.GetRequiredService<IMessageRegistry>();
-        return revisions.IsError ? Problem(revisions.Error!) : TypedResults.Json<IReadOnlyList<RegistryChannelResponse>>(
-            [.. registry.Channels.Select(channel => RegistryChannelResponse.From(channel, revisions.Value.Channels.GetValueOrDefault(channel.Id)))],
-            _json.IReadOnlyListRegistryChannelResponse);
+        var channels = await Queries(context).GetChannelsAsync(context.RequestAborted);
+        return channels.IsError ? Problem(channels.Error) : TypedResults.Json<IReadOnlyList<RegistryChannelResponse>>(
+            [.. channels.Value.Select(RegistryChannelResponse.From)], _json.IReadOnlyListRegistryChannelResponse);
     }
 
     private static async Task<IResult> GetMessageTypesAsync(HttpContext context)
     {
-        var revisions = await RevisionsAsync(context);
-        var registry = context.RequestServices.GetRequiredService<IMessageRegistry>();
-        return revisions.IsError ? Problem(revisions.Error!) : TypedResults.Json<IReadOnlyList<RegistryMessageTypeResponse>>(
-            [.. registry.MessageTypes.Select(type => RegistryMessageTypeResponse.From(type, revisions.Value.MessageTypes.GetValueOrDefault(type.Type)))],
-            _json.IReadOnlyListRegistryMessageTypeResponse);
+        var types = await Queries(context).GetMessageTypesAsync(context.RequestAborted);
+        return types.IsError ? Problem(types.Error) : TypedResults.Json<IReadOnlyList<RegistryMessageTypeResponse>>(
+            [.. types.Value.Select(RegistryMessageTypeResponse.From)], _json.IReadOnlyListRegistryMessageTypeResponse);
     }
 
     private static Task<IResult> SaveChannelAsync(HttpContext context, string channel) =>
@@ -87,18 +85,7 @@ internal static class RegistryRoutes
 
     private static IRegistryWriter Writer(HttpContext context) => context.RequestServices.GetRequiredService<IRegistryWriter>();
 
-    private static async Task<ErrorOr<Revisions>> RevisionsAsync(HttpContext context)
-    {
-        if (context.RequestServices.GetService<IRegistryWriter>() is not { } writer)
-        {
-            return new Revisions([], []);
-        }
-
-        var entries = await writer.GetEntriesAsync(context.RequestAborted);
-        return entries.IsError ? entries.Error : new Revisions(
-            entries.Value.Channels.DistinctBy(static entry => entry.Channel).ToDictionary(static entry => entry.Channel, static entry => entry.Revision),
-            entries.Value.MessageTypes.DistinctBy(static entry => entry.Type).ToDictionary(static entry => entry.Type, static entry => entry.Revision));
-    }
+    private static IRegistryQueries Queries(HttpContext context) => context.RequestServices.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
 
     private static ErrorOr<IReadOnlyList<ChannelId>> ChannelsOf(IReadOnlyList<string> names)
     {
@@ -130,6 +117,4 @@ internal static class RegistryRoutes
         : type == Errors.NotFound ? StatusCodes.Status404NotFound
         : type == Errors.Conflict ? StatusCodes.Status409Conflict
         : StatusCodes.Status500InternalServerError;
-
-    private sealed record Revisions(Dictionary<ChannelId, int> Channels, Dictionary<MessageType, int> MessageTypes);
 }

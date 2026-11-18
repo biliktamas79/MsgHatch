@@ -35,11 +35,11 @@ public sealed class RegistryHost : IAsyncDisposable
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public static async Task<RegistryHost> StartAsync(bool withWriter = true)
+    public static async Task<RegistryHost> StartAsync(bool withWriter = true, Action<MsgHatchBuilder>? configure = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
-        builder.Services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
+        var msgHatch = builder.Services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .AddTestChannel()
             .AddSecondTestChannel()
             .UseRouter(TestOpenRouter.Factory)
@@ -47,6 +47,7 @@ public sealed class RegistryHost : IAsyncDisposable
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
                 .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>())
                 .AsChannel(TestChannel.SecondId, "OtherEnvelope", 1, TestJsonContext.Default.OtherTestEnvelope, AnyComposer<OtherTestEnvelope>()));
+        configure?.Invoke(msgHatch);
         var writer = AWriter();
         _ = withWriter ? builder.Services.AddSingleton(writer) : builder.Services;
         var app = builder.Build();
