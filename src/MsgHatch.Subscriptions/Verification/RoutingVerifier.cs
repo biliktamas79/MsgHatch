@@ -13,7 +13,7 @@ namespace MsgHatch.Subscriptions.Verification;
 /// The routing verifier on the subscription store and the recipient directory of its key (D85, D116, D126). For each
 /// variation, it runs the routing procedure of the subscription router with the subscriptions of one store query and a
 /// test profile, and composes the routes with <see cref="INotificationService.PreviewAsync{TEvent}"/>, so it stores
-/// nothing and sends nothing (D100, section 4.18).
+/// nothing and sends nothing (D100, section 4.18). It runs <see cref="RoutingVerificationRules"/> first (D248).
 /// </summary>
 internal sealed class RoutingVerifier(
     ISubscriptionStore store,
@@ -29,7 +29,11 @@ internal sealed class RoutingVerifier(
 {
     public async ValueTask<ErrorOr<RoutingVerificationReport>> VerifyAsync(RoutingVerificationRequest request, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        if (RoutingVerificationRules.Check(request) is { } invalid)
+        {
+            return invalid;
+        }
+
         var subscriptions = await store.QueryAsync(new SubscriptionQuery(request.Type), ct);
         if (subscriptions.IsError)
         {

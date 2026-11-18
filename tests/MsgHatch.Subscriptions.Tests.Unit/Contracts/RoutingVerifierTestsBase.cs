@@ -194,6 +194,24 @@ public abstract class RoutingVerifierTestsBase<T>
             Rows(report.Value));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task VerifyAsync_EmptyLanguage_GivesTheErrorOfTheRuleAndReadsNoStore_D248(string language)
+    {
+        // Arrange
+        var store = Substitute.For<ISubscriptionStore>();
+        await using var host = await StartAsync(services => services.AddTestServices().AddScenarioHost(
+            _ => store, static _ => ScenarioDoubles.AScenarioDirectory(), "ABCDE", SubscriptionHost.TemplatePrefix));
+        var request = new RoutingVerificationRequest([new UserId("1")], ["en", language]);
+
+        // Act
+        var report = await host.Service(TenantKey.None).VerifyAsync(request, Ct);
+
+        // Assert
+        Assert.Equal((RoutingVerificationRules.Check(request), 0), (report.Error, store.ReceivedCalls().Count()));
+    }
+
     [Fact]
     public async Task VerifyAsync_NullRequest_ThrowsArgumentNullException()
     {
