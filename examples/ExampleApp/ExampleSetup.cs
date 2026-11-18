@@ -26,6 +26,12 @@ namespace ExampleApp;
 /// </summary>
 public static class ExampleSetup
 {
+    /// <summary>The sample payload of the emails of A to E in the preview of the admin UI (D254). It holds no real data.</summary>
+    private static readonly NoticeEmail _noticeSample = new("The text of a sample notice.", "1");
+
+    /// <summary>The sample payload of the password reset email of F in the preview of the admin UI (D254).</summary>
+    private static readonly PasswordResetEmail _passwordResetSample = new("https://example.com/reset");
+
     /// <summary>
     /// The folder of the email templates in the output folder of the build (D221). The build copies the folder
     /// <c>Templates</c> of the project there, so a write of the template endpoints never changes the source files.
@@ -55,7 +61,7 @@ public static class ExampleSetup
 
     /// <summary>
     /// Registers the message types A to E of the subscription example, each with the test case <c>basic</c> for the routing
-    /// verification, and the password reset F.
+    /// verification, and the password reset F. Each email has a sample payload for the preview of the admin UI (D254).
     /// </summary>
     /// <param name="builder">The MsgHatch builder.</param>
     /// <returns>The builder.</returns>
@@ -67,31 +73,31 @@ public static class ExampleSetup
             .AddMessage("A", 1, json.EventA, static m => m
                 .WithScope(ScopeOf)
                 .WithTestEvent("basic", static user => new EventA(TestUserOf(user), null, "A test of the routing."))
-                .WithPayload<NoticeEmail, NoticeEmailLoader<EventA>>(static p => p.AsEmail("AEmail")))
+                .WithPayload<NoticeEmail, NoticeEmailLoader<EventA>>(static p => p.AsEmail("AEmail").WithTemplateSample(_noticeSample)))
             .AddMessage("B", 1, json.EventB, static m => m
                 .WithScope(ScopeOf)
                 .WithTestEvent("basic", static user => new EventB(TestUserOf(user), null, "A test of the routing."))
-                .WithPayload<NoticeEmail, NoticeEmailLoader<EventB>>(static p => p.AsEmail("BEmail")))
+                .WithPayload<NoticeEmail, NoticeEmailLoader<EventB>>(static p => p.AsEmail("BEmail").WithTemplateSample(_noticeSample)))
             .AddMessage("C", 1, json.EventC, m => m
                 .WithScope(ScopeOf)
                 .WithTestEvent("basic", static user => new EventC(TestUserOf(user), null, "A test of the routing."))
-                .WithPayload<NoticeEmail, NoticeEmailLoader<EventC>>(static p => p.AsEmail("CEmail"))
+                .WithPayload<NoticeEmail, NoticeEmailLoader<EventC>>(static p => p.AsEmail("CEmail").WithTemplateSample(_noticeSample))
                 .WithPayload<Notice, NoticeLoader<EventC>>(p => p.AsSignalR("CUpdate", 1, json.SignalREnvelopeNotice)))
             .AddMessage("D", 1, json.EventD, m => m
                 .WithScope(ScopeOf)
                 .WithTestEvent("basic", static user => new EventD(TestUserOf(user), null, "A test of the routing."))
-                .WithPayload<NoticeEmail, NoticeEmailLoader<EventD>>(static p => p.AsEmail("DEmail"))
+                .WithPayload<NoticeEmail, NoticeEmailLoader<EventD>>(static p => p.AsEmail("DEmail").WithTemplateSample(_noticeSample))
                 .WithPayload<Notice, NoticeLoader<EventD>>(p => p
                     .AsSignalR("DUpdate", 1, json.SignalREnvelopeNotice)
                     .AsBroker("DEvent", 1, json.BrokerEnvelopeNotice)))
             .AddMessage("E", 1, json.EventE, m => m
                 .WithScope(ScopeOf)
                 .WithTestEvent("basic", static user => new EventE(TestUserOf(user), null, "A test of the routing."))
-                .WithPayload<NoticeEmail, NoticeEmailLoader<EventE>>(static p => p.AsEmail("EEmail"))
+                .WithPayload<NoticeEmail, NoticeEmailLoader<EventE>>(static p => p.AsEmail("EEmail").WithTemplateSample(_noticeSample))
                 .WithPayload<Notice, NoticeLoader<EventE>>(p => p.AsBroker("EEvent", 1, json.BrokerEnvelopeNotice)))
             .AddMessage("F", 1, json.PasswordReset, static m => m
                 .WithRouter<PasswordResetRouter>()
-                .WithPayload<PasswordResetEmail, PasswordResetEmailLoader>(static p => p.AsEmail("FEmail", LiquidTemplates.Engine)));
+                .WithPayload<PasswordResetEmail, PasswordResetEmailLoader>(static p => p.AsEmail("FEmail", LiquidTemplates.Engine).WithTemplateSample(_passwordResetSample)));
     }
 
     /// <summary>Turns on the traces and the metrics of MsgHatch (D131). The host adds its exporter after it.</summary>

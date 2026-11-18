@@ -20,6 +20,8 @@ using MsgHatch.Subscriptions;
 using MsgHatch.Subscriptions.Data.Sqlite.DependencyInjection;
 using MsgHatch.Subscriptions.DependencyInjection;
 using MsgHatch.Subscriptions.Management;
+using MsgHatch.Templates;
+using MsgHatch.Templates.Management;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using static ExampleApp.Tests.Unit.TestTypes.ExampleHost;
@@ -180,6 +182,41 @@ public sealed class ExampleSetupUnitTests : IDisposable
                 "msghatch.delivery.delay: 0.1 0.5 1 5 15 60 300 900 3600 21600 86400",
             ],
             [BoundsOf(metrics, "msghatch.process.duration"), BoundsOf(metrics, "msghatch.send.duration"), BoundsOf(metrics, "msghatch.delivery.delay")]);
+    }
+
+    [Fact]
+    public async Task AddExampleMessages_PreviewOfThePasswordResetEmail_GivesTheLinkOfItsSample()
+    {
+        // Arrange
+        await using var provider = BuildConsumer();
+        await using var scope = provider.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None);
+        var lookup = new TemplateLookup(new MessageType("F"), "en", Scope: null, "body", TemplatePartKind.Html);
+        var stored = await queries.GetTemplateAsync(lookup, TestContext.Current.CancellationToken);
+
+        // Act
+        var previews = await queries.PreviewTemplateAsync(lookup, stored.Value.Text, TestContext.Current.CancellationToken);
+
+        // Assert
+        var preview = Assert.Single(previews.Value);
+        Assert.Equal(("Email:FEmail", true), (preview.Registration, preview.Text.Contains("href=\"https://example.com/reset\"", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task AddExampleMessages_EachEmailPart_HasASample()
+    {
+        // Arrange
+        await using var provider = BuildConsumer();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var parts = await scope.ServiceProvider.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None)
+            .GetTemplatePartsAsync(type: null, TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.Equal(
+            ("A, B, C, D, E, F", true),
+            (string.Join(", ", parts.Value.Select(static part => part.Type.Name).Distinct()), parts.Value.All(static part => part.HasSample)));
     }
 
     private ServiceProvider BuildConsumer()

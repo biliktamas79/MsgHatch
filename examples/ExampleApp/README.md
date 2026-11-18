@@ -85,6 +85,8 @@ curl -H "Authorization: Bearer $(dotnet user-jwts create --project examples/Exam
 
 The emails of the message types A to E use the placeholder engine, so their html parts open in the plain editor with the HTML highlight. The password reset email of F uses the Liquid engine, so its parts open in the Liquid editor with its check.
 
+Each row of the template list has the buttons View and Edit. The view page shows the stored text read-only. The edit page shows the editor. Both pages show a preview of the text next to it, or under it on a narrow screen. The preview renders the text with the sample payload that `ExampleSetup` gives each email with `WithTemplateSample` (D254). For example, the preview of the password reset email shows the link `https://example.com/reset`. The edit page renders the preview again 500 ms after the last change of the text. An html part shows its preview in a frame that runs no script.
+
 The admin UI reads the token one time, at its start. After a change of the token, restart `AdminUiExample`.
 
 ## Run the tests
