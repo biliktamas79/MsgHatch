@@ -2,37 +2,49 @@
 @inject IServiceProvider Services
 @* The read-only view of one part of a template: the metadata, the stored text with the highlight of D252, and the buttons Edit and Back (D257). *@
 
-<h1 class="h3">Template</h1>
-
-@if (_loadError is not null)
-{
-    <ErrorAlert Error="_loadError" />
-    <a href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a>
-}
-else if (_lookup is not { } lookup || _source is null)
-{
-    <p class="text-secondary" role="status" data-state="loading">Loading.</p>
-}
-else
-{
-    <TemplateMetadata Lookup="lookup" Version="_source.Key.Version" />
-
-    <div class="row g-3">
-        <div class="col-lg-6" data-column="text">
-            <div data-view="text">
-                <HighlightedTextArea Text="@_source.Text" Segments="TextSegments.Of(_source.Text, lookup.Kind)" ReadOnly="true" />
+<AdminEditPage>
+    <Header>
+        <h1 class="h3">Template</h1>
+        @if (_loadError is null && _lookup is { } shown && _source is not null)
+        {
+            <TemplateMetadata Lookup="shown" Version="_source.Key.Version" />
+        }
+    </Header>
+    <ChildContent>
+        @if (_loadError is not null)
+        {
+            <ErrorAlert Error="_loadError" />
+        }
+        else if (_lookup is not { } lookup || _source is null)
+        {
+            <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+        }
+        else
+        {
+            <div class="row g-3">
+                <div class="col-lg-6" data-column="text">
+                    <div data-view="text">
+                        <HighlightedTextArea Text="@_source.Text" Segments="TextSegments.Of(_source.Text, lookup.Kind)" ReadOnly="true" />
+                    </div>
+                </div>
+                <div class="col-lg-6" data-column="preview">
+                    <TemplatePreviewPane Lookup="lookup" Text="@_source.Text" HasSample="_hasSample" />
+                </div>
             </div>
-        </div>
-        <div class="col-lg-6" data-column="preview">
-            <TemplatePreviewPane Lookup="lookup" Text="@_source.Text" HasSample="_hasSample" />
-        </div>
-    </div>
-
-    <AdminActions Class="mt-3">
-        <Start><a class="btn btn-outline-secondary" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a></Start>
-        <End><a class="btn btn-primary" data-action="edit" href="@TemplateAdminRoutes.Edit(lookup).TrimStart('/')">Edit</a></End>
-    </AdminActions>
-}
+        }
+    </ChildContent>
+    <Actions>
+        <AdminActions>
+            <Start><a class="btn btn-outline-secondary" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a></Start>
+            <End>
+                @if (_loadError is null && _lookup is { } editable && _source is not null)
+                {
+                    <a class="btn btn-primary" data-action="edit" href="@TemplateAdminRoutes.Edit(editable).TrimStart('/')">Edit</a>
+                }
+            </End>
+        </AdminActions>
+    </Actions>
+</AdminEditPage>
 
 @code {
     private TemplateLookup? _lookup;

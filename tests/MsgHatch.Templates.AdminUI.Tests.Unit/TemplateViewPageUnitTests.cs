@@ -69,6 +69,17 @@ public sealed class TemplateViewPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_StoredTemplate_PutsTheMetadataInTheHeaderAndTheActionsUnderTheScrollingBody()
+    {
+        var cut = RenderPage();
+
+        Assert.Equal(
+            (true, true, true),
+            (cut.Find("[data-edit-header]").QuerySelector("[data-metadata]") is not null, cut.Find("[data-edit-body]").QuerySelector("[data-view=text]") is not null,
+                cut.Find("[data-edit-actions]").QuerySelector("[data-action=edit]") is not null));
+    }
+
+    [Fact]
     public void Render_StoredTextTemplate_ShowsTheTextReadOnlyInOneSegment()
     {
         var cut = RenderPage();

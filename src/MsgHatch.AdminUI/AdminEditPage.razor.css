@@ -1,0 +1,9 @@
+.admin-edit-page {
+    min-height: 0;
+}
+
+.admin-edit-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}

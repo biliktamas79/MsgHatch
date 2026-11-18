@@ -51,6 +51,14 @@ public sealed class AdminDialogUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_OpenDialog_HasABodyThatIsAFlexColumn()
+    {
+        var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true));
+
+        Assert.Equal((true, true), (cut.Find(".modal-body").ClassList.Contains("d-flex"), cut.Find(".modal-body").ClassList.Contains("flex-column")));
+    }
+
+    [Fact]
     public void Render_WideDialog_HasTheLargeSize()
     {
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).Add(x => x.Wide, true));

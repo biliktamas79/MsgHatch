@@ -40,6 +40,17 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_StoredTemplate_PutsTheMetadataInTheHeaderAndTheActionsUnderTheScrollingBody()
+    {
+        var cut = RenderPage();
+
+        Assert.Equal(
+            (true, true, true, false),
+            (cut.Find("[data-edit-header]").QuerySelector("[data-metadata]") is not null, cut.Find("[data-edit-body]").QuerySelector("[data-column=text]") is not null,
+                cut.Find("[data-edit-actions]").QuerySelector("[data-action=save]") is not null, cut.Find("[data-edit-body]").QuerySelector("[data-action=save]") is not null));
+    }
+
+    [Fact]
     public void Render_StoredTemplate_HasTheUppercaseTitlesEditorAndLivePreviewAboveTheColumns()
     {
         var cut = RenderPage();

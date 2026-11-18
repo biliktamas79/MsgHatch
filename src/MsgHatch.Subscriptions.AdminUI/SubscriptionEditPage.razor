@@ -1,9 +1,7 @@
 @attribute [Route(SubscriptionAdminRoutes.EditTemplate)]
 @* The edit page of a stored subscription (D239). The list creates a new subscription in a dialog (D260). *@
 
-<h1 class="h3">Subscription</h1>
-
-<SubscriptionEditor Id="Id" />
+<SubscriptionEditor Id="Id" Title="Subscription" />
 
 @code {
     /// <summary>The id of the subscription, from the address.</summary>

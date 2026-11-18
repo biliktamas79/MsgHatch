@@ -3,60 +3,73 @@
 @inject NavigationManager Navigation
 @* The edit page of one part of a template: the editor of its engine, the version, a save with the expected version, and a delete after a question (D239, D240). *@
 
-<h1 class="h3">Template</h1>
-
-@if (_loadError is not null)
-{
-    <ErrorAlert Error="_loadError" />
-    <a href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a>
-}
-else if (_lookup is not { } lookup)
-{
-    <p class="text-secondary" role="status" data-state="loading">Loading.</p>
-}
-else
-{
-    <TemplateMetadata Lookup="lookup" Version="_version" />
-    @if (!_exists)
-    {
-        <p class="text-secondary" data-state="new">There is no template for this part. A save makes it.</p>
-    }
-
-    <div class="row g-3">
-        <div class="col-lg-6" data-column="text">
-            <h2 class="h6 text-uppercase text-body-secondary mb-2" data-column-title>Editor</h2>
-            <DynamicComponent @ref="_editor" Type="_editorType" Parameters="EditorParameters(lookup)" />
-        </div>
-        <div class="col-lg-6" data-column="preview">
-            <h2 class="h6 text-uppercase text-body-secondary mb-2" data-column-title>Live preview</h2>
-            <TemplatePreviewPane Lookup="lookup" Text="@_text" HasSample="_hasSample" />
-        </div>
-    </div>
-
-    @if (!string.Equals(_text, _storedText, StringComparison.Ordinal))
-    {
-        <p class="text-warning mt-2" data-state="pending">The text has changes that are not saved.</p>
-    }
-    @if (_saved)
-    {
-        <div class="alert alert-success mt-2" role="status" data-state="saved">The template is saved.</div>
-    }
-    <div class="mt-2"><ErrorAlert Error="_formError" /></div>
-
-    <AdminActions Class="mt-3">
-        <Start><a class="btn btn-outline-secondary" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a></Start>
-        <End>
-            @if (_exists)
+<AdminEditPage>
+    <Header>
+        <h1 class="h3">Template</h1>
+        @if (_loadError is null && _lookup is { } shown)
+        {
+            <TemplateMetadata Lookup="shown" Version="_version" />
+            @if (!_exists)
             {
-                <button type="button" class="btn btn-outline-danger" data-action="delete" disabled="@_busy" @onclick="() => _confirmDelete = true">Delete</button>
+                <p class="text-secondary" data-state="new">There is no template for this part. A save makes it.</p>
             }
-            <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
-        </End>
-    </AdminActions>
+        }
+    </Header>
+    <ChildContent>
+        @if (_loadError is not null)
+        {
+            <ErrorAlert Error="_loadError" />
+        }
+        else if (_lookup is not { } lookup)
+        {
+            <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+        }
+        else
+        {
+            <div class="row g-3">
+                <div class="col-lg-6" data-column="text">
+                    <h2 class="h6 text-uppercase text-body-secondary mb-2" data-column-title>Editor</h2>
+                    <DynamicComponent @ref="_editor" Type="_editorType" Parameters="EditorParameters(lookup)" />
+                </div>
+                <div class="col-lg-6" data-column="preview">
+                    <h2 class="h6 text-uppercase text-body-secondary mb-2" data-column-title>Live preview</h2>
+                    <TemplatePreviewPane Lookup="lookup" Text="@_text" HasSample="_hasSample" />
+                </div>
+            </div>
 
-    <DeleteDialog Open="_confirmDelete" Question="@TemplateDeleteDetails.QuestionOf(lookup)" Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false">
+            @if (!string.Equals(_text, _storedText, StringComparison.Ordinal))
+            {
+                <p class="text-warning mt-2" data-state="pending">The text has changes that are not saved.</p>
+            }
+            @if (_saved)
+            {
+                <div class="alert alert-success mt-2" role="status" data-state="saved">The template is saved.</div>
+            }
+            <div class="mt-2"><ErrorAlert Error="_formError" /></div>
+        }
+    </ChildContent>
+    <Actions>
+        <AdminActions>
+            <Start><a class="btn btn-outline-secondary" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a></Start>
+            <End>
+                @if (_loadError is null && _lookup is not null)
+                {
+                    if (_exists)
+                    {
+                        <button type="button" class="btn btn-outline-danger" data-action="delete" disabled="@_busy" @onclick="() => _confirmDelete = true">Delete</button>
+                    }
+                    <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
+                }
+            </End>
+        </AdminActions>
+    </Actions>
+</AdminEditPage>
+
+@if (_loadError is null && _lookup is { } asked)
+{
+    <DeleteDialog Open="_confirmDelete" Question="@TemplateDeleteDetails.QuestionOf(asked)" Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false">
         <Details>
-            <TemplateDeleteDetails Lookup="lookup" Version="_version" />
+            <TemplateDeleteDetails Lookup="asked" Version="_version" />
         </Details>
     </DeleteDialog>
 }

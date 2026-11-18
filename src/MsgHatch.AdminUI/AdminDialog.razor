@@ -5,7 +5,7 @@
         <div class="modal-dialog modal-dialog-scrollable @(Wide ? "modal-lg" : null)">
             <div class="modal-content">
                 <div class="modal-header"><h5 class="modal-title" id="@_titleId">@Title</h5></div>
-                <div class="modal-body">@ChildContent</div>
+                <div class="modal-body d-flex flex-column">@ChildContent</div>
                 @if (Start is not null || End is not null)
                 {
                     <div class="modal-footer">

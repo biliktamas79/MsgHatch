@@ -34,6 +34,17 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void Render_StoredSubscription_PutsTheTitleInTheHeaderAndTheActionsUnderTheScrollingBody()
+    {
+        var cut = RenderEdit();
+
+        Assert.Equal(
+            ("Subscription", true, true, false),
+            (cut.Find("[data-edit-header] h1").TextContent, cut.Find("[data-edit-body]").QuerySelector("[data-form=subscription]") is not null,
+                cut.Find("[data-edit-actions]").QuerySelector("[data-action=save]") is not null, cut.Find("[data-edit-body]").QuerySelector("[data-action=save]") is not null));
+    }
+
+    [Fact]
     public void Render_StoredSubscription_PutsBackOnTheLeftAndDeleteAndSaveOnTheRight()
     {
         var cut = RenderEdit();

@@ -1,0 +1,26 @@
+@* The layout of an admin edit page or view page: a header, a body that scrolls by itself, and the bar of the actions under it, so the actions stay on screen in a host whose main area has a fixed height. *@
+<div class="admin-edit-page d-flex flex-column flex-grow-1" data-edit-page>
+    @if (Header is not null)
+    {
+        <div class="flex-shrink-0" data-edit-header>@Header</div>
+    }
+    <div class="admin-edit-body flex-grow-1" data-edit-body>@ChildContent</div>
+    @if (Actions is not null)
+    {
+        <div class="flex-shrink-0 border-top pt-2 mt-2" data-edit-actions>@Actions</div>
+    }
+</div>
+
+@code {
+    /// <summary>The header, for example the title and the metadata line. It does not scroll.</summary>
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    /// <summary>The body, for example the form or the editor. It scrolls by itself.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The bar of the actions, usually an <see cref="AdminActions"/>. It stays under the body.</summary>
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+}
