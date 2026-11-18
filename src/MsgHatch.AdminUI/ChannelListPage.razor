@@ -1,0 +1,51 @@
+@attribute [Route(RegistryAdminRoutes.Channels)]
+@inject IServiceProvider Services
+@* The channels of the registry, with their features, their enabled flag, and the number of their message types (D272). *@
+
+<AdminListPage Title="Channels">
+<AdminList TItem="RegistryChannel" Items="_channels" EmptyText="There are no channels.">
+    <Head>
+        <tr><th>Channel</th><th>Name</th><th>Features</th><th>Enabled</th><th>Message types</th><th></th></tr>
+    </Head>
+    <Row Context="channel">
+        <tr data-row>
+            <td>@channel.Id.Name</td>
+            <td>@channel.Name</td>
+            <td>
+                @foreach (var feature in RegistryTexts.FeaturesOf(channel.Features))
+                {
+                    <span class="badge text-bg-secondary me-1" data-feature>@feature</span>
+                }
+            </td>
+            <td>@RegistryTexts.YesOrNo(channel.Enabled)</td>
+            <td>@_messageTypeCounts.GetValueOrDefault(channel.Id)</td>
+            <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@RegistryAdminRoutes.Channel(channel.Id).TrimStart('/')">View</a>
+            </td>
+        </tr>
+    </Row>
+</AdminList>
+</AdminListPage>
+
+@code {
+    private ErrorOr<IReadOnlyList<RegistryChannel>>? _channels;
+    private Dictionary<ChannelId, int> _messageTypeCounts = [];
+
+    private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        var channels = await Queries.GetChannelsAsync(CancellationToken.None);
+        var types = channels.IsError ? channels.Error : await Queries.GetMessageTypesAsync(CancellationToken.None);
+        if (types.IsError)
+        {
+            _channels = types.Error;
+            return;
+        }
+
+        _messageTypeCounts = channels.Value.DistinctBy(static channel => channel.Id)
+            .ToDictionary(static channel => channel.Id, channel => types.Value.Count(type => type.Channels.Contains(channel.Id)));
+        _channels = channels;
+    }
+}
