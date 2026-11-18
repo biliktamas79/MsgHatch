@@ -266,6 +266,17 @@ public sealed class MsgHatchBuilder
         UseTenantService(ServiceLifetime.Scoped, factory, RegistryQueriesLoggingWrapper.Wrap, setupMethod ?? nameof(UseRegistryQueries));
 
     /// <summary>
+    /// Selects the implementation of <see cref="IRegistryCommands"/>, for example an HTTP client, in place of the in-process
+    /// default of <c>AddMsgHatch</c>, as a scoped tenant service with its logging wrapper (D231, D244, D283). The order of
+    /// the calls does not matter. A second selection gives a setup error.
+    /// </summary>
+    /// <param name="factory">The factory of the commands of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseRegistryCommands(Func<IServiceProvider, TenantKey, IRegistryCommands> factory, string? setupMethod = null) =>
+        UseTenantService(ServiceLifetime.Scoped, factory, RegistryCommandsLoggingWrapper.Wrap, setupMethod ?? nameof(UseRegistryCommands));
+
+    /// <summary>
     /// Registers the registry settings store as a singleton, with its logging wrapper (section 4.20). The storage
     /// packages call it. The settings belong to the whole system, so the store is not a tenant service (D114).
     /// </summary>
