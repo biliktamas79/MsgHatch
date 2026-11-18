@@ -63,6 +63,15 @@ public sealed class AdminListUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_ThirtyItems_FramesTheScrollAreaWithARoundedBorder()
+    {
+        var cut = RenderList(Items(30));
+
+        var scroll = cut.Find("[data-list-scroll]");
+        Assert.Equal((true, true), (scroll.ClassList.Contains("border"), scroll.ClassList.Contains("rounded")));
+    }
+
+    [Fact]
     public void ClickNext_ThirtyItems_ShowsTheLastFiveItems()
     {
         var cut = RenderList(Items(30));
