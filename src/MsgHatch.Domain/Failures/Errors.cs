@@ -41,4 +41,25 @@ public static class Errors
 
     /// <summary>A provider or a network that is not available.</summary>
     public static readonly ErrorType Unavailable = new(503, nameof(Unavailable), true);
+
+    /// <summary>Gives the kind of MsgHatch with a code, for example the code of a kind that an HTTP API sent (D238).</summary>
+    /// <param name="code">The code.</param>
+    /// <returns>The kind of this class with the code, or null for a code of no kind of this class.</returns>
+    public static ErrorType? Find(int code) => code switch
+    {
+        400 => ValidationFailed,
+        403 => Rejected,
+        404 => NotFound,
+        409 => Conflict,
+        410 => Expired,
+        415 => SerializationFailed,
+        422 => TemplateInvalid,
+        426 => UnsupportedVersion,
+        429 => RateLimited,
+        460 => OperationCancelled,
+        499 => Uninitialized,
+        500 => Exception,
+        503 => Unavailable,
+        _ => null,
+    };
 }

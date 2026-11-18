@@ -44,6 +44,34 @@ public sealed class ErrorsUnitTests
         ];
 
         // Assert
-        Assert.Equal(expected, actual);
+        Assert.Equal(expected.Select(Describe), actual.Select(Describe));
     }
+
+    [Fact]
+    public void Find_CodeOfEachField_GivesTheSameInstance()
+    {
+        // Arrange
+        ErrorType[] fields = [.. typeof(Errors).GetFields().Select(static field => (ErrorType)field.GetValue(null)!)];
+
+        // Act
+        ErrorType?[] found = [.. fields.Select(static type => Errors.Find(type.Code))];
+
+        // Assert
+        Assert.Equal((13, true), (fields.Length, fields.Zip(found).All(static pair => ReferenceEquals(pair.First, pair.Second))));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(401)]
+    [InlineData(1000)]
+    public void Find_UnknownCode_GivesNull(int code)
+    {
+        // Act
+        var type = Errors.Find(code);
+
+        // Assert
+        Assert.Null(type);
+    }
+
+    private static (int Code, string Name, bool IsTransient) Describe(ErrorType type) => (type.Code, type.Name, type.IsTransient);
 }

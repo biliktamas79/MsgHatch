@@ -463,7 +463,7 @@ Lookups use a `FrozenDictionary` by content type and version.
 Failures (`MsgHatch.Domain.Failures`, D50):
 
 ```csharp
-public sealed record ErrorType(int Code, string Name, bool IsTransient);
+public sealed record ErrorType(int Code, string Name, bool IsTransient); // equal and hashed by Code only (D238)
 
 public sealed record Error(ErrorType Type, string? Message = null, Exception? Exception = null);
 
@@ -2007,6 +2007,7 @@ Measured cost of the Liquid engine (phase 23, D206). A Liquid render is outside 
 - An operation with a result returns `ErrorOr<T>`.
 - An operation with no result returns `Error?`.
 - `ErrorType.IsTransient` tells the dispatcher to retry or to stop.
+- The code of an `ErrorType` is its identity (D238). `ErrorType` compares and hashes by `Code` only, and the name and the transient flag are data about the code. `Errors.Find(code)` gives the type of `Errors` with a code, or null. A client of an HTTP API gives the type of `Errors.Find` for a known code, so `error.Type == Errors.NotFound` is true, and only an unknown code gives a new `ErrorType` from the wire. No code compares the type of an exception or the text of a message.
 
 Exceptions stay at the edges:
 - Each adapter that calls external code catches the exceptions of that code and returns an `Error`. External code is the AWS SDK, the broker library, SignalR, `System.Text.Json`, the file system, and embedded resources.
