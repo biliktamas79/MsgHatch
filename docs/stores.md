@@ -106,12 +106,24 @@ A registry settings store keeps the stored settings of the channels and the mess
 - `DisabledChannels` round-trips in its order. A channel entry and a message type entry with the same name are two entries.
 - `StoredRegistry` reads all entries when the container creates it and after each `RegistryOptions.RefreshInterval`. A read error keeps its last snapshot. So a store gives `Errors.SerializationFailed` for an entry that a person changed into an invalid value, and does not skip it.
 
-### 1.10 A storage for each tenant
+### 1.10 Channel states
+
+The outbox dispatch store keeps the state of each channel as insert-only `ChannelState` rows (D106, D277):
+
+- A row is `Up`, or `Down` with the reason, `NextCheckAtUtc`, the error code, the error name, and the note. A channel with no row is up. The latest row is the current state.
+- Each row has `Version`: 1 for the first row of the channel, and the version of the latest row plus 1. The store keeps a unique key on the channel and the version.
+- Each row has `PreviousKind` and `PreviousDuration`: the kind of the previous row, and the time since its `SinceUtc` in whole milliseconds, 0 for a negative difference. Both are null for the version 1. So the up time of a period is the sum of `PreviousDurationMs` of the rows with `PreviousKind = 'Up'`, plus the open time of an up latest row.
+- `SetChannelDownAsync` and `SetChannelUpAsync` read the latest row, and insert the row of `ChannelState.AfterDown` or `ChannelState.AfterUp`, or nothing when the state does not change. `SetChannelUpAsync` has the parameter `upAtUtc`, because a store reads no clock.
+- A change is one insert, so no store needs a transaction. When another caller added the same version first, the insert adds nothing, and the store reads the latest row again. `ChannelState.Change` and `ChangeAsync` do these tries, at most three, and then give `Errors.Conflict`.
+- `TryStartChannelCheckAsync` updates only `NextCheckAtUtc` of the latest row. A store never changes another value of a row, and keeps all rows.
+- `GetChannelStatesAsync(fromUtc)` gives the rows at or after `fromUtc` and the row of each channel that was current at `fromUtc`, newest first: by `SinceUtc`, then by the ordinal order of the channel names, then by the version. `ChannelState.NewestFirst` gives this order for a store that reads the rows into memory.
+
+### 1.11 A storage for each tenant
 
 A host can keep one storage for each tenant, for example one SQLite file for each tenant (D125). The setup methods of one shared storage do not change.
 
 - The consumer implements `ITenantSource`. `GetTenantsAsync` gives each tenant that has its own storage. A tenant that the source does not give gets no claim, so the source must give each tenant that has messages.
-- The storage package registers one store instance for each key, on the storage of that key. The key `TenantKey.None` uses the system storage: the messages with no tenant, the down states of the channels, and the registry settings.
+- The storage package registers one store instance for each key, on the storage of that key. The key `TenantKey.None` uses the system storage: the messages with no tenant, the state rows of the channels, and the registry settings.
 - The package calls `UseStorageForEachTenant<TTenantSource>` with four functions: the inbox tenant store, the inbox dispatch store, the outbox tenant store, and the outbox dispatch store of one key. The core then registers the dispatch composites `TenantInboxDispatchStore` and `TenantOutboxDispatchStore`. A tenant store needs no composite, because it uses only the storage of its key.
 
 A claim of a composite:
@@ -132,7 +144,7 @@ Other rules:
 
 - The claim order of D144 holds only inside the storage of one key. A claim returns the messages of the system storage first, and then the messages of each tenant in turn.
 - `RecordTryAsync`, `CompleteAsync`, and `FailAsync` go to the store of the tenant of the message.
-- The down state methods go to the store of `TenantKey.None`.
+- The state methods of the channels, `GetChannelStatesAsync` too, go to the store of `TenantKey.None`.
 - `CountAsync` sums the counts of all stores. `DeleteTestDataAsync` and `PurgeAsync` call each store, and `PurgeAsync` stops at `maxCount` messages in total. Each of them returns the first error.
 - The composite asks each tenant store. With many tenants, this sweep costs more time than the sends, so use one shared storage there.
 
@@ -150,7 +162,7 @@ Other rules:
 ├── outbox/
 │   ├── {channel}/
 │   │   ├── pending/  claimed/  done/  failed/
-│   │   └── down.json
+│   │   └── states/{version:D10}.json
 │   └── ids/{tenantFolder}/{id}
 ├── test/
 │   ├── inbox/      (the same layout, for test messages)
@@ -189,7 +201,9 @@ The file holds the message as `MsgHatchJson` writes it. Section 4.5 of the desig
 - A rename is atomic. The first caller that moves a file wins, and the others skip that file. The claims of one store instance take turns.
 - On Windows, a rename goes through a handle of the source. So two processes on one folder can rarely claim one file in the same lease.
 - A claimed file that the code cannot read stays out of the claim. A file with a newer version stays in `claimed` for a newer instance. A file with a permanent error moves to `failed`.
-- The down state of a channel is the file `{channel}/down.json` (D106). `TryStartChannelCheckAsync` moves the next check time while it holds the file open with no sharing. So of two parallel callers, only one starts the health check of the channel.
+- Each state row of a channel is the file `{channel}/states/{version:D10}.json` (D277). `MessageFiles.TryCreate` writes the whole row to a temporary file, and moves it to the path of its version with no overwrite. So of two parallel inserts of one version, only the first succeeds, and a reader never sees half a file. The file with the highest version is the current state.
+- `TryStartChannelCheckAsync` moves the next check time of the latest file while it holds the file open with no sharing. So of two parallel callers, only one starts the health check of the channel.
+- A golden-file sample `ChannelState.v1.json` of the file store tests keeps the row format, with camelCase names, enum values as strings, and `previousDuration` as a `TimeSpan` text.
 
 ### 2.5 Two parts and the tenant field
 
@@ -237,7 +251,7 @@ The table and column names are the C# property names (D56):
 | `MsgHatchSchema` | `Version`: the schema version 1 |
 | `MsgHatchInbox` | `Sequence INTEGER PRIMARY KEY`, `TenantId`, `Id`, with `UNIQUE (TenantId, Id)`, the columns of `DeliveryState`, `SchemaVersion`, `ContentType`, `ContentVersion`, `Flags`, `TraceParent`, and `Content` (the event as JSON) |
 | `MsgHatchOutbox` | `Sequence INTEGER PRIMARY KEY`, `Id TEXT UNIQUE`, `TenantId`, the columns of `DeliveryState`, `SchemaVersion`, `SourceMessageId`, `MessageType`, `Channel`, `TargetKind`, `TargetId`, `ContentType`, `ContentVersion`, `Flags`, `TraceParent`, `TraceType`, `Trace`, `Content` (the envelope as JSON), and `Tries` (a JSON array) |
-| `MsgHatchChannelDown` | `Channel TEXT PRIMARY KEY`, `Reason`, `SinceUtc`, `NextCheckAtUtc`, `ErrorCode`, `ErrorName`, and `Note`: one row for each down channel |
+| `MsgHatchChannelState` | `Channel`, `Version`, `Kind`, `SinceUtc`, `PreviousKind`, `PreviousDurationMs` (an integer), `Reason`, `NextCheckAtUtc`, `ErrorCode`, `ErrorName`, and `Note`, with `PRIMARY KEY (Channel, Version)`: one row for each state of a channel (D277) |
 | `MsgHatchChannelEntry` | `Channel TEXT PRIMARY KEY`, `DisplayName`, `Description`, `Enabled` (0 or 1), `Revision`, and `LastModifiedAtUtc`: one row for each channel entry (section 4.20) |
 | `MsgHatchMessageTypeEntry` | `Type TEXT PRIMARY KEY`, `DisplayName`, `Description`, `Enabled` (0 or 1), `DisabledChannels` (a JSON array of channel names), `Revision`, and `LastModifiedAtUtc`: one row for each message type entry (section 4.20) |
 
@@ -272,7 +286,7 @@ WHERE Id = @id AND TryCount = @tryNumber - 1
 
 ### 3.4 Claim pattern
 
-1. With no write lock, the claim reads `MIN(NextTryAtUtc)` of the pending rows, of its channel for the outbox. The outbox claim also reads the row of its channel in `MsgHatchChannelDown`. With a down row, it claims nothing, and returns the row as `ClaimResult.Down` (D106). With no due row, it returns the minimum as `NextDueAtUtc`.
+1. With no write lock, the claim reads `MIN(NextTryAtUtc)` of the pending rows, of its channel for the outbox. The outbox claim also reads the latest row of its channel in `MsgHatchChannelState`. With a down row, it claims nothing, and returns the row as `ClaimResult.Down` (D106). With no due row, it returns the minimum as `NextDueAtUtc`.
 2. Else it starts a `BEGIN IMMEDIATE` transaction, which holds the write lock from its start.
 3. A first statement reads the first due rows in the claim order: `ORDER BY NextTryAtUtc, Sequence LIMIT @max` (D144).
 4. A second statement leases these rows with `UPDATE ... WHERE Sequence IN (SELECT value FROM json_each(@sequences)) RETURNING ...`. SQLite gives the rows of `RETURNING` in an arbitrary order, so the store returns them in the order of the first statement.
@@ -280,7 +294,7 @@ WHERE Id = @id AND TryCount = @tryNumber - 1
 
 A claimed row that the code cannot read stays out of the result. A transient error, for example a newer version, keeps the row pending until the lease ends. A permanent error sets the status `Failed`, ends the lease, and writes `{ErrorName}: {message}` into `LastError`.
 
-The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loop wins, and `INSERT OR REPLACE` for the reason `Operator`. `TryStartChannelCheckAsync` is one `UPDATE` with the condition `NextCheckAtUtc <= @now`. A changed row count of 1 means that this caller runs the health check.
+A state row is one `INSERT OR IGNORE`, and a changed row count of 0 means that another caller added the version first. `TryStartChannelCheckAsync` is one `UPDATE` of the latest version with the condition `NextCheckAtUtc <= @now`. A changed row count of 1 means that this caller runs the health check. The table `MsgHatchChannelDown` of a database of an earlier phase stays unused, with no data migration.
 
 ### 3.5 Two parts and the tenant field
 
@@ -325,14 +339,14 @@ The down state uses `INSERT OR IGNORE` for the reason `Errors`, so the first loo
 
 - The store puts the tenant id into `{tenant}` with the escape of the file stores (D172): `Uri.EscapeDataString`, and then each capital letter A to Z as `^` and the small letter. So the tenant `a|b` gives `msghatch-a%7^cb.db`, and the tenants `Acme` and `acme` give `msghatch-^acme.db` and `msghatch-acme.db`.
 - `SqliteInboxStore` and `SqliteOutboxStore` are keyed singletons with `KeyedService.AnyKey`, one instance for each key, on the file of that key. The tenant store of a key is `For(key)` of that instance.
-- The system file holds the messages with no tenant, the down states, and the registry settings of `SqliteRegistrySettingsStore`.
+- The system file holds the messages with no tenant, the state rows of the channels, and the registry settings of `SqliteRegistrySettingsStore`.
 - Each file has the full schema of section 3.1, and the store creates it at the first operation on the file. So the first claim makes the file of each tenant of the tenant source.
 - `UseSqliteTenantSubscriptionStore` of `MsgHatch.Subscriptions.Data.Sqlite` keeps the subscriptions of each key in the file of that key, with the same options.
 - A setup with `UseSqliteStores` and `UseSqliteTenantStores` fails the startup validation, because two methods select the stores (D62). A value in code in both `UseSqliteTenantStores` and `UseSqliteTenantSubscriptionStore` fails it too (D150).
 
 ## 4. EF Core stores
 
-`MsgHatch.Data.EFCore` keeps the inbox, the outbox, the down states, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(connectionString))`.
+`MsgHatch.Data.EFCore` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(connectionString))`.
 
 ### 4.1 Model and tables
 
@@ -391,7 +405,7 @@ WHERE Sequence IN (
 4. A claimed row that the code cannot read stays out of the result. A transient error keeps the row leased for a newer instance. A permanent error sets the status `Failed`, ends the lease, and writes `{ErrorName}: {message}` into `LastError`.
 5. When the claim takes fewer than `maxCount` rows, a query reads `MIN(NextTryAtUtc)` of the pending rows as `NextDueAtUtc`. Else `NextDueAtUtc` is now.
 
-The outbox claim first reads the down row of its channel. With a down row, it claims nothing, and returns the row as `ClaimResult.Down` (D106). `SetChannelDownAsync` with the reason `Errors` is an `INSERT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK`, so the first loop wins. With the reason `Operator`, it is a `MERGE ... WITH (HOLDLOCK)`. `TryStartChannelCheckAsync` is one `UPDATE` with the condition `NextCheckAtUtc <= @now`.
+The outbox claim first reads the latest state row of its channel. With a down row, it claims nothing, and returns the down state as `ClaimResult.Down` (D106). A state row is an `INSERT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK` on the channel and the version, so of two parallel changes only the first adds its row, and the other gets no key error (D277). `TryStartChannelCheckAsync` is one `UPDATE` of the latest version with the condition `NextCheckAtUtc <= @now`. The table is `MsgHatchChannelState` with the key `(Channel, Version)` and `PreviousDurationMs` as `bigint`, so a host adds it with a new migration of `MsgHatchDbContext`.
 
 ### 4.5 Two parts and the tenant field
 
@@ -428,7 +442,7 @@ The outbox claim first reads the down row of its channel. With a down row, it cl
 
 ## 5. MongoDB stores
 
-`MsgHatch.Data.MongoDb` keeps the inbox, the outbox, the down states, and the registry settings in one MongoDB database through the official driver `MongoDB.Driver` (D121). `UseMongoDbStores(o => o.ConnectionString = "mongodb://localhost:27017")` selects them. `MsgHatch.Subscriptions.Data.MongoDb` adds the subscription store with `UseMongoDbSubscriptionStore()`.
+`MsgHatch.Data.MongoDb` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in one MongoDB database through the official driver `MongoDB.Driver` (D121). `UseMongoDbStores(o => o.ConnectionString = "mongodb://localhost:27017")` selects them. `MsgHatch.Subscriptions.Data.MongoDb` adds the subscription store with `UseMongoDbSubscriptionStore()`.
 
 ### 5.1 Options and collections
 
@@ -443,7 +457,7 @@ The outbox claim first reads the down row of its channel. With a down row, it cl
 |---|---|---|
 | `MsgHatchInbox` | One document for each received message | `UX_MsgHatchInbox_Key`, unique on `(tenant, delivery.id)`. `IX_MsgHatchInbox_Due` on `(delivery.nextTryAtUtc.t, _id)` with the filter `delivery.status: "Pending"` (D104). `IX_MsgHatchInbox_Flags` on `flags`. `IX_MsgHatchInbox_Created` on `(tenant, delivery.createdAtUtc.t, delivery.id)`. |
 | `MsgHatchOutbox` | One document for each outgoing message | `UX_MsgHatchOutbox_Id`, unique on `delivery.id`. `IX_MsgHatchOutbox_Due` on `(channel, delivery.nextTryAtUtc.t, _id)` with the filter `delivery.status: "Pending"`. `IX_MsgHatchOutbox_Flags`, `IX_MsgHatchOutbox_Created`, `IX_MsgHatchOutbox_Target` on `(tenant, target.kind, target.id, delivery.createdAtUtc.t)`, and `IX_MsgHatchOutbox_Source` on `sourceMessageId`. |
-| `MsgHatchChannelDown` | One document for each down channel, with the channel name as `_id` (D106) | Only `_id` |
+| `MsgHatchChannelState` | One document for each state row, with the ObjectId of `SinceUtc` as `_id`, and `channel`, `version`, `kind`, `sinceUtc`, `previousKind`, `previousDurationMs` (a 64-bit integer), `reason`, `nextCheckAtUtc`, `errorCode`, `errorName`, and `note` (D277) | `UX_MsgHatchChannelState_Version`, unique on `(channel, version)` |
 | `MsgHatchChannelEntry`, `MsgHatchMessageTypeEntry` | One document for each registry entry, with the name as `_id` (section 4.20 of the design) | Only `_id` |
 
 - A store creates the indexes of its collection before its first operation, one time for each database in the process. The creation is idempotent, so two processes can do it at the same time. A failed creation is tried again at the next operation.
@@ -456,7 +470,7 @@ The outbox claim first reads the down row of its channel. With a down row, it cl
 
 - An object becomes a BSON document, an array a BSON array, and a string, a boolean, or null its BSON value. So the event, the envelope, and the route trace with its `$type` stay sub-documents that a person can read and edit in the tools of MongoDB.
 - A number becomes a 32-bit or a 64-bit integer when it is one, and else a `Decimal128` with the digits of its text, so `19.90` comes back as `19.90`. A number with more than 34 significant digits gives `Errors.SerializationFailed`, because `Decimal128.TryParse` does not round it (checked fact of phase 19).
-- Each time of the delivery state, of a publish try, of a down state, of a registry entry, and of a subscription is the sub-document `{ d, t }` (D185). `d` is the BSON date cut to the millisecond, for the tools, the date operators, and a TTL index. `t` is the number of UTC ticks of 100 nanoseconds, the exact time. Each filter, sort, and index uses `t`, and a read takes `t` only. A person who edits a time changes `t`.
+- Each time of the delivery state, of a publish try, of a channel state, of a registry entry, and of a subscription is the sub-document `{ d, t }` (D185). `d` is the BSON date cut to the millisecond, for the tools, the date operators, and a TTL index. `t` is the number of UTC ticks of 100 nanoseconds, the exact time. Each filter, sort, and index uses `t`, and a read takes `t` only. A person who edits a time changes `t`.
 - `_id` is an ObjectId with the creation time of the message, in seconds, and the counter of the driver (D187). A store never reads the clock (section 1.6), so the time of the ObjectId comes from `CreatedAtUtc`. The counter increases in each process, so the ObjectIds of the adds of one process in a row increase.
 - The stores register no BSON class map and no serializer, so they do not change the BSON setup of the host.
 
@@ -516,13 +530,13 @@ db.MsgHatchOutbox.findOneAndUpdate(
   { sort: { "delivery.nextTryAtUtc.t": 1, _id: 1 }, returnDocument: "after" })
 ```
 
-1. The outbox claim first reads the down document of its channel. With a down document, it claims nothing, and returns it as `ClaimResult.Down` (D106).
+1. The outbox claim first reads the latest state document of its channel. With a down document, it claims nothing, and returns its down state as `ClaimResult.Down` (D106).
 2. Each call takes the due message with the earliest due time, and of these the one with the lowest `_id` (D144, D187). It sets the due time and the lease end to the end of the lease (D103). Each call is atomic, so two parallel claims get different messages.
 3. A stop between two calls leaves only the messages that the store already claimed leased, so no message waits for more than one lease.
 4. A claimed document that the code cannot read stays out of the result. A transient error, for example a newer version, keeps it leased for a newer instance. A permanent error sets the status `Failed`, ends the lease, and writes `{ErrorName}: {message}` into `lastError`.
 5. When the claim takes fewer than `maxCount` documents, a query reads the earliest due time of the pending documents as `NextDueAtUtc`. Else `NextDueAtUtc` is now.
 
-`SetChannelDownAsync` with the reason `Errors` is an `insertOne`, and a stored channel gives a duplicate key, so the first loop wins. With the reason `Operator`, it is a `replaceOne` with `upsert`. `TryStartChannelCheckAsync` is one `updateOne` with the condition `nextCheckAtUtc.t <= now`.
+A state row is one `insertOne`, and a duplicate key of the unique index means that another caller added the version first. So no change needs a transaction, also on a server with no replica set (D277). `TryStartChannelCheckAsync` is one `updateOne` of the latest version with the condition `nextCheckAtUtc.t <= now`. The collection `MsgHatchChannelDown` of an earlier phase stays unused.
 
 ### 5.5 Two parts and the tenant field
 
@@ -564,10 +578,10 @@ A consumer can write a store for another storage. Do these steps:
 1. Implement the dispatch store and its method `For(TenantKey key)`, or two classes on one storage.
 2. Keep the tenant, the flags, the versions, and the tries of each message in fields that a query can read.
 3. Write and read each message with `MsgHatchJson`, and each subscription setting with `ChannelSettingsJson`.
-4. Make `ClaimDueAsync`, `RecordTryAsync`, `RetryAsync`, and `CancelAsync` atomic in your storage.
+4. Make `ClaimDueAsync`, `RecordTryAsync`, `RetryAsync`, and `CancelAsync` atomic in your storage. Keep the channel states as insert-only rows with a unique key on the channel and the version, and add each row with `ChannelState.Change` or `ChangeAsync` (section 1.10).
 5. Register the store with `UseInboxStore`, `UseOutboxStore`, `UseInboxDispatchStore`, and `UseOutboxDispatchStore`, with `UseSubscriptionStore`, or with `UseRegistrySettingsStore`.
 6. Add one subclass of each contract base class, for example `OutboxStoreTestsBase<TStore>`, `SubscriptionStoreTestsBase<TStore>`, and `RegistrySettingsStoreTestsBase<TStore>` (section 5.5 of the design).
 7. Keep a schema version in your storage, and a golden-file sample for each released version of your own types.
-8. For one storage for each tenant, call `UseStorageForEachTenant<TTenantSource>` with the four parts of the storage of each key, in place of the four methods of step 5 (section 1.10).
+8. For one storage for each tenant, call `UseStorageForEachTenant<TTenantSource>` with the four parts of the storage of each key, in place of the four methods of step 5 (section 1.11).
 
 The in-memory stores of `MsgHatch.Domain` follow each rule and pass each contract base class, so they are the reference implementation (D119).
