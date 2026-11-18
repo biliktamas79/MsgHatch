@@ -9,7 +9,8 @@ namespace ExampleApp.Tests.Unit.TestTypes;
 
 /// <summary>
 /// The web app of the example on a <c>TestServer</c>, with the configuration of the test and fake logging. At its
-/// disposal it stops the app, so a test never leaves a dispatch loop that runs.
+/// disposal it stops the app, so a test never leaves a dispatch loop that runs. The OpenTelemetry SDK is off, because a
+/// test has no OTLP collector, and the exporter of the example waits about 8 s at each disposal for one.
 /// </summary>
 public sealed class ExampleWebApp : IAsyncDisposable
 {
@@ -25,6 +26,7 @@ public sealed class ExampleWebApp : IAsyncDisposable
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(configuration);
+        builder.Configuration.AddInMemoryCollection([new("OTEL_SDK_DISABLED", "true")]);
         builder.Logging.ClearProviders().AddFakeLogging();
         return new ExampleWebApp(ExampleApplication.Build(builder));
     }
