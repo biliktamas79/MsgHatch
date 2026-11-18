@@ -16,13 +16,7 @@ else if (_lookup is not { } lookup)
 }
 else
 {
-    <dl class="row mb-2">
-        <dt class="col-sm-2">Message type</dt><dd class="col-sm-10">@lookup.Type.Name</dd>
-        <dt class="col-sm-2">Language</dt><dd class="col-sm-10">@lookup.Language</dd>
-        <dt class="col-sm-2">Company</dt><dd class="col-sm-10">@(lookup.Scope ?? "All companies")</dd>
-        <dt class="col-sm-2">Part</dt><dd class="col-sm-10">@lookup.Part (@lookup.Kind)</dd>
-        <dt class="col-sm-2">Version</dt><dd class="col-sm-10" data-field="version">@_version</dd>
-    </dl>
+    <TemplateMetadata Lookup="lookup" Version="_version" />
     @if (!_exists)
     {
         <p class="text-secondary" data-state="new">There is no template for this part. A save makes it.</p>

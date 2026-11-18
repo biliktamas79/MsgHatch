@@ -1,0 +1,18 @@
+@* The metadata of one part of a template on one line of small labels and values (D257). *@
+<div class="d-flex flex-wrap column-gap-3 row-gap-1 small mb-2" data-metadata>
+    <span><span class="text-secondary">Message type</span> <strong data-field="type">@Lookup.Type.Name</strong></span>
+    <span><span class="text-secondary">Language</span> <strong data-field="language">@Lookup.Language</strong></span>
+    <span><span class="text-secondary">Company</span> <strong data-field="company">@(Lookup.Scope ?? "All companies")</strong></span>
+    <span><span class="text-secondary">Part</span> <strong data-field="part">@Lookup.Part (@Lookup.Kind)</strong></span>
+    <span><span class="text-secondary">Version</span> <strong data-field="version">@Version</strong></span>
+</div>
+
+@code {
+    /// <summary>The message type, the language, the template scope, the part, and the kind.</summary>
+    [Parameter, EditorRequired]
+    public TemplateLookup Lookup { get; set; }
+
+    /// <summary>The version of the stored text, or 0 for a template that is not stored.</summary>
+    [Parameter, EditorRequired]
+    public long Version { get; set; }
+}

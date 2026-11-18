@@ -40,6 +40,20 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_StoredTemplateOfACompany_ShowsTheMetadataInOneRowOfLabelsAndValues()
+    {
+        Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));
+        Navigation.NavigateTo("msghatch/templates/Requests/en/subject/PlainText?companyId=42");
+
+        var cut = RenderPage();
+
+        Assert.Equal(
+            "Message type Requests | Language en | Company 42 | Part subject (PlainText) | Version 2",
+            string.Join(" | ", cut.Find("[data-metadata]").Children.Select(static item => item.TextContent)));
+        Assert.Empty(cut.FindAll("dl"));
+    }
+
+    [Fact]
     public void Render_CompanyInTheQuery_ReadsTheTemplateOfTheCompany()
     {
         Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));
