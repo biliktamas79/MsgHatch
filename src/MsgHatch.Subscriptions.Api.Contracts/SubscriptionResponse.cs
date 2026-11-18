@@ -88,7 +88,7 @@ public sealed record SubscriptionResponse(
             return WireValues.Invalid("Settings need a channel.");
         }
 
-        var settings = SettingsJson.ReadFromTheWire(registry, id, json);
+        var settings = SettingsJson.ReadFromTheWire(registry, settingsType: null, id, json);
         return settings.IsError ? settings.Error : settings.Value;
     }
 }

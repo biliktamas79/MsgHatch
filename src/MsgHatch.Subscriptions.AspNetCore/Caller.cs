@@ -117,7 +117,7 @@ internal sealed record Caller(
             return new Error(Errors.ValidationFailed, "Settings need a channel.");
         }
 
-        var settings = SettingsJson.Read(Registry, id, json);
+        var settings = request.SettingsType is { } settingsType ? SettingsJson.Read(Registry, settingsType, json) : SettingsJson.Read(Registry, id, json);
         return settings.IsError ? settings.Error : settings.Value;
     }
 }

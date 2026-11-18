@@ -2,6 +2,7 @@ using System.Text.Json;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email;
+using MsgHatch.SignalR;
 using MsgHatch.Subscriptions.Api.Contracts.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 
@@ -33,6 +34,37 @@ public sealed class SubscriptionRequestUnitTests(ScenarioRegistry scenario) : IC
     }
 
     [Fact]
+    public void FromAndToDraft_SettingsOfTheTypeOfAnotherChannel_NameTheirSettingsTypeAndGiveAnEqualDraft_D247()
+    {
+        // Arrange
+        var draft = new SubscriptionDraft(
+            SubscriptionOwner.ForUser(new UserId("1")), new MessageType("C"), SubscriptionKind.Channel, EmailChannel.Id, new SignalRChannelSettings("hu"));
+
+        // Act
+        var request = SubscriptionRequest.From(draft, scenario.Registry);
+        var roundTrip = request.ToDraft(scenario.Registry);
+
+        // Assert
+        Assert.Equal(("Settings:SignalR", draft), (request.SettingsType, roundTrip.Value));
+    }
+
+    [Fact]
+    public void FromAndToDraft_UnknownSettingsTypeOrNoSettings_NameNoSettingsTypeAndReadTheSettingsOfTheChannel_D247()
+    {
+        // Arrange
+        using var document = JsonDocument.Parse("""{"language":"hu"}""");
+        var request = new SubscriptionRequest(
+            "C", SubscriptionKind.Channel, SubscriptionLevel.User, UserId: "1", Channel: "Email", Settings: document.RootElement, SettingsType: "Settings:Fax");
+        var optOut = new SubscriptionDraft(SubscriptionOwner.Default, new MessageType("A"), SubscriptionKind.OptOut, null, null);
+
+        // Act
+        var draft = request.ToDraft(scenario.Registry);
+
+        // Assert
+        Assert.Equal((new EmailChannelSettings("hu"), null), (draft.Value.Settings, SubscriptionRequest.From(optOut, scenario.Registry).SettingsType));
+    }
+
+    [Fact]
     public void From_JsonChannelSettings_WritesTheJsonWithNoChange()
     {
         // Arrange
@@ -46,7 +78,9 @@ public sealed class SubscriptionRequestUnitTests(ScenarioRegistry scenario) : IC
 
         // Assert
         using var written = JsonDocument.Parse(json);
-        Assert.Equal("+3612345678", written.RootElement.GetProperty("settings").GetProperty("phone").GetString());
+        Assert.Equal(
+            ("+3612345678", null),
+            (written.RootElement.GetProperty("settings").GetProperty("phone").GetString(), request.SettingsType));
     }
 
     [Theory]

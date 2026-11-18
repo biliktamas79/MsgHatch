@@ -22,6 +22,12 @@ namespace MsgHatch.Subscriptions.Api.Contracts;
 /// <param name="Recipients">The recipients, or null for the scope users.</param>
 /// <param name="Mandatory">True for a mandatory subscription (D88).</param>
 /// <param name="Revision">The revision that the caller read. <c>PUT</c> needs it, and <c>POST</c> ignores it.</param>
+/// <param name="SettingsType">
+/// The content type of the settings, for example <c>Settings:Email</c>, which the server reads the settings with, so that
+/// the settings of the type of another channel give the error of the manager (D247). Null for no settings, for
+/// <see cref="JsonChannelSettings"/>, and for a caller that gives none: the server then reads the settings with the newest
+/// settings type of the channel.
+/// </param>
 public sealed record SubscriptionRequest(
     string MessageType,
     SubscriptionKind Kind,
@@ -32,7 +38,8 @@ public sealed record SubscriptionRequest(
     JsonElement? Settings = null,
     SubscriptionRecipientsBody? Recipients = null,
     bool Mandatory = false,
-    int? Revision = null)
+    int? Revision = null,
+    string? SettingsType = null)
 {
     /// <summary>Gives the body of a draft (D228).</summary>
     /// <param name="draft">The draft.</param>
@@ -46,12 +53,14 @@ public sealed record SubscriptionRequest(
         return new SubscriptionRequest(
             draft.Type.Name, draft.Kind, draft.Owner.Level, draft.Owner.Company?.Value, draft.Owner.User?.Value, draft.Channel?.Name,
             draft.Settings is null ? null : SettingsJson.Write(registry, draft.Settings),
-            draft.Recipients is null ? null : SubscriptionRecipientsBody.From(draft.Recipients), draft.Mandatory, revision);
+            draft.Recipients is null ? null : SubscriptionRecipientsBody.From(draft.Recipients), draft.Mandatory, revision,
+            draft.Settings is null ? null : SettingsJson.ContentTypeOf(registry, draft.Settings));
     }
 
     /// <summary>
-    /// Gives the draft of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/>, and the settings
-    /// of a channel with no registered settings type give <see cref="JsonChannelSettings"/> (D228, D229).
+    /// Gives the draft of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/>, the settings
+    /// have the type of <see cref="SettingsType"/> when the registry has it (D247), and the settings of a channel with no
+    /// registered settings type give <see cref="JsonChannelSettings"/> (D228, D229).
     /// </summary>
     /// <param name="registry">The content type registry, which gives the settings type of the channel.</param>
     /// <returns>The draft, or an error.</returns>
@@ -87,7 +96,7 @@ public sealed record SubscriptionRequest(
             return WireValues.Invalid("Settings need a channel.");
         }
 
-        var settings = SettingsJson.ReadFromTheWire(registry, id, json);
+        var settings = SettingsJson.ReadFromTheWire(registry, SettingsType, id, json);
         return settings.IsError ? settings.Error : settings.Value;
     }
 }

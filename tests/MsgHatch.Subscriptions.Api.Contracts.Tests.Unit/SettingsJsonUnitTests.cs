@@ -2,6 +2,7 @@ using System.Text.Json;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Email;
+using MsgHatch.SignalR;
 using MsgHatch.Subscriptions.Api.Contracts.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Subscriptions.Api.Contracts.Tests.Unit;
@@ -35,6 +36,35 @@ public sealed class SettingsJsonUnitTests(ScenarioRegistry scenario) : IClassFix
 
         // Assert
         Assert.Equal(new EmailChannelSettings("hu", EmailFormat.Html), settings.Value);
+    }
+
+    [Theory]
+    [InlineData("Trace:Subscription", "{}")]
+    [InlineData("Settings:Fax", "{}")]
+    [InlineData("Settings:Email", """{"language":42}""")]
+    public void Read_SettingsTypeThatIsNoRegisteredSettingsTypeOrJsonThatItCannotRead_GivesValidationFailed_D247(string settingsType, string json)
+    {
+        // Arrange
+        using var document = JsonDocument.Parse(json);
+
+        // Act
+        var settings = SettingsJson.Read(scenario.Registry, settingsType, document.RootElement);
+
+        // Assert
+        Assert.Equal((settingsType, Errors.ValidationFailed.Code), (settingsType, settings.Error?.Type.Code));
+    }
+
+    [Fact]
+    public void Read_RegisteredSettingsType_GivesTheSettingsOfThatType_D247()
+    {
+        // Arrange
+        using var document = JsonDocument.Parse("""{"language":"hu"}""");
+
+        // Act
+        var settings = SettingsJson.Read(scenario.Registry, "Settings:SignalR", document.RootElement);
+
+        // Assert
+        Assert.Equal(new SignalRChannelSettings("hu"), settings.Value);
     }
 
     [Fact]

@@ -49,6 +49,11 @@ public sealed partial class SubscriptionEndpointsUnitTests
             new(SubscriptionOwner.ForUser(new UserId("2")), new MessageType("E"), SubscriptionKind.OptOut, EmailChannel.Id, null)
         },
         {
+            "SignalR settings on the channel Email with their settings type",
+            """{"level":"User","userId":"1","messageType":"C","kind":"Channel","channel":"Email","settings":{"language":"hu"},"settingsType":"Settings:SignalR"}""",
+            new(SubscriptionOwner.ForUser(new UserId("1")), new MessageType("C"), SubscriptionKind.Channel, EmailChannel.Id, new SignalRChannelSettings("hu"))
+        },
+        {
             "opt-out for all channels with the settings null",
             """{"level":"User","userId":"2","messageType":"E","kind":"OptOut","channel":null,"settings":null}""",
             new(SubscriptionOwner.ForUser(new UserId("2")), new MessageType("E"), SubscriptionKind.OptOut, null, null)
@@ -78,6 +83,8 @@ public sealed partial class SubscriptionEndpointsUnitTests
         { "unknown channel with settings", """{"level":"Default","messageType":"B","kind":"Channel","channel":"Fax","settings":{}}""" },
         { "settings with no channel", """{"level":"Default","messageType":"B","kind":"OptOut","settings":{"format":"Html"}}""" },
         { "unknown email format", """{"level":"Default","messageType":"B","kind":"Channel","channel":"Email","settings":{"format":"Bogus"}}""" },
+        { "a settings type that is not a settings type", """{"level":"Default","messageType":"B","kind":"Channel","channel":"Email","settings":{},"settingsType":"Trace:Subscription"}""" },
+        { "an unknown settings type", """{"level":"Default","messageType":"B","kind":"Channel","channel":"Email","settings":{},"settingsType":"Settings:Fax"}""" },
         { "settings as a number", """{"level":"Default","messageType":"B","kind":"Channel","channel":"Email","settings":5}""" },
         { "users for the company", """{"level":"Company","companyId":"100","messageType":"B","kind":"Channel","channel":"Email","settings":{},"recipients":{"kind":"Company","users":["2"]}}""" },
         { "users for the scope users", """{"level":"Default","messageType":"B","kind":"OptOut","recipients":{"kind":"ScopeUsers","users":["2"]}}""" },
