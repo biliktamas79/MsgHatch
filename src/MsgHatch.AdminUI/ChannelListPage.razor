@@ -1,11 +1,12 @@
 @attribute [Route(RegistryAdminRoutes.Channels)]
 @inject IServiceProvider Services
-@* The channels of the registry, with their features, their enabled flag, and the number of their message types (D272). *@
+@inject TimeProvider Time
+@* The channels of the registry, with their features, their enabled flag, the number of their message types (D272), and their state with its history (D279). *@
 
 <AdminListPage Title="Channels">
 <AdminList TItem="RegistryChannel" Items="_channels" EmptyText="There are no channels.">
     <Head>
-        <tr><th>Channel</th><th>Name</th><th>Features</th><th>Enabled</th><th>Message types</th><th></th></tr>
+        <tr><th>Channel</th><th>Name</th><th>Features</th><th>Enabled</th><th>Message types</th><th>State</th><th>Since</th><th></th></tr>
     </Head>
     <Row Context="channel">
         <tr data-row>
@@ -19,7 +20,10 @@
             </td>
             <td>@RegistryTexts.YesOrNo(channel.Enabled)</td>
             <td>@_messageTypeCounts.GetValueOrDefault(channel.Id)</td>
+            <td data-cell="state"><ChannelStateBadge Channel="channel" /></td>
+            <td data-cell="since">@RegistryTexts.SinceOf(channel, _nowUtc)</td>
             <td class="text-end text-nowrap">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="history" @onclick="() => _historyChannel = channel">History</button>
                 <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@RegistryAdminRoutes.Channel(channel.Id).TrimStart('/')">View</a>
             </td>
         </tr>
@@ -27,15 +31,20 @@
 </AdminList>
 </AdminListPage>
 
+<ChannelHistoryDialog Channel="_historyChannel" OnClose="() => _historyChannel = null" />
+
 @code {
     private ErrorOr<IReadOnlyList<RegistryChannel>>? _channels;
     private Dictionary<ChannelId, int> _messageTypeCounts = [];
+    private RegistryChannel? _historyChannel;
+    private DateTime _nowUtc;
 
     private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        _nowUtc = Time.GetUtcNow().UtcDateTime;
         var channels = await Queries.GetChannelsAsync(CancellationToken.None);
         var types = channels.IsError ? channels.Error : await Queries.GetMessageTypesAsync(CancellationToken.None);
         if (types.IsError)

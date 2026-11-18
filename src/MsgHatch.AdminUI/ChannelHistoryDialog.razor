@@ -1,0 +1,98 @@
+@inject IServiceProvider Services
+@inject TimeProvider Time
+@* The history of one channel (D279): a timeline bar of the last 30 days, red where the channel was down, and the list of its state rows, newest first. *@
+
+<AdminDialog Open="Channel is not null" Title="@($"History of {Channel?.Id.Name}")" Wide="true">
+    <ChildContent>
+        @if (_error is not null)
+        {
+            <ErrorAlert Error="_error" />
+        }
+        else if (_rows is null)
+        {
+            <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+        }
+        else
+        {
+            <p class="small text-secondary mb-1" data-window>The last 30 days, until @RegistryTexts.TimeOf(_nowUtc)</p>
+            <div class="progress-stacked mb-3" data-timeline>
+                @foreach (var segment in _segments)
+                {
+                    <div class="progress" role="progressbar" aria-label="@(segment.Down ? "Down" : "Up")" aria-valuenow="@segment.PercentText"
+                         aria-valuemin="0" aria-valuemax="100" style="width: @(segment.PercentText)%" data-segment="@(segment.Down ? "down" : "up")">
+                        <div class="progress-bar @(segment.Down ? "bg-danger" : "bg-success")"></div>
+                    </div>
+                }
+            </div>
+            @if (_rows.Count == 0)
+            {
+                <p class="text-secondary" data-state="empty">No down state in 30 days.</p>
+            }
+            else
+            {
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Since</th><th>State</th><th>Reason</th><th>Error</th><th>Note</th><th>Previous state</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr data-row>
+                                <td class="text-nowrap">@RegistryTexts.TimeOf(row.SinceUtc)</td>
+                                <td>@row.Kind</td>
+                                <td>@(row.Reason is { } reason ? RegistryTexts.ReasonOf(reason, errorName: null) : null)</td>
+                                <td>@row.ErrorName</td>
+                                <td>@row.Note</td>
+                                <td class="text-nowrap">@RegistryTexts.PreviousOf(row)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </ChildContent>
+    <Start>
+        <button type="button" class="btn btn-outline-secondary" data-action="close" @onclick="OnClose">Close</button>
+    </Start>
+</AdminDialog>
+
+@code {
+    private RegistryChannel? _loaded;
+    private IReadOnlyList<ChannelState>? _rows;
+    private IReadOnlyList<TimelineSegment> _segments = [];
+    private Error? _error;
+    private DateTime _nowUtc;
+
+    /// <summary>The channel of the history, or null for a closed dialog.</summary>
+    [Parameter]
+    public RegistryChannel? Channel { get; set; }
+
+    /// <summary>Called when the person closes the dialog.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ReferenceEquals(Channel, _loaded))
+        {
+            return;
+        }
+
+        (_loaded, _rows, _segments, _error) = (Channel, null, [], null);
+        if (Channel is not { } channel)
+        {
+            return;
+        }
+
+        _nowUtc = Time.GetUtcNow().UtcDateTime;
+        var history = await Queries.GetChannelHistoryAsync(channel.Id, CancellationToken.None);
+        if (history.IsError)
+        {
+            _error = history.Error;
+            return;
+        }
+
+        (_rows, _segments) = (history.Value, ChannelTimeline.Of(history.Value, _nowUtc));
+    }
+}

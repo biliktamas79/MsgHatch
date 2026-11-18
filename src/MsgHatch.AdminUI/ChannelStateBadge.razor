@@ -1,0 +1,20 @@
+@* The state of a channel on the channel pages (D279): the badge Up or Down of its latest state row, and the reason and the note of a down state. *@
+@if (Channel.Current?.ToDown() is { } down)
+{
+    <span class="badge text-bg-danger" data-state="down">Down</span>
+    <span class="ms-1" data-reason>@RegistryTexts.ReasonOf(down.Reason, down.ErrorName)</span>
+    @if (down.Note is { } note)
+    {
+        @(" ")<span class="text-secondary ms-1" data-note>@note</span>
+    }
+}
+else
+{
+    <span class="badge text-bg-success" data-state="up">Up</span>
+}
+
+@code {
+    /// <summary>The channel.</summary>
+    [Parameter, EditorRequired]
+    public RegistryChannel Channel { get; set; } = null!;
+}

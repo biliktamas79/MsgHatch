@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using MsgHatch.AdminUI.DependencyInjection;
 using MsgHatch.Domain.Identity;
 
@@ -36,4 +38,22 @@ public sealed class RegistryAdminRoutesUnitTests
     }
 
     private static string[] TemplatesOf<TPage>() => [.. typeof(TPage).GetCustomAttributes<RouteAttribute>().Select(static route => route.Template).Order(StringComparer.Ordinal)];
+
+    [Fact]
+    public void AddMsgHatchAdminUI_HostWithNoClock_AddsTheSystemClock()
+    {
+        using var provider = new ServiceCollection().AddMsgHatchAdminUI().BuildServiceProvider();
+
+        Assert.Same(TimeProvider.System, provider.GetRequiredService<TimeProvider>());
+    }
+
+    [Fact]
+    public void AddMsgHatchAdminUI_HostWithAClock_KeepsTheClockOfTheHost()
+    {
+        var clock = new FakeTimeProvider();
+
+        using var provider = new ServiceCollection().AddSingleton<TimeProvider>(clock).AddMsgHatchAdminUI().BuildServiceProvider();
+
+        Assert.Same(clock, provider.GetRequiredService<TimeProvider>());
+    }
 }

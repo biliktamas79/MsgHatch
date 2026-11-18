@@ -1,6 +1,7 @@
 @attribute [Route(RegistryAdminRoutes.ChannelTemplate)]
 @inject IServiceProvider Services
-@* The read-only view of one channel: its values, and the message types that register it, each with its state on the channel (D272). *@
+@inject TimeProvider Time
+@* The read-only view of one channel: its values, its state with its history (D279), and the message types that register it, each with its state on the channel (D272). *@
 
 <AdminEditPage>
     <Header>
@@ -35,6 +36,10 @@
                 <dd class="col-sm-9" data-field="enabled">@RegistryTexts.YesOrNo(channel.Enabled)</dd>
                 <dt class="col-sm-3">Revision</dt>
                 <dd class="col-sm-9" data-field="revision">@channel.Revision</dd>
+                <dt class="col-sm-3">State</dt>
+                <dd class="col-sm-9" data-field="state"><ChannelStateBadge Channel="channel" /></dd>
+                <dt class="col-sm-3">Since</dt>
+                <dd class="col-sm-9" data-field="since">@RegistryTexts.SinceOf(channel, _nowUtc)</dd>
             </dl>
             <h2 class="h5">Message types</h2>
             @if (_messageTypes.Count == 0)
@@ -62,14 +67,24 @@
     <Actions>
         <AdminActions>
             <Start><a class="btn btn-outline-secondary" data-action="back" href="@RegistryAdminRoutes.Channels.TrimStart('/')">Back to the channels</a></Start>
+            <End>
+                @if (_channel is not null)
+                {
+                    <button type="button" class="btn btn-primary" data-action="history" @onclick="() => _historyOpen = true">History</button>
+                }
+            </End>
         </AdminActions>
     </Actions>
 </AdminEditPage>
+
+<ChannelHistoryDialog Channel="_historyOpen ? _channel : null" OnClose="() => _historyOpen = false" />
 
 @code {
     private RegistryChannel? _channel;
     private IReadOnlyList<RegistryMessageType> _messageTypes = [];
     private Error? _loadError;
+    private bool _historyOpen;
+    private DateTime _nowUtc;
 
     /// <summary>The id of the channel, from the address.</summary>
     [Parameter]
@@ -80,7 +95,8 @@
     /// <inheritdoc />
     protected override async Task OnParametersSetAsync()
     {
-        (_channel, _messageTypes, _loadError) = (null, [], null);
+        (_channel, _messageTypes, _loadError, _historyOpen) = (null, [], null, false);
+        _nowUtc = Time.GetUtcNow().UtcDateTime;
         var channels = await Queries.GetChannelsAsync(CancellationToken.None);
         var types = channels.IsError ? channels.Error : await Queries.GetMessageTypesAsync(CancellationToken.None);
         if (types.IsError)

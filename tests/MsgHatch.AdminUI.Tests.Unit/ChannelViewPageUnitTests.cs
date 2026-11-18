@@ -1,5 +1,6 @@
 using Bunit;
 using MsgHatch.AdminUI.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Management;
 using NSubstitute;
@@ -17,6 +18,31 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
             ("Email", "Email channel", "Sends emails", "Yes", "2", "Languages,RichText"),
             (Field(cut, "id"), Field(cut, "name"), Field(cut, "description"), Field(cut, "enabled"), Field(cut, "revision"),
                 string.Join(',', cut.FindAll("[data-field=features] .badge").Select(static badge => badge.TextContent))));
+    }
+
+    [Fact]
+    public void Render_PausedChannel_ShowsTheFieldsStateAndSince()
+    {
+        var paused = new ChannelState(Email, 1, ChannelStateKind.Down, Now.AddDays(-2), null, null, ChannelDownReason.Operator, null, null, null, "maintenance");
+        Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryChannel>>([Channels[0] with { Current = paused }]));
+
+        var cut = RenderPage("Email");
+
+        Assert.Equal(
+            ("Down Paused maintenance", "2029-12-30 00:00 UTC (2 d 0 h)"),
+            (SpacedTextOf(cut.Find("[data-field=state]")), SpacedTextOf(cut.Find("[data-field=since]"))));
+    }
+
+    [Fact]
+    public void ClickHistory_KnownChannel_IsTheMainActionOnTheRightAndOpensTheDialogOfTheChannel()
+    {
+        var cut = RenderPage("Email");
+        var history = cut.Find("[data-actions-end] [data-action=history]");
+
+        history.Click();
+
+        Assert.Equal(("btn btn-primary", "History of Email"), (history.ClassName, cut.Find("[data-dialog] .modal-title").TextContent));
+        Queries.Received(1).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
     }
 
     [Fact]

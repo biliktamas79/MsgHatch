@@ -1,6 +1,8 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using MsgHatch.AdminUI.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
@@ -24,7 +26,9 @@ public abstract class RegistryPageContext : BunitContext
     {
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok(Channels));
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok(MessageTypes));
+        Queries.GetChannelHistoryAsync(default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok<IReadOnlyList<ChannelState>>([]));
         Services.AddKeyedSingleton(TenantKey.None, Queries);
+        Services.AddSingleton<TimeProvider>(Time);
         Services.AddMsgHatchAdminUI();
     }
 
@@ -43,6 +47,15 @@ public abstract class RegistryPageContext : BunitContext
     ];
 
     protected IRegistryQueries Queries { get; } = Substitute.For<IRegistryQueries>();
+
+    /// <summary>The clock of the pages, at 2030-01-01T00:00:00Z.</summary>
+    protected FakeTimeProvider Time { get; } = new(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+    protected DateTime Now => Time.GetUtcNow().UtcDateTime;
+
+    /// <summary>The text of an element with each run of white space as one space.</summary>
+    protected static string SpacedTextOf(AngleSharp.Dom.IElement element) =>
+        string.Join(' ', element.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     protected static ValueTask<ErrorOr<T>> Ok<T>(T value) => ValueTask.FromResult(ErrorOr<T>.ForValue(value));
 
