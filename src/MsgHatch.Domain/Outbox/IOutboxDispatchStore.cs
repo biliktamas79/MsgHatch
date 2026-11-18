@@ -71,35 +71,50 @@ public interface IOutboxDispatchStore
     /// <returns>The number of deleted messages, or the error.</returns>
     ValueTask<ErrorOr<int>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct);
 
-    /// <summary>Gives the down state of each down channel (D106).</summary>
+    /// <summary>Gives the down state of each channel whose latest state row is down (D106, D277).</summary>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>The down states, or the error.</returns>
     ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct);
 
     /// <summary>
-    /// Marks a channel down. With the reason <see cref="ChannelDownReason.Errors"/>, it writes only when the channel
-    /// has no down state, so the first loop that finds the errors wins. With the reason
-    /// <see cref="ChannelDownReason.Operator"/>, it always writes.
+    /// Marks a channel down: it adds the row of <see cref="ChannelState.AfterDown"/> when the state changes (D277). With the
+    /// reason <see cref="ChannelDownReason.Errors"/>, it adds a row only on an up channel, so the first loop that finds the
+    /// errors wins. With the reason <see cref="ChannelDownReason.Operator"/>, it adds a row unless the channel is paused. A
+    /// store keeps a unique key on the channel and the version, so of two parallel changes only the first adds its row, and
+    /// the other tries again with the new latest row (<see cref="ChannelState.Change"/>).
     /// </summary>
     /// <param name="down">The down state.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>True when it wrote the state, or the error.</returns>
+    /// <returns>True when it added a row, false for no change, or the error.</returns>
     ValueTask<ErrorOr<bool>> SetChannelDownAsync(ChannelDown down, CancellationToken ct);
 
     /// <summary>
-    /// Removes the down state of a channel. With a reason, it removes only a down state with that reason, so a health
-    /// check never ends a pause of a person.
+    /// Marks a channel up: it adds the row of <see cref="ChannelState.AfterUp"/> when the channel is down (D277). With a
+    /// reason, it changes only a down state with that reason, so a health check never ends a pause of a person.
     /// </summary>
     /// <param name="channel">The channel.</param>
     /// <param name="reason">The reason to end, or null for each reason.</param>
+    /// <param name="upAtUtc">The up time, the start of the new row.</param>
     /// <param name="ct">The cancellation token.</param>
-    /// <returns>True when it removed a down state, or the error.</returns>
-    ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct);
+    /// <returns>True when it added a row, false for no change, or the error.</returns>
+    ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct);
 
     /// <summary>
-    /// Moves the next check time to <paramref name="nextCheckAtUtc"/>, only when the channel is down with the reason
-    /// <see cref="ChannelDownReason.Errors"/> and its next check time is at or before <paramref name="nowUtc"/>. It is
-    /// atomic between concurrent publisher instances, so one instance at a time runs the health check.
+    /// Gives the state rows of all channels with <see cref="ChannelState.SinceUtc"/> at or after <paramref name="fromUtc"/>,
+    /// and the row of each channel that was current at <paramref name="fromUtc"/>, newest first: by
+    /// <see cref="ChannelState.SinceUtc"/>, then by the ordinal order of the channel names, then by the version (D277). A
+    /// store keeps all rows.
+    /// </summary>
+    /// <param name="fromUtc">The earliest start of a row, besides the row that was current at that time.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The rows, or the error.</returns>
+    ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct);
+
+    /// <summary>
+    /// Moves the next check time of the latest state row to <paramref name="nextCheckAtUtc"/>, only when the channel is down
+    /// with the reason <see cref="ChannelDownReason.Errors"/> and its next check time is at or before
+    /// <paramref name="nowUtc"/>. It is the only update of a state row (D277). It is atomic between concurrent publisher
+    /// instances, so one instance at a time runs the health check.
     /// </summary>
     /// <param name="channel">The channel.</param>
     /// <param name="nowUtc">The current time.</param>

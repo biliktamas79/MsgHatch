@@ -27,17 +27,17 @@ public sealed partial class DeliveryManagerUnitTests
     }
 
     [Fact]
-    public async Task ResumeChannelAsync_RegisteredChannel_EndsEachReasonAndNotifiesTheTopicOfTheChannel()
+    public async Task ResumeChannelAsync_RegisteredChannel_EndsEachReasonAtTheTimeOfTheClockAndNotifiesTheTopicOfTheChannel()
     {
         // Arrange
-        _outboxDispatch.SetChannelUpAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
+        _outboxDispatch.SetChannelUpAsync(default, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
 
         // Act
         var error = await Manager().ResumeChannelAsync(TestChannel.Id, Ct);
 
         // Assert
         Assert.Null(error);
-        await _outboxDispatch.Received(1).SetChannelUpAsync(TestChannel.Id, null, Ct);
+        await _outboxDispatch.Received(1).SetChannelUpAsync(TestChannel.Id, null, Now, Ct);
         await _signal.Received(1).NotifyAsync(DispatchTopic.ForChannel(TestChannel.Id), Ct);
     }
 

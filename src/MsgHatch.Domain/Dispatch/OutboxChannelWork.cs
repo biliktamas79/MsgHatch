@@ -115,7 +115,7 @@ internal sealed class OutboxChannelWork(
 
     private async ValueTask MarkUpAsync(ChannelDown down, DateTime nowUtc, CancellationToken ct)
     {
-        var up = await store.SetChannelUpAsync(transport.Channel, ChannelDownReason.Errors, ct);
+        var up = await store.SetChannelUpAsync(transport.Channel, ChannelDownReason.Errors, time.GetUtcNowDateTime(), ct);
         if (up is { IsSuccess: true, Value: true })
         {
             logger.ChannelUp(transport.Channel.Name, (nowUtc - down.SinceUtc).TotalSeconds);

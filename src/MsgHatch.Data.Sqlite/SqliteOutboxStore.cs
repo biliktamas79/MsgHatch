@@ -192,7 +192,11 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
     }
 
     /// <inheritdoc />
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct) =>
+    public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
         ValueTask.FromResult(SqliteFailures.Run(() => ErrorOr<bool>.ForValue(
             Execute(_setUp, command => command.With("@channel", channel.Name).With("@reason", reason?.ToString())) > 0)));
 

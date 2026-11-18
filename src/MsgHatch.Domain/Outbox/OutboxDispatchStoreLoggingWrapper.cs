@@ -78,11 +78,20 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
     }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    public async ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct)
+    public async ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct)
     {
         var started = time.GetTimestamp();
-        var result = await inner.SetChannelUpAsync(channel, reason, ct);
+        var result = await inner.SetChannelUpAsync(channel, reason, upAtUtc, ct);
         LogChange(nameof(SetChannelUpAsync), channel, reason, result, time.GetElapsedTime(started).TotalMilliseconds);
+        return result;
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.GetChannelStatesAsync(fromUtc, ct);
+        LogGetChannelStates(result, time.GetElapsedTime(started).TotalMilliseconds);
         return result;
     }
 
@@ -167,6 +176,20 @@ internal sealed class OutboxDispatchStoreLoggingWrapper(
         else
         {
             logger.GetDownChannelsSucceeded(result.Value.Count, elapsedMs);
+        }
+    }
+
+    private void LogGetChannelStates(ErrorOr<IReadOnlyList<ChannelState>> result, double elapsedMs)
+    {
+        if (result.IsError)
+        {
+            var level = ErrorLogLevels.For(result.Error);
+            logger.GetChannelStatesFailed(
+                level, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+        }
+        else
+        {
+            logger.GetChannelStatesSucceeded(result.Value.Count, elapsedMs);
         }
     }
 

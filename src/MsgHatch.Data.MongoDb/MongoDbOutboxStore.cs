@@ -171,7 +171,11 @@ public sealed class MongoDbOutboxStore : IOutboxDispatchStore
     }
 
     /// <inheritdoc />
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct)
+    public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct)
     {
         var filter = _filter.Eq(Id, channel.Name);
         filter = reason is { } value ? filter & _filter.Eq(_reason, value.ToString()) : filter;

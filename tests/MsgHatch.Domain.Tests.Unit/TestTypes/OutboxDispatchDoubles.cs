@@ -37,7 +37,7 @@ public sealed class OutboxDispatchDoubles
         });
         Store.GetDownChannelsAsync(default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([])));
         Store.SetChannelDownAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
-        Store.SetChannelUpAsync(default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
+        Store.SetChannelUpAsync(default, default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
         Store.TryStartChannelCheckAsync(default, default, default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(false)));
     }
 

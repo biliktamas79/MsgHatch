@@ -32,8 +32,11 @@ public sealed class TestOutboxDispatchStore : IOutboxDispatchStore
     public ValueTask<ErrorOr<bool>> SetChannelDownAsync(ChannelDown down, CancellationToken ct) =>
         ValueTask.FromResult(ErrorOr<bool>.ForValue(false));
 
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct) =>
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
         ValueTask.FromResult(ErrorOr<bool>.ForValue(false));
+
+    public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
 
     public ValueTask<ErrorOr<bool>> TryStartChannelCheckAsync(
         ChannelId channel, DateTime nowUtc, DateTime nextCheckAtUtc, CancellationToken ct) =>

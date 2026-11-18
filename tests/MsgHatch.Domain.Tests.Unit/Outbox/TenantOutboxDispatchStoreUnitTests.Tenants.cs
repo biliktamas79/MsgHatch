@@ -261,6 +261,25 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
     }
 
     [Fact]
+    public async Task SetChannelDownAsync_Composite_AddsTheRowOnlyInTheStoreOfNoTenant()
+    {
+        // Arrange
+        var down = new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance");
+
+        // Act
+        await Store.SetChannelDownAsync(down, Ct);
+
+        // Assert
+        Assert.Equal(
+            [[down], [down], []],
+            [
+                (await Store.GetChannelStatesAsync(Now, Ct)).Value.Select(static row => row.ToDown()),
+                (await Stores.OutboxOf(TenantKey.None).GetChannelStatesAsync(Now, Ct)).Value.Select(static row => row.ToDown()),
+                (await Stores.OutboxOf(T1).GetChannelStatesAsync(Now, Ct)).Value.Select(static row => row.ToDown()),
+            ]);
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_StoreOfATenantFails_SkipsItLogsItsTenantAndClaimsTheOtherStores()
     {
         // Arrange

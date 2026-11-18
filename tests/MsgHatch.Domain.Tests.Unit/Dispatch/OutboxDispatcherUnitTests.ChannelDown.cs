@@ -136,7 +136,7 @@ public sealed partial class OutboxDispatcherUnitTests
     }
 
     [Fact]
-    public async Task DispatchPendingAsync_DueCheckOfADownChannel_RunsTheCheckBeforeItsClaim()
+    public async Task DispatchPendingAsync_DueCheckOfADownChannel_RunsTheCheckBeforeItsClaimAndGivesTheUpTimeOfTheClock()
     {
         // Arrange
         _doubles.Store.GetDownChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([ADownState(_doubles.Now)])));
@@ -150,7 +150,7 @@ public sealed partial class OutboxDispatcherUnitTests
         Received.InOrder(() =>
         {
             _doubles.Store.TryStartChannelCheckAsync(TestChannel.Id, _doubles.Now, _doubles.Now.AddSeconds(30), Arg.Any<CancellationToken>());
-            _doubles.Store.SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Arg.Any<CancellationToken>());
+            _doubles.Store.SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, _doubles.Now, Arg.Any<CancellationToken>());
             _doubles.Store.ClaimDueAsync(TestChannel.Id, Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
         });
     }
@@ -178,14 +178,14 @@ public sealed partial class OutboxDispatcherUnitTests
         // Arrange
         _doubles.Store.GetDownChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([ADownState(_doubles.Now)])));
         _doubles.Store.TryStartChannelCheckAsync(default, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
-        _doubles.Store.SetChannelUpAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<bool>>(new Error(Errors.Unavailable)));
+        _doubles.Store.SetChannelUpAsync(default, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<bool>>(new Error(Errors.Unavailable)));
         await using var provider = BuildWithTheDownOptions(TestTransports.For(TestChannel.Id));
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        await _doubles.Store.Received(1).SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Arg.Any<CancellationToken>());
+        await _doubles.Store.Received(1).SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         Assert.DoesNotContain(provider.LogRecords(), static r => r.Id.Id == 1403);
     }
 
@@ -214,7 +214,7 @@ public sealed partial class OutboxDispatcherUnitTests
         await _doubles.NextClaimAsync();
         Assert.Equal(TimeSpan.FromSeconds(30), wait);
         await transport.Received(1).CheckHealthAsync(Arg.Any<CancellationToken>());
-        await _doubles.Store.Received(1).SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Arg.Any<CancellationToken>());
+        await _doubles.Store.Received(1).SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         Assert.Equal(LogLevel.Information, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1403).Level);
     }
 
@@ -298,7 +298,7 @@ public sealed partial class OutboxDispatcherUnitTests
         var dispatcher = provider.GetRequiredService<IOutboxDispatcher>();
         _doubles.Time.Advance(TimeSpan.FromHours(2));
         var whileDown = await dispatcher.DispatchPendingAsync(10, Ct);
-        await store.SetChannelUpAsync(TestChannel.Id, reason: null, Ct);
+        await store.SetChannelUpAsync(TestChannel.Id, reason: null, _doubles.Now, Ct);
 
         // Act
         await dispatcher.DispatchPendingAsync(10, Ct);

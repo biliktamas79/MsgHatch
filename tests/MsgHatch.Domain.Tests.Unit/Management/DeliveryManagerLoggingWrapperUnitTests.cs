@@ -190,7 +190,7 @@ public sealed class DeliveryManagerLoggingWrapperUnitTests : IAsyncDisposable
         var one = ValueTask.FromResult(ErrorOr<int>.ForValue(1));
         var changed = ValueTask.FromResult(ErrorOr<bool>.ForValue(true));
         _outboxDispatch.SetChannelDownAsync(default!, Ct).ReturnsForAnyArgs(changed);
-        _outboxDispatch.SetChannelUpAsync(default, default, Ct).ReturnsForAnyArgs(changed);
+        _outboxDispatch.SetChannelUpAsync(default, default, default, Ct).ReturnsForAnyArgs(changed);
         _outboxDispatch.DeleteTestDataAsync(Ct).ReturnsForAnyArgs(one);
         _outboxDispatch.PurgeAsync(default, default, Ct).ReturnsForAnyArgs(one);
         _inboxDispatch.DeleteTestDataAsync(Ct).ReturnsForAnyArgs(one);

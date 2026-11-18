@@ -77,7 +77,7 @@ internal sealed class DeliveryManager(
             return error;
         }
 
-        var resumed = await outboxDispatch.SetChannelUpAsync(channel, reason: null, ct);
+        var resumed = await outboxDispatch.SetChannelUpAsync(channel, reason: null, time.GetUtcNowDateTime(), ct);
         if (resumed.IsError)
         {
             return resumed.Error;

@@ -81,6 +81,17 @@ internal static partial class Log
         this ILogger logger, LogLevel level, string operation, string channel, ChannelDownReason? reason, double elapsedMs,
         int errorCode, string errorName, string? errorMessage);
 
+    [LoggerMessage(
+        EventId = 1320, Level = LogLevel.Debug,
+        Message = "Outbox GetChannelStatesAsync gave {Count} channel state rows in {ElapsedMs} ms")]
+    public static partial void GetChannelStatesSucceeded(this ILogger logger, int count, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 1321,
+        Message = "Outbox GetChannelStatesAsync failed after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void GetChannelStatesFailed(
+        this ILogger logger, LogLevel level, double elapsedMs, int errorCode, string errorName, string? errorMessage);
+
     [LoggerMessage(EventId = 1312, Level = LogLevel.Information, Message = "Outbox dispatcher started its loops")]
     public static partial void DispatcherStarted(this ILogger logger);
 

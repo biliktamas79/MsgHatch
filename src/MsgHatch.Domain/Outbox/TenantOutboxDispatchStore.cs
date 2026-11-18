@@ -71,8 +71,12 @@ public sealed class TenantOutboxDispatchStore : IOutboxDispatchStore
         SystemStore.SetChannelDownAsync(down, ct);
 
     /// <inheritdoc />
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct) =>
-        SystemStore.SetChannelUpAsync(channel, reason, ct);
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
+        SystemStore.SetChannelUpAsync(channel, reason, upAtUtc, ct);
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
+        SystemStore.GetChannelStatesAsync(fromUtc, ct);
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> TryStartChannelCheckAsync(

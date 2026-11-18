@@ -100,6 +100,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         { nameof(IOutboxDispatchStore.SetChannelDownAsync), 1311 },
         { nameof(IOutboxDispatchStore.SetChannelUpAsync), 1311 },
         { nameof(IOutboxDispatchStore.TryStartChannelCheckAsync), 1311 },
+        { nameof(IOutboxDispatchStore.GetChannelStatesAsync), 1321 },
         { nameof(IOutboxDispatchStore.CountAsync), 1317 },
         { nameof(IOutboxDispatchStore.PurgeAsync), 1317 },
     };
@@ -112,6 +113,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         { nameof(IOutboxDispatchStore.SetChannelDownAsync), 1310 },
         { nameof(IOutboxDispatchStore.SetChannelUpAsync), 1310 },
         { nameof(IOutboxDispatchStore.TryStartChannelCheckAsync), 1310 },
+        { nameof(IOutboxDispatchStore.GetChannelStatesAsync), 1320 },
         { nameof(IOutboxDispatchStore.CountAsync), 1316 },
         { nameof(IOutboxDispatchStore.PurgeAsync), 1316 },
     };
@@ -272,7 +274,8 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
             nameof(IOutboxDispatchStore.RecordTryAsync) => await store.RecordTryAsync(message, ATry(message), nextTryAtUtc: null, Ct),
             nameof(IOutboxDispatchStore.GetDownChannelsAsync) => (await store.GetDownChannelsAsync(Ct)).Error,
             nameof(IOutboxDispatchStore.SetChannelDownAsync) => (await store.SetChannelDownAsync(APause("note"), Ct)).Error,
-            nameof(IOutboxDispatchStore.SetChannelUpAsync) => (await store.SetChannelUpAsync(TestChannel.Id, reason: null, Ct)).Error,
+            nameof(IOutboxDispatchStore.SetChannelUpAsync) => (await store.SetChannelUpAsync(TestChannel.Id, reason: null, now, Ct)).Error,
+            nameof(IOutboxDispatchStore.GetChannelStatesAsync) => (await store.GetChannelStatesAsync(now, Ct)).Error,
             nameof(IOutboxDispatchStore.TryStartChannelCheckAsync) => (await store.TryStartChannelCheckAsync(TestChannel.Id, now, now.AddSeconds(30), Ct)).Error,
             nameof(IOutboxDispatchStore.CountAsync) => (await store.CountAsync(new TrafficQuery(), Ct)).Error,
             _ => (await store.PurgeAsync(now, 10, Ct)).Error,
@@ -291,7 +294,10 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
             : ErrorOr<IReadOnlyList<ChannelDown>>.ForError(error)));
         var changed = ValueTask.FromResult(error is null ? ErrorOr<bool>.ForValue(true) : ErrorOr<bool>.ForError(error));
         store.SetChannelDownAsync(default!, default).ReturnsForAnyArgs(changed);
-        store.SetChannelUpAsync(default, default, default).ReturnsForAnyArgs(changed);
+        store.SetChannelUpAsync(default, default, default, default).ReturnsForAnyArgs(changed);
+        store.GetChannelStatesAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult(error is null
+            ? ErrorOr<IReadOnlyList<ChannelState>>.ForValue([])
+            : ErrorOr<IReadOnlyList<ChannelState>>.ForError(error)));
         store.TryStartChannelCheckAsync(default, default, default, default).ReturnsForAnyArgs(changed);
         store.CountAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(error is null
             ? ErrorOr<IReadOnlyList<MessageCount>>.ForValue([])

@@ -100,7 +100,11 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
     }
 
     /// <inheritdoc />
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct) =>
+    public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
+
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
         ValueTask.FromResult(FileFailures.Run(() => ErrorOr<bool>.ForValue(EndDown(channel, reason))));
 
     /// <inheritdoc />

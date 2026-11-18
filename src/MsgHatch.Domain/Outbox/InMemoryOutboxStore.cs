@@ -17,7 +17,7 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
     private readonly List<OutgoingMessage> _messages = [];
     private readonly HashSet<Guid> _ids = [];
     private readonly Dictionary<Guid, List<PublishTry>> _tries = [];
-    private readonly Dictionary<ChannelId, ChannelDown> _downChannels = [];
+    private readonly Dictionary<ChannelId, List<ChannelState>> _channelStates = [];
 
     /// <summary>Gives the tenant store of one key. It reads and writes only the messages of its tenant.</summary>
     /// <param name="key">The tenant key.</param>
@@ -58,7 +58,7 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
         lock (_lock)
         {
             return ValueTask.FromResult(ErrorOr<ClaimResult<OutgoingMessage>>.ForValue(
-                _downChannels.TryGetValue(channel, out var down)
+                LatestStateOf(channel)?.ToDown() is { } down
                     ? new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down)
                     : Claim(channel, maxCount, nowUtc, nowUtc + lease)));
         }
@@ -144,7 +144,8 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
     {
         lock (_lock)
         {
-            return ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([.. _downChannels.Values]));
+            return ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelDown>>.ForValue(
+                [.. _channelStates.Values.Select(static rows => rows[^1].ToDown()).OfType<ChannelDown>()]));
         }
     }
 
@@ -154,28 +155,27 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
         ArgumentNullException.ThrowIfNull(down);
         lock (_lock)
         {
-            var firstLoopWins = down.Reason == ChannelDownReason.Errors && _downChannels.ContainsKey(down.Channel);
-            if (!firstLoopWins)
-            {
-                _downChannels[down.Channel] = down;
-            }
-
-            return ValueTask.FromResult(ErrorOr<bool>.ForValue(!firstLoopWins));
+            return ValueTask.FromResult(ChannelState.Change(() => LatestStateOf(down.Channel), latest => ChannelState.AfterDown(latest, down), AddState));
         }
     }
 
     /// <inheritdoc />
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, CancellationToken ct)
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct)
     {
         lock (_lock)
         {
-            var ends = _downChannels.TryGetValue(channel, out var down) && (reason is null || down.Reason == reason);
-            if (ends)
-            {
-                _downChannels.Remove(channel);
-            }
+            return ValueTask.FromResult(
+                ChannelState.Change(() => LatestStateOf(channel), latest => ChannelState.AfterUp(latest, channel, reason, upAtUtc), AddState));
+        }
+    }
 
-            return ValueTask.FromResult(ErrorOr<bool>.ForValue(ends));
+    /// <inheritdoc />
+    public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct)
+    {
+        lock (_lock)
+        {
+            return ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue(
+                ChannelState.NewestFirst(_channelStates.Values.SelectMany(static rows => rows), fromUtc)));
         }
     }
 
@@ -185,12 +185,12 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
     {
         lock (_lock)
         {
-            var due = _downChannels.TryGetValue(channel, out var down)
-                && down.Reason == ChannelDownReason.Errors
-                && down.NextCheckAtUtc <= nowUtc;
+            var latest = LatestStateOf(channel);
+            var due = latest is { Kind: ChannelStateKind.Down, Reason: ChannelDownReason.Errors } && latest.NextCheckAtUtc <= nowUtc;
             if (due)
             {
-                _downChannels[channel] = down! with { NextCheckAtUtc = nextCheckAtUtc };
+                var rows = _channelStates[channel];
+                rows[^1] = latest! with { NextCheckAtUtc = nextCheckAtUtc };
             }
 
             return ValueTask.FromResult(ErrorOr<bool>.ForValue(due));
@@ -261,6 +261,19 @@ public sealed class InMemoryOutboxStore : IOutboxDispatchStore
                 .Where(message => (tenant is null || message.Tenant == tenant.Value.Tenant) && query.Matches(message.Delivery, message.Flags))
                 .Select(static message => (message.Type, (ChannelId?)message.Channel, message.Delivery, message.Flags)));
         }
+    }
+
+    private ChannelState? LatestStateOf(ChannelId channel) => _channelStates.TryGetValue(channel, out var rows) ? rows[^1] : null;
+
+    private bool AddState(ChannelState row)
+    {
+        if (!_channelStates.TryGetValue(row.Channel, out var rows))
+        {
+            _channelStates[row.Channel] = rows = [];
+        }
+
+        rows.Add(row);
+        return true;
     }
 
     private ClaimResult<OutgoingMessage> Claim(ChannelId channel, int maxCount, DateTime nowUtc, DateTime leaseUntilUtc)

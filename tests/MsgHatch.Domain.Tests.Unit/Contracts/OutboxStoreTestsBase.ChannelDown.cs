@@ -46,7 +46,7 @@ public abstract partial class OutboxStoreTestsBase<TStore>
         await Store.SetChannelDownAsync(paused, Ct);
 
         // Act
-        var ended = await Store.SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Ct);
+        var ended = await Store.SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Now, Ct);
 
         // Assert
         Assert.False(ended.Value);
@@ -62,7 +62,7 @@ public abstract partial class OutboxStoreTestsBase<TStore>
         await Store.SetChannelDownAsync(ADown(reason), Ct);
 
         // Act
-        var ended = await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Ct);
+        var ended = await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now, Ct);
 
         // Assert
         Assert.True(ended.Value);
@@ -73,7 +73,7 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     public async Task SetChannelUpAsync_ChannelThatIsUp_ReturnsFalse()
     {
         // Act
-        var ended = await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Ct);
+        var ended = await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now, Ct);
 
         // Assert
         Assert.False(ended.Value);

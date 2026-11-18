@@ -47,7 +47,7 @@ public sealed partial class DeliveryManagerUnitTests
                 () => _outboxDispatch.CountAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageCount>>.ForError(_storeError))),
                 async () => (await Manager().GetChannelsAsync(Ct)).Error),
             "resume" => await FailAsync(
-                () => _outboxDispatch.SetChannelUpAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForError(_storeError))),
+                () => _outboxDispatch.SetChannelUpAsync(default, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForError(_storeError))),
                 async () => await Manager().ResumeChannelAsync(TestChannel.Id, Ct)),
             "test data of the inbox" => await FailAsync(
                 () => _inboxDispatch.DeleteTestDataAsync(Ct).Returns(ValueTask.FromResult(ErrorOr<int>.ForError(_storeError))),
