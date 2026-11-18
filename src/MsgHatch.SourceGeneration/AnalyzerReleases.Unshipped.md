@@ -6,3 +6,12 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 MSGHATCH001 | MsgHatch | Error | PlaceholderPayloadGenerator
+MSGHATCH002 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH003 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH004 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH005 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH006 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH007 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH008 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH009 | MsgHatch | Error | HttpApiClientGenerator
+MSGHATCH010 | MsgHatch | Error | HttpApiClientGenerator
