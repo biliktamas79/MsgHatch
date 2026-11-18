@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The EF Core model of the inbox, the outbox, the down states, and the registry settings (section 4.5, D120), in the
+/// The EF Core model of the inbox, the outbox, the channel states, and the registry settings (section 4.5, D120), in the
 /// schema of <see cref="EntityFrameworkStoreOptions.Schema"/>. The table and column names are the names of section 4.5
 /// (D56), with the same indexes. The partial claim index of each message table is a filtered index with
 /// <c>WHERE Status = 'Pending'</c> (D104). The package creates no schema: the host creates it with its own EF Core
@@ -28,7 +28,7 @@ public sealed class MsgHatchDbContext : DbContext
 
     internal DbSet<OutboxRow> Outbox => Set<OutboxRow>();
 
-    internal DbSet<ChannelDownRow> ChannelDowns => Set<ChannelDownRow>();
+    internal DbSet<ChannelStateRow> ChannelStates => Set<ChannelStateRow>();
 
     internal DbSet<ChannelEntryRow> ChannelEntries => Set<ChannelEntryRow>();
 
@@ -64,14 +64,16 @@ public sealed class MsgHatchDbContext : DbContext
                 .HasDatabaseName("IX_MsgHatchOutbox_Target");
             outbox.HasIndex(static row => row.SourceMessageId).HasDatabaseName("IX_MsgHatchOutbox_Source");
         });
-        modelBuilder.Entity<ChannelDownRow>(static down =>
+        modelBuilder.Entity<ChannelStateRow>(static state =>
         {
-            down.ToTable("MsgHatchChannelDown");
-            down.HasKey(static row => row.Channel);
-            down.Property(static row => row.Channel).IsName();
-            down.Property(static row => row.Reason).IsEnum();
-            down.Property(static row => row.ErrorName).IsName();
-            down.Property(static row => row.Note).HasMaxLength(500);
+            state.ToTable("MsgHatchChannelState");
+            state.HasKey(static row => new { row.Channel, row.Version });
+            state.Property(static row => row.Channel).IsName();
+            state.Property(static row => row.Kind).IsEnum();
+            state.Property(static row => row.PreviousKind).HasMaxLength(32).IsUnicode(false);
+            state.Property(static row => row.Reason).HasMaxLength(32).IsUnicode(false);
+            state.Property(static row => row.ErrorName).IsName();
+            state.Property(static row => row.Note).HasMaxLength(500);
         });
         modelBuilder.Entity<ChannelEntryRow>(static entry =>
         {

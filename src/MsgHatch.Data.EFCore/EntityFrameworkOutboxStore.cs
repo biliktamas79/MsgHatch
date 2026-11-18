@@ -16,7 +16,8 @@ namespace MsgHatch.Data.EFCore;
 /// <summary>
 /// The outbox on EF Core (section 4.5, D120): one row of the table <c>MsgHatchOutbox</c> for each outgoing message, with
 /// the columns of its delivery state, its channel envelope and its route trace as JSON (D143), and its publish tries as
-/// the JSON array <c>Tries</c> (D27). The table <c>MsgHatchChannelDown</c> has one row for each down channel (D106).
+/// the JSON array <c>Tries</c> (D27). The table <c>MsgHatchChannelState</c> has the insert-only state rows of each channel,
+/// with the key <c>(Channel, Version)</c> (D106, D277).
 /// Each operation makes its own context through the pooled factory (D130). It is the dispatch store of all tenants,
 /// and <see cref="For"/> gives the tenant store of one key.
 /// </summary>
@@ -51,7 +52,7 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
             : await _contexts.RunAsync(
                 async context =>
                 {
-                    if (await ReadDownAsync(context, channel, ct) is { } down)
+                    if ((await LatestStateAsync(context, channel, ct))?.ToDown() is { } down)
                     {
                         return new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down);
                     }
@@ -113,8 +114,11 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
         _contexts.RunAsync<IReadOnlyList<ChannelDown>>(
             async context =>
             {
-                var rows = await context.ChannelDowns.AsNoTracking().ToListAsync(ct);
-                IReadOnlyList<ChannelDown> downs = [.. rows.Select(DownOf)];
+                var rows = await context.ChannelStates.AsNoTracking()
+                    .Where(row => row.Kind == nameof(ChannelStateKind.Down)
+                        && row.Version == context.ChannelStates.Where(other => other.Channel == row.Channel).Max(static other => other.Version))
+                    .ToListAsync(ct);
+                IReadOnlyList<ChannelDown> downs = [.. rows.Select(static row => StateOf(row).ToDown()!)];
                 return ErrorOr<IReadOnlyList<ChannelDown>>.ForValue(downs);
             },
             ct);
@@ -123,45 +127,44 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
     public ValueTask<ErrorOr<bool>> SetChannelDownAsync(ChannelDown down, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(down);
-        return _contexts.RunAsync<bool>(
-            async context =>
-            {
-                var arguments = Arguments(context)
-                    .Name("@channel", down.Channel.Name)
-                    .Name("@reason", down.Reason.ToString())
-                    .Time("@sinceUtc", down.SinceUtc)
-                    .Time("@nextCheckAtUtc", down.NextCheckAtUtc)
-                    .Number("@errorCode", down.ErrorCode)
-                    .Name("@errorName", down.ErrorName)
-                    .Text("@note", down.Note);
-                var statements = Statements(context);
-                return await context.Database.ExecuteSqlRawAsync(
-                    down.Reason == ChannelDownReason.Errors ? statements.SetChannelDownOnce : statements.SetChannelDown, arguments.Values, ct) > 0;
-            },
+        return _contexts.RunAsync(
+            async context => await ChannelState.ChangeAsync(
+                async () => await LatestStateAsync(context, down.Channel, ct), latest => ChannelState.AfterDown(latest, down),
+                async row => await TryAddStateAsync(context, row, ct)),
             ct);
     }
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
-        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
+        _contexts.RunAsync<IReadOnlyList<ChannelState>>(
+            async context =>
+            {
+                var rows = await context.ChannelStates.AsNoTracking()
+                    .Where(row => row.SinceUtc >= fromUtc || row.Version == context.ChannelStates
+                        .Where(other => other.Channel == row.Channel && other.SinceUtc < fromUtc).Max(static other => (int?)other.Version))
+                    .OrderByDescending(static row => row.SinceUtc).ThenBy(static row => row.Channel).ThenByDescending(static row => row.Version)
+                    .ToListAsync(ct);
+                IReadOnlyList<ChannelState> states = [.. rows.Select(StateOf)];
+                return ErrorOr<IReadOnlyList<ChannelState>>.ForValue(states);
+            },
+            ct);
 
     /// <inheritdoc />
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct)
-    {
-        var text = reason?.ToString();
-        return _contexts.RunAsync<bool>(
-            async context => await context.ChannelDowns
-                .Where(row => row.Channel == channel.Name && (text == null || row.Reason == text))
-                .ExecuteDeleteAsync(ct) > 0,
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
+        _contexts.RunAsync(
+            async context => await ChannelState.ChangeAsync(
+                async () => await LatestStateAsync(context, channel, ct), latest => ChannelState.AfterUp(latest, channel, reason, upAtUtc),
+                async row => await TryAddStateAsync(context, row, ct)),
             ct);
-    }
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> TryStartChannelCheckAsync(
         ChannelId channel, DateTime nowUtc, DateTime nextCheckAtUtc, CancellationToken ct) =>
         _contexts.RunAsync<bool>(
-            async context => await context.ChannelDowns
-                .Where(row => row.Channel == channel.Name && row.Reason == nameof(ChannelDownReason.Errors) && row.NextCheckAtUtc <= nowUtc)
+            async context => await context.ChannelStates
+                .Where(row => row.Channel == channel.Name && row.Kind == nameof(ChannelStateKind.Down)
+                    && row.Reason == nameof(ChannelDownReason.Errors) && row.NextCheckAtUtc <= nowUtc
+                    && row.Version == context.ChannelStates.Where(other => other.Channel == channel.Name).Max(static other => other.Version))
                 .ExecuteUpdateAsync(set => set.SetProperty(static row => row.NextCheckAtUtc, nextCheckAtUtc), ct) > 0,
             ct);
 
@@ -198,13 +201,35 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
         return Encoding.UTF8.GetString(buffer.WrittenSpan);
     }
 
-    private static async Task<ChannelDown?> ReadDownAsync(MsgHatchDbContext context, ChannelId channel, CancellationToken ct) =>
-        await context.ChannelDowns.AsNoTracking().FirstOrDefaultAsync(row => row.Channel == channel.Name, ct) is { } row ? DownOf(row) : null;
+    private static async Task<ChannelState?> LatestStateAsync(MsgHatchDbContext context, ChannelId channel, CancellationToken ct) =>
+        await context.ChannelStates.AsNoTracking().Where(row => row.Channel == channel.Name).OrderByDescending(static row => row.Version)
+            .FirstOrDefaultAsync(ct) is { } row ? StateOf(row) : null;
 
-    /// <exception cref="ArgumentException">The row has an invalid channel name or reason.</exception>
-    private static ChannelDown DownOf(ChannelDownRow row) =>
-        new(new ChannelId(row.Channel), Enum.Parse<ChannelDownReason>(row.Reason), row.SinceUtc, row.NextCheckAtUtc, row.ErrorCode, row.ErrorName,
-            row.Note);
+    /// <summary>Inserts a state row. A stored version keeps its row, and gives false (D277).</summary>
+    private static async Task<bool> TryAddStateAsync(MsgHatchDbContext context, ChannelState row, CancellationToken ct)
+    {
+        var arguments = Arguments(context)
+            .Name("@channel", row.Channel.Name)
+            .Number("@version", row.Version)
+            .Name("@kind", row.Kind.ToString())
+            .Time("@sinceUtc", row.SinceUtc)
+            .Name("@previousKind", row.PreviousKind?.ToString())
+            .Milliseconds("@previousDurationMs", row.PreviousDuration)
+            .Name("@reason", row.Reason?.ToString())
+            .Time("@nextCheckAtUtc", row.NextCheckAtUtc)
+            .Number("@errorCode", row.ErrorCode)
+            .Name("@errorName", row.ErrorName)
+            .Text("@note", row.Note);
+        return await context.Database.ExecuteSqlRawAsync(Statements(context).AddChannelState, arguments.Values, ct) > 0;
+    }
+
+    /// <exception cref="ArgumentException">The row has an invalid channel name, kind, or reason.</exception>
+    private static ChannelState StateOf(ChannelStateRow row) =>
+        new(
+            new ChannelId(row.Channel), row.Version, Enum.Parse<ChannelStateKind>(row.Kind), row.SinceUtc,
+            row.PreviousKind is { } previousKind ? Enum.Parse<ChannelStateKind>(previousKind) : null,
+            row.PreviousDurationMs is { } milliseconds ? TimeSpan.FromMilliseconds(milliseconds) : null,
+            row.Reason is { } reason ? Enum.Parse<ChannelDownReason>(reason) : null, row.NextCheckAtUtc, row.ErrorCode, row.ErrorName, row.Note);
 
     private async ValueTask<Error?> AddAsync(TenantKey key, IReadOnlyList<OutgoingMessage> messages, CancellationToken ct)
     {

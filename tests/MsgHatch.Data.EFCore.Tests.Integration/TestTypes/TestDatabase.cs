@@ -12,7 +12,7 @@ namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 /// </summary>
 public sealed class TestDatabase(string connectionString)
 {
-    private const string _tables = "MsgHatchInbox,MsgHatchOutbox,MsgHatchChannelDown,MsgHatchChannelEntry,MsgHatchMessageTypeEntry";
+    private const string _tables = "MsgHatchInbox,MsgHatchOutbox,MsgHatchChannelState,MsgHatchChannelEntry,MsgHatchMessageTypeEntry";
 
     private bool _created;
 

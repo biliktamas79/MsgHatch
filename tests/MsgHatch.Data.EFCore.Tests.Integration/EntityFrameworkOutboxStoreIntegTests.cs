@@ -66,16 +66,33 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
     }
 
     [Fact]
-    public async Task SetChannelDownAsync_ReasonErrors_WritesTheReasonAndTheTimes()
+    public async Task SetChannelDownAsync_ReasonErrors_WritesTheStateRowWithTheEnumValuesAndTheTimes()
     {
         // Act
         await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
 
         // Assert
         Assert.Equal(
-            ["Test", "Errors", _isoTime, _isoTime, "503", "Unavailable", null],
+            ["Test", "1", "Down", _isoTime, null, null, "Errors", _isoTime, "503", "Unavailable", null],
             Assert.Single(await Database.RowsAsync(
-                "SELECT Channel, Reason, SinceUtc, NextCheckAtUtc, ErrorCode, ErrorName, Note FROM [msghatch].[MsgHatchChannelDown]", Ct)));
+                "SELECT Channel, Version, Kind, SinceUtc, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note FROM [msghatch].[MsgHatchChannelState]",
+                Ct)));
+    }
+
+    [Fact]
+    public async Task SetChannelUpAsync_DownChannel_WritesTheDurationOfTheDownStateAsWholeMilliseconds()
+    {
+        // Arrange
+        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
+
+        // Act
+        await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now.AddMinutes(90), Ct);
+
+        // Assert
+        Assert.Equal(
+            ["2", "Up", "Down", "5400000", null, null],
+            Assert.Single(await Database.RowsAsync(
+                "SELECT Version, Kind, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc FROM [msghatch].[MsgHatchChannelState] WHERE Version = 2", Ct)));
     }
 
     [Fact]
@@ -185,7 +202,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         await AddAsync(AMessage(T1));
         await Store.SetChannelDownAsync(
             new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance"), Ct);
-        await Database.ExecuteAsync("UPDATE [msghatch].[MsgHatchChannelDown] SET Reason = 'Unknown'", Ct);
+        await Database.ExecuteAsync("UPDATE [msghatch].[MsgHatchChannelState] SET Reason = 'Unknown'", Ct);
 
         // Act
         var result = await ClaimAsync();

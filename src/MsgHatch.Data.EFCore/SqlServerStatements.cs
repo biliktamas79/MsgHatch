@@ -31,7 +31,7 @@ internal sealed class SqlServerStatements(string schema)
 
     private readonly string _outbox = $"[{schema}].[MsgHatchOutbox]";
 
-    private readonly string _channelDown = $"[{schema}].[MsgHatchChannelDown]";
+    private readonly string _channelState = $"[{schema}].[MsgHatchChannelState]";
 
     public string InsertReceived => $"""
         INSERT INTO {_inbox} (
@@ -90,22 +90,14 @@ internal sealed class SqlServerStatements(string schema)
             AND (LeaseUntilUtc IS NULL OR LeaseUntilUtc <= @nowUtc)
         """;
 
-    /// <summary>Writes the down state only when the channel has none, so the first loop wins (D106).</summary>
-    public string SetChannelDownOnce => $"""
-        INSERT INTO {_channelDown} (Channel, Reason, SinceUtc, NextCheckAtUtc, ErrorCode, ErrorName, Note)
-        SELECT @channel, @reason, @sinceUtc, @nextCheckAtUtc, @errorCode, @errorName, @note
-        WHERE NOT EXISTS (SELECT 1 FROM {_channelDown} WITH (UPDLOCK, HOLDLOCK) WHERE Channel = @channel)
-        """;
-
-    /// <summary>Writes the down state, and replaces the state that the channel has.</summary>
-    public string SetChannelDown => $"""
-        MERGE {_channelDown} WITH (HOLDLOCK) AS down
-        USING (SELECT @channel AS Channel) AS source ON down.Channel = source.Channel
-        WHEN MATCHED THEN UPDATE SET
-            Reason = @reason, SinceUtc = @sinceUtc, NextCheckAtUtc = @nextCheckAtUtc, ErrorCode = @errorCode,
-            ErrorName = @errorName, Note = @note
-        WHEN NOT MATCHED THEN
-            INSERT (Channel, Reason, SinceUtc, NextCheckAtUtc, ErrorCode, ErrorName, Note)
-            VALUES (@channel, @reason, @sinceUtc, @nextCheckAtUtc, @errorCode, @errorName, @note);
+    /// <summary>
+    /// Adds a state row only when the channel has no row of its version, so of two parallel changes only the first adds its
+    /// row (D277). A changed row count of 0 means that another caller added the version first.
+    /// </summary>
+    public string AddChannelState => $"""
+        INSERT INTO {_channelState} (
+            Channel, Version, Kind, SinceUtc, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note)
+        SELECT @channel, @version, @kind, @sinceUtc, @previousKind, @previousDurationMs, @reason, @nextCheckAtUtc, @errorCode, @errorName, @note
+        WHERE NOT EXISTS (SELECT 1 FROM {_channelState} WITH (UPDLOCK, HOLDLOCK) WHERE Channel = @channel AND Version = @version)
         """;
 }

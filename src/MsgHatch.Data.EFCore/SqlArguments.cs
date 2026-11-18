@@ -30,6 +30,8 @@ internal sealed class SqlArguments(DbConnection connection)
 
     public SqlArguments Number(string name, int? value) => Add(name, value, DbType.Int32);
 
+    public SqlArguments Milliseconds(string name, TimeSpan? value) => Add(name, (long?)value?.TotalMilliseconds, DbType.Int64);
+
     /// <summary>The parameters of the delivery columns of a new row, with the names of <see cref="SqlServerStatements"/>.</summary>
     public SqlArguments Delivery(DeliveryState delivery) => this
         .MessageId("@id", MessageQueries.Id(delivery.Id))

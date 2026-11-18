@@ -241,7 +241,7 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     }
 
     [Fact]
-    public async Task SetChannelDownAsync_TwoParallelCallsWithTheReasonErrors_AddOneRow()
+    public async Task SetChannelDownAsync_TwoParallelCallsWithTheReasonErrors_AddOneRowWithNoError()
     {
         // Arrange
         var down = ADown(ChannelDownReason.Errors);
@@ -252,11 +252,11 @@ public abstract partial class OutboxStoreTestsBase<TStore>
             Task.Run(() => Store.SetChannelDownAsync(down, Ct).AsTask(), Ct));
 
         // Assert
-        Assert.Equal((1, "1"), (added.Count(static result => result.Value), await VersionsAsync()));
+        Assert.Equal((1, 0, "1"), (added.Count(static result => result.Value), added.Count(static result => result.IsError), await VersionsAsync()));
     }
 
     [Fact]
-    public async Task SetChannelUpAsync_TwoParallelCalls_AddOneUpRow()
+    public async Task SetChannelUpAsync_TwoParallelCalls_AddOneUpRowWithNoError()
     {
         // Arrange
         await Store.SetChannelDownAsync(ADown(ChannelDownReason.Errors), Ct);
@@ -268,7 +268,7 @@ public abstract partial class OutboxStoreTestsBase<TStore>
             Task.Run(() => Store.SetChannelUpAsync(TestChannel.Id, reason: null, upAtUtc, Ct).AsTask(), Ct));
 
         // Assert
-        Assert.Equal((1, "2,1"), (added.Count(static result => result.Value), await VersionsAsync()));
+        Assert.Equal((1, 0, "2,1"), (added.Count(static result => result.Value), added.Count(static result => result.IsError), await VersionsAsync()));
     }
 
     private async Task<IReadOnlyList<ChannelState>> RowsAsync() => (await Store.GetChannelStatesAsync(DateTime.MinValue, Ct)).Value;
