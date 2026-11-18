@@ -398,6 +398,9 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D246 | Language rule of a template lookup | Recommended | `TemplateLookupRules.Check(TemplateLookup)` also gives `Errors.ValidationFailed` for a null or empty language, with the message of the rule (D234). The check of the culture of a language stays on the server. Reason: the template routes have the language as a path segment (D224), and an HTTP route cannot hold an empty segment, so the template API client cannot send such a lookup. With no rule, the client gives `Errors.Exception` for the 404 of the framework, and the in-process implementation gives `Errors.ValidationFailed`, which breaks D233. A check for an empty language needs no state, so it is a rule of D234. `TemplatePartResponse.ToPartInfo` checks a part with the language `und`, because a declared part has no language. | A check in the client only, which gives two sources of one message. Or the language as a query value, which changes the route of D224. |
 | D247 | Settings type of a subscription request | Recommended | `SubscriptionRequest` gets the optional field `settingsType`, the content type of the settings, for example `Settings:Email`. `SubscriptionRequest.From` writes the content type of the newest settings entry of the type of the settings, and null for `JsonChannelSettings`. The server reads the settings with that settings type, so the manager sees the settings of the type of another channel, and gives its own error in its own order. A `settingsType` that is not a registered content type `Settings:{channel}` gives `Errors.ValidationFailed`. With no `settingsType`, the server reads the settings with the newest settings type of the channel, as before. Reason: the manager checks that the settings type is the settings type of the channel (rule 2.3.4). The JSON of the settings has no type, so with no `settingsType` the server reads the settings of another channel as the settings of the channel, and can store wrong settings. Then the HTTP client gives another result than the in-process implementation, which breaks D233 and D234. | A check of the settings type in the client with the registry of the client host, which gives the error before the checks of the server, so an input with two problems gives another first error. Or a JSON discriminator in each settings type, which changes the JSON of each channel package. |
 | D248 | Rules of a routing verification request | Recommended | `RoutingVerificationRules.Check(RoutingVerificationRequest)` in `MsgHatch.Subscriptions.Verification` gives `Errors.ValidationFailed` for no list of test users, no list of languages, or a language that is null, empty, or white space. The in-process verifier and the HTTP client run it first, as the managers run the rules of D234. The endpoint keeps its check of the body. Reason: the endpoint of the verification rejects an empty language, but the in-process verifier accepted it, so the HTTP client gave `ValidationFailed` and the in-process verifier gave a report for the same input, which breaks D233 and D234. | The check only on the server, which keeps the difference. Or a check only in the in-process verifier, so the client sends a request that the rule rejects. |
+| D249 | Tenant of the admin pages | Recommended | Each admin page resolves the query and command interfaces of `TenantKey.None` through the `IServiceProvider` of its DI scope (section 4.24). A host with a store for each tenant uses one admin host for each tenant, or registers the services of `TenantKey.None` in its own way. Reason: phase 28 has no item for a tenant selection, and the attribute `[Inject]` takes only a constant key, which a `TenantKey` is not. A tenant selection on each page needs the tenant in each address of the route builders and in each link. | A query parameter `tenantId` on each page and in each route builder. Or a scoped service of the host that gives the tenant key of the circuit. |
+| D250 | Trimming of the admin pages | Recommended | Each setup method of an admin UI package has a `DynamicDependency` with all members of each page of the package, and `AddMsgHatchTemplatesAdminUI` also of `PlainTemplateEditor`. The template edit page suppresses the trim warning IL2111 of its `DynamicComponent`, with the reason. Reason: the checks of phase 28 showed that a Razor class library with `IsAotCompatible` gives IL2111 for each `DynamicComponent`, because the generic `OpenComponent<DynamicComponent>` keeps all members of `DynamicComponent`, and its setter of `Type` has `DynamicallyAccessedMembers`. A WebAssembly host with `PublishTrimmed` and the default `TrimMode` `partial` trims each assembly with `IsTrimmable`, which `IsAotCompatible` sets, so it removed the pages that only the router finds, and its router gave "Not found". With the `DynamicDependency` of the setup method, the trimmed host showed the registered editor and the plain editor through `DynamicComponent`, with no trim warning. The editor types come only from the plain editor and from `AddTemplateEditor`, whose type parameter keeps all members (D240), so the suppression is safe. | Each host adds `TrimmerRootAssembly` for each admin package, which each host must know. Or the edit page renders the editor with a `RenderFragment` that `AddTemplateEditor` makes, with no `DynamicComponent`, which changes D240. |
+| D251 | Check of an editor before a save | Recommended | `TemplateEditorBase` has the virtual method `CanSaveAsync`, which gives true by default. The edit page calls it on the editor of the part before each save, and saves only when it gives true. The Liquid editor checks the text with `CheckTemplateAsync` there, shows the issues, gives false for a text with an issue, and gives true when the check did not run, so that the save gives its error. The protected method `TemplateEditorBase.CheckAsync` calls `CheckTemplateAsync` of `TenantKey.None` for the lookup of the editor. Reason: D242 says that the Liquid editor checks the text before a save, but the save button is on the edit page, and the page knows no engine (D240). | The edit page calls `CheckTemplateAsync` before each save, for each editor. The page then holds a check that D242 gives to the editor, and a plain editor costs a call before each save. |
 
 The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3).
 
@@ -451,8 +454,13 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Subscriptions.Caching.FusionCache` | `net10.0` | `MsgHatch.Subscriptions` | `ZiggyCreatures.FusionCache` | The FusionCache backend of the subscription cache (D39) |
 | `src/MsgHatch.Subscriptions.AspNetCore` | `net10.0` | `MsgHatch.Subscriptions.Api.Contracts` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the subscription management API (D54) |
 | `src/MsgHatch.Subscriptions.Api.Client` | `net10.0` | `MsgHatch.Subscriptions.Api.Contracts`, and `MsgHatch.SourceGeneration` as an analyzer | `Microsoft.Extensions.Http` | The HTTP client of the subscription management API: `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` over HTTP, and `UseSubscriptionApiClient` (D227, D236, section 4.23) |
+| `src/MsgHatch.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Api.Contracts` | `Microsoft.AspNetCore.Components.Web` | The parts that both admin UIs use: the list layout, the pager, the delete dialog, and the text of each error type (D239, section 4.24) |
+| `src/MsgHatch.Templates.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Templates.Api.Contracts`, `MsgHatch.AdminUI` | none | The template list and edit pages, and the editor extension point (D239, D240, section 4.24) |
+| `src/MsgHatch.Templates.Liquid.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Templates.AdminUI` | none | The Liquid editor of the template admin UI (D242, section 4.24) |
+| `src/MsgHatch.Subscriptions.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.AdminUI` | none | The pages of the subscription management API and of the routing verification (D239, section 4.24) |
 | `tests/{Project}.Tests.{Level}` | `net10.0`, `Exe` | The production project under test, and the test project with its contract base classes | The test packages of section 5.5 | One test project for each production project and each level (D66, section 5.5) |
 | `examples/ExampleApp` | `net10.0`, `Microsoft.NET.Sdk.Web` | The `src` projects of the finished phases (roadmap), and `MsgHatch.SourceGeneration` as an analyzer | `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `Microsoft.AspNetCore.Authentication.JwtBearer` (D158), `WolverineFx.RuntimeCompilation` for the code of its Wolverine handler | The subscription example end to end, as a web app |
+| `examples/AdminUiExample` | `net10.0`, `Microsoft.NET.Sdk.Web` | Both API client packages, both admin UI packages, and the Liquid editor | none | The Interactive Server host of the admin UIs, which calls the APIs of `ExampleApp` (D239, section 4.24) |
 
 An analyzer reference is `<ProjectReference Include="..." OutputItemType="Analyzer" ReferenceOutputAssembly="false" />`. The `MsgHatch.Templates` package includes the generator assembly under `analyzers/dotnet/cs`, so that a consumer gets the generator with the template library, also through the email package.
 
@@ -2711,7 +2719,85 @@ builder.Services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
     .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
 ```
 
-The base addresses come from the sections `MsgHatch:SubscriptionApiClient` and `MsgHatch:TemplateApiClient`. In Interactive Server mode, `IHttpClientFactory` makes the handlers in a DI scope of its own, and not in the scope of the circuit. So `TokenHandler` reads the token of the signed-in user through a circuit services accessor: a `CircuitHandler` stores the services of the circuit in an `AsyncLocal` for each inbound activity, and the handler reads them there, as the ASP.NET Core documentation "Access server-side Blazor services from a different DI scope" shows. In WebAssembly, the handler of the authentication library of the host adds the token. Phase 28 adds the admin UIs.
+The base addresses come from the sections `MsgHatch:SubscriptionApiClient` and `MsgHatch:TemplateApiClient`. In Interactive Server mode, `IHttpClientFactory` makes the handlers in a DI scope of its own, and not in the scope of the circuit. So `TokenHandler` reads the token of the signed-in user through a circuit services accessor: a `CircuitHandler` stores the services of the circuit in an `AsyncLocal` for each inbound activity, and the handler reads them there, as the ASP.NET Core documentation "Access server-side Blazor services from a different DI scope" shows. In WebAssembly, the handler of the authentication library of the host adds the token. Section 4.24 describes the admin UIs.
+
+### 4.24 Admin UIs
+
+**Confirmed rule (D235, D239 to D242):** MsgHatch ships the list and edit pages of the subscriptions and the templates as Razor class libraries. A host adds them in its setup, selects the HTTP clients or the in-process implementations of D231, and adds its own authorization. The text of a template has the editor of its engine, and the Liquid editor is a package of its own.
+
+| Package | References | Content |
+|---|---|---|
+| `MsgHatch.AdminUI` | `MsgHatch.Api.Contracts`, `Microsoft.AspNetCore.Components.Web` | The parts that both admin UIs use: `AdminList<TItem>` with the states loading, error, and empty, `AdminPager`, `DeleteDialog`, `ErrorAlert`, and `AdminErrors.TextOf` |
+| `MsgHatch.Templates.AdminUI` | `MsgHatch.Templates.Api.Contracts`, `MsgHatch.AdminUI` | `TemplateListPage`, `TemplateEditPage`, the editor extension point `TemplateEditorBase` with `AddTemplateEditor<TEditor>`, `PlainTemplateEditor`, `TemplateAdminRoutes`, and `AddMsgHatchTemplatesAdminUI` |
+| `MsgHatch.Templates.Liquid.AdminUI` | `MsgHatch.Templates.AdminUI` | `LiquidTemplateEditor`, `LiquidTokenizer`, the JavaScript module `liquidEditor.js`, and `AddLiquidTemplateEditor` |
+| `MsgHatch.Subscriptions.AdminUI` | `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.AdminUI` | `SubscriptionListPage`, `SubscriptionEditPage`, `MessageTypesPage`, `RoutingVerificationPage`, `SubscriptionAdminRoutes`, and `AddMsgHatchSubscriptionsAdminUI` |
+
+Rules of the pages:
+- A page resolves `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, `ITemplateQueries`, or `ITemplateCommands` of `TenantKey.None` through the `IServiceProvider` of its DI scope (D249). It uses no other service of MsgHatch, except `IContentTypeRegistry` for the settings of a subscription. So the host selects the HTTP clients or the in-process implementations in its setup (D235).
+- A page sets no render mode, so the host selects Interactive Server or WebAssembly. A page uses the CSS classes of Bootstrap 5, which the host loads, and no component library.
+- A page handles each failure as an `ErrorOr` value. `AdminErrors.TextOf` gives a fixed text for `Rejected` (the signed-in user has no permission), `Unavailable` (the API is not available), and `Conflict` (the page shows the stored version now), and the message of each other error, or the name of its type when it has no message. A list shows its error in place of its rows. An edit page shows its error next to the form, and `Conflict` loads the stored version again.
+- An edit page keeps a draft of its edit, shows the pending changes, and asks with `DeleteDialog` before a delete. The delete runs only after the user confirms it.
+- A list pages its rows in the page, 25 rows on one page, because the APIs give each list in full.
+- A link of a page and its navigation use the address of the route builder with no leading `/`, so a host with a base path keeps its path.
+- Each package sets `IsAotCompatible` (D237). Each setup method keeps the pages of its package in a trimmed host with `DynamicDependency` (D250).
+
+The pages and their route builders:
+
+| Address | Page | Route builder |
+|---|---|---|
+| `/msghatch/templates` | `TemplateListPage` | `TemplateAdminRoutes.List` |
+| `/msghatch/templates/{messageType}/{language}/{part}/{kind}?companyId=` | `TemplateEditPage` | `TemplateAdminRoutes.Edit(TemplateLookup)` |
+| `/msghatch/subscriptions` | `SubscriptionListPage` | `SubscriptionAdminRoutes.List` |
+| `/msghatch/subscriptions/new` and `/msghatch/subscriptions/{id}` | `SubscriptionEditPage` | `SubscriptionAdminRoutes.New` and `SubscriptionAdminRoutes.Edit(Guid)` |
+| `/msghatch/subscriptions/message-types` | `MessageTypesPage` | `SubscriptionAdminRoutes.MessageTypes` |
+| `/msghatch/subscriptions/verification` | `RoutingVerificationPage` | `SubscriptionAdminRoutes.Verification` |
+
+Template pages:
+- The list has filters for the message type and the company. The message types of the filter come from `GetTemplatePartsAsync`. A new template starts from a declared part of `GetTemplatePartsAsync` (D220, D240), a language, and an optional company. The page checks the lookup with `TemplateLookupRules`, and opens the edit page.
+- The edit page reads the parts of the message type and the template with no fallback. `NotFound` gives a new template with the version 0. The page shows the editor of the part, the version, and the save, with the expected version of the last read or save. `TemplateInvalid` shows its message as an issue under the text, and `Conflict` loads the stored version again. A stored template has the delete.
+
+Editor extension point (D240):
+- An editor is a component that derives from `TemplateEditorBase`, with the parameters `Lookup`, `Text`, `TextChanged`, `Issues`, and `Disabled`. `Issues` holds the issues of the page, for example the message of `TemplateInvalid` from a save.
+- `AddTemplateEditor<TEditor>(this IServiceCollection services, string engine)` registers an editor for an engine name. Its type parameter has `DynamicallyAccessedMembers(All)`, so the trimming keeps each registered editor (D237). A later registration of one engine replaces an earlier one.
+- A part that one engine reads, with a registered editor for that engine, gets that editor. Each other part gets `PlainTemplateEditor`, a text area that shows each issue under the text. A part that no registration declares has no engine, so it gets the plain editor.
+- The page shows the editor with `DynamicComponent`. The analyzer gives IL2111 for each `DynamicComponent`, so the page suppresses it with its reason (D250).
+- Before each save, the page calls `CanSaveAsync` of the editor, and saves only when it gives true (D251). The protected method `CheckAsync` calls `CheckTemplateAsync` of `TenantKey.None` for the lookup of the editor, so an editor package needs no other service.
+
+Liquid editor (D242):
+- `AddLiquidTemplateEditor()` registers `LiquidTemplateEditor` for the engine `liquid`, which `LiquidTemplateEditor.EngineName` holds, and `TimeProvider.System` when the host has no time provider. A test checks that the name equals `LiquidTemplates.Engine.Name`, so the package needs no reference to Fluid.
+- `LiquidTokenizer.Tokenize` gives a span for each part of the text: `Text`, `Delimiter` (`{{`, `}}`, `{%`, and `%}`, with their `-` mark), `TagName`, `FilterName` (a name after `|`), `Quoted`, `Number`, `Code` (each other part of a tag), `Comment`, and `Raw`. It is no parser.
+- `LiquidTokenizer.FindIssues` gives an issue with the line and the column, from 1 as in Fluid, for an open `{{` or `{%`, and for each `{% liquid` tag, also in `raw` or `comment`, with the regular expression of the engine (D226). The editor marks them with no call.
+- After the user stops typing for 500 ms, the editor calls `CheckTemplateAsync`. A new key cancels the pause and the call before it. The pause uses `TimeProvider`. `CanSaveAsync` calls the check at once, and gives false for a text with an issue. When the check did not run, the editor shows its error, and `CanSaveAsync` gives true, so that the save gives its error.
+- The editor puts the text area over a `pre` with the highlighted copy of the text. It marks the character at the line and the column of each issue with `mark`, and shows each message under the text. An issue with no position, for example an unknown filter, shows only its message. The module `_content/MsgHatch.Templates.Liquid.AdminUI/liquidEditor.js` keeps the scroll of the two layers in step. The styles are scoped CSS, so the host loads its bundle `{assembly of the host}.styles.css`.
+
+Subscription pages:
+- The list has filters for the owner level and the message type, which go into `SubscriptionQuery`, and for the channel, which the page applies to the result, because `SubscriptionQuery` has no channel.
+- The message types page shows the channels and the number of the applied subscriptions of each message type, for the scope of an optional company and an optional user.
+- The edit page has the owner level with its company id or user id, the message type, the kind, the channel, the settings, the recipients with the named users, one user id on each line, and the mandatory flag. It checks each id with `Create` before a call. A create opens the edit page of the new subscription. An update sends the expected revision.
+- The page edits the settings of a channel as JSON text (D229). For a channel whose `ChannelDescriptor.SettingsType` is a settings type of the host, `SettingsJson.Read` reads the text with the entry `Settings:{channel}` of the content type registry. For a channel with the settings type `ChannelSettings`, the page sends the text as `JsonChannelSettings`, with no change. Text that is not JSON gives `Errors.ValidationFailed` with no call. The page shows a stored subscription with `SettingsJson.Write`, indented.
+- The verification page sends the test users, one user id on each line, the languages, one on each line, and an optional message type to `IRoutingVerifier` (D163), and shows the totals and a row for each check.
+
+Setup of a host:
+
+```csharp
+builder.Services.AddTransient<TokenHandler>();
+builder.Services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
+    .UseSubscriptionApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>())
+    .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
+builder.Services.AddMsgHatchSubscriptionsAdminUI().AddMsgHatchTemplatesAdminUI().AddLiquidTemplateEditor();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+
+var app = builder.Build();
+app.UseAntiforgery();
+app.MapStaticAssets();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(typeof(SubscriptionAdminRoutes).Assembly, typeof(TemplateAdminRoutes).Assembly)
+    .RequireAuthorization("MsgHatchAdmin");
+```
+
+The `Router` of the host gets the same two assemblies in `AdditionalAssemblies`. The host loads Bootstrap 5 and its styles bundle in `App.razor`. A host that uses the in-process implementations calls `UseSubscriptions` and a template setup method in place of the clients, and needs no token handler.
+
+Example (`examples/AdminUiExample`). An Interactive Server host of both admin UIs and the Liquid editor, with no message type and no store. It calls the APIs of `ExampleApp` at `http://localhost:5080/` with the prefixes `/api/subscriptions` and `/api/templates` of its `appsettings.json`. `ApiTokenHandler` adds the token of the option `AdminUiExample:ApiToken`, which is required, to each request. The token comes from the user secrets of the project, which git ignores, for example a token of `dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin`, which also passes the policy of the subscription routes. The host has no sign-in, listens only on `http://localhost:5090`, and loads Bootstrap 5.3.3 from a pinned CDN address with its integrity hash, so the repository holds no copy.
 
 ## 5. Repository and conventions
 
@@ -2775,7 +2861,11 @@ The base addresses come from the sections `MsgHatch:SubscriptionApiClient` and `
 │   ├── MsgHatch.Subscriptions.Api.Contracts/           (phase 26)
 │   ├── MsgHatch.Templates.Api.Contracts/               (phase 26)
 │   ├── MsgHatch.Templates.Api.Client/                  (phase 27)
-│   └── MsgHatch.Subscriptions.Api.Client/              (phase 27)
+│   ├── MsgHatch.Subscriptions.Api.Client/              (phase 27)
+│   ├── MsgHatch.AdminUI/                               (phase 28)
+│   ├── MsgHatch.Templates.AdminUI/                     (phase 28)
+│   ├── MsgHatch.Templates.Liquid.AdminUI/              (phase 28)
+│   └── MsgHatch.Subscriptions.AdminUI/                 (phase 28)
 ├── tests/                                                                   (section 5.5)
 │   ├── MsgHatch.Domain.Tests.Unit/                                          (phase 1)
 │   ├── MsgHatch.SourceGeneration.Tests.Unit/                                (phase 3)
@@ -2815,13 +2905,19 @@ The base addresses come from the sections `MsgHatch:SubscriptionApiClient` and `
 │   ├── MsgHatch.Subscriptions.Api.Contracts.Tests.Unit/                     (phase 26)
 │   ├── MsgHatch.Templates.Api.Contracts.Tests.Unit/                         (phase 26)
 │   ├── MsgHatch.Templates.Api.Client.Tests.Unit/                            (phase 27)
-│   └── MsgHatch.Subscriptions.Api.Client.Tests.Unit/                        (phase 27)
+│   ├── MsgHatch.Subscriptions.Api.Client.Tests.Unit/                        (phase 27)
+│   ├── MsgHatch.AdminUI.Tests.Unit/                                         (phase 28)
+│   ├── MsgHatch.Templates.AdminUI.Tests.Unit/                               (phase 28)
+│   ├── MsgHatch.Templates.Liquid.AdminUI.Tests.Unit/                        (phase 28)
+│   ├── MsgHatch.Subscriptions.AdminUI.Tests.Unit/                           (phase 28)
+│   └── AdminUiExample.Tests.Unit/                                           (phase 28)
 └── examples/
     ├── ExampleApp/                                     (phase 13)
     ├── WolverineExample.Contracts/                     (phase 21)
     ├── WolverineExample.Publisher/                     (phase 21)
     ├── WolverineExample.Consumer/                      (phase 21)
-    └── WolverineExample.UserSimulator/                 (phase 21)
+    ├── WolverineExample.UserSimulator/                 (phase 21)
+    └── AdminUiExample/                                 (phase 28)
 ```
 
 A phase creates a project only when it puts code into it. Each project is added to `MsgHatch.slnx` with `dotnet sln add`.
@@ -2848,7 +2944,7 @@ Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `
   - `TreatWarningsAsErrors` `true` (D51).
   - `GenerateDocumentationFile` `true`.
   - `EnableConfigurationBindingGenerator` `true` (D65).
-- The packages of the API boundary set `IsAotCompatible` `true` in their own project files (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts`, `MsgHatch.Subscriptions.AspNetCore`, and `MsgHatch.Templates.AspNetCore`. So the trim, AOT, and single-file analyzers run in each build, and `TreatWarningsAsErrors` turns each warning into an error. The two `.AspNetCore` packages also set `EnableRequestDelegateGenerator` `true`, so each minimal API endpoint needs no code generation at run time.
+- The packages of the API boundary set `IsAotCompatible` `true` in their own project files (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts`, `MsgHatch.Subscriptions.AspNetCore`, `MsgHatch.Templates.AspNetCore`, the two client packages, and the four admin UI packages. So the trim, AOT, and single-file analyzers run in each build, and `TreatWarningsAsErrors` turns each warning into an error. The two `.AspNetCore` packages also set `EnableRequestDelegateGenerator` `true`, so each minimal API endpoint needs no code generation at run time.
   - A compile link to `src/GeneratedCodeSuppressions.cs` (D32).
   - `IsPackable` `true`.
   - The package metadata: `Authors` `Tamás Bilik`, `RepositoryUrl` `https://github.com/biliktamas79/MsgHatch`, and `PackageLicenseExpression` `Apache-2.0`.
@@ -2970,13 +3066,18 @@ The tests follow the `core:automated-tests` skill of the Transcend agent tooling
 | `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` | Integration | The MongoDB of `appsettings.Local.json`, which git ignores, or else MongoDB in a container through Testcontainers (D124, D183) | 19 |
 | `MsgHatch.Dispatch.NamedPipes.Tests.Unit` | Unit | The named pipes of the operating system, between DI containers in the test process | 21 |
 | `MsgHatch.Templates.AspNetCore.Tests.Unit` | Unit | none. A `TestServer` runs the endpoints in memory, with a manager substitute for each key. | 25 |
+| `MsgHatch.AdminUI.Tests.Unit` | Unit | none. bUnit renders the components in memory. | 28 |
+| `MsgHatch.Templates.AdminUI.Tests.Unit` | Unit | none. bUnit renders the pages in memory, with substitutes of the query and command interfaces. | 28 |
+| `MsgHatch.Templates.Liquid.AdminUI.Tests.Unit` | Unit | none. bUnit renders the editor in memory, with a substitute of the template queries, `FakeTimeProvider`, and the loose JavaScript interop of bUnit. | 28 |
+| `MsgHatch.Subscriptions.AdminUI.Tests.Unit` | Unit | none. bUnit renders the pages in memory, with substitutes of the query and command interfaces, the verifier, and the content type registry. | 28 |
+| `AdminUiExample.Tests.Unit` | Unit | none. A `TestServer` runs the host, and a fake primary HTTP handler is the API of `ExampleApp`. | 28 |
 
 Packages:
 - `Directory.Build.props` gives each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance` the property `OutputType` `Exe`. It gives each unit and integration test project references to `xunit.v3`, `Microsoft.NET.Test.Sdk`, `xunit.runner.visualstudio`, `NSubstitute`, `NSubstitute.Analyzers.CSharp`, `Microsoft.Extensions.TimeProvider.Testing`, `Microsoft.Extensions.Diagnostics.Testing`, and `coverlet.collector` (D70).
-- `MsgHatch.Domain.Tests.Unit` also references `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`, for the DI container and the in-memory configuration of its tests. `MsgHatch.SourceGeneration.Tests.Unit` also references `Microsoft.CodeAnalysis.CSharp`. `ExampleApp.Tests.Unit` also references `OpenTelemetry.Exporter.InMemory`. `MsgHatch.Email.AmazonSES.Tests.Unit`, `MsgHatch.Email.Resend.Tests.Unit`, `MsgHatch.Templates.Tests.Unit`, and `MsgHatch.Templates.Liquid.Tests.Unit` also reference `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`. `MsgHatch.Email.Tests.Unit` also references `MsgHatch.Templates.Tests.Unit`, for its test types and its template files. `MsgHatch.Email.AmazonSES.Tests.Integration` and `MsgHatch.Email.Resend.Tests.Integration` also reference `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration.Json`, for the DI container and the appsettings files. The EF Core integration test projects also reference `Testcontainers.MsSql`, `Microsoft.EntityFrameworkCore.SqlServer`, `Microsoft.Data.SqlClient` 6.1.8 (the version with no known vulnerability of its dependencies), `Microsoft.Extensions.DependencyInjection`, and `Microsoft.Extensions.Configuration`, and `MsgHatch.Data.EFCore.Tests.Integration` also references `Microsoft.EntityFrameworkCore.Sqlite` as a provider with no SQL statements of the stores (D175). The MongoDB integration test projects reference `Testcontainers.MongoDb`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Configuration`, and `Microsoft.Extensions.Configuration.Json`, and `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` also references `MsgHatch.Data.MongoDb.Tests.Integration` for its fixture of the server. `MsgHatch.AspNetCore.Tests.Unit` and `MsgHatch.Subscriptions.AspNetCore.Tests.Unit` also reference `Microsoft.AspNetCore.TestHost`. The performance projects reference `BenchmarkDotNet`.
+- `MsgHatch.Domain.Tests.Unit` also references `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`, for the DI container and the in-memory configuration of its tests. `MsgHatch.SourceGeneration.Tests.Unit` also references `Microsoft.CodeAnalysis.CSharp`. `ExampleApp.Tests.Unit` also references `OpenTelemetry.Exporter.InMemory`. `MsgHatch.Email.AmazonSES.Tests.Unit`, `MsgHatch.Email.Resend.Tests.Unit`, `MsgHatch.Templates.Tests.Unit`, and `MsgHatch.Templates.Liquid.Tests.Unit` also reference `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`. `MsgHatch.Email.Tests.Unit` also references `MsgHatch.Templates.Tests.Unit`, for its test types and its template files. `MsgHatch.Email.AmazonSES.Tests.Integration` and `MsgHatch.Email.Resend.Tests.Integration` also reference `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration.Json`, for the DI container and the appsettings files. The EF Core integration test projects also reference `Testcontainers.MsSql`, `Microsoft.EntityFrameworkCore.SqlServer`, `Microsoft.Data.SqlClient` 6.1.8 (the version with no known vulnerability of its dependencies), `Microsoft.Extensions.DependencyInjection`, and `Microsoft.Extensions.Configuration`, and `MsgHatch.Data.EFCore.Tests.Integration` also references `Microsoft.EntityFrameworkCore.Sqlite` as a provider with no SQL statements of the stores (D175). The MongoDB integration test projects reference `Testcontainers.MongoDb`, `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Configuration`, and `Microsoft.Extensions.Configuration.Json`, and `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` also references `MsgHatch.Data.MongoDb.Tests.Integration` for its fixture of the server. `MsgHatch.AspNetCore.Tests.Unit` and `MsgHatch.Subscriptions.AspNetCore.Tests.Unit` also reference `Microsoft.AspNetCore.TestHost`. The test projects of the four admin UI packages reference `bunit` 2.15.2 (MIT), and `AdminUiExample.Tests.Unit` references `Microsoft.AspNetCore.TestHost`. The performance projects reference `BenchmarkDotNet`.
 - Each test project references the production project under test. A project with subclasses of a contract base class also references the test project that holds the base class.
 - Before a phase adds a package, it reads the license of the pinned version from the package metadata. Only MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, and ISC are allowed. A dual license is allowed when one of its licenses is allowed. No license is taken from memory. One exception: a transitive package of the database provider that a test project uses may have the license of the vendor of that provider, when no `src` package references it (D179).
-- Assertions use the `Assert` class of xUnit. Fakes of the clock and the logger come from the Microsoft testing packages: `FakeTimeProvider` and `FakeLogger`. All other doubles are NSubstitute substitutes (D14). The one exception is the fake HTTP handler of the Resend tests, because NSubstitute cannot configure the protected `SendAsync` of `HttpMessageHandler`.
+- Assertions use the `Assert` class of xUnit. Fakes of the clock and the logger come from the Microsoft testing packages: `FakeTimeProvider` and `FakeLogger`. All other doubles are NSubstitute substitutes (D14). The exceptions are the fake HTTP handlers of the Resend tests and of `AdminUiExample.Tests.Unit`, because NSubstitute cannot configure the protected `SendAsync` of `HttpMessageHandler`.
 
 Stages. Each level runs in its own stage, and one glob on the path selects it:
 
