@@ -1,0 +1,108 @@
+# Example app
+
+`ExampleApp` runs the subscription example of section 1.1 of `docs/design.md` as a web app. It needs no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, and keeps all data in one SQLite file. It maps the HTTP APIs of the subscriptions, the delivery, the registry, and the templates.
+
+`examples/AdminUiExample` is the admin UI of this app. It calls the subscription and template APIs of `ExampleApp` through the HTTP clients.
+
+Run each command from the root folder of the repository. The commands work in PowerShell and in bash.
+
+## Requirements
+
+- The .NET 10 SDK.
+- Nothing else. The app makes its own data at its first start.
+
+## Setup
+
+Do these steps one time.
+
+1. Make a token for the user `"1"` with the roles that you need:
+
+   ```bash
+   dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin
+   ```
+
+   The first run makes the signing key, and writes it into the user secrets of `ExampleApp`. Git does not see the user secrets. The tool also writes the issuer `dotnet-user-jwts` and the audience `http://localhost:5080` into `appsettings.Development.json`. The repository already holds these values, so the run changes no file of the repository.
+
+2. Select the roles of the token from this table. One token can have more than one role, with one `--role` for each role.
+
+   | Role | Endpoints |
+   |---|---|
+   | None | The subscription endpoints under `/api/subscriptions`. Each signed-in user passes. |
+   | `TemplateAdmin` | The template endpoints under `/api/templates` (D225). |
+   | `RegistryAdmin` | The registry endpoints under `/api/registry` (D170). |
+   | `DeliveryAdmin` | The delivery overview and actions under `/api/delivery` (D165). |
+   | `DeliveryContent` | The content of the delivered messages under `/api/delivery` (D165). |
+
+   For example, a token for all endpoints:
+
+   ```bash
+   dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin --role RegistryAdmin --role DeliveryAdmin --role DeliveryContent
+   ```
+
+## Start the example app
+
+```bash
+dotnet run --project examples/ExampleApp
+```
+
+The app listens on `http://localhost:5080`.
+
+- **The first start** writes the scenario "Acme and Globex" of `docs/subscription-domain.md`: the companies, the users, and the 12 subscriptions. The data goes into `msghatch-example.db` in `examples/ExampleApp`, and git ignores this file.
+- **To start again from the scenario,** stop the app. Then delete the files `msghatch-example.db*` in `examples/ExampleApp`.
+- **The email templates** are in the folder `Templates` of the build output (D221). A write through the template endpoints changes only the build output, never the files of the repository. A build does not replace a changed template, because it copies only the newer files. To get back the templates of the repository, stop the app. Then delete the folder `examples/ExampleApp/bin/Debug/net10.0/Templates`. The next build or run copies the templates again.
+
+To call an endpoint, put a new token into the header. This example lists the subscriptions of the signed-in user:
+
+```bash
+curl -H "Authorization: Bearer $(dotnet user-jwts create --project examples/ExampleApp --name 1 --output token)" http://localhost:5080/api/subscriptions/me
+```
+
+`--output token` writes only the token, so the token does not show on the screen.
+
+## Start the admin UI
+
+1. Make a token with the role `TemplateAdmin`. This command also stores the token in the user secrets of `AdminUiExample`:
+
+   ```bash
+   dotnet user-secrets set "AdminUiExample:ApiToken" $(dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin --output token) --project examples/AdminUiExample
+   ```
+
+   The role `TemplateAdmin` gives access to the template endpoints. The subscription endpoints accept each signed-in user. Never write a token into a file of the repository.
+
+2. Start `ExampleApp` in a terminal, and keep it open:
+
+   ```bash
+   dotnet run --project examples/ExampleApp
+   ```
+
+3. Start `AdminUiExample` in a second terminal:
+
+   ```bash
+   dotnet run --project examples/AdminUiExample
+   ```
+
+4. Open `http://localhost:5090`. The admin UI has no sign-in, and listens only on `localhost`. It sends the same token for each user.
+
+The admin UI reads the token one time, at its start. After a change of the token, restart `AdminUiExample`.
+
+## Run the tests
+
+The tests make their own tokens and their own data in a temporary folder. They need no setup:
+
+```bash
+dotnet test tests/ExampleApp.Tests.Unit
+```
+
+```bash
+dotnet test tests/AdminUiExample.Tests.Unit
+```
+
+## Problems
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Each page of the admin UI shows "You have no permission to do this action." | `ExampleApp` rejects the token of the admin UI with 401. The token is not a JWT (for example a placeholder text), or it expired, or another signing key signed it. | Store a new token with step 1 of "Start the admin UI". Then restart `AdminUiExample`. |
+| An endpoint gives 403. | The token does not have the role of the endpoint. | Make a token with the role from the table in "Setup". |
+| `AdminUiExample` stops at its start with an options error about `ApiToken`. | The user secrets of `AdminUiExample` have no token. | Do step 1 of "Start the admin UI". |
+| `dotnet user-jwts` gives "Could not find file ... appsettings.Development.json". | The checkout is older than the commit that added this file. | Pull `main`. |
+| `dotnet run` gives an error that the address is in use. | The app already runs in another terminal. | Use the app that runs, or stop it first. |
