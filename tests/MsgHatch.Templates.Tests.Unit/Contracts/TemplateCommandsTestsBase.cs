@@ -273,6 +273,50 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
         await notes.Received(1).CheckAsync(Arg.Any<TemplateLookup>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task SaveTemplateAsync_UnknownLanguageAndATextThatIsTooLong_GivesTheErrorOfTheText()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+        var text = new string('x', 1_000_001);
+
+        // Act
+        var save = await host.Service(TenantKey.None).SaveTemplateAsync(ALookup(language: "xx"), text, 0, Ct);
+
+        // Assert
+        var rule = TemplateLookupRules.CheckText(text);
+        Assert.Equal((true, rule), (rule is not null, save.Error));
+    }
+
+    [Fact]
+    public async Task SaveAndDeleteTemplateAsync_UnknownLanguageAndAPartThatIsNotAName_GiveTheErrorOfThePart()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+        var lookup = ALookup(language: "xx", part: "sub ject");
+
+        // Act
+        var save = await host.Service(TenantKey.None).SaveTemplateAsync(lookup, "Text", 0, Ct);
+        var delete = await host.Service(TenantKey.None).DeleteTemplateAsync(lookup, Ct);
+
+        // Assert
+        var rule = TemplateLookupRules.Check(lookup);
+        Assert.Equal((true, rule, rule), (rule is not null, save.Error, delete));
+    }
+
+    [Fact]
+    public async Task SaveTemplateAsync_NullText_ThrowsArgumentNullException()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var exception = await Record.ExceptionAsync(async () => await host.Service(TenantKey.None).SaveTemplateAsync(ALookup(), null!, 0, Ct));
+
+        // Assert
+        Assert.IsType<ArgumentNullException>(exception);
+    }
+
     /// <summary>Starts a host of the implementation on the services of a test.</summary>
     /// <param name="addServices">Adds the services of the host with the template stores and the engines.</param>
     /// <returns>The started host.</returns>

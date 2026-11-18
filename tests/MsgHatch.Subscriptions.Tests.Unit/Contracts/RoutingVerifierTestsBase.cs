@@ -194,6 +194,19 @@ public abstract class RoutingVerifierTestsBase<T>
             Rows(report.Value));
     }
 
+    [Fact]
+    public async Task VerifyAsync_NullRequest_ThrowsArgumentNullException()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var exception = await Record.ExceptionAsync(async () => await host.Service(TenantKey.None).VerifyAsync(null!, Ct));
+
+        // Assert
+        Assert.IsType<ArgumentNullException>(exception);
+    }
+
     /// <summary>Starts a host of the implementation on the services of a test.</summary>
     /// <param name="addServices">Adds the services of the host with the store, the directory, the templates, and the outbox.</param>
     /// <returns>The started host.</returns>

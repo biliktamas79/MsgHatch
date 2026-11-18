@@ -301,6 +301,44 @@ public abstract class SubscriptionCommandsTestsBase<T> : IAsyncLifetime
         Assert.Equal("", deliveries);
     }
 
+    [Theory]
+    [MemberData(nameof(SubscriptionCommandsTestRows.RuleAndStateRows), MemberType = typeof(SubscriptionCommandsTestRows))]
+    public async Task CreateAsync_DraftThatBreaksARuleAndAStateCheck_GivesTheErrorOfTheRuleAndChangesNothing(string row, SubscriptionDraft draft)
+    {
+        // Arrange
+        var rule = SubscriptionDraftRules.Check(draft);
+
+        // Act
+        var created = await Commands.CreateAsync(draft, Ct);
+
+        // Assert
+        Assert.Equal((row, true, rule, 12), (row, rule is not null, created.Error, await StoredCountAsync()));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UnknownIdAndADraftThatBreaksARule_GivesTheErrorOfTheRule()
+    {
+        // Arrange
+        var draft = Draft(User("1"), "B", EmailChannel.Id, null);
+
+        // Act
+        var updated = await Commands.UpdateAsync(Scenario.LabelId(53), 1, draft, Ct);
+
+        // Assert
+        Assert.Equal(SubscriptionDraftRules.Check(draft), updated.Error);
+    }
+
+    [Fact]
+    public async Task CreateAndUpdateAsync_NullDraft_ThrowArgumentNullException()
+    {
+        // Act
+        var create = await Record.ExceptionAsync(async () => await Commands.CreateAsync(null!, Ct));
+        var update = await Record.ExceptionAsync(async () => await Commands.UpdateAsync(Scenario.S6.Id, 1, null!, Ct));
+
+        // Assert
+        Assert.Equal((typeof(ArgumentNullException), typeof(ArgumentNullException)), (create?.GetType(), update?.GetType()));
+    }
+
     /// <summary>Starts a host of the implementation on the services of a test.</summary>
     /// <param name="addServices">Adds the services of the host with the store, the directory, and the registry.</param>
     /// <returns>The started host.</returns>

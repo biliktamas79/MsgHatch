@@ -138,6 +138,17 @@ public abstract class SubscriptionQueriesTestsBase<T> : IAsyncLifetime
         Assert.Equal(404, subscription.Error?.Type.Code);
     }
 
+    [Fact]
+    public async Task GetMessageTypesAndGetSubscriptionsAsync_NullQuery_ThrowArgumentNullException()
+    {
+        // Act
+        var messageTypes = await Record.ExceptionAsync(async () => await Queries.GetMessageTypesAsync(null!, Ct));
+        var subscriptions = await Record.ExceptionAsync(async () => await Queries.GetSubscriptionsAsync(null!, Ct));
+
+        // Assert
+        Assert.Equal((typeof(ArgumentNullException), typeof(ArgumentNullException)), (messageTypes?.GetType(), subscriptions?.GetType()));
+    }
+
     /// <summary>Starts a host of the implementation on the services of a test.</summary>
     /// <param name="addServices">Adds the services of the host with the store, the directory, and the registry.</param>
     /// <returns>The started host.</returns>

@@ -296,6 +296,36 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
         Assert.Equal(404, issues.Error?.Type.Code);
     }
 
+    [Fact]
+    public async Task GetAndCheckTemplateAsync_UnknownLanguageAndAPartThatIsNotAName_GiveTheErrorOfThePart()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+        var lookup = ALookup(language: "xx", part: "sub ject");
+
+        // Act
+        var read = await host.Service(TenantKey.None).GetTemplateAsync(lookup, Ct);
+        var check = await host.Service(TenantKey.None).CheckTemplateAsync(lookup, "Text", Ct);
+
+        // Assert
+        var rule = TemplateLookupRules.Check(lookup);
+        Assert.Equal((true, rule, rule), (rule is not null, read.Error, check.Error));
+    }
+
+    [Fact]
+    public async Task GetTemplatesAndCheckTemplateAsync_NullArgument_ThrowArgumentNullException()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var list = await Record.ExceptionAsync(async () => await host.Service(TenantKey.None).GetTemplatesAsync(null!, Ct));
+        var check = await Record.ExceptionAsync(async () => await host.Service(TenantKey.None).CheckTemplateAsync(ALookup(), null!, Ct));
+
+        // Assert
+        Assert.Equal((typeof(ArgumentNullException), typeof(ArgumentNullException)), (list?.GetType(), check?.GetType()));
+    }
+
     /// <summary>Starts a host of the implementation on the services of a test.</summary>
     /// <param name="addServices">Adds the services of the host with the template stores and the engines.</param>
     /// <returns>The started host.</returns>

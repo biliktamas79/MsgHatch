@@ -86,6 +86,14 @@ public static class SubscriptionCommandsTestRows
         { "M20 2.4.5: user 1, C, SignalR in hu, and the mandatory #3", Draft(User("1"), "C", SignalRChannel.Id, new SignalRChannelSettings("hu")) },
     };
 
+    public static TheoryData<string, SubscriptionDraft> RuleAndStateRows => new()
+    {
+        { "an opt-out with settings of a message type that is not registered", Draft(User("1"), "Z", EmailChannel.Id, new EmailChannelSettings(), SubscriptionKind.OptOut) },
+        { "a mandatory user subscription with the settings of another channel", Draft(User("1"), "C", EmailChannel.Id, new SignalRChannelSettings(), mandatory: true) },
+        { "a duplicate named user and a language that is not a known culture", Draft(AcmeOwner, "D", EmailChannel.Id, new EmailChannelSettings("xx-invalid"), recipients: NamedUsers("3", "3")) },
+        { "a user subscription for the company on a channel that the type has not registered", Draft(User("2"), "A", SignalRChannel.Id, new SignalRChannelSettings(), recipients: SubscriptionRecipients.Company) },
+    };
+
     public static TheoryData<string, SubscriptionDraft> DirectoryCallRows => new()
     {
         { "the named users of a company subscription", Draft(AcmeOwner, "D", EmailChannel.Id, new EmailChannelSettings(), recipients: NamedUsers("2")) },

@@ -1714,6 +1714,8 @@ The implementation changed the plan in these points:
 - `Setup.Select` is internal to `MsgHatch.Domain`, so the builder gets the public methods `AddDefaultTenantService`, which registers a default only when no registration of the service type exists, and `UseTenantService`, which records the selection, removes each registration of the service type, and registers the factory. The selection methods of the packages call them.
 - Each selection method also takes `string? setupMethod = null`, as `UseSubscriptionStore` does, so that a client package of phase 27 gives its own name to the setup error.
 - The template package had no logging wrapper of the manager (section 4.22). The selections need one (step 4), so `TemplateQueriesLoggingWrapper` and `TemplateCommandsLoggingWrapper` wrap the default and each selection, with the event ids 2017 to 2028 (D244, Recommended).
+- `TemplateLookupRules` also has `Check(TemplateQuery)`, which checks the scope of a list, because `GetTemplatesAsync` takes a query and no lookup.
+- `SubscriptionManager.GetSubscriptionsAsync` gives an `ArgumentNullException` for a null query, as the other methods do. Before, the store got the null.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 

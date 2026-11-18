@@ -10,8 +10,8 @@ namespace MsgHatch.Subscriptions.Management;
 
 /// <summary>
 /// The subscription management API on <see cref="ISubscriptionStore"/> (D53, D78, section 4.17). A create or an update
-/// validates the draft first, and checks the conflicts only for a valid draft, so an invalid draft never gives
-/// <see cref="Errors.Conflict"/>.
+/// runs the rules of <see cref="SubscriptionDraftRules"/> first, then the checks that need the registry and the directory,
+/// and checks the conflicts only for a valid draft, so an invalid draft never gives <see cref="Errors.Conflict"/> (D234).
 /// </summary>
 internal sealed class SubscriptionManager(
     ISubscriptionStore store,
@@ -23,8 +23,6 @@ internal sealed class SubscriptionManager(
     IOptions<MsgHatchOptions> options)
     : ISubscriptionQueries, ISubscriptionCommands
 {
-    private const int _maxNamedUsers = 100;
-
     private readonly HashSet<Type> _scopedEventTypes =
         [.. scopedMessages.Where(static message => message.HasScope).Select(static message => message.EventType)];
 
@@ -63,8 +61,11 @@ internal sealed class SubscriptionManager(
         return states;
     }
 
-    public ValueTask<ErrorOr<IReadOnlyList<Subscription>>> GetSubscriptionsAsync(SubscriptionQuery query, CancellationToken ct) =>
-        store.QueryAsync(query, ct);
+    public ValueTask<ErrorOr<IReadOnlyList<Subscription>>> GetSubscriptionsAsync(SubscriptionQuery query, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        return store.QueryAsync(query, ct);
+    }
 
     public async ValueTask<ErrorOr<Subscription>> GetSubscriptionAsync(Guid id, CancellationToken ct)
     {
@@ -76,7 +77,7 @@ internal sealed class SubscriptionManager(
     {
         ArgumentNullException.ThrowIfNull(draft);
         var recipients = draft.Recipients ?? SubscriptionRecipients.ScopeUsers;
-        var error = await ValidationOrConflictAsync(draft, recipients, stored: null, ct);
+        var error = SubscriptionDraftRules.Check(draft) ?? await ValidationOrConflictAsync(draft, recipients, stored: null, ct);
         if (error is not null)
         {
             return error;
@@ -93,6 +94,11 @@ internal sealed class SubscriptionManager(
     public async ValueTask<ErrorOr<Subscription>> UpdateAsync(Guid id, int expectedRevision, SubscriptionDraft draft, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        if (SubscriptionDraftRules.Check(draft) is { } brokenRule)
+        {
+            return brokenRule;
+        }
+
         var stored = await store.GetAsync(id, ct);
         if (stored.IsError || stored.Value is null)
         {
@@ -161,42 +167,26 @@ internal sealed class SubscriptionManager(
     private Error? ValidationError(SubscriptionDraft draft, SubscriptionRecipients recipients, Subscription? stored)
     {
         var type = RoutedMessageTypes(draft.Type).FirstOrDefault();
-        return !OwnerMatchesItsLevel(draft.Owner) ? Invalid("The owner does not match its level.")
-            : type is null ? Invalid("The message type is not registered, or has no scope function.")
+        return type is null ? Invalid("The message type is not registered, or has no scope function.")
             : stored is not null && ChangesTheIdentity(stored, draft, recipients) ? Invalid("An update keeps the owner, the message type, and the recipient kind.")
-            : draft.Kind == SubscriptionKind.OptOut ? OptOutError(draft, recipients, type)
-            : ChannelSubscriptionError(draft, recipients, type);
+            : draft.Kind == SubscriptionKind.OptOut ? OptOutChannelError(draft, type)
+            : ChannelSubscriptionError(draft, type);
     }
-
-    private static bool OwnerMatchesItsLevel(SubscriptionOwner owner) => owner.Level switch
-    {
-        SubscriptionLevel.Default => owner is { Company: null, User: null },
-        SubscriptionLevel.Company => owner is { Company.Value: not null, User: null },
-        _ => owner is { User.Value: not null, Company: null },
-    };
 
     private static bool ChangesTheIdentity(Subscription stored, SubscriptionDraft draft, SubscriptionRecipients recipients) =>
         stored.Owner != draft.Owner || stored.Type != draft.Type || stored.Recipients.Kind != recipients.Kind;
 
-    private static Error? OptOutError(SubscriptionDraft draft, SubscriptionRecipients recipients, MessageTypeDescriptor type) =>
-        draft.Settings is not null ? Invalid("An opt-out has no settings.")
-        : recipients.Kind != RecipientKind.ScopeUsers || draft.Mandatory ? Invalid("An opt-out is for the scope users, and is not mandatory.")
-        : draft.Channel is { } channel && !type.Channels.Contains(channel) ? Invalid("The message type has not registered the channel.")
-        : null;
+    private static Error? OptOutChannelError(SubscriptionDraft draft, MessageTypeDescriptor type) =>
+        draft.Channel is { } channel && !type.Channels.Contains(channel) ? Invalid("The message type has not registered the channel.") : null;
 
-    private Error? ChannelSubscriptionError(SubscriptionDraft draft, SubscriptionRecipients recipients, MessageTypeDescriptor type)
+    private Error? ChannelSubscriptionError(SubscriptionDraft draft, MessageTypeDescriptor type)
     {
-        if (draft.Channel is not { } channelId || draft.Settings is null)
-        {
-            return Invalid("A channel subscription has a channel and settings.");
-        }
-
+        var channelId = draft.Channel.GetValueOrDefault();
+        var settings = draft.Settings!;
         var channel = type.Channels.Contains(channelId) ? registry.FindChannel(channelId) : null;
         return channel is null ? Invalid("The message type has not registered the channel.")
-            : draft.Settings.GetType() != channel.SettingsType ? Invalid("The settings type is not the settings type of the channel.")
-            : SettingsLanguageError(draft.Settings, channel)
-            ?? SettingsValidatorError(draft.Settings, channel)
-            ?? RecipientsError(draft, recipients);
+            : settings.GetType() != channel.SettingsType ? Invalid("The settings type is not the settings type of the channel.")
+            : SettingsLanguageError(settings, channel) ?? SettingsValidatorError(settings, channel);
     }
 
     private static Error? SettingsLanguageError(ChannelSettings settings, ChannelDescriptor channel) =>
@@ -209,18 +199,6 @@ internal sealed class SubscriptionManager(
         validators.FirstOrDefault(validator => validator.Channel == channel.Id)?.Validate(settings, channel.Features) is { } error
             ? Invalid($"The settings validator of the channel rejects the settings: {error.Type.Name}.")
             : null;
-
-    private static Error? RecipientsError(SubscriptionDraft draft, SubscriptionRecipients recipients) =>
-        draft.Owner.Level == SubscriptionLevel.User && recipients.Kind != RecipientKind.ScopeUsers
-            ? Invalid("A user subscription is for the scope users.")
-        : draft.Mandatory && (draft.Owner.Level == SubscriptionLevel.User || recipients.Kind != RecipientKind.ScopeUsers)
-            ? Invalid("A mandatory subscription is a default or company subscription for the scope users.")
-        : recipients.Kind == RecipientKind.NamedUsers && !HasOneToHundredDifferentUsers(recipients.Users)
-            ? Invalid("Named users are 1 to 100 different users.")
-        : null;
-
-    private static bool HasOneToHundredDifferentUsers(IReadOnlyList<UserId> users) =>
-        users.Count is > 0 and <= _maxNamedUsers && users.Distinct().Count() == users.Count;
 
     private async ValueTask<Error?> NamedUsersErrorAsync(SubscriptionDraft draft, SubscriptionRecipients recipients, CancellationToken ct)
     {
