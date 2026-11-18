@@ -37,6 +37,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 27 HTTP API clients | 26 |
 | 28 Admin UIs | 27 |
 | 29 Template preview | 28 |
+| 30 Layout of the admin pages | 29 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2012,6 +2013,60 @@ The implementation changed the plan in these points:
 - The view page reads the parts of the message type for `HasSample`, so an error of the parts is an error of the page, as on the edit page. A missing template shows the text of `NotFound` and the link back to the list.
 - The view page shows the stored text in `HighlightedTextArea` with the new parameter `ReadOnly`, so the text has the same look and the same scroll as in the editor. A text part is one segment with no class. The internal `TextSegments` gives the segments to the plain editor and the view page.
 - `TemplateMetadata` and `TemplatePreviewPane` are public components of `MsgHatch.Templates.AdminUI`, as `HighlightedTextArea` is, so the view page and the edit page share them, and a host can use them on a page of its own.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
+### Phase 30: layout of the admin pages
+
+Goal: the admin pages of the subscriptions and the templates have one layout (D259 to D262). A list scrolls in its own area, a new item opens in a dialog from a button above the list, each dialog and each page has Cancel or Back on the bottom left and its main action on the bottom right, and a delete shows the details of the item before it runs.
+
+1. Check first, before the code:
+   - A Razor component can be internal. If it cannot, the create form of a subscription is one public component with the id of the subscription as its parameter, because the form model `SubscriptionForm` is internal.
+   - In a host whose layout has the height of the window, a list page with a fixed header and a table area with `overflow-y: auto` and `min-height: 0` scrolls only the table, and a `th` with `position: sticky` stays visible.
+2. Add the shared parts to `MsgHatch.AdminUI` (D261):
+   - `AdminActions` puts its `Start` content on the bottom left and its `End` content on the bottom right.
+   - `AdminDialog` is a Bootstrap modal with a title, a body, and a footer of `AdminActions`.
+   - `DeleteDialog` uses `AdminDialog`, with Cancel on the left and Delete on the right.
+3. Put the actions of the pages into `AdminActions` (D261): the view page has Back on the left and Edit on the right. The template edit page and the subscription edit page have Back on the left, and Delete and Save on the right.
+4. Show the details of an item in the delete question (D262): `DeleteDialog` gets the content `Details`, and says that the delete cannot be undone. The template pages show the metadata line of the template and what a send uses after the delete. The subscription page shows the owner, the message type, the kind, the channel, the recipients, the mandatory flag, and the revision.
+5. Add the list layout (D259):
+   - `AdminListPage` of `MsgHatch.AdminUI` has a header with the title, a toolbar with the filters on the left and the actions on the right, and the list.
+   - `AdminList` puts its table in an area that scrolls by itself, with a sticky row of column names, and its pager under the area.
+   - The template list, the subscription list, and the message types page use `AdminListPage`.
+   - `AdminUiExample` gets a layout with the height of the window, and its main area fills the rest.
+6. Open a new template in a dialog (D260): the button "+ New template" on the right of the toolbar opens a dialog with the part, the language, and the company. Cancel is on the left, and "Open the editor" on the right.
+7. Create a subscription in a dialog (D260):
+   - The public component `SubscriptionEditor` holds the form, the save, and the delete of one subscription. The edit page shows it, and the button "+ New subscription" on the right of the toolbar shows it in a dialog with Cancel on the left and Create on the right.
+   - A create in the dialog closes the dialog and loads the list again.
+   - `SubscriptionAdminRoutes.New` gives the address of the list with the query `new=true`, which opens the dialog. The page address `/msghatch/subscriptions/new` goes away. The HTTP API does not change.
+8. Describe the layout in section 4.24 of the design, with the layout that a host gives its main area.
+
+Tests, with bUnit:
+- `AdminActions`, `AdminDialog`, and `DeleteDialog`: the content on the left and on the right, the title, and the details. A delete runs only after the user confirms it.
+- The buttons of each page in their places, with their addresses.
+- The details of a template and of a subscription in the delete question.
+- `AdminList` and `AdminListPage`: the scroll area, the pager under it, the toolbar with the actions on the right.
+- The dialog of a new template: the navigation to the edit page, Cancel, and the error of a lookup that breaks a rule.
+- The dialog of a new subscription: a create closes the dialog and loads the list, Cancel, an error of the create, and the query `new=true`.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phase 30: the layout of the admin pages"
+2. "Add the shared dialog and the bottom bar of the admin UIs"
+3. "Put the actions of the admin pages into the bottom bar"
+4. "Show the details of an item in the delete question"
+5. "Scroll only the list on the admin list pages"
+6. "Open a new template in a dialog from the button above the list"
+7. "Create a subscription in a dialog from the button above the list"
+8. "Describe the layout of the admin pages in the design"
+9. "Record the commits and the checked facts of phase 30 in the plan"
+10. "Record phase 30 as done in README and AGENTS.md"
+
+Checked facts (2026-11-18), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| A Razor component is always public. A code-behind `internal partial class` gives CS0262, and a public parameter of an internal type gives CS0053. So the create form of a subscription is the public component `SubscriptionEditor` with the parameter `Guid? Id`, and `SubscriptionForm` stays internal. | The build of a probe component in a scratch folder |
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
