@@ -43,6 +43,14 @@ public sealed class AdminDialogUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_OpenDialogWithNoActions_HasNoFooter()
+    {
+        var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).AddChildContent("<div data-actions>Own bar</div>"));
+
+        Assert.Equal((0, "Own bar"), (cut.FindAll(".modal-footer").Count, cut.Find(".modal-body [data-actions]").TextContent));
+    }
+
+    [Fact]
     public void Render_WideDialog_HasTheLargeSize()
     {
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).Add(x => x.Wide, true));

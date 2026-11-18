@@ -175,37 +175,6 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
-    public void ClickCreate_NamedUsers_CreatesTheDraftAndOpensTheEditPageOfTheNewSubscription()
-    {
-        var created = Guid.Parse("00000000-0000-0000-0000-000000000009");
-        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Ok(Subscription(id: created)));
-        var cut = Render<SubscriptionEditPage>();
-        cut.Find("#msghatch-edit-settings").Change("""{"number":"1"}""");
-        cut.Find("#msghatch-edit-recipients").Change("NamedUsers");
-        cut.Find("#msghatch-edit-users").Change("1\n 2 \n");
-
-        cut.Find("[data-action=save]").Click();
-
-        var expected = new SubscriptionDraft(SubscriptionOwner.Default, Requests, SubscriptionKind.Channel, Fax, new FaxSettings("1"),
-            SubscriptionRecipients.ForUsers([new UserId("1"), new UserId("2")]));
-        Commands.Received(1).CreateAsync(expected, Arg.Any<CancellationToken>());
-        Assert.Equal("http://localhost/msghatch/subscriptions/00000000-0000-0000-0000-000000000009", Navigation.Uri);
-    }
-
-    [Fact]
-    public void ClickCreate_Rejected_ShowsTheTextOfRejectedAndStays()
-    {
-        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.Rejected));
-        var cut = Render<SubscriptionEditPage>();
-        cut.Find("#msghatch-edit-settings").Change("""{"number":"1"}""");
-
-        cut.Find("[data-action=save]").Click();
-
-        Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
-        Assert.Equal("http://localhost/", Navigation.Uri);
-    }
-
-    [Fact]
     public void ClickDelete_StoredSubscription_ShowsItsDetailsAndTheEffectInTheQuestion()
     {
         var cut = RenderEdit();

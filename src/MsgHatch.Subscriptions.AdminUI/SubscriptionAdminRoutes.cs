@@ -11,8 +11,8 @@ public static class SubscriptionAdminRoutes
     /// <summary>The address of the message types with their states.</summary>
     public const string MessageTypes = List + "/message-types";
 
-    /// <summary>The address of the edit page of a new subscription.</summary>
-    public const string New = List + "/new";
+    /// <summary>The address of the subscription list with the dialog of a new subscription open (D260).</summary>
+    public const string New = List + "?new=true";
 
     /// <summary>The address of the routing verification (D163).</summary>
     public const string Verification = List + "/verification";

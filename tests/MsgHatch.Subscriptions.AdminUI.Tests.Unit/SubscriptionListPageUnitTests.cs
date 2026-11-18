@@ -128,6 +128,82 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         Assert.Equal("Pager", row.Children[3].TextContent);
     }
 
+    [Fact]
+    public void ClickNew_List_OpensTheEditorInADialogWithCancelOnTheLeftAndCreateOnTheRight()
+    {
+        GivenSubscriptions();
+        var cut = Render<SubscriptionListPage>();
+        Assert.Empty(cut.FindAll(".modal"));
+
+        cut.Find("[data-list-actions] [data-action=new]").Click();
+
+        Assert.Equal(
+            ("New subscription", true, "cancel", "save", "Create", 0),
+            (cut.Find(".modal-title").TextContent, cut.Find(".modal-dialog").ClassList.Contains("modal-lg"),
+                cut.Find(".modal-body [data-actions-start] button").GetAttribute("data-action"), cut.Find(".modal-body [data-actions-end] button").GetAttribute("data-action"),
+                cut.Find(".modal-body [data-action=save]").TextContent, cut.FindAll(".modal-body [data-action=delete]").Count));
+    }
+
+    [Fact]
+    public void ClickCreate_NamedUsersInTheDialog_CreatesTheDraftClosesTheDialogAndLoadsTheListAgain()
+    {
+        GivenSubscriptions();
+        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("[data-action=new]").Click();
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"1"}""");
+        cut.Find("#msghatch-edit-recipients").Change("NamedUsers");
+        cut.Find("#msghatch-edit-users").Change("1\n 2 \n");
+
+        cut.Find(".modal [data-action=save]").Click();
+
+        var expected = new SubscriptionDraft(SubscriptionOwner.Default, Requests, SubscriptionKind.Channel, Fax, new FaxSettings("1"),
+            SubscriptionRecipients.ForUsers([new UserId("1"), new UserId("2")]));
+        Commands.Received(1).CreateAsync(expected, Arg.Any<CancellationToken>());
+        Queries.ReceivedWithAnyArgs(2).GetSubscriptionsAsync(default!, Arg.Any<CancellationToken>());
+        Assert.Equal((0, "http://localhost/"), (cut.FindAll(".modal").Count, Navigation.Uri));
+    }
+
+    [Fact]
+    public void ClickCreate_RejectedInTheDialog_ShowsTheTextOfRejectedAndKeepsTheDialog()
+    {
+        GivenSubscriptions();
+        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.Rejected));
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("[data-action=new]").Click();
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"1"}""");
+
+        cut.Find(".modal [data-action=save]").Click();
+
+        Assert.Equal((AdminErrors.RejectedText, 1), (cut.Find(".modal .alert-danger").TextContent, cut.FindAll(".modal").Count));
+    }
+
+    [Fact]
+    public void ClickCancel_Dialog_ClosesItAndCreatesNothing()
+    {
+        GivenSubscriptions();
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("[data-action=new]").Click();
+
+        cut.Find(".modal [data-action=cancel]").Click();
+
+        Assert.Empty(cut.FindAll(".modal"));
+        Commands.DidNotReceiveWithAnyArgs().CreateAsync(default!, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Render_AddressOfNew_OpensTheDialogAndCancelLeavesTheListAddressWithNoQuery()
+    {
+        GivenSubscriptions();
+        Navigation.NavigateTo(SubscriptionAdminRoutes.New.TrimStart('/'));
+        var cut = Render<SubscriptionListPage>();
+        var opened = cut.FindAll(".modal").Count;
+
+        cut.Find(".modal [data-action=cancel]").Click();
+
+        Assert.Equal((1, 0, "http://localhost/msghatch/subscriptions"), (opened, cut.FindAll(".modal").Count, Navigation.Uri));
+    }
+
     private void GivenSubscriptions(params Subscription[] subscriptions) =>
         Queries.GetSubscriptionsAsync(Arg.Any<SubscriptionQuery>(), Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<Subscription>>(subscriptions));
 }

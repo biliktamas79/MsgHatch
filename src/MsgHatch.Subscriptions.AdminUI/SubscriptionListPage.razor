@@ -1,6 +1,7 @@
 @attribute [Route(SubscriptionAdminRoutes.List)]
 @inject IServiceProvider Services
-@* The subscriptions, with filters for the owner level, the message type, and the channel (D239). *@
+@inject NavigationManager Navigation
+@* The subscriptions, with filters for the owner level, the message type, and the channel (D239), and the dialog of a new subscription (D260). *@
 
 <AdminListPage Title="Subscriptions">
 <Links>
@@ -8,7 +9,7 @@
     <a class="btn btn-link btn-sm" href="@SubscriptionAdminRoutes.Verification.TrimStart('/')">Routing verification</a>
 </Links>
 <Actions>
-    <a class="btn btn-sm btn-primary" data-action="new" href="@SubscriptionAdminRoutes.New.TrimStart('/')">+ New subscription</a>
+    <button type="button" class="btn btn-sm btn-primary" data-action="new" @onclick="() => _newOpen = true">+ New subscription</button>
 </Actions>
 <Filters>
     <div>
@@ -66,7 +67,12 @@
 </ChildContent>
 </AdminListPage>
 
+<AdminDialog Open="_newOpen" Title="New subscription" Wide="true">
+    <SubscriptionEditor Cancelled="CloseNewAsync" Created="OnCreatedAsync" />
+</AdminDialog>
+
 @code {
+    private bool _newOpen;
     private ErrorOr<IReadOnlyList<Subscription>>? _subscriptions;
     private IReadOnlyList<string> _types = [];
     private IReadOnlyList<string> _channels = [];
@@ -74,15 +80,37 @@
     private string _typeFilter = string.Empty;
     private string _channelFilter = string.Empty;
 
+    /// <summary>True from the query <c>new=true</c> of <see cref="SubscriptionAdminRoutes.New"/>, which opens the dialog of a new subscription.</summary>
+    [SupplyParameterFromQuery(Name = "new")]
+    public bool? New { get; set; }
+
     private ISubscriptionQueries Queries => Services.GetRequiredKeyedService<ISubscriptionQueries>(TenantKey.None);
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        _newOpen = New == true;
         var types = await Queries.GetMessageTypesAsync(new MessageTypeQuery(), CancellationToken.None);
         var channels = await Queries.GetChannelsAsync(CancellationToken.None);
         _types = types.IsSuccess ? [.. types.Value.Select(static state => state.Type.Name)] : [];
         _channels = channels.IsSuccess ? [.. channels.Value.Select(static channel => channel.Id.Name)] : [];
+        await LoadAsync();
+    }
+
+    private Task CloseNewAsync()
+    {
+        _newOpen = false;
+        if (New == true)
+        {
+            Navigation.NavigateTo(SubscriptionAdminRoutes.List.TrimStart('/'), replace: true);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task OnCreatedAsync(Subscription created)
+    {
+        await CloseNewAsync();
         await LoadAsync();
     }
 

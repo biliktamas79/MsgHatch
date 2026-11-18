@@ -6,9 +6,12 @@
             <div class="modal-content">
                 <div class="modal-header"><h5 class="modal-title" id="@_titleId">@Title</h5></div>
                 <div class="modal-body">@ChildContent</div>
-                <div class="modal-footer">
-                    <AdminActions Start="Start" End="End" Class="w-100" />
-                </div>
+                @if (Start is not null || End is not null)
+                {
+                    <div class="modal-footer">
+                        <AdminActions Start="Start" End="End" Class="w-100" />
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -34,7 +37,10 @@
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
-    /// <summary>The content on the bottom left, for example Cancel.</summary>
+    /// <summary>
+    /// The content on the bottom left, for example Cancel. A dialog with no Start and no End has no footer, for a body that has
+    /// its own bar of AdminActions.
+    /// </summary>
     [Parameter]
     public RenderFragment? Start { get; set; }
 

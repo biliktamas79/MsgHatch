@@ -18,7 +18,13 @@ public sealed class SubscriptionAdminRoutesUnitTests
         Assert.Equal([SubscriptionAdminRoutes.List], TemplatesOf<SubscriptionListPage>());
         Assert.Equal([SubscriptionAdminRoutes.MessageTypes], TemplatesOf<MessageTypesPage>());
         Assert.Equal([SubscriptionAdminRoutes.Verification], TemplatesOf<RoutingVerificationPage>());
-        Assert.Equal([SubscriptionAdminRoutes.New, SubscriptionAdminRoutes.List + "/{Id:guid}"], TemplatesOf<SubscriptionEditPage>());
+        Assert.Equal([SubscriptionAdminRoutes.List + "/{Id:guid}"], TemplatesOf<SubscriptionEditPage>());
+    }
+
+    [Fact]
+    public void New_List_GivesTheListAddressWithTheQueryThatOpensTheDialog()
+    {
+        Assert.Equal("/msghatch/subscriptions?new=true", SubscriptionAdminRoutes.New);
     }
 
     [Fact]
