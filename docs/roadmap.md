@@ -2235,7 +2235,7 @@ Starting point: the commits of phase 31, `2d8a9bc` to `df73dab`. The owner looke
 - The applied subscriptions as a column of the message types page, with "one number per each SubscriptionLevel".
 - An up or down indicator, an "up since" time with the time since the last down state, and a button History with the down and restored events "in a dialog, or a timeline with segments colored red where the channel was down".
 
-The owner chose "Registry queries" for the channel state, and "Timeline and list" for the history.
+The owner chose "Registry queries" for the channel state, and "Timeline and list" for the history. Then the owner asked to "add the count links to the filtered subscription list and the channel state to the channel view page". So the plan has two commits: `0a0b933` and the commit after it.
 
 1. Check first, before the code:
    - Each of the five outbox stores can write or remove the down state of a channel, and add its event, in one atomic operation: the in-memory store, the file store, a SQLite transaction, an EF Core transaction on SQL Server, and MongoDB. For MongoDB, the check finds how the store keeps two writes atomic now, also on a server with no replica set. If a store cannot do it, the plan changes before the code.
@@ -2261,17 +2261,20 @@ The owner chose "Registry queries" for the channel state, and "Timeline and list
    - `RegistryChannelResponse` gets `down` and `upSinceUtc`. The new `ChannelEventResponse` and its list go into `RegistryEndpointJson`.
    - `RegistryApiRoutes.ChannelHistory` holds `/channels/{channel}/history`. The GET route calls `IRegistryQueries` of `TenantKey.None`, in the registry group with its policy.
    - `IRegistryApi` and `HttpRegistryQueries` get the history call.
-9. Show the channel state and history on the channel list (D279):
+9. Show the channel state and history on the channel pages (D279):
    - The column "State" shows the badge "Up" with `text-bg-success`, or "Down" with `text-bg-danger`. A down channel also shows its reason: the error name for `Errors`, or "Paused" and the note for `Operator`.
    - The column "Since" shows the start of the current state in UTC and the time since then, for example "2026-11-18 13:32 UTC (3 d 4 h)". An up channel with no `UpSinceUtc` shows "No down state in 30 days".
    - The page reads the current time from `TimeProvider`. `AddMsgHatchAdminUI` adds `TimeProvider.System` when the host has none.
    - The button "History" opens `AdminDialog`. The dialog shows a timeline bar of the last 30 days with `progress-stacked`: red with `bg-danger` where the channel was down, and green with `bg-success` where it was up. Under the bar, it lists the events, newest first: the time, "Down" or "Restored", the reason, the error name, and the note.
    - The state before the first event of the window is the opposite of the kind of that event. With no event in the window, the current state fills the bar. An error shows in the dialog, and the dialog has Close on the left (D261).
+   - `ChannelViewPage` shows the same "State" and "Since" fields. "History" is the main action on the right of `AdminActions`, and opens the same dialog. The list and the view page use the same parts for the state and the dialog.
    - `AddMsgHatchAdminUI` keeps the pages with `DynamicDependency` (D250).
 10. Add message type columns and the subscription counts of each level (D275, D276):
-    - `MsgHatch.AdminUI` gets `IMessageTypeColumn` with `Header` and `GetCellsAsync(CancellationToken ct)`, which gives `ErrorOr<IReadOnlyDictionary<MessageType, IReadOnlyList<string>>>`. `AddMessageTypeColumn<TColumn>()` registers a column, with `DynamicallyAccessedMembers(PublicConstructors)` on `TColumn`.
-    - `MessageTypeListPage` shows each registered column after its own columns, in the order of registration, and each text of a cell as a badge. An error of a column shows above the list with its header. The cells of that column stay empty, and the other columns still show.
+    - `MsgHatch.AdminUI` gets `IMessageTypeColumn` with `Header` and `GetCellsAsync(CancellationToken ct)`, which gives `ErrorOr<IReadOnlyDictionary<MessageType, IReadOnlyList<MessageTypeCellItem>>>`. `MessageTypeCellItem(string Text, string? Href)` is one badge of a cell. `AddMessageTypeColumn<TColumn>()` registers a column, with `DynamicallyAccessedMembers(PublicConstructors)` on `TColumn`.
+    - `MessageTypeListPage` shows each registered column after its own columns, in the order of registration, and each item of a cell as a badge. An item with an address is a link. An error of a column shows above the list with its header. The cells of that column stay empty, and the other columns still show.
     - `MsgHatch.Subscriptions.AdminUI` gets the internal column "Subscriptions". It counts the stored subscriptions of each message type for each `SubscriptionLevel`, with one call `GetSubscriptionsAsync(new SubscriptionQuery())` of `TenantKey.None`. Each cell has "Default N", "Company N", and "User N", also for 0. `AddMsgHatchSubscriptionsAdminUI` registers it.
+    - Each count links to the subscription list with the filters of its message type and its level. `SubscriptionAdminRoutes.ListOf(MessageType type, SubscriptionLevel level)` gives the address, for example `/msghatch/subscriptions?type=OrderShipped&level=Company`, with each value escaped.
+    - `SubscriptionListPage` reads the query parameters `type` and `level`, and starts with these filters. A value that is not valid gives no filter for that value. The query parameter `new` of D260 still opens the dialog.
 11. Remove the page "Applied subscriptions" (D274): `MessageTypesPage`, `SubscriptionAdminRoutes.MessageTypes`, its `DynamicDependency`, and its link on the subscription list. `ISubscriptionQueries.GetMessageTypesAsync`, its HTTP route, and its client stay.
 12. Put the admin pages of the example host in the new order (D274):
     - The menu and the home page have the order Channels, Message types, Subscriptions, Templates, and Verification. "Subscriptions" keeps its mark on the subscription pages, and the menu has no "Applied subscriptions".
@@ -2300,8 +2303,10 @@ Tests:
 - The pages, with bUnit and `FakeTimeProvider`:
   - The cells "State" and "Since" of an up channel, of a down channel with each reason, and of an up channel with no `UpSinceUtc`.
   - The dialog "History": the widths and the colors of the segments of a known list of events, the rows of the events, and the text of an error.
-  - The message types page: the cells of a registered column as badges, and the error of a column above the list.
-  - The column "Subscriptions": the counts of each level, also 0.
+  - The view page: the fields "State" and "Since", and "History" opens the dialog.
+  - The message types page: the items of a registered column as badges, an item with an address as a link, and the error of a column above the list.
+  - The column "Subscriptions": the counts of each level, also 0, and the address of each count.
+  - `SubscriptionAdminRoutes.ListOf` escapes its values. The subscription list starts with the filters of `type` and `level`, and a value that is not valid gives no filter.
   - The subscription list has no link to "Applied subscriptions", and the test of the `DynamicDependency` attributes still names each routed page.
 - The example host: the menu order, and the mark of each menu link on its page.
 - Each new test fails first, or fails with a break of the code that it covers.
@@ -2315,7 +2320,7 @@ Commits:
 6. "Record the channel events in the MongoDB store"
 7. "Add the channel state and history to the registry queries"
 8. "Add the channel history to the registry contracts, route, and client"
-9. "Show the channel state and history on the channel list"
+9. "Show the channel state and history on the channel pages"
 10. "Add message type columns and the subscription counts of each level"
 11. "Remove the Applied subscriptions page"
 12. "Put the admin pages of the example host in the new order"
