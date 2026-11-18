@@ -77,24 +77,14 @@ dotnet run -c Release --project tests/MsgHatch.Email.Tests.Performance
 dotnet run -c Release --project tests/MsgHatch.Subscriptions.Tests.Performance
 ```
 
-The example app needs no server, no cloud account, and no network. Its SQLite file `msghatch-example.db` is in the working folder of the app, and git ignores it. Its email templates are in the folder `Templates` of its build output (D221), so a write of the template endpoints never changes the files of the repository. A token for the user `"1"` comes from `dotnet user-jwts` (D158). The delivery endpoints need the roles `DeliveryAdmin` and `DeliveryContent` (D165), the registry endpoints need the role `RegistryAdmin` (D170), and the template endpoints need the role `TemplateAdmin` (D225):
+The example app needs no server, no cloud account, and no network. Its SQLite file `msghatch-example.db` is in the working folder of the app, and git ignores it. Its email templates are in the folder `Templates` of its build output (D221), so a write of the template endpoints never changes the files of the repository. A token for the user `"1"` comes from `dotnet user-jwts` (D158). The delivery endpoints need the roles `DeliveryAdmin` and `DeliveryContent` (D165), the registry endpoints need the role `RegistryAdmin` (D170), and the template endpoints need the role `TemplateAdmin` (D225).
+
+The admin UI example `examples/AdminUiExample` calls the subscription and template APIs of `ExampleApp` through the HTTP clients, so `ExampleApp` runs first (section 4.24). It reads its token from the option `AdminUiExample:ApiToken` in its user secrets, which git ignores. A token with the role `TemplateAdmin` also passes the policy of the subscription routes. Never write a token into a file of the repository. The host listens only on `http://localhost:5090`.
+
+`examples/ExampleApp/README.md` has the steps that make the tokens and start both apps. The tests of both apps need no token and no setup:
 
 ```bash
-dotnet user-jwts create --project examples/ExampleApp --name 1
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role DeliveryAdmin --role DeliveryContent
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role RegistryAdmin
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin
-dotnet run --project examples/ExampleApp
 dotnet test tests/ExampleApp.Tests.Unit
-```
-
-The admin UI example `examples/AdminUiExample` calls the subscription and template APIs of `ExampleApp` through the HTTP clients, so `ExampleApp` runs first (section 4.24). It reads its token from the option `AdminUiExample:ApiToken` in its user secrets, which git ignores. A token with the role `TemplateAdmin` also passes the policy of the subscription routes. Never write a token into a file of the repository. The host listens only on `http://localhost:5090`:
-
-```bash
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin
-dotnet user-secrets set "AdminUiExample:ApiToken" "<the token of user-jwts>" --project examples/AdminUiExample
-dotnet run --project examples/ExampleApp
-dotnet run --project examples/AdminUiExample
 dotnet test tests/AdminUiExample.Tests.Unit
 ```
 

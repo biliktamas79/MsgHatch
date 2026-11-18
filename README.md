@@ -73,46 +73,14 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 Phase 14 added the routing verification to `MsgHatch.Subscriptions`. Phase 15 added the delivery management: the status `Cancelled`, the query, count, retry, cancel, and purge members of the stores, `IDeliveryManager`, and its HTTP endpoints in `MsgHatch.AspNetCore`. Phase 16 added the registry administration: the stored registry settings of the channels and the message types on top of the code, `IRegistryWriter`, the registry settings stores of the in-memory, file, and SQLite packages, the skip of a disabled message type or channel in the pipeline, and its HTTP endpoints in `MsgHatch.AspNetCore`. Phase 17 added a store for each tenant: `ITenantSource`, the dispatch composites with `UseStorageForEachTenant`, `UseSqliteTenantStores` with one SQLite file for each tenant, and `UseSqliteTenantSubscriptionStore`. Phase 18 added the EF Core stores with SQL Server as the first provider: `UseEntityFrameworkStores` for the inbox, the outbox, and the registry settings, and `UseEntityFrameworkSubscriptionStore`. The host creates their tables with its own EF Core migrations. Phase 19 added the MongoDB stores: `UseMongoDbStores` for the inbox, the outbox, and the registry settings, and `UseMongoDbSubscriptionStore`. They keep each message as one BSON document with its publish tries, and create their indexes themselves. Phase 20 ran the Amazon SES integration tests against a real SES account. They passed with no change of the client. Phase 21 fixed the fallback wait of the dispatch loop: while the dispatch signal does not work, the loop now obeys a next try time that a worker gives. It also added `MsgHatch.Dispatch.NamedPipes` with `UseNamedPipeDispatchSignal`, which wakes the loops of the other processes of one OS user on one machine. Phase 22 changed the file store and the embedded store: they read the template of a company from the folder of the company, for example `42/A.hu.subject.txt`. Phase 22 also built a Razor engine, and then removed it, because a host must add templates at run time with no build. Phase 23 added `MsgHatch.Email.Liquid`: with `AsLiquidEmail`, a Liquid template in the template store renders the subject, the html, and the text, with loops and conditions. So a host adds a template, a language, or a company template at run time, as a file, with no build. Phase 24 moved the templates into the separate library `MsgHatch.Templates`, which knows no channel: a template is one text, and a replaceable engine renders it. The email channel is a thin layer on it, and the Liquid engine is now `MsgHatch.Templates.Liquid`. Phase 25 added the template administration: `ITemplateWriter` on the file template store, a check of each written text by the engine of its payload type, `ITemplateManager`, and its HTTP endpoints in `MsgHatch.Templates.AspNetCore`. So an operator changes an email text over HTTP, and a text with an error gives 422 and never reaches a send. Phase 26 split each management API into a query interface and a command interface, for example `ITemplateQueries` and `ITemplateCommands` in place of `ITemplateManager`. A host selects the implementation of each interface one by one, for example an HTTP client for the reads. The phase also added the declared parts and the check of a draft of a template, the stateless rules that run first, the identity of an error type by its code, the error contract of the HTTP APIs with the member `errorType`, the contracts packages of the HTTP bodies, a host with no role, and the AOT setting of the packages of the API boundary. Phase 27 added the HTTP clients of the management APIs: `UseTemplateApiClient` and `UseSubscriptionApiClient` select them behind the same interfaces, so a host, for example an admin UI with no role, calls the API of another host and gets the same results and the same errors as in process. A source generator of `MsgHatch.SourceGeneration` writes their HTTP calls, with no reflection and no exception for an error status. Phase 28 added the admin UIs as Razor class libraries: the list and edit pages of the subscriptions and the templates, the routing verification, and a Liquid editor with highlighting and the check of the server. A host adds them in its setup, selects the HTTP clients or the in-process implementations, and adds its own authorization.
 
 ## Example app
-`examples/ExampleApp` runs the subscription example of the design end to end, with no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, keeps all data in one SQLite file, reads its email templates from the folder `Templates` of its build output, and maps the subscription endpoints and the delivery endpoints under `/api/delivery`. A caller signs in with a local JWT from `dotnet user-jwts`:
+`examples/ExampleApp` runs the subscription example of the design end to end, with no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, keeps all data in one SQLite file, reads its email templates from the folder `Templates` of its build output, and maps the subscription endpoints and the delivery endpoints under `/api/delivery`. A caller signs in with a local JWT from `dotnet user-jwts` (D158). The delivery endpoints (D165), the registry endpoints (D170), and the template endpoints (D225) each need a role of their own.
 
-```bash
-dotnet user-jwts create --project examples/ExampleApp --name 1
-```
-
-The delivery endpoints need a token with roles: `DeliveryAdmin` for the overview and the actions, and `DeliveryContent` for the content of the messages (D165):
-
-```bash
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role DeliveryAdmin --role DeliveryContent
-```
-
-The registry endpoints under `/api/registry` change the stored registry settings, and need a token with the role `RegistryAdmin` (D170):
-
-```bash
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role RegistryAdmin
-```
-
-The template endpoints under `/api/templates` list, read, write, and delete the email templates in the build output, and need a token with the role `TemplateAdmin` (D225):
-
-```bash
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin
-```
-
-```bash
-dotnet run --project examples/ExampleApp
-```
-
-Then call `GET http://localhost:5080/api/subscriptions/me` with the token as a bearer token. The response holds the subscriptions of the user `"1"`.
+The setup, the tokens, and the start of the app are in [examples/ExampleApp/README.md](examples/ExampleApp/README.md).
 
 ## Admin UI example
-`examples/AdminUiExample` is an Interactive Server host of the admin UIs. It calls the subscription and template APIs of `ExampleApp` through the HTTP clients, so `ExampleApp` runs first. It reads its token from the option `AdminUiExample:ApiToken` in its user secrets, which git ignores. A token with the role `TemplateAdmin` also passes the policy of the subscription routes. The host listens only on `http://localhost:5090`:
+`examples/AdminUiExample` is an Interactive Server host of the admin UIs. It calls the subscription and template APIs of `ExampleApp` through the HTTP clients, so `ExampleApp` runs first. It sends one token from its user secrets for each user, and listens only on `http://localhost:5090`.
 
-```bash
-dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin
-dotnet user-secrets set "AdminUiExample:ApiToken" "<the token of user-jwts>" --project examples/AdminUiExample
-dotnet run --project examples/ExampleApp
-dotnet run --project examples/AdminUiExample
-dotnet test tests/AdminUiExample.Tests.Unit
-```
+The steps to run it are in the section [Start the admin UI](examples/ExampleApp/README.md#start-the-admin-ui) of the README of the example app.
 
 ## Commands
 Build, and run the unit tests of one project:
