@@ -6,7 +6,10 @@
             @Links
         </div>
         <div class="d-flex flex-wrap align-items-end gap-3 mb-3" data-list-toolbar>
-            <div class="d-flex flex-wrap align-items-end gap-2" data-list-filters>@Filters</div>
+            @if (Filters is not null)
+            {
+                <div class="admin-filter-bar d-flex flex-wrap align-items-end gap-2" data-list-filters>@Filters</div>
+            }
             <div class="ms-auto" data-list-actions>@Actions</div>
         </div>
     </div>

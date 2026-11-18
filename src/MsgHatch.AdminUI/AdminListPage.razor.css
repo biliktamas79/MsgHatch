@@ -2,3 +2,20 @@
 .admin-list-body {
     min-height: 0;
 }
+
+.admin-filter-bar {
+    padding: .6rem .75rem;
+    background-color: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+}
+
+.admin-filter-bar ::deep label {
+    display: block;
+    margin-bottom: .25rem;
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}

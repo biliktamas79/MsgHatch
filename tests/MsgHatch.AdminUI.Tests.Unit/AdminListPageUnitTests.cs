@@ -23,6 +23,23 @@ public sealed class AdminListPageUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_Filters_PutsThemInTheFramedFilterBar()
+    {
+        var cut = Render<AdminListPage>(p => p.Add(x => x.Filters, builder => builder.AddMarkupContent(0, "<label for=\"f\">Company id</label><input id=\"f\" />")));
+
+        var bar = cut.Find("[data-list-filters]");
+        Assert.Equal((true, "Company id"), (bar.ClassList.Contains("admin-filter-bar"), bar.QuerySelector("label")!.TextContent));
+    }
+
+    [Fact]
+    public void Render_NoFilters_HasNoFilterBar()
+    {
+        var cut = Render<AdminListPage>(p => p.Add(x => x.Title, "Templates"));
+
+        Assert.Empty(cut.FindAll("[data-list-filters]"));
+    }
+
+    [Fact]
     public void Render_Page_IsAColumnThatGrowsInItsHost()
     {
         var cut = Render<AdminListPage>(p => p.Add(x => x.Title, "Templates"));
