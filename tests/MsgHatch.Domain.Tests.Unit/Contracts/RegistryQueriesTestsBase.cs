@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
@@ -146,10 +148,157 @@ public abstract class RegistryQueriesTestsBase<T>
         Assert.Equal((Errors.Unavailable.Code, Errors.Unavailable.Code), (channels.Error?.Type.Code, types.Error?.Type.Code));
     }
 
+    [Fact]
+    public async Task GetChannelsAsync_NoStateRow_GivesNoCurrentRowForEachChannel()
+    {
+        // Arrange
+        await using var host = await StartAsync(static services => RegistryTestHost.AddRegistry(services));
+
+        // Act
+        var channels = await host.Service(TenantKey.None).GetChannelsAsync(Ct);
+
+        // Assert
+        Assert.All(channels.Value, static channel => Assert.Null(channel.Current));
+    }
+
+    [Theory]
+    [InlineData(ChannelDownReason.Errors)]
+    [InlineData(ChannelDownReason.Operator)]
+    public async Task GetChannelsAsync_DownChannelAfterAnUpRow_GivesItsDownRowWithTheDurationOfTheUpState(ChannelDownReason reason)
+    {
+        // Arrange
+        var clock = TestHost.NewFakeTime();
+        await using var host = await StartAsync(services => RegistryTestHost.AddRegistry(services).Services.AddSingleton<TimeProvider>(clock));
+        var store = host.Server.GetRequiredService<IOutboxDispatchStore>();
+        await store.SetChannelDownAsync(ADown(clock, ChannelDownReason.Operator), Ct);
+        await store.SetChannelUpAsync(TestChannel.Id, reason: null, Now(clock), Ct);
+        clock.Advance(TimeSpan.FromMinutes(5));
+        var down = ADown(clock, reason);
+        await store.SetChannelDownAsync(down, Ct);
+
+        // Act
+        var channels = await host.Service(TenantKey.None).GetChannelsAsync(Ct);
+
+        // Assert
+        var current = channels.Value[0].Current;
+        Assert.Equal(
+            (3, down, (ChannelStateKind?)ChannelStateKind.Up, (TimeSpan?)TimeSpan.FromMinutes(5)),
+            (current?.Version, current?.ToDown(), current?.PreviousKind, current?.PreviousDuration));
+        Assert.Null(channels.Value[1].Current);
+    }
+
+    [Fact]
+    public async Task GetChannelsAsync_UpChannel_GivesItsLatestUpRowWithTheDurationOfTheDownState()
+    {
+        // Arrange
+        var clock = TestHost.NewFakeTime();
+        await using var host = await StartAsync(services => RegistryTestHost.AddRegistry(services).Services.AddSingleton<TimeProvider>(clock));
+        var store = host.Server.GetRequiredService<IOutboxDispatchStore>();
+        await store.SetChannelDownAsync(ADown(clock, ChannelDownReason.Operator), Ct);
+        await store.SetChannelUpAsync(TestChannel.Id, reason: null, Now(clock).AddMinutes(1), Ct);
+        await store.SetChannelDownAsync(ADown(clock, ChannelDownReason.Errors) with { SinceUtc = Now(clock).AddMinutes(1) }, Ct);
+        await store.SetChannelUpAsync(TestChannel.Id, reason: null, Now(clock).AddMinutes(5), Ct);
+        clock.Advance(TimeSpan.FromDays(1));
+
+        // Act
+        var channels = await host.Service(TenantKey.None).GetChannelsAsync(Ct);
+
+        // Assert
+        var current = channels.Value[0].Current;
+        Assert.Equal(
+            (ChannelStateKind.Up, Now(clock).AddDays(-1).AddMinutes(5), (ChannelStateKind?)ChannelStateKind.Down, (TimeSpan?)TimeSpan.FromMinutes(4)),
+            (current!.Kind, current.SinceUtc, current.PreviousKind, current.PreviousDuration));
+    }
+
+    [Fact]
+    public async Task GetChannelsAsync_UpRowBeforeTheWindow_GivesItAsTheCurrentRow()
+    {
+        // Arrange
+        var clock = TestHost.NewFakeTime();
+        await using var host = await StartAsync(services => RegistryTestHost.AddRegistry(services).Services.AddSingleton<TimeProvider>(clock));
+        var store = host.Server.GetRequiredService<IOutboxDispatchStore>();
+        var upAtUtc = Now(clock);
+        await store.SetChannelDownAsync(ADown(clock, ChannelDownReason.Operator), Ct);
+        await store.SetChannelUpAsync(TestChannel.Id, reason: null, upAtUtc, Ct);
+        clock.Advance(ChannelState.HistoryWindow + TimeSpan.FromDays(10));
+
+        // Act
+        var channels = await host.Service(TenantKey.None).GetChannelsAsync(Ct);
+
+        // Assert
+        Assert.Equal((2, ChannelStateKind.Up, upAtUtc), (channels.Value[0].Current?.Version, channels.Value[0].Current?.Kind, channels.Value[0].Current?.SinceUtc));
+    }
+
+    [Fact]
+    public async Task GetChannelHistoryAsync_RowsOfTwoChannels_GivesTheRowsOfTheChannelInTheWindowAndTheRowCurrentAtItsStartNewestFirst()
+    {
+        // Arrange
+        var clock = TestHost.NewFakeTime();
+        await using var host = await StartAsync(services => RegistryTestHost.AddRegistry(services).Services.AddSingleton<TimeProvider>(clock));
+        var store = host.Server.GetRequiredService<IOutboxDispatchStore>();
+        var startUtc = Now(clock);
+        await store.SetChannelDownAsync(ADown(clock, ChannelDownReason.Operator), Ct);
+        await store.SetChannelUpAsync(TestChannel.Id, reason: null, startUtc, Ct);
+        clock.Advance(TimeSpan.FromDays(20));
+        await store.SetChannelDownAsync(ADown(clock, ChannelDownReason.Errors), Ct);
+        await store.SetChannelDownAsync(ADown(clock, ChannelDownReason.Operator, TestChannel.SecondId), Ct);
+        clock.Advance(TimeSpan.FromDays(11));
+        await store.SetChannelUpAsync(TestChannel.Id, reason: null, Now(clock), Ct);
+
+        // Act
+        var history = await host.Service(TenantKey.None).GetChannelHistoryAsync(TestChannel.Id, Ct);
+
+        // Assert
+        Assert.Equal(
+            [
+                (4, ChannelStateKind.Up, Now(clock), (ChannelStateKind?)ChannelStateKind.Down, (TimeSpan?)TimeSpan.FromDays(11)),
+                (3, ChannelStateKind.Down, startUtc.AddDays(20), ChannelStateKind.Up, TimeSpan.FromDays(20)),
+                (2, ChannelStateKind.Up, startUtc, ChannelStateKind.Down, TimeSpan.Zero),
+            ],
+            history.Value.Select(static row => (row.Version, row.Kind, row.SinceUtc, row.PreviousKind, row.PreviousDuration)));
+    }
+
+    [Fact]
+    public async Task GetChannelHistoryAsync_ChannelThatIsNotRegistered_GivesNotFound()
+    {
+        // Arrange
+        await using var host = await StartAsync(static services => RegistryTestHost.AddRegistry(services));
+
+        // Act
+        var history = await host.Service(TenantKey.None).GetChannelHistoryAsync(new ChannelId("Unknown"), Ct);
+
+        // Assert
+        Assert.Equal(Errors.NotFound.Code, history.Error?.Type.Code);
+    }
+
+    [Fact]
+    public async Task Queries_StoreError_GiveTheErrorOfTheOutboxDispatchStore()
+    {
+        // Arrange
+        var store = Substitute.For<IOutboxDispatchStore>();
+        store.GetChannelStatesAsync(default, Ct).ReturnsForAnyArgs(
+            ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForError(new Error(Errors.Unavailable, "The outbox store is not available."))));
+        await using var host = await StartAsync(services => RegistryTestHost.AddRegistry(services).Services.AddSingleton(store));
+
+        // Act
+        var channels = await host.Service(TenantKey.None).GetChannelsAsync(Ct);
+        var history = await host.Service(TenantKey.None).GetChannelHistoryAsync(TestChannel.Id, Ct);
+
+        // Assert
+        Assert.Equal((Errors.Unavailable.Code, Errors.Unavailable.Code), (channels.Error?.Type.Code, history.Error?.Type.Code));
+    }
+
     /// <summary>Starts a host of the implementation, whose server has the services of a test.</summary>
     /// <param name="addServerServices">Adds the registry of the test, after the configuration, the clock, and the logging of the host.</param>
     /// <returns>The started host.</returns>
     protected abstract ValueTask<IRegistryQueriesTestHost<T>> StartAsync(Action<IServiceCollection> addServerServices);
+
+    private static DateTime Now(TimeProvider clock) => clock.GetUtcNow().UtcDateTime;
+
+    private static ChannelDown ADown(TimeProvider clock, ChannelDownReason reason, ChannelId? channel = null) =>
+        reason == ChannelDownReason.Errors
+            ? new ChannelDown(channel ?? TestChannel.Id, reason, Now(clock), Now(clock).AddSeconds(30), 503, "Unavailable", Note: null)
+            : new ChannelDown(channel ?? TestChannel.Id, reason, Now(clock), NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance");
 
     private static string TextOf(RegistryMessageType type) =>
         $"{type.Type.Name} channels={string.Join(',', type.Channels.Select(static channel => channel.Name))} name={type.DisplayName} "

@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 
@@ -35,6 +36,26 @@ internal sealed class RegistryQueriesLoggingWrapper(
         else
         {
             logger.GetChannelsSucceeded(result.Value.Count, Tenant, elapsedMs);
+        }
+
+        return result;
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelHistoryAsync(ChannelId channel, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.GetChannelHistoryAsync(channel, ct);
+        var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
+        if (result.IsError)
+        {
+            var level = ErrorLogLevels.For(result.Error);
+            logger.GetChannelHistoryFailed(
+                level, channel.Name, Tenant, elapsedMs, result.Error.Type.Code, result.Error.Type.Name, result.Error.Message);
+        }
+        else
+        {
+            logger.GetChannelHistorySucceeded(result.Value.Count, channel.Name, Tenant, elapsedMs);
         }
 
         return result;

@@ -1,5 +1,7 @@
 using MsgHatch.Api.Contracts;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
 
 namespace MsgHatch.Api.Client;
@@ -16,4 +18,7 @@ internal sealed class HttpRegistryQueries(RegistryApi api) : IRegistryQueries
 
     public async ValueTask<ErrorOr<IReadOnlyList<RegistryMessageType>>> GetMessageTypesAsync(CancellationToken ct) =>
         ApiResults.All(await api.GetMessageTypesAsync(ct), static type => type.ToMessageType());
+
+    public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelHistoryAsync(ChannelId channel, CancellationToken ct) =>
+        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
 }

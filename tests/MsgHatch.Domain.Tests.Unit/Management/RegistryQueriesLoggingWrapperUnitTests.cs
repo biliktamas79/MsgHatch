@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -12,7 +13,7 @@ namespace MsgHatch.Domain.Tests.Unit.Management;
 
 /// <summary>
 /// The standard logging wrapper tests for <see cref="IRegistryQueries"/> (D244, D269). The wrapper wraps the registry
-/// manager of <see cref="RegistryTestHost"/>, and each test reads only the records of the events 2909 to 2912.
+/// manager of <see cref="RegistryTestHost"/>, and each test reads only the records of the events 2909 to 2914.
 /// </summary>
 public sealed class RegistryQueriesLoggingWrapperUnitTests
 {
@@ -74,6 +75,41 @@ public sealed class RegistryQueriesLoggingWrapperUnitTests
             RecordsOf(provider).Select(static record => (record.Id.Id, record.GetStructuredStateValue("ErrorCode"))));
     }
 
+    [Fact]
+    public async Task GetChannelHistoryAsync_Success_LogsOneDebugRecordWithTheCountTheChannelAndTheTenantOfTheKey()
+    {
+        // Arrange
+        await using var provider = AProvider();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await scope.ServiceProvider.GetRequiredKeyedService<IRegistryQueries>(_t1).GetChannelHistoryAsync(TestChannel.Id, Ct);
+
+        // Assert
+        var record = Assert.Single(RecordsOf(provider));
+        Assert.Equal(
+            (LogLevel.Debug, 2913, "0", "Test", "t1"),
+            (record.Level, record.Id.Id, record.GetStructuredStateValue("Count"), record.GetStructuredStateValue("Channel"),
+                record.GetStructuredStateValue("Tenant")));
+    }
+
+    [Fact]
+    public async Task GetChannelHistoryAsync_ChannelThatIsNotRegistered_LogsOneRecordWithTheErrorType()
+    {
+        // Arrange
+        await using var provider = AProvider();
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await scope.ServiceProvider.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None).GetChannelHistoryAsync(new ChannelId("Unknown"), Ct);
+
+        // Assert
+        var record = Assert.Single(RecordsOf(provider));
+        Assert.Equal(
+            (2914, Errors.NotFound.Code.ToString(CultureInfo.InvariantCulture), "Unknown"),
+            (record.Id.Id, record.GetStructuredStateValue("ErrorCode"), record.GetStructuredStateValue("Channel")));
+    }
+
     private static ServiceProvider AProvider(Action<IServiceCollection>? addServices = null)
     {
         var services = TestHost.CreateServices();
@@ -83,5 +119,5 @@ public sealed class RegistryQueriesLoggingWrapperUnitTests
     }
 
     private static IEnumerable<FakeLogRecord> RecordsOf(IServiceProvider provider) =>
-        provider.LogRecords().Where(static record => record.Id.Id is >= 2909 and <= 2912);
+        provider.LogRecords().Where(static record => record.Id.Id is >= 2909 and <= 2914);
 }
