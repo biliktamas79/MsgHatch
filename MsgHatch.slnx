@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/examples/">
+    <Project Path="examples/AdminUiExample/AdminUiExample.csproj" />
     <Project Path="examples/ExampleApp/ExampleApp.csproj" />
     <Project Path="examples/WolverineExample.Consumer/WolverineExample.Consumer.csproj" />
     <Project Path="examples/WolverineExample.Contracts/WolverineExample.Contracts.csproj" />
@@ -47,6 +48,7 @@
     <Project Path="src/MsgHatch.Templates.Liquid/MsgHatch.Templates.Liquid.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AdminUiExample.Tests.Unit/AdminUiExample.Tests.Unit.csproj" />
     <Project Path="tests/ExampleApp.Tests.Unit/ExampleApp.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.AdminUI.Tests.Unit/MsgHatch.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Api.Contracts.Tests.Unit/MsgHatch.Api.Contracts.Tests.Unit.csproj" />

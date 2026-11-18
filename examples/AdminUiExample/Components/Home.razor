@@ -1,0 +1,13 @@
+@page "/"
+
+<h1 class="h3">MsgHatch admin</h1>
+<p>
+    This host calls the subscription and template APIs of ExampleApp through the HTTP clients. Start ExampleApp first, and put
+    a token of ExampleApp into the user secrets of this project.
+</p>
+<ul>
+    <li><a href="@SubscriptionAdminRoutes.List.TrimStart('/')">Subscriptions</a></li>
+    <li><a href="@SubscriptionAdminRoutes.MessageTypes.TrimStart('/')">Message types</a></li>
+    <li><a href="@SubscriptionAdminRoutes.Verification.TrimStart('/')">Routing verification</a></li>
+    <li><a href="@TemplateAdminRoutes.List.TrimStart('/')">Templates</a></li>
+</ul>
