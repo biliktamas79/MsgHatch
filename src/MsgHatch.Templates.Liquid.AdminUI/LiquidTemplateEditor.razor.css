@@ -1,0 +1,63 @@
+.liquid-editor {
+    position: relative;
+}
+
+.liquid-layer,
+.liquid-input {
+    font-family: var(--bs-font-monospace);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    min-height: 20rem;
+    margin: 0;
+}
+
+.liquid-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.liquid-input {
+    position: relative;
+    color: transparent;
+    background-color: transparent;
+    caret-color: var(--bs-body-color);
+    resize: vertical;
+}
+
+.liquid-delimiter {
+    color: var(--bs-purple, #6f42c1);
+    font-weight: 600;
+}
+
+.liquid-tagname {
+    color: var(--bs-primary);
+    font-weight: 600;
+}
+
+.liquid-filtername {
+    color: var(--bs-teal, #20c997);
+}
+
+.liquid-quoted {
+    color: var(--bs-danger-text-emphasis, #842029);
+}
+
+.liquid-number {
+    color: var(--bs-warning-text-emphasis, #997404);
+}
+
+.liquid-comment,
+.liquid-raw {
+    color: var(--bs-secondary-color, #6c757d);
+    font-style: italic;
+}
+
+mark.liquid-issue {
+    padding: 0;
+    background-color: transparent;
+    text-decoration: underline wavy var(--bs-danger);
+}

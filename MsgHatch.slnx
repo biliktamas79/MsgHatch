@@ -42,6 +42,7 @@
     <Project Path="src/MsgHatch.Templates.Api.Client/MsgHatch.Templates.Api.Client.csproj" />
     <Project Path="src/MsgHatch.Templates.Api.Contracts/MsgHatch.Templates.Api.Contracts.csproj" />
     <Project Path="src/MsgHatch.Templates.AspNetCore/MsgHatch.Templates.AspNetCore.csproj" />
+    <Project Path="src/MsgHatch.Templates.Liquid.AdminUI/MsgHatch.Templates.Liquid.AdminUI.csproj" />
     <Project Path="src/MsgHatch.Templates.Liquid/MsgHatch.Templates.Liquid.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -82,6 +83,7 @@
     <Project Path="tests/MsgHatch.Templates.Api.Client.Tests.Unit/MsgHatch.Templates.Api.Client.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Api.Contracts.Tests.Unit/MsgHatch.Templates.Api.Contracts.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.AspNetCore.Tests.Unit/MsgHatch.Templates.AspNetCore.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Liquid.Tests.Unit/MsgHatch.Templates.Liquid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Tests.Unit/MsgHatch.Templates.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />

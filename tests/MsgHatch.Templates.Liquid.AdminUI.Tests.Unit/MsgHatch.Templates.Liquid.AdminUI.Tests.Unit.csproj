@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Templates.Liquid.AdminUI\MsgHatch.Templates.Liquid.AdminUI.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Templates.Liquid\MsgHatch.Templates.Liquid.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="bunit" />
+  </ItemGroup>
+
+</Project>
