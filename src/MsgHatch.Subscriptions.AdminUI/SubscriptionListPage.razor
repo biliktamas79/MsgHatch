@@ -2,17 +2,18 @@
 @inject IServiceProvider Services
 @* The subscriptions, with filters for the owner level, the message type, and the channel (D239). *@
 
-<h1 class="h3">Subscriptions</h1>
-<p>
-    <a class="btn btn-primary btn-sm" href="@SubscriptionAdminRoutes.New.TrimStart('/')">New subscription</a>
+<AdminListPage Title="Subscriptions">
+<Links>
     <a class="btn btn-link btn-sm" href="@SubscriptionAdminRoutes.MessageTypes.TrimStart('/')">Message types</a>
     <a class="btn btn-link btn-sm" href="@SubscriptionAdminRoutes.Verification.TrimStart('/')">Routing verification</a>
-</p>
-
-<div class="row g-2 align-items-end mb-3" data-form="filter">
-    <div class="col-auto">
-        <label class="form-label" for="msghatch-subscription-level">Owner level</label>
-        <select id="msghatch-subscription-level" class="form-select" @bind="_levelFilter">
+</Links>
+<Actions>
+    <a class="btn btn-sm btn-primary" data-action="new" href="@SubscriptionAdminRoutes.New.TrimStart('/')">+ New subscription</a>
+</Actions>
+<Filters>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-subscription-level">Owner level</label>
+        <select id="msghatch-subscription-level" class="form-select form-select-sm" @bind="_levelFilter">
             <option value="">All</option>
             @foreach (var level in Enum.GetValues<SubscriptionLevel>())
             {
@@ -20,9 +21,9 @@
             }
         </select>
     </div>
-    <div class="col-auto">
-        <label class="form-label" for="msghatch-subscription-type">Message type</label>
-        <select id="msghatch-subscription-type" class="form-select" @bind="_typeFilter">
+    <div>
+        <label class="form-label small mb-1" for="msghatch-subscription-type">Message type</label>
+        <select id="msghatch-subscription-type" class="form-select form-select-sm" @bind="_typeFilter">
             <option value="">All</option>
             @foreach (var type in _types)
             {
@@ -30,9 +31,9 @@
             }
         </select>
     </div>
-    <div class="col-auto">
-        <label class="form-label" for="msghatch-subscription-channel">Channel</label>
-        <select id="msghatch-subscription-channel" class="form-select" @bind="_channelFilter">
+    <div>
+        <label class="form-label small mb-1" for="msghatch-subscription-channel">Channel</label>
+        <select id="msghatch-subscription-channel" class="form-select form-select-sm" @bind="_channelFilter">
             <option value="">All</option>
             @foreach (var channel in _channels)
             {
@@ -40,11 +41,11 @@
             }
         </select>
     </div>
-    <div class="col-auto">
-        <button type="button" class="btn btn-secondary" data-action="filter" @onclick="LoadAsync">Show</button>
+    <div>
+        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" @onclick="LoadAsync">Show</button>
     </div>
-</div>
-
+</Filters>
+<ChildContent>
 <AdminList TItem="Subscription" Items="_subscriptions" EmptyText="There are no subscriptions.">
     <Head>
         <tr><th>Owner</th><th>Message type</th><th>Kind</th><th>Channel</th><th>Recipients</th><th>Mandatory</th><th>Revision</th><th></th></tr>
@@ -58,10 +59,12 @@
             <td>@SubscriptionTexts.RecipientsOf(subscription.Recipients)</td>
             <td>@(subscription.Mandatory ? "Yes" : "No")</td>
             <td>@subscription.Revision</td>
-            <td><a href="@SubscriptionAdminRoutes.Edit(subscription.Id).TrimStart('/')">Edit</a></td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-primary" data-action="edit" href="@SubscriptionAdminRoutes.Edit(subscription.Id).TrimStart('/')">Edit</a></td>
         </tr>
     </Row>
 </AdminList>
+</ChildContent>
+</AdminListPage>
 
 @code {
     private ErrorOr<IReadOnlyList<Subscription>>? _subscriptions;

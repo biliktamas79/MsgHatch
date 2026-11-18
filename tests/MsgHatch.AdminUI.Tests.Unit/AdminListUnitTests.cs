@@ -50,6 +50,19 @@ public sealed class AdminListUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_ThirtyItems_PutsTheTableInTheScrollAreaAndThePagerUnderIt()
+    {
+        var cut = RenderList(Items(30));
+
+        var scroll = cut.Find("[data-list-scroll]");
+        var pager = cut.Find("[data-list-pager]");
+        Assert.Equal(
+            (true, true, false, true),
+            (scroll.QuerySelector("table thead th") is not null, pager.QuerySelector("nav") is not null, scroll.Contains(pager),
+                scroll.NextElementSibling?.HasAttribute("data-list-pager") == true));
+    }
+
+    [Fact]
     public void ClickNext_ThirtyItems_ShowsTheLastFiveItems()
     {
         var cut = RenderList(Items(30));

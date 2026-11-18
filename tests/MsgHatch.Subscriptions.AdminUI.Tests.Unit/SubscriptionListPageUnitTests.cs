@@ -25,6 +25,20 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void Render_Page_HasTheListLayoutWithTheFiltersTheNewButtonAndTheLinks()
+    {
+        GivenSubscriptions(Subscription());
+
+        var cut = Render<SubscriptionListPage>();
+
+        Assert.Equal(
+            ("Subscriptions", 3, "+ New subscription", 2, true),
+            (cut.Find("[data-list-header] h1").TextContent, cut.FindAll("[data-list-filters] select").Count,
+                cut.Find("[data-list-actions] [data-action=new]").TextContent, cut.FindAll("[data-list-header] a.btn-link").Count,
+                cut.Find("[data-list-body]").QuerySelector("[data-list-scroll] table") is not null));
+    }
+
+    [Fact]
     public void Render_CompanyAndNamedUsersRecipients_ShowsTheTextOfEachKind()
     {
         GivenSubscriptions(Subscription(recipients: SubscriptionRecipients.Company),

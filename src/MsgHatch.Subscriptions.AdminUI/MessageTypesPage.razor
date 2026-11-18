@@ -2,22 +2,24 @@
 @inject IServiceProvider Services
 @* The message types with their states: the channels and the applied subscriptions of a scope (D239). *@
 
-<h1 class="h3">Message types</h1>
-
-<div class="row g-2 align-items-end mb-3" data-form="filter">
-    <div class="col-auto">
-        <label class="form-label" for="msghatch-types-company">Company id</label>
-        <input id="msghatch-types-company" class="form-control" @bind="_company" />
+<AdminListPage Title="Message types">
+<Links>
+    <a class="btn btn-link btn-sm" href="@SubscriptionAdminRoutes.List.TrimStart('/')">Back to the subscriptions</a>
+</Links>
+<Filters>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-types-company">Company id</label>
+        <input id="msghatch-types-company" class="form-control form-control-sm" @bind="_company" />
     </div>
-    <div class="col-auto">
-        <label class="form-label" for="msghatch-types-user">User id</label>
-        <input id="msghatch-types-user" class="form-control" @bind="_user" />
+    <div>
+        <label class="form-label small mb-1" for="msghatch-types-user">User id</label>
+        <input id="msghatch-types-user" class="form-control form-control-sm" @bind="_user" />
     </div>
-    <div class="col-auto">
-        <button type="button" class="btn btn-secondary" data-action="filter" @onclick="LoadAsync">Show</button>
+    <div>
+        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" @onclick="LoadAsync">Show</button>
     </div>
-</div>
-
+</Filters>
+<ChildContent>
 <AdminList TItem="MessageTypeState" Items="_states" EmptyText="There are no message types.">
     <Head>
         <tr><th>Message type</th><th>Channels</th><th>Applied subscriptions</th></tr>
@@ -30,8 +32,8 @@
         </tr>
     </Row>
 </AdminList>
-
-<a href="@SubscriptionAdminRoutes.List.TrimStart('/')">Back to the subscriptions</a>
+</ChildContent>
+</AdminListPage>
 
 @code {
     private ErrorOr<IReadOnlyList<MessageTypeState>>? _states;

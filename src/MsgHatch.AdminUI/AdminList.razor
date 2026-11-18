@@ -1,5 +1,5 @@
 @typeparam TItem
-@* The list layout of an admin page with the states loading, error, and empty, and a pager (D239). *@
+@* The list of an admin page with the states loading, error, and empty, and a pager (D239). The table is in an area that scrolls by itself, with a sticky row of column names, and the pager is under it (D259). *@
 @if (Items is not { } items)
 {
     <p class="text-secondary" role="status" data-state="loading">Loading.</p>
@@ -14,19 +14,23 @@ else if (items.Value.Count == 0)
 }
 else
 {
-    <table class="table table-sm table-hover align-middle">
-        @if (Head is not null)
-        {
-            <thead>@Head</thead>
-        }
-        <tbody>
-            @foreach (var item in PageOf(items.Value))
+    <div class="admin-list-scroll flex-grow-1" data-list-scroll>
+        <table class="table table-sm table-hover align-middle mb-0">
+            @if (Head is not null)
             {
-                @Row?.Invoke(item)
+                <thead>@Head</thead>
             }
-        </tbody>
-    </table>
-    <AdminPager Page="_page" PageCount="PageCountOf(items.Value.Count)" PageChanged="page => _page = page" />
+            <tbody>
+                @foreach (var item in PageOf(items.Value))
+                {
+                    @Row?.Invoke(item)
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="flex-shrink-0 pt-2" data-list-pager>
+        <AdminPager Page="_page" PageCount="PageCountOf(items.Value.Count)" PageChanged="page => _page = page" />
+    </div>
 }
 
 @code {

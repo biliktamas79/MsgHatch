@@ -36,6 +36,19 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_Page_HasTheListLayoutWithTheFiltersInTheToolbar()
+    {
+        GivenTemplates(new TemplateEntry(Lookup(), 7));
+
+        var cut = Render<TemplateListPage>();
+
+        Assert.Equal(
+            ("Templates", 1, 1, true),
+            (cut.Find("[data-list-header] h1").TextContent, cut.FindAll("[data-list-filters] select").Count, cut.FindAll("[data-list-filters] input").Count,
+                cut.Find("[data-list-body]").QuerySelector("[data-list-scroll] table") is not null));
+    }
+
+    [Fact]
     public void Render_NoTemplate_ShowsTheEmptyState()
     {
         GivenTemplates();

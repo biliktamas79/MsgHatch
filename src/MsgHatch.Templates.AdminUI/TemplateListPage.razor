@@ -3,12 +3,11 @@
 @inject NavigationManager Navigation
 @* The template list, with filters for the message type and the company, and a new template from the declared parts (D240). *@
 
-<h1 class="h3">Templates</h1>
-
-<div class="row g-2 align-items-end mb-3" data-form="filter">
-    <div class="col-auto">
-        <label class="form-label" for="msghatch-template-type">Message type</label>
-        <select id="msghatch-template-type" class="form-select" @bind="_typeFilter">
+<AdminListPage Title="Templates">
+<Filters>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-template-type">Message type</label>
+        <select id="msghatch-template-type" class="form-select form-select-sm" @bind="_typeFilter">
             <option value="">All</option>
             @foreach (var type in TypesOf(_parts))
             {
@@ -16,15 +15,15 @@
             }
         </select>
     </div>
-    <div class="col-auto">
-        <label class="form-label" for="msghatch-template-company">Company id</label>
-        <input id="msghatch-template-company" class="form-control" @bind="_companyFilter" />
+    <div>
+        <label class="form-label small mb-1" for="msghatch-template-company">Company id</label>
+        <input id="msghatch-template-company" class="form-control form-control-sm" @bind="_companyFilter" />
     </div>
-    <div class="col-auto">
-        <button type="button" class="btn btn-secondary" data-action="filter" @onclick="LoadEntriesAsync">Show</button>
+    <div>
+        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" @onclick="LoadEntriesAsync">Show</button>
     </div>
-</div>
-
+</Filters>
+<ChildContent>
 <AdminList TItem="TemplateEntry" Items="_entries" EmptyText="There are no templates.">
     <Head>
         <tr><th>Message type</th><th>Language</th><th>Company</th><th>Part</th><th>Kind</th><th>Version</th><th></th></tr>
@@ -44,6 +43,8 @@
         </tr>
     </Row>
 </AdminList>
+</ChildContent>
+</AdminListPage>
 
 <h2 class="h5 mt-4">New template</h2>
 @if (_parts is { IsError: true } failed)
