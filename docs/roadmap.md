@@ -2058,18 +2058,6 @@ Tests, with bUnit:
 - The dialog of a new subscription: a create closes the dialog and loads the list, Cancel, an error of the create, and the query `new=true`.
 - Each new test fails first, or fails with a break of the code that it covers.
 
-Commits:
-1. "Plan phase 30: the layout of the admin pages"
-2. "Add the shared dialog and the bottom bar of the admin UIs"
-3. "Put the actions of the admin pages into the bottom bar"
-4. "Show the details of an item in the delete question"
-5. "Scroll only the list on the admin list pages"
-6. "Open a new template in a dialog from the button above the list"
-7. "Create a subscription in a dialog from the button above the list"
-8. "Describe the layout of the admin pages in the design"
-9. "Record the commits and the checked facts of phase 30 in the plan"
-10. "Record phase 30 as done in README and AGENTS.md"
-
 Checked facts (2026-11-18), on Windows 11 build 26300 with the .NET SDK 10.0.404:
 
 | Fact | Source |
