@@ -83,6 +83,8 @@ curl -H "Authorization: Bearer $(dotnet user-jwts create --project examples/Exam
 
 4. Open `http://localhost:5090`. The admin UI has no sign-in, and listens only on `localhost`. It sends the same token for each user.
 
+The emails of the message types A to E use the placeholder engine, so their html parts open in the plain editor with the HTML highlight. The password reset email of F uses the Liquid engine, so its parts open in the Liquid editor with its check.
+
 The admin UI reads the token one time, at its start. After a change of the token, restart `AdminUiExample`.
 
 ## Run the tests
