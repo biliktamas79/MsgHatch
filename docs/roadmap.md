@@ -40,6 +40,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 30 Layout of the admin pages | 29 |
 | 31 Registry queries and pages | 16, 30 |
 | 32 Channel state and page order | 31 |
+| 33 Channel check | 32 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2371,6 +2372,57 @@ The implementation changed the plan in these points:
 - Commit 16 is new. The first coverage report showed two behaviors with no unit test, so the phase has 18 commits.
 
 Done when: the build has no errors and no warnings, all unit tests pass, the integration tests of the EF Core and MongoDB outbox stores pass, also the MongoDB tests on a standalone server, and `pwsh ./coverage.ps1` passes.
+
+### Phase 33: channel check
+
+Goal: an operator checks the health of one channel from the channel list. A check that finds a new state adds a state row, and a check that finds the same state adds no row (D283).
+
+Starting point: the commits of phase 32, `0a0b933` to `136cad8`. The owner asked: "Add a new "Check" or "Test" action to the Channels list rows for checking a channel for up/down and register a state change if the channel state changed. It will be good for testing the UI. The test should not save a new ChannelState record if the state did not change." The owner chose "Registry command" for the API, "Mark it down" for a failed check of an up channel, and "New phase 33". The owner had no preference for a switch that makes a transport of `ExampleApp` unhealthy, so the phase adds none.
+
+1. Check first, before the code:
+   - `ITransport.CheckHealthAsync` of each transport of the repository returns an `Error` and does not throw, and `TransportLoggingWrapper` logs each check.
+   - The transports of `ExampleApp` return no error from their check. So in the example host, a check only brings a channel up, and a pause gives a down state.
+   - The registry group of `ExampleApp` has the policy `RegistryAdmin` for each route, so a POST route in the group needs the same token as the registry pages.
+2. Add the channel check command to the registry (D283):
+   - `IRegistryCommands` in `MsgHatch.Domain.Management` with `ValueTask<ErrorOr<ChannelCheck>> CheckChannelAsync(ChannelId channel, CancellationToken ct)`.
+   - `ChannelCheck(ChannelId Channel, int? ErrorCode, string? ErrorName, bool Changed)`. `Healthy` is true when the check gave no error.
+   - `RegistryManager` implements it. It finds the transport of the channel in the `ITransport` services of the host, and calls `CheckHealthAsync`. With no error, it calls `SetChannelUpAsync` with the reason `Errors` and the time of `TimeProvider`, and a new `Up` row notifies the dispatch signal of the channel. With an error, it calls `SetChannelDownAsync` with the reason `Errors`, the code and the name of the error, and `NextCheckAtUtc` after `CheckInterval` of the `ChannelDownOptions` of the channel.
+   - The store adds no row when the state does not change (D277): a check with no error of an up channel, a failed check of a channel that is down for errors, and each check of a paused channel. So a check never ends a pause (D106).
+   - A channel that is not registered, or that has no transport in the host, gives `Errors.NotFound`. An error of the store is the error of the command.
+   - `AddMsgHatch` adds the in-process command as the default scoped tenant service, and `MsgHatchBuilder.UseRegistryCommands` selects another implementation. The logging wrapper logs each check with the events 2915 and 2916: the channel, the error name of the check, and the change, or the error type of the command.
+3. Add the channel check to the registry contracts, route, and client (D283):
+   - `RegistryApiRoutes.ChannelCheck` holds `/channels/{channel}/check`. The POST route calls `IRegistryCommands` of `TenantKey.None` in the registry group, so the policy of the group applies. It gives 200 with `ChannelCheckResponse`, 400 for a name that is not valid, and the status of `ErrorProblems` for an error of the command.
+   - `ChannelCheckResponse(string Channel, int? ErrorCode, string? ErrorName, bool Changed)` with `From` and the mapping back goes into `RegistryEndpointJson`. A name that is not valid gives `Errors.SerializationFailed`.
+   - `IRegistryApi` gets the call, and `HttpRegistryCommands` implements `IRegistryCommands`. `UseRegistryApiClient` selects the HTTP client for the queries and for the commands.
+4. Add the Check button to the channel list (D283):
+   - Each row of `ChannelListPage` gets the button Check, between History and View. A click calls `CheckChannelAsync` of `TenantKey.None`, disables the button until the result, and then reads the channels again.
+   - An alert above the list shows the result. A check with no error shows "{channel}: healthy. The channel is up again." or "{channel}: healthy. The state did not change." with `alert-success`. A failed check shows "{channel}: {error name}. The channel is down now." or "{channel}: {error name}. The state did not change." with `alert-warning`. An error of the command shows the text of `AdminErrors` with `alert-danger`.
+5. Describe the phase in the design: the sections 4.20, 4.23, and 4.24.
+
+Tests:
+- `RegistryCommandsTestsBase<T>`, with the in-process host and the HTTP client:
+  - A check with no error of an up channel adds no row, and gives `Changed` false.
+  - A check with no error of a channel that is down for errors adds an `Up` row, and gives `Changed` true.
+  - A failed check of an up channel adds a `Down` row with the reason `Errors`, the error of the check, and the next check time, and gives `Changed` true.
+  - A failed check of a channel that is down for errors, and each check of a paused channel, add no row.
+  - A channel that is not registered, and a channel with no transport in the host, give `NotFound`. An error of the store is the error of the command.
+- `RegistryManager`: a check that adds an `Up` row notifies the dispatch signal of the channel, and a check with no change does not.
+- The logging wrapper of the registry commands: one event for each check, with the error type for an error.
+- The route: 200 with the body, 400 for a name that is not valid, and 404 for a channel that is not registered.
+- The contracts: `ChannelCheckResponse` maps to `ChannelCheck` and back, and a name that is not valid gives `SerializationFailed`.
+- The page, with bUnit: the button of each row, the four texts of the alert with their classes, the text of an error of the command, the second read of the channels, and the disabled button during a check.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phase 33: the channel check"
+2. "Add the channel check command to the registry"
+3. "Add the channel check to the registry contracts, route, and client"
+4. "Add the Check button to the channel list"
+5. "Describe the channel check in the design"
+6. "Record the commits and the checked facts of phase 33 in the plan"
+7. "Record phase 33 as done in README and AGENTS.md"
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
 ### Later phases
 
