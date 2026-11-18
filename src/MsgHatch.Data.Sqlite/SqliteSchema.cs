@@ -36,9 +36,9 @@ internal sealed class SqliteSchema(string create)
         CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Created ON MsgHatchOutbox (TenantId, CreatedAtUtc, Id);
         CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Target ON MsgHatchOutbox (TenantId, TargetKind, TargetId, CreatedAtUtc);
         CREATE INDEX IF NOT EXISTS IX_MsgHatchOutbox_Source ON MsgHatchOutbox (SourceMessageId);
-        CREATE TABLE IF NOT EXISTS MsgHatchChannelDown (
-            Channel TEXT PRIMARY KEY, Reason TEXT, SinceUtc TEXT, NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT,
-            Note TEXT);
+        CREATE TABLE IF NOT EXISTS MsgHatchChannelState (
+            Channel TEXT, Version INTEGER, Kind TEXT, SinceUtc TEXT, PreviousKind TEXT, PreviousDurationMs INTEGER, Reason TEXT,
+            NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT, Note TEXT, PRIMARY KEY (Channel, Version));
         CREATE TABLE IF NOT EXISTS MsgHatchChannelEntry (
             Channel TEXT PRIMARY KEY, DisplayName TEXT, Description TEXT, Enabled INTEGER, Revision INTEGER,
             LastModifiedAtUtc TEXT);

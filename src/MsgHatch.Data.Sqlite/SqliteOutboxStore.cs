@@ -14,7 +14,8 @@ namespace MsgHatch.Data.Sqlite;
 /// <summary>
 /// The outbox in SQLite (section 4.5, D55): one row of the table <c>MsgHatchOutbox</c> for each outgoing message, with
 /// the columns of its delivery state, its channel envelope and its route trace as JSON (D143), and its publish tries as
-/// the JSON array <c>Tries</c> (D27). The table <c>MsgHatchChannelDown</c> has one row for each down channel (D106).
+/// the JSON array <c>Tries</c> (D27). The table <c>MsgHatchChannelState</c> has the insert-only state rows of each channel,
+/// with the primary key <c>(Channel, Version)</c> (D106, D277).
 /// Each operation opens its own pooled connection. It is the dispatch store of all tenants, and <see cref="For"/> gives
 /// the tenant store of one key.
 /// </summary>
@@ -45,23 +46,36 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
 
     private const string _deleteTestData = "DELETE FROM MsgHatchOutbox WHERE Flags = 'Test'";
 
-    private const string _downColumns = "Channel, Reason, SinceUtc, NextCheckAtUtc, ErrorCode, ErrorName, Note";
+    private const string _stateColumns =
+        "Channel, Version, Kind, SinceUtc, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note";
 
-    private const string _downParameters = "@channel, @reason, @sinceUtc, @nextCheckAtUtc, @errorCode, @errorName, @note";
+    private const string _latestState = $"SELECT {_stateColumns} FROM MsgHatchChannelState WHERE Channel = @channel ORDER BY Version DESC LIMIT 1";
 
-    private const string _downOfChannel = $"SELECT {_downColumns} FROM MsgHatchChannelDown WHERE Channel = @channel";
+    // ponytail: the latest rows come from a scan of the primary key of all rows, add a table of the latest versions if a flapping channel adds very many rows
+    private const string _downStates = $"""
+        SELECT state.Channel, state.Version, state.Kind, state.SinceUtc, state.PreviousKind, state.PreviousDurationMs, state.Reason, state.NextCheckAtUtc,
+            state.ErrorCode, state.ErrorName, state.Note
+        FROM (SELECT Channel, MAX(Version) AS Version FROM MsgHatchChannelState GROUP BY Channel) AS latest
+        JOIN MsgHatchChannelState AS state ON state.Channel = latest.Channel AND state.Version = latest.Version
+        WHERE state.Kind = 'Down'
+        """;
 
-    private const string _downChannels = $"SELECT {_downColumns} FROM MsgHatchChannelDown";
+    private const string _addState = $"""
+        INSERT OR IGNORE INTO MsgHatchChannelState ({_stateColumns})
+        VALUES (@channel, @version, @kind, @sinceUtc, @previousKind, @previousDurationMs, @reason, @nextCheckAtUtc, @errorCode, @errorName, @note)
+        """;
 
-    private const string _setDownOnce = $"INSERT OR IGNORE INTO MsgHatchChannelDown ({_downColumns}) VALUES ({_downParameters})";
-
-    private const string _setDown = $"INSERT OR REPLACE INTO MsgHatchChannelDown ({_downColumns}) VALUES ({_downParameters})";
-
-    private const string _setUp = "DELETE FROM MsgHatchChannelDown WHERE Channel = @channel AND (@reason IS NULL OR Reason = @reason)";
+    private const string _statesFrom = $"""
+        SELECT {_stateColumns} FROM MsgHatchChannelState AS state
+        WHERE SinceUtc >= @fromUtc
+            OR Version = (SELECT MAX(Version) FROM MsgHatchChannelState WHERE Channel = state.Channel AND SinceUtc < @fromUtc)
+        ORDER BY SinceUtc DESC, Channel, Version DESC
+        """;
 
     private const string _startCheck = """
-        UPDATE MsgHatchChannelDown SET NextCheckAtUtc = @nextCheckAtUtc
-        WHERE Channel = @channel AND Reason = 'Errors' AND NextCheckAtUtc <= @nowUtc
+        UPDATE MsgHatchChannelState SET NextCheckAtUtc = @nextCheckAtUtc
+        WHERE Channel = @channel AND Kind = 'Down' AND Reason = 'Errors' AND NextCheckAtUtc <= @nowUtc
+            AND Version = (SELECT MAX(Version) FROM MsgHatchChannelState WHERE Channel = @channel)
         """;
 
     private const string _document = $$"""
@@ -127,7 +141,7 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
             : SqliteFailures.Run(() =>
             {
                 using var connection = SqliteSchema.Core.Open(ConnectionString);
-                return ErrorOr<ClaimResult<OutgoingMessage>>.ForValue(ReadDown(connection, channel) is { } down
+                return ErrorOr<ClaimResult<OutgoingMessage>>.ForValue(ReadLatestState(connection, channel)?.ToDown() is { } down
                     ? new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down)
                     : SqliteClaim.Run(
                         connection, _claim, channel.Name, maxCount, nowUtc, nowUtc + lease, document => _json.DeserializeOutgoing(document)));
@@ -162,43 +176,26 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct) =>
-        ValueTask.FromResult(SqliteFailures.Run(() =>
-        {
-            using var connection = SqliteSchema.Core.Open(ConnectionString);
-            using var command = connection.Command(_downChannels);
-            using var reader = command.ExecuteReader();
-            var downs = new List<ChannelDown>();
-            while (reader.Read())
-            {
-                downs.Add(DownOf(reader));
-            }
-
-            return ErrorOr<IReadOnlyList<ChannelDown>>.ForValue(downs);
-        }));
+        ValueTask.FromResult(SqliteFailures.Run(
+            () => ErrorOr<IReadOnlyList<ChannelDown>>.ForValue([.. ReadStates(_downStates, static command => command).Select(static row => row.ToDown()!)])));
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> SetChannelDownAsync(ChannelDown down, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(down);
-        return ValueTask.FromResult(SqliteFailures.Run(() => ErrorOr<bool>.ForValue(
-            Execute(down.Reason == ChannelDownReason.Errors ? _setDownOnce : _setDown, command => command
-                .With("@channel", down.Channel.Name)
-                .With("@reason", down.Reason.ToString())
-                .With("@sinceUtc", SqliteValues.Time(down.SinceUtc))
-                .With("@nextCheckAtUtc", SqliteValues.Time(down.NextCheckAtUtc))
-                .With("@errorCode", down.ErrorCode)
-                .With("@errorName", down.ErrorName)
-                .With("@note", down.Note)) > 0)));
+        return ValueTask.FromResult(SqliteFailures.Run(
+            () => ChannelState.Change(() => ReadLatestState(down.Channel), latest => ChannelState.AfterDown(latest, down), TryAddState)));
     }
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
-        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
+        ValueTask.FromResult(SqliteFailures.Run(() => ErrorOr<IReadOnlyList<ChannelState>>.ForValue(
+            ReadStates(_statesFrom, command => command.With("@fromUtc", SqliteValues.Time(fromUtc))))));
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
-        ValueTask.FromResult(SqliteFailures.Run(() => ErrorOr<bool>.ForValue(
-            Execute(_setUp, command => command.With("@channel", channel.Name).With("@reason", reason?.ToString())) > 0)));
+        ValueTask.FromResult(SqliteFailures.Run(() => ChannelState.Change(
+            () => ReadLatestState(channel), latest => ChannelState.AfterUp(latest, channel, reason, upAtUtc), TryAddState)));
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> TryStartChannelCheckAsync(
@@ -290,22 +287,61 @@ public sealed class SqliteOutboxStore : IOutboxDispatchStore
         return command.ExecuteNonQuery();
     }
 
-    private static ChannelDown? ReadDown(SqliteConnection connection, ChannelId channel)
+    private ChannelState? ReadLatestState(ChannelId channel)
     {
-        using var command = connection.Command(_downOfChannel).With("@channel", channel.Name);
-        using var reader = command.ExecuteReader();
-        return reader.Read() ? DownOf(reader) : null;
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
+        return ReadLatestState(connection, channel);
     }
 
-    private static ChannelDown DownOf(SqliteDataReader row) =>
+    private static ChannelState? ReadLatestState(SqliteConnection connection, ChannelId channel)
+    {
+        using var command = connection.Command(_latestState).With("@channel", channel.Name);
+        using var reader = command.ExecuteReader();
+        return reader.Read() ? StateOf(reader) : null;
+    }
+
+    private List<ChannelState> ReadStates(string sql, Func<SqliteCommand, SqliteCommand> withValues)
+    {
+        using var connection = SqliteSchema.Core.Open(ConnectionString);
+        using var command = withValues(connection.Command(sql));
+        using var reader = command.ExecuteReader();
+        var rows = new List<ChannelState>();
+        while (reader.Read())
+        {
+            rows.Add(StateOf(reader));
+        }
+
+        return rows;
+    }
+
+    /// <summary>Inserts a state row. A stored version keeps its row, and gives false (D277).</summary>
+    private bool TryAddState(ChannelState row) =>
+        Execute(_addState, command => command
+            .With("@channel", row.Channel.Name)
+            .With("@version", row.Version)
+            .With("@kind", row.Kind.ToString())
+            .With("@sinceUtc", SqliteValues.Time(row.SinceUtc))
+            .With("@previousKind", row.PreviousKind?.ToString())
+            .With("@previousDurationMs", (long?)row.PreviousDuration?.TotalMilliseconds)
+            .With("@reason", row.Reason?.ToString())
+            .With("@nextCheckAtUtc", SqliteValues.Time(row.NextCheckAtUtc))
+            .With("@errorCode", row.ErrorCode)
+            .With("@errorName", row.ErrorName)
+            .With("@note", row.Note)) > 0;
+
+    private static ChannelState StateOf(SqliteDataReader row) =>
         new(
             new ChannelId(row.GetString(0)),
-            Enum.Parse<ChannelDownReason>(row.GetString(1)),
-            SqliteValues.ParseTime(row.GetString(2)),
-            row.IsDBNull(3) ? null : SqliteValues.ParseTime(row.GetString(3)),
-            row.IsDBNull(4) ? null : row.GetInt32(4),
-            row.IsDBNull(5) ? null : row.GetString(5),
-            row.IsDBNull(6) ? null : row.GetString(6));
+            row.GetInt32(1),
+            Enum.Parse<ChannelStateKind>(row.GetString(2)),
+            SqliteValues.ParseTime(row.GetString(3)),
+            row.IsDBNull(4) ? null : Enum.Parse<ChannelStateKind>(row.GetString(4)),
+            row.IsDBNull(5) ? null : TimeSpan.FromMilliseconds(row.GetInt64(5)),
+            row.IsDBNull(6) ? null : Enum.Parse<ChannelDownReason>(row.GetString(6)),
+            row.IsDBNull(7) ? null : SqliteValues.ParseTime(row.GetString(7)),
+            row.IsDBNull(8) ? null : row.GetInt32(8),
+            row.IsDBNull(9) ? null : row.GetString(9),
+            row.IsDBNull(10) ? null : row.GetString(10));
 
     private MessagePage<OutgoingMessageSummary> Query(TenantKey key, OutboxQuery query)
     {

@@ -53,15 +53,63 @@ public sealed class SqliteOutboxStoreUnitTests()
     }
 
     [Fact]
-    public async Task SetChannelDownAsync_ReasonErrors_WritesTheReasonAndTheTimesAsText()
+    public async Task SetChannelDownAsync_ReasonErrors_WritesTheStateRowWithTheEnumValuesAndTheTimesAsText()
     {
         // Act
         await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
 
         // Assert
         Assert.Equal(
-            ["Test", "Errors", _isoTime, _isoTime, "503", "Unavailable", null],
-            Assert.Single(TestDatabases.Rows(Store.ConnectionString, "SELECT * FROM MsgHatchChannelDown")));
+            ["Test", "1", "Down", _isoTime, null, null, "Errors", _isoTime, "503", "Unavailable", null],
+            Assert.Single(TestDatabases.Rows(Store.ConnectionString, "SELECT * FROM MsgHatchChannelState")));
+    }
+
+    [Fact]
+    public async Task SetChannelUpAsync_DownChannel_WritesTheDurationOfTheDownStateAsWholeMilliseconds()
+    {
+        // Arrange
+        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
+
+        // Act
+        await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now.AddMinutes(90), Ct);
+
+        // Assert
+        Assert.Equal(
+            [["2", "Up", "Down", "5400000", null, null]],
+            TestDatabases.Rows(
+                Store.ConnectionString, "SELECT Version, Kind, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc FROM MsgHatchChannelState WHERE Version = 2"));
+    }
+
+    [Fact]
+    public async Task SetChannelDownAsync_DatabaseWithADownRowOfPhase31_AddsTheStateTableAndReadsNoDownState()
+    {
+        // Arrange
+        var connectionString = TestDatabases.NewOptions().ConnectionString;
+        TestDatabases.Execute(connectionString, $"""
+            CREATE TABLE MsgHatchSchema (Version INTEGER);
+            INSERT INTO MsgHatchSchema (Version) VALUES (1);
+            CREATE TABLE MsgHatchChannelDown (
+                Channel TEXT PRIMARY KEY, Reason TEXT, SinceUtc TEXT, NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT, Note TEXT);
+            INSERT INTO MsgHatchChannelDown VALUES ('Test', 'Operator', '{_isoTime}', NULL, NULL, NULL, 'maintenance');
+            """);
+        var store = new SqliteOutboxStore(connectionString, new MsgHatchJson(TestContentTypes.ARegistry()));
+
+        try
+        {
+            // Act
+            var before = await store.GetDownChannelsAsync(Ct);
+            var added = await store.SetChannelDownAsync(
+                new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "new"), Ct);
+
+            // Assert
+            Assert.Empty(before.Value);
+            Assert.True(added.Value);
+            Assert.Equal("new", Assert.Single((await store.GetDownChannelsAsync(Ct)).Value).Note);
+        }
+        finally
+        {
+            TestDatabases.Delete(connectionString);
+        }
     }
 
     [Fact]
@@ -106,6 +154,27 @@ public sealed class SqliteOutboxStoreUnitTests()
 
         // Assert
         Assert.Equal((0, (DateTime?)later), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
+    }
+
+    [Fact]
+    public async Task SetChannelDownAsync_VersionThatAnotherConnectionInsertsAfterTheRead_KeepsThatRowAndAddsNoRow()
+    {
+        // Arrange
+        await Store.GetDownChannelsAsync(Ct);
+        using var firstWriter = TestDatabases.HoldWrite(
+            Store.ConnectionString,
+            $"INSERT INTO MsgHatchChannelState VALUES ('Test', 1, 'Down', '{_isoTime}', NULL, NULL, 'Operator', NULL, NULL, NULL, 'first writer')");
+        var change = Task.Run(
+            () => Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct).AsTask(), Ct);
+        await Task.Delay(TimeSpan.FromMilliseconds(300), TimeProvider.System, Ct);
+
+        // Act
+        firstWriter.Commit();
+        var added = await change;
+
+        // Assert
+        Assert.False(added.Value);
+        Assert.Equal("first writer", Assert.Single((await Store.GetDownChannelsAsync(Ct)).Value).Note);
     }
 
     [Fact]
@@ -216,7 +285,7 @@ public sealed class SqliteOutboxStoreUnitTests()
         // Arrange
         await AddAsync(AMessage(T1));
         await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance"), Ct);
-        TestDatabases.Execute(Store.ConnectionString, "UPDATE MsgHatchChannelDown SET Reason = 'Unknown'");
+        TestDatabases.Execute(Store.ConnectionString, "UPDATE MsgHatchChannelState SET Reason = 'Unknown'");
 
         // Act
         var result = await ClaimAsync();

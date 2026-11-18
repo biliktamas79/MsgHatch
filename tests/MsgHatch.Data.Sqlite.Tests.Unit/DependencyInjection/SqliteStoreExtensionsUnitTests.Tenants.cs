@@ -167,7 +167,7 @@ public sealed partial class SqliteStoreExtensionsUnitTests
     private string?[] CountsOfDownAndEntryRows(string fileName) =>
         Assert.Single(TestDatabases.Rows(
             _folder.ConnectionStringOf(fileName),
-            "SELECT (SELECT COUNT(*) FROM MsgHatchChannelDown), (SELECT COUNT(*) FROM MsgHatchChannelEntry)"));
+            "SELECT (SELECT COUNT(*) FROM MsgHatchChannelState), (SELECT COUNT(*) FROM MsgHatchChannelEntry)"));
 
     private ServiceProvider BuildForEachTenant(params string[] tenants)
     {
