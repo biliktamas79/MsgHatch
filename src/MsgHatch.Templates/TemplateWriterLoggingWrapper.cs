@@ -16,6 +16,8 @@ internal sealed class TemplateWriterLoggingWrapper(
 {
     public ValueTask<ErrorOr<TemplateSource?>> FindAsync(TemplateLookup lookup, CancellationToken ct) => store.FindAsync(lookup, ct);
 
+    public string RenderVersion(long version) => store.RenderVersion(version);
+
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<ErrorOr<IReadOnlyList<TemplateEntry>>> ListAsync(TemplateQuery query, CancellationToken ct)
     {

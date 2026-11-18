@@ -1,5 +1,5 @@
 @* The details of a template in the delete question (D262): its metadata line, and what a send uses after the delete. *@
-<TemplateMetadata Lookup="Lookup" Version="Version" />
+<TemplateMetadata Lookup="Lookup" Version="Version" VersionText="@VersionText" />
 <p class="small text-secondary mb-0" data-delete-effect>
     After the delete, a send uses the next template of the fallback, for example the template with no company or the template
     of the default language. When no template is left, a required part, for example the subject, gives an error, and an
@@ -14,6 +14,10 @@
     /// <summary>The stored version of the template to delete.</summary>
     [Parameter, EditorRequired]
     public long Version { get; set; }
+
+    /// <summary>The text of the version that the store rendered (D267), or null to show the number.</summary>
+    [Parameter]
+    public string? VersionText { get; set; }
 
     /// <summary>Gives the question before the delete of a template.</summary>
     /// <param name="lookup">The template to delete.</param>

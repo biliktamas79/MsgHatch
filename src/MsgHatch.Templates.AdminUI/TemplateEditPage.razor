@@ -8,7 +8,7 @@
         <h1 class="h3">Template</h1>
         @if (_loadError is null && _lookup is { } shown)
         {
-            <TemplateMetadata Lookup="shown" Version="_version" />
+            <TemplateMetadata Lookup="shown" Version="_version" VersionText="@_versionText" />
             @if (!_exists)
             {
                 <p class="text-secondary" data-state="new">There is no template for this part. A save makes it.</p>
@@ -69,7 +69,7 @@
 {
     <DeleteDialog Open="_confirmDelete" Question="@TemplateDeleteDetails.QuestionOf(asked)" Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false">
         <Details>
-            <TemplateDeleteDetails Lookup="asked" Version="_version" />
+            <TemplateDeleteDetails Lookup="asked" Version="_version" VersionText="@_versionText" />
         </Details>
     </DeleteDialog>
 }
@@ -81,6 +81,7 @@
     private string _storedText = string.Empty;
     private string _text = string.Empty;
     private long _version;
+    private string? _versionText;
     private bool _exists;
     private bool _hasSample;
     private bool _busy;
@@ -153,6 +154,7 @@
         _exists = source.IsSuccess;
         _storedText = _text = source.IsSuccess ? source.Value.Text : string.Empty;
         _version = source.IsSuccess ? source.Value.Key.Version : 0;
+        _versionText = source.IsSuccess ? source.Value.VersionText : null;
         return null;
     }
 
@@ -180,7 +182,7 @@
                 return;
             }
 
-            (_version, _storedText, _exists, _issues, _saved) = (saved.Value.Version, _text, true, [], true);
+            (_version, _versionText, _storedText, _exists, _issues, _saved) = (saved.Value.Version, saved.Value.VersionText, _text, true, [], true);
         }
         finally
         {

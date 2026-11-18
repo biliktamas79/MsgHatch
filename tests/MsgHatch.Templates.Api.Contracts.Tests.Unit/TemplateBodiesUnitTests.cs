@@ -22,7 +22,7 @@ public sealed class TemplateBodiesUnitTests
     public void ToEntry_ResponseOfAnEntry_GivesAnEqualEntry()
     {
         // Arrange
-        var entry = new TemplateEntry(_lookup, 638_000_000_000_000_000);
+        var entry = new TemplateEntry(_lookup, 638_000_000_000_000_000) { VersionText = "2022-09-28 22:13:20 UTC" };
 
         // Act
         var roundTrip = TemplateEntryResponse.From(entry).ToEntry();
@@ -49,7 +49,7 @@ public sealed class TemplateBodiesUnitTests
     public void ToSource_ResponseOfASource_GivesTheLookupTheVersionTheTextAndAStableIdOfTheLookup()
     {
         // Arrange
-        var source = new TemplateSource(new TemplateKey(@"C:\host\templates\acme-1\OrderShipped.hu.subject.txt", 5), "Rendelés {{ Name }}");
+        var source = new TemplateSource(new TemplateKey(@"C:\host\templates\acme-1\OrderShipped.hu.subject.txt", 5), "Rendelés {{ Name }}") { VersionText = "Version five" };
 
         // Act
         var response = TemplateResponse.From(_lookup, source);
@@ -58,8 +58,9 @@ public sealed class TemplateBodiesUnitTests
 
         // Assert
         Assert.Equal(
-            (_lookup, 5L, source.Text, first.Value.Key.Id, false),
-            (response.ToLookup().Value, first.Value.Key.Version, first.Value.Text, second.Value.Key.Id, first.Value.Key.Id.Contains(@"C:\host", StringComparison.Ordinal)));
+            (_lookup, 5L, source.Text, first.Value.Key.Id, false, "Version five"),
+            (response.ToLookup().Value, first.Value.Key.Version, first.Value.Text, second.Value.Key.Id, first.Value.Key.Id.Contains(@"C:\host", StringComparison.Ordinal),
+                first.Value.VersionText));
     }
 
     [Fact]

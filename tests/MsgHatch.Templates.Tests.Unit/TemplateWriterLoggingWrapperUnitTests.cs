@@ -213,6 +213,21 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         Assert.Equal(("t1", 2010), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
     }
 
+    [Fact]
+    public async Task RenderVersion_WritableStore_GivesTheTextOfTheInnerStore()
+    {
+        // Arrange
+        var inner = AWritableStore();
+        inner.RenderVersion(_entry.Version).Returns("Version of the entry");
+        await using var provider = BuildWithSharedStore(inner);
+
+        // Act
+        var text = provider.GetRequiredService<ITemplateStore>().RenderVersion(_entry.Version);
+
+        // Assert
+        Assert.Equal(("Version of the entry", true), (text, provider.GetRequiredService<ITemplateStore>() is ITemplateWriter));
+    }
+
     private static ITemplateStore AWritableStore()
     {
         var store = Substitute.For<ITemplateStore, ITemplateWriter>();

@@ -39,7 +39,7 @@
             <td>@(entry.Lookup.Scope ?? "All companies")</td>
             <td>@entry.Lookup.Part</td>
             <td>@entry.Lookup.Kind</td>
-            <td>@entry.Version</td>
+            <td>@VersionTexts.Of(entry.Version, entry.VersionText)</td>
             <td class="text-end text-nowrap">
                 <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@TemplateAdminRoutes.View(entry.Lookup).TrimStart('/')">View</a>
                 <a class="btn btn-sm btn-outline-primary" data-action="edit" href="@TemplateAdminRoutes.Edit(entry.Lookup).TrimStart('/')">Edit</a>
@@ -56,7 +56,7 @@
     <Details>
         @if (_deleting is { } entry)
         {
-            <TemplateDeleteDetails Lookup="entry.Lookup" Version="entry.Version" />
+            <TemplateDeleteDetails Lookup="entry.Lookup" Version="entry.Version" VersionText="@entry.VersionText" />
         }
     </Details>
 </DeleteDialog>

@@ -153,6 +153,31 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
         Assert.Same(inner, store);
     }
 
+    [Fact]
+    public async Task RenderVersion_InnerStore_GivesTheTextOfTheInnerStore()
+    {
+        // Arrange
+        var inner = AStore(ErrorOr<TemplateSource?>.ForValue(null));
+        inner.RenderVersion(7).Returns("Version seven");
+        await using var provider = BuildWithSharedStore(inner);
+
+        // Act
+        var text = provider.GetRequiredService<ITemplateStore>().RenderVersion(7);
+
+        // Assert
+        Assert.Equal("Version seven", text);
+    }
+
+    [Fact]
+    public void RenderVersion_StoreWithNoTextOfItsOwn_GivesTheNumberInTheInvariantCulture()
+    {
+        // Act
+        var text = ((ITemplateStore)new EmptyTemplateStore()).RenderVersion(1_234_567);
+
+        // Assert
+        Assert.Equal("1234567", text);
+    }
+
     private static TemplateSource ASource(string subject) =>
         PlaceholderTemplateTestData.ASource(subject);
 

@@ -22,6 +22,8 @@ internal sealed class TemplateStoreLoggingWrapper(
         return result;
     }
 
+    public string RenderVersion(long version) => inner.RenderVersion(version);
+
     private void LogFind(TemplateLookup lookup, ErrorOr<TemplateSource?> result, double elapsedMs)
     {
         if (result.IsError)

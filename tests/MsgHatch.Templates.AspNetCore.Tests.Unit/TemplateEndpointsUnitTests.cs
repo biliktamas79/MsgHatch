@@ -152,7 +152,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         // Assert
         Assert.Equal(
             (HttpStatusCode.OK,
-                """[{"messageType":"A","language":"en","companyId":null,"part":"subject","kind":"PlainText","version":5},{"messageType":"A","language":"hu","companyId":"42","part":"body","kind":"Html","version":6}]"""),
+                """[{"messageType":"A","language":"en","companyId":null,"part":"subject","kind":"PlainText","version":5,"versionText":"Version five"},{"messageType":"A","language":"hu","companyId":"42","part":"body","kind":"Html","version":6,"versionText":null}]"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
     }
 
@@ -165,7 +165,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         // Assert
         Assert.Equal(
             (HttpStatusCode.OK,
-                """{"messageType":"OrderShipped","language":"hu","companyId":"42","part":"subject","kind":"PlainText","version":5,"text":"Order of {{Name}}"}"""),
+                """{"messageType":"OrderShipped","language":"hu","companyId":"42","part":"subject","kind":"PlainText","version":5,"text":"Order of {{Name}}","versionText":null}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
     }
 
@@ -177,7 +177,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(
-            (HttpStatusCode.OK, """{"messageType":"OrderShipped","language":"hu","companyId":null,"part":"subject","kind":"PlainText","version":7}"""),
+            (HttpStatusCode.OK, """{"messageType":"OrderShipped","language":"hu","companyId":null,"part":"subject","kind":"PlainText","version":7,"versionText":null}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
     }
 

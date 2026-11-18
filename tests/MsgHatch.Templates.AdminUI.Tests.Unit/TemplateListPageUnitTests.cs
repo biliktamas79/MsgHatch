@@ -49,6 +49,19 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_EntryWithAVersionText_ShowsTheTextOfTheStoreInTheVersionColumnAndTheDeleteQuestion()
+    {
+        GivenTemplates(new TemplateEntry(Lookup(), 7) { VersionText = "Built in" });
+        var cut = Render<TemplateListPage>();
+
+        cut.Find("tr[data-row] [data-action=delete]").Click();
+
+        Assert.Equal(
+            ("Built in", "Built in"),
+            (cut.Find("tr[data-row]").Children[5].TextContent, cut.Find(".modal [data-metadata] [data-field=version]").TextContent));
+    }
+
+    [Fact]
     public void Render_NoTemplate_ShowsTheEmptyState()
     {
         GivenTemplates();

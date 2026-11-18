@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using MsgHatch.Domain.Failures;
 
 namespace MsgHatch.Templates;
@@ -29,6 +30,17 @@ public sealed class FileSystemTemplateStore : ITemplateStore, ITemplateWriter
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         _rootPath = Path.GetFullPath(rootPath);
     }
+
+    /// <summary>
+    /// Gives the last write time of a version in UTC, because a version of this store is the last write time of its file in
+    /// ticks, for example <c>2030-01-02 15:04:05 UTC</c> (D267). A number out of the range of a time gives the number.
+    /// </summary>
+    /// <param name="version">A version of this store.</param>
+    /// <returns>The text of the version.</returns>
+    public string RenderVersion(long version) =>
+        version > 0 && version <= DateTime.MaxValue.Ticks
+            ? new DateTime(version, DateTimeKind.Utc).ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture)
+            : version.ToString(CultureInfo.InvariantCulture);
 
     /// <inheritdoc/>
     public async ValueTask<ErrorOr<TemplateSource?>> FindAsync(TemplateLookup lookup, CancellationToken ct)

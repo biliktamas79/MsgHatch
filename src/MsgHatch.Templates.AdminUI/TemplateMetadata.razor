@@ -4,7 +4,7 @@
     <span><span class="text-secondary">Language</span> <strong data-field="language">@Lookup.Language</strong></span>
     <span><span class="text-secondary">Company</span> <strong data-field="company">@(Lookup.Scope ?? "All companies")</strong></span>
     <span><span class="text-secondary">Part</span> <strong data-field="part">@Lookup.Part (@Lookup.Kind)</strong></span>
-    <span><span class="text-secondary">Version</span> <strong data-field="version">@Version</strong></span>
+    <span><span class="text-secondary">Version</span> <strong data-field="version">@VersionTexts.Of(Version, VersionText)</strong></span>
 </div>
 
 @code {
@@ -15,4 +15,8 @@
     /// <summary>The version of the stored text, or 0 for a template that is not stored.</summary>
     [Parameter, EditorRequired]
     public long Version { get; set; }
+
+    /// <summary>The text of the version that the store rendered (D267), or null to show the number.</summary>
+    [Parameter]
+    public string? VersionText { get; set; }
 }

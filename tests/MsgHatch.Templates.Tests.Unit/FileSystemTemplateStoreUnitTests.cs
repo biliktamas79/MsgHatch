@@ -45,6 +45,21 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         Assert.Equal(new TemplateKey(Path.Combine(folder.Root, "Dated.en.subject.txt"), _firstWriteUtc.Ticks), result.Value?.Key);
     }
 
+    [Theory]
+    [InlineData(638_000_000_000_000_000, "2022-09-28 22:13:20 UTC")]
+    [InlineData(1, "0001-01-01 00:00:00 UTC")]
+    [InlineData(0, "0")]
+    [InlineData(-5, "-5")]
+    [InlineData(long.MaxValue, "9223372036854775807")]
+    public void RenderVersion_Version_GivesTheUtcWriteTimeOrTheNumberOutOfTheRangeOfATime(long version, string expected)
+    {
+        // Act
+        var text = new FileSystemTemplateStore(folder.Root).RenderVersion(version);
+
+        // Assert
+        Assert.Equal(expected, text);
+    }
+
     [Fact]
     public async Task FindAsync_ChangedTemplateFile_GivesANewVersionWithTheNewText()
     {

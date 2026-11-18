@@ -36,7 +36,13 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
         }
 
         var writer = Writer();
-        return writer.IsError ? writer.Error : await writer.Value.ListAsync(query, ct);
+        if (writer.IsError)
+        {
+            return writer.Error;
+        }
+
+        var entries = await writer.Value.ListAsync(query, ct);
+        return entries.IsError ? entries : ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([.. entries.Value.Select(WithVersionText)]);
     }
 
     public async ValueTask<ErrorOr<TemplateSource>> GetTemplateAsync(TemplateLookup lookup, CancellationToken ct)
@@ -59,7 +65,7 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
         }
 
         return source.Value is { } found
-            ? found
+            ? found with { VersionText = store.RenderVersion(found.Key.Version) }
             : new Error(Errors.NotFound, $"No {lookup.Kind} {lookup.Part} template of {lookup.Type.Name} in the language {lookup.Language} exists in this store.");
     }
 
@@ -140,7 +146,7 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
         var issues = await IssuesOfAsync(lookup, text, ct);
         return issues.IsError ? issues.Error
             : issues.Value.Count > 0 ? new Error(Errors.TemplateInvalid, issues.Value[0].Message)
-            : await writer.Value.SaveAsync(lookup, text, expectedVersion, ct);
+            : WithVersionText(await writer.Value.SaveAsync(lookup, text, expectedVersion, ct));
     }
 
     public async ValueTask<Error?> DeleteTemplateAsync(TemplateLookup lookup, CancellationToken ct)
@@ -177,6 +183,10 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
 
         return issues;
     }
+
+    private TemplateEntry WithVersionText(TemplateEntry entry) => entry with { VersionText = store?.RenderVersion(entry.Version) };
+
+    private ErrorOr<TemplateEntry> WithVersionText(ErrorOr<TemplateEntry> saved) => saved.IsError ? saved : WithVersionText(saved.Value);
 
     private ErrorOr<ITemplateWriter> Writer() =>
         store is null ? NoStore()

@@ -33,6 +33,19 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
     protected static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
+    public async Task SaveTemplateAsync_ValidText_GivesTheVersionTextOfTheStore()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var saved = await host.Service(TenantKey.None).SaveTemplateAsync(ALookup(), "Order of {{Name}}", 0, Ct);
+
+        // Assert
+        Assert.Equal(new DateTime(saved.Value.Version, DateTimeKind.Utc).ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture), saved.Value.VersionText);
+    }
+
+    [Fact]
     public async Task SaveTemplateAsync_ValidText_GivesTheEntryAndTheNextPrepareRendersEachNewText()
     {
         // Arrange

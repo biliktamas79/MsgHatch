@@ -7,7 +7,7 @@
         <h1 class="h3">Template</h1>
         @if (_loadError is null && _lookup is { } shown && _source is not null)
         {
-            <TemplateMetadata Lookup="shown" Version="_source.Key.Version" />
+            <TemplateMetadata Lookup="shown" Version="_source.Key.Version" VersionText="@_source.VersionText" />
         }
     </Header>
     <ChildContent>

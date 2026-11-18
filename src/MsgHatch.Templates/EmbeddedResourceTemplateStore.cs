@@ -30,6 +30,11 @@ public sealed class EmbeddedResourceTemplateStore : ITemplateStore
         _prefix = prefix;
     }
 
+    /// <summary>Gives the text of a version of an embedded template, which is always 0, because the build fixes the resources (D267).</summary>
+    /// <param name="version">The version, which is 0.</param>
+    /// <returns>The text <c>Built in</c>.</returns>
+    public string RenderVersion(long version) => "Built in";
+
     /// <inheritdoc/>
     public ValueTask<ErrorOr<TemplateSource?>> FindAsync(TemplateLookup lookup, CancellationToken ct)
     {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Failures;
@@ -75,6 +76,22 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
 
         // Assert
         Assert.Equal(("Order of {{Name}}", entry.Version), (source.Value.Text, source.Value.Key.Version));
+    }
+
+    [Fact]
+    public async Task GetTemplateAndGetTemplatesAsync_SavedTemplate_GiveTheVersionTextOfTheStore()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+        var entry = await SaveOnTheServerAsync(host, TenantKey.None, ALookup(), "Order of {{Name}}");
+        var expected = new DateTime(entry.Version, DateTimeKind.Utc).ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+
+        // Act
+        var source = await host.Service(TenantKey.None).GetTemplateAsync(ALookup(), Ct);
+        var entries = await host.Service(TenantKey.None).GetTemplatesAsync(new TemplateQuery(_type), Ct);
+
+        // Assert
+        Assert.Equal((expected, expected), (source.Value.VersionText, Assert.Single(entries.Value).VersionText));
     }
 
     [Fact]

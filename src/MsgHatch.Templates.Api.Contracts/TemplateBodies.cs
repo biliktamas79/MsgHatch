@@ -16,7 +16,9 @@ public sealed record TemplateSaveRequest(string Text, long Version);
 /// <param name="Part">The part.</param>
 /// <param name="Kind">The kind of the part.</param>
 /// <param name="Version">The version.</param>
-public sealed record TemplateEntryResponse(string MessageType, string Language, string? CompanyId, string Part, TemplatePartKind Kind, long Version)
+/// <param name="VersionText">The text of the version for a user, which the store renders (D267), or null.</param>
+public sealed record TemplateEntryResponse(
+    string MessageType, string Language, string? CompanyId, string Part, TemplatePartKind Kind, long Version, string? VersionText = null)
 {
     /// <summary>Gives the body of an entry (D228).</summary>
     /// <param name="entry">The entry.</param>
@@ -24,7 +26,8 @@ public sealed record TemplateEntryResponse(string MessageType, string Language, 
     public static TemplateEntryResponse From(TemplateEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return new TemplateEntryResponse(entry.Lookup.Type.Name, entry.Lookup.Language, entry.Lookup.Scope, entry.Lookup.Part, entry.Lookup.Kind, entry.Version);
+        return new TemplateEntryResponse(
+            entry.Lookup.Type.Name, entry.Lookup.Language, entry.Lookup.Scope, entry.Lookup.Part, entry.Lookup.Kind, entry.Version, entry.VersionText);
     }
 
     /// <summary>Gives the entry of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
@@ -32,7 +35,7 @@ public sealed record TemplateEntryResponse(string MessageType, string Language, 
     public ErrorOr<TemplateEntry> ToEntry()
     {
         var lookup = TemplateWireValues.LookupOf(MessageType, Language, CompanyId, Part, Kind);
-        return lookup.IsError ? lookup.Error : new TemplateEntry(lookup.Value, Version);
+        return lookup.IsError ? lookup.Error : new TemplateEntry(lookup.Value, Version) { VersionText = VersionText };
     }
 }
 
@@ -44,8 +47,9 @@ public sealed record TemplateEntryResponse(string MessageType, string Language, 
 /// <param name="Kind">The kind of the part.</param>
 /// <param name="Version">The version.</param>
 /// <param name="Text">The text.</param>
+/// <param name="VersionText">The text of the version for a user, which the store renders (D267), or null.</param>
 public sealed record TemplateResponse(
-    string MessageType, string Language, string? CompanyId, string Part, TemplatePartKind Kind, long Version, string Text)
+    string MessageType, string Language, string? CompanyId, string Part, TemplatePartKind Kind, long Version, string Text, string? VersionText = null)
 {
     /// <summary>Gives the body of a template that a lookup found (D228).</summary>
     /// <param name="lookup">The lookup.</param>
@@ -54,7 +58,7 @@ public sealed record TemplateResponse(
     public static TemplateResponse From(TemplateLookup lookup, TemplateSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        return new TemplateResponse(lookup.Type.Name, lookup.Language, lookup.Scope, lookup.Part, lookup.Kind, source.Key.Version, source.Text);
+        return new TemplateResponse(lookup.Type.Name, lookup.Language, lookup.Scope, lookup.Part, lookup.Kind, source.Key.Version, source.Text, source.VersionText);
     }
 
     /// <summary>Gives the lookup of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
@@ -71,7 +75,7 @@ public sealed record TemplateResponse(
         var lookup = ToLookup();
         return lookup.IsError ? lookup.Error
             : Text is null ? TemplateWireValues.Invalid("A template has a text.")
-            : new TemplateSource(new TemplateKey(TemplateWireValues.StableIdOf(lookup.Value), Version), Text);
+            : new TemplateSource(new TemplateKey(TemplateWireValues.StableIdOf(lookup.Value), Version), Text) { VersionText = VersionText };
     }
 }
 

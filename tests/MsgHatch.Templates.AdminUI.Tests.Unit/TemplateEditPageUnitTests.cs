@@ -121,6 +121,16 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void Render_TemplateWithAVersionText_ShowsTheTextOfTheStoreInPlaceOfTheNumber()
+    {
+        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(Source("Hello", 7) with { VersionText = "2030-01-02 15:04:05 UTC" }));
+
+        var cut = RenderPage();
+
+        Assert.Equal("2030-01-02 15:04:05 UTC", cut.Find("[data-metadata] [data-field=version]").TextContent);
+    }
+
+    [Fact]
     public void Render_CompanyInTheQuery_ReadsTheTemplateOfTheCompany()
     {
         Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));

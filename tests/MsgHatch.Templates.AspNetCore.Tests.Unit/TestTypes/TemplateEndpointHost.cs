@@ -75,7 +75,7 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
             ValueTask.FromResult(ErrorOr<TemplateSource>.ForValue(new TemplateSource(new TemplateKey("C:\\host\\templates\\A.en.subject.txt", 5), "Order of {{Name}}"))));
         manager.GetTemplatesAsync(default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue(
         [
-            new TemplateEntry(new TemplateLookup(new MessageType("A"), "en", Scope: null, "subject", TemplatePartKind.PlainText), 5),
+            new TemplateEntry(new TemplateLookup(new MessageType("A"), "en", Scope: null, "subject", TemplatePartKind.PlainText), 5) { VersionText = "Version five" },
             new TemplateEntry(new TemplateLookup(new MessageType("A"), "hu", "42", "body", TemplatePartKind.Html), 6),
         ])));
         manager.DeleteTemplateAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(null));

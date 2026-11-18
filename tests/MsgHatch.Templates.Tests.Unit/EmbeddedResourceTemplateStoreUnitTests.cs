@@ -46,6 +46,16 @@ public sealed class EmbeddedResourceTemplateStoreUnitTests()
     }
 
     [Fact]
+    public void RenderVersion_VersionOfAnEmbeddedTemplate_GivesBuiltIn()
+    {
+        // Act
+        var text = new EmbeddedResourceTemplateStore(typeof(EmbeddedResourceTemplateStoreUnitTests).Assembly, "Prefix").RenderVersion(0);
+
+        // Assert
+        Assert.Equal("Built in", text);
+    }
+
+    [Fact]
     public async Task FindAsync_ResourceThatCannotBeRead_GivesUnavailable()
     {
         // Arrange
