@@ -425,12 +425,13 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Api.Contracts` | `net10.0` | `MsgHatch.Domain` | none | The error metadata of the HTTP APIs: `ErrorTypeBody` and its JSON context `ApiErrorJson` (D227, D233) |
 | `src/MsgHatch.Subscriptions.Api.Contracts` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Api.Contracts` | none | The bodies of the subscription HTTP API, their JSON context, `SettingsJson`, and `JsonChannelSettings`, with no HTTP concern (D227, D228, D229) |
 | `src/MsgHatch.Templates.Api.Contracts` | `net10.0` | `MsgHatch.Templates`, `MsgHatch.Api.Contracts` | none | The bodies of the template HTTP API and their JSON context, with no HTTP concern (D227, D228) |
-| `src/MsgHatch.SourceGeneration` | `netstandard2.0` | none | `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Analyzers` | The generator of placeholder writers (D18) |
+| `src/MsgHatch.SourceGeneration` | `netstandard2.0` | none | `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Analyzers` | The generator of placeholder writers (D18), and the generator of the HTTP API clients (D236, section 4.23) |
 | `src/MsgHatch.Templates` | `net10.0` | `MsgHatch.Domain`, and `MsgHatch.SourceGeneration` as an analyzer | none | The template library, which knows no channel (D212): the template engine contract, the template stores, the template selector, the placeholder engine, and the template setup methods |
 | `src/MsgHatch.Email` | `net10.0` | `MsgHatch.Templates` | none | The email channel, the email composer as the thin layer on the template library (D215), and `IEmailClient` |
 | `src/MsgHatch.Email.AmazonSES` | `net10.0` | `MsgHatch.Email` | `AWSSDK.SimpleEmailV2` | The SES implementation of `IEmailClient` |
 | `src/MsgHatch.Templates.Liquid` | `net10.0` | `MsgHatch.Templates` | `Fluid.Core` | The Liquid template engine, with its engine factory `LiquidTemplates.Engine` (D205, D216) |
 | `src/MsgHatch.Templates.AspNetCore` | `net10.0` | `MsgHatch.Templates.Api.Contracts` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the template administration (D217, D224) |
+| `src/MsgHatch.Templates.Api.Client` | `net10.0` | `MsgHatch.Templates.Api.Contracts`, and `MsgHatch.SourceGeneration` as an analyzer | `Microsoft.Extensions.Http` | The HTTP client of the template management API: `ITemplateQueries` and `ITemplateCommands` over HTTP, and `UseTemplateApiClient` (D227, D236, section 4.23) |
 | `src/MsgHatch.Email.Resend` | `net10.0` | `MsgHatch.Email` | `Microsoft.Extensions.Http` | The Resend implementation of `IEmailClient` (D138) |
 | `src/MsgHatch.SignalR` | `net10.0` | `MsgHatch.Domain` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The SignalR channel |
 | `src/MsgHatch.Broker` | `net10.0` | `MsgHatch.Domain` | none | The broker channel, the broker composer and transport, and `IBrokerClient` |
@@ -449,6 +450,7 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Subscriptions.Caching.Hybrid` | `net10.0` | `MsgHatch.Subscriptions` | `Microsoft.Extensions.Caching.Hybrid` | The HybridCache backend of the subscription cache (D39) |
 | `src/MsgHatch.Subscriptions.Caching.FusionCache` | `net10.0` | `MsgHatch.Subscriptions` | `ZiggyCreatures.FusionCache` | The FusionCache backend of the subscription cache (D39) |
 | `src/MsgHatch.Subscriptions.AspNetCore` | `net10.0` | `MsgHatch.Subscriptions.Api.Contracts` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the subscription management API (D54) |
+| `src/MsgHatch.Subscriptions.Api.Client` | `net10.0` | `MsgHatch.Subscriptions.Api.Contracts`, and `MsgHatch.SourceGeneration` as an analyzer | `Microsoft.Extensions.Http` | The HTTP client of the subscription management API: `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` over HTTP, and `UseSubscriptionApiClient` (D227, D236, section 4.23) |
 | `tests/{Project}.Tests.{Level}` | `net10.0`, `Exe` | The production project under test, and the test project with its contract base classes | The test packages of section 5.5 | One test project for each production project and each level (D66, section 5.5) |
 | `examples/ExampleApp` | `net10.0`, `Microsoft.NET.Sdk.Web` | The `src` projects of the finished phases (roadmap), and `MsgHatch.SourceGeneration` as an analyzer | `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `Microsoft.AspNetCore.Authentication.JwtBearer` (D158), `WolverineFx.RuntimeCompilation` for the code of its Wolverine handler | The subscription example end to end, as a web app |
 
@@ -1667,6 +1669,7 @@ Setup methods of `MsgHatch.Subscriptions` and its packages (D97):
 |---|---|---|
 | `UseSubscriptions()` | Subscriptions | The factory of `SubscriptionRouter<TEvent>` with `UseRouter`, `AddTraceType` for `ResolutionTrace`, and `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` as tenant services, each with its logging wrapper (D231). These three are the defaults of `AddDefaultTenantService`. |
 | `UseSubscriptionQueries(factory, setupMethod?)`, `UseSubscriptionCommands(factory, setupMethod?)`, `UseRoutingVerifier(factory, setupMethod?)` | Subscriptions | Selects the implementation of one interface, for example an HTTP client, with `UseTenantService`, as a scoped tenant service with the logging wrapper of the package (D231). Each one replaces the default of `UseSubscriptions` of its interface only, in each order of the calls. A package that calls it gives its own name as `setupMethod`, so a second selection names it. |
+| `UseSubscriptionApiClient(Action<SubscriptionApiClientOptions>?, Action<IHttpClientBuilder>?)`, `UseSubscriptionApiClient(Uri, Action<IHttpClientBuilder>?)`, and the same forms of `UseSubscriptionQueriesApiClient` and `UseSubscriptionCommandsApiClient` | Subscriptions.Api.Client | `SubscriptionApiClientOptions`, a named HTTP client for the queries and the verifier and one for the commands, and the HTTP client of the queries with the verifier, the commands, or both, through the selection methods of D231 (D227, D232, section 4.23). |
 | `UseSubscriptionStore<TStore>()` | Subscriptions | A subscription store as a tenant service, with its logging wrapper. The store packages call it with the factory overload. A host calls it only for its own store. |
 | `UseInMemorySubscriptionStore()` | Subscriptions | `InMemorySubscriptionStore`, with its logging wrapper, for a host with no database. Each key has its own instance. |
 | `UseRecipientDirectory<TDirectory>()` | Subscriptions | The consumer's recipient directory as a tenant service, with its logging wrapper (D76). |
@@ -1702,6 +1705,7 @@ Setup methods of the other implementation packages (D60):
 | `UseTenantTemplateStore<TStore>()` | Templates | The template store of each tenant, as a keyed `ITemplateStore` with no unkeyed registration, with its logging wrapper. The shared template store is the unkeyed `ITemplateStore`, so the two never collide (D62). The template selector tries the store of the tenant first (D123). From phase 25, also the template queries and commands. |
 | `payload.AddTemplateEngine<TEvent, TPayload>(registration, engineName, IReadOnlyList<TemplatePart> parts, Func<IServiceProvider, TenantKey, ITemplateEngine<TPayload>> engine)` | Templates | The template engine of one payload type as a tenant service, with its logging wrapper, for one registration of a channel (D212), with the name of the engine, the message type of the payload builder, and the parts that the channel reads (D220, D240). The name is `ITemplateEngineFactory.Name`, for example `liquid`, or `PlaceholderTemplates.EngineName`, which is `placeholder`. An empty part list, or a part name that is not a name of ASCII letters, digits, and `_` that starts with a letter, gives an `ArgumentException`. `AsEmail` calls it with `subject` (`PlainText`), `body` (`Html`), and `body` (`PlainText`). The registrations of one payload type must give the same engine factory (D62). It also registers the template queries and commands. |
 | `UseTemplateQueries(factory, setupMethod?)`, `UseTemplateCommands(factory, setupMethod?)` | Templates | Selects the implementation of one interface, for example an HTTP client, with `UseTenantService`, as a scoped tenant service with its logging wrapper (D231, D244). Each one replaces the in-process default of the template setup methods of its interface only, in each order of the calls. |
+| `UseTemplateApiClient(Action<TemplateApiClientOptions>?, Action<IHttpClientBuilder>?)`, `UseTemplateApiClient(Uri, Action<IHttpClientBuilder>?)`, and the same forms of `UseTemplateQueriesApiClient` and `UseTemplateCommandsApiClient` | Templates.Api.Client | `TemplateApiClientOptions`, a named HTTP client for each interface, and the HTTP client of the template queries, the commands, or both, through `UseTemplateQueries` and `UseTemplateCommands` (D227, section 4.23). |
 | `UseEmailClient<TClient>()` | Email | A custom `IEmailClient` and the email transport, with their logging wrappers, and the email channel with `AddChannelType`. So a publisher host with no message type also binds `MsgHatch:ChannelDown:Email` and `MsgHatch:TestDelivery:Email`. |
 | `UseAmazonSes(Action<AmazonSesOptions>?)`, `UseAmazonSes(string senderEmail)` | Email.AmazonSES | The options, `AmazonSimpleEmailServiceClient` as the `IEmailClient` with its logging wrapper, the email transport, and an `IAmazonSimpleEmailServiceV2` client for `AmazonSesOptions.Region`, if the host has not registered one. The AWS SDK finds the credentials. With no `Region` and no region in the AWS SDK configuration, the startup validation fails with an `OptionsValidationException` for `Region`. |
 | `UseResend(Action<ResendOptions>?)` | Email.Resend | The options, `ResendEmailClient` as the `IEmailClient` with its logging wrapper, the email transport, and the named HTTP client `MsgHatch.Resend`, which the host can configure further (D138). It has no `string` overload, because the package has two required options, and the API key does not belong in code. |
@@ -2263,18 +2267,18 @@ HTTP endpoints (D54). `MapMsgHatchSubscriptions(this IEndpointRouteBuilder route
 | GET | `{prefix}/message-types?messageType=&companyId=&userId=` | none | 200 with the message type states |
 | GET | `{prefix}?messageType=&companyId=&userId=&level=` | none | 200 with the subscriptions |
 | GET | `{prefix}/{id}` | none | 200 with the subscription |
-| POST | `{prefix}` | The draft: `level`, `companyId`, `userId`, `messageType`, `kind`, `channel`, `settings`, `recipients` (`kind` and `users`), `mandatory` | 201 with the subscription and a `Location` header |
+| POST | `{prefix}` | The draft: `level`, `companyId`, `userId`, `messageType`, `kind`, `channel`, `settings`, `settingsType`, `recipients` (`kind` and `users`), `mandatory` | 201 with the subscription and a `Location` header |
 | PUT | `{prefix}/{id}` | The draft and `revision` | 200 with the subscription |
 | DELETE | `{prefix}/{id}` | none | 204 |
 
 - Each route takes the optional query parameter `tenantId`. The endpoint resolves `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` with `TenantKey.For(tenantId)`, and with `TenantKey.None` when the parameter is missing (D126).
-- The `settings` object is read with the `JsonTypeInfo` of the settings type of the given channel, from the content type registry. For example, `{ "channel": "Email", "settings": { "language": "hu", "format": "PlainText" } }`.
+- The `settings` object is read with the `JsonTypeInfo` of the settings type of the given channel, from the content type registry. For example, `{ "channel": "Email", "settings": { "language": "hu", "format": "PlainText" } }`. With the optional `settingsType`, for example `Settings:SignalR`, the endpoint reads the settings with that registered settings type, so the manager checks the settings of the type of another channel (D247). A `settingsType` that is not a registered content type `Settings:{channel}` gives 400. `SubscriptionRequest.From` writes `settingsType` for typed settings, and no value for `JsonChannelSettings`.
 - The consumer adds the authorization on the returned group, for example `.RequireAuthorization("SubscriptionAdmin")`. The library adds no authorization.
 - With `o => o.CurrentUser = user => ...` and, for several tenants, `o.CurrentTenant = user => ...`, the same endpoints also exist under `{prefix}/me`. They take the user id from the signed-in user, and the tenant from `CurrentTenant` in place of the query parameter. They use only user-level subscriptions of that user. A subscription of another owner gives 404 there. They ignore the owner fields of a body and the owner filters of a query. An unknown id gives the same 404 as another owner, and a signed-in user with no user id gives 403 (D154).
 - Each error is problem details (RFC 9457) with the status of `ErrorProblems.StatusCodeOf` (D233): `Errors.ValidationFailed` gives 400, `Rejected` 403, `NotFound` 404, `Conflict` 409, `Expired` 410, `TemplateInvalid` 422, `RateLimited` 429, `Unavailable` 503, and each other error 500. The body has the error name as the title, the error message as the detail, and the extension member `errorType` with `code`, `name`, and `isTransient` of `ErrorTypeBody`. A `POST` or a `PUT` body with a content type that is not JSON gives 415 (D156), with no `errorType`.
 - The bodies, their JSON context `SubscriptionEndpointJson`, `SettingsJson`, and `JsonChannelSettings` are public types of `MsgHatch.Subscriptions.Api.Contracts` (D227, D228). Each body record has public mappings in both directions, for example `SubscriptionResponse.From(subscription, registry)` and `ToSubscription(registry)`. A mapping from the wire checks each string with `Create`, and gives `Errors.SerializationFailed` for a value that is not valid. A response of a channel with no settings type in the registry of the host gives `JsonChannelSettings(JsonElement Json)`, and a request writes its JSON with no change (D229). The server still gives `Errors.ValidationFailed` for the settings of a channel with no settings type. The route paths are the internal class `SubscriptionApiRoutes` in `src/Shared`, which the endpoint package compiles. `RequestValues` and `Caller` stay in `MsgHatch.Subscriptions.AspNetCore`, because they check the input from outside with `Errors.ValidationFailed`, and hold the rules of `/me` (D154).
 - The JSON of the endpoints uses camelCase names and enum values as strings, through a source-generated `JsonSerializerContext`. A flags value is one text, for example `"Languages, RichText"` (D155). A subscription in a response has the field names of the draft, with `id`, `revision`, `createdAtUtc`, and `lastModifiedAtUtc`, so a client can send it back as the body of a `PUT`.
-- `POST {prefix}/verification` with a `RoutingVerificationRequest` runs the routing verification of section 4.18, and gives 200 with the report. Only the route group with no `/me` has it (D163).
+- `POST {prefix}/verification` with a `RoutingVerificationRequest` runs the routing verification of section 4.18, and gives 200 with the report. Only the route group with no `/me` has it (D163). The endpoint rejects a body with no test users, no languages, or an empty language with 400, and the verifier runs `RoutingVerificationRules` too (D248).
 
 ### 4.18 Test messages and routing verification
 
@@ -2287,7 +2291,7 @@ HTTP endpoints (D54). `MapMsgHatchSubscriptions(this IEndpointRouteBuilder route
 
 Test events. `MessageBuilder<TEvent>.WithTestEvent(string testCase, Func<UserId, TEvent> create)` of `MsgHatch.Subscriptions` registers one test case of a message type. The function makes a test event for one test user, so that the payload loader loads the real data of that user. Several test cases of one message type give the variations of the test messages, for example a long name, accented characters, or optional fields that are null.
 
-Procedure of `VerifyAsync`. The verifier is a tenant service. Its store and its directory are those of its key, so a verification checks one tenant (D116, D126):
+Procedure of `VerifyAsync`. The verifier is a tenant service. Its store and its directory are those of its key, so a verification checks one tenant (D116, D126). First, the public `RoutingVerificationRules.Check(request)` gives `Errors.ValidationFailed` for no list of test users, no list of languages, or a language that is null, empty, or white space, and the verifier then calls no store (D248). Each implementation of `IRoutingVerifier` runs it first, so the HTTP client gives this error with no HTTP call:
 1. It calls `ISubscriptionStore.QueryAsync` one time, for all subscriptions, or for the subscriptions of `request.Type`.
 2. It calls `IRecipientDirectory.GetUsersAsync` one time for `request.TestUsers`.
 3. For each message type with no test event, it adds one `Skipped` row.
@@ -2627,7 +2631,7 @@ Checked facts (2026-10-31). These external facts carry the design of this sectio
 - `DeleteTemplateAsync(TemplateLookup)` calls `ITemplateWriter.DeleteAsync`. It accepts each part, also a part that no registration declares, so an operator can remove an old file.
 - `GetTemplatePartsAsync(MessageType?)` gives `TemplatePartInfo(Type, Part, Engines)` for each part and kind that a registration of the message type declares, or of each message type with no filter (D220, D240). `Engines` holds the engine name of each registration that reads the part, each name one time, in the order of the registrations. A message type with no registration gives an empty list.
 - `CheckTemplateAsync(TemplateLookup, text)` checks a draft with the engine of each registration that reads the part and the kind, as a save does, and saves nothing (D241). It gives the issues of all engines, or an empty list for a text that passes. A save with an issue gives `Errors.TemplateInvalid` with the message of the first issue.
-Validation (D234). The public `TemplateLookupRules` runs the rules that need no state first: `Check(TemplateLookup)` for the scope and the part, `Check(TemplateQuery)` for the scope of a list, and `CheckText(string)` for the length of a text. Then the queries and the commands check the language, which needs the culture data of the machine, and then the checks that need the store or the engines run. So a request that breaks a rule and another check gives the error of the rule, for example an unknown language with a part that is not a name gives the error of the part. A null query or text gives an `ArgumentNullException`. Validation gives `Errors.ValidationFailed`, and calls no store, in these cases:
+Validation (D234). The public `TemplateLookupRules` runs the rules that need no state first: `Check(TemplateLookup)` for the scope, the part, and a null or empty language (D246), `Check(TemplateQuery)` for the scope of a list, and `CheckText(string)` for the length of a text. Then the queries and the commands check the language, which needs the culture data of the machine, and then the checks that need the store or the engines run. So a request that breaks a rule and another check gives the error of the rule, for example an unknown language with a part that is not a name gives the error of the part. A null query or text gives an `ArgumentNullException`. Validation gives `Errors.ValidationFailed`, and calls no store, in these cases:
 - The language is empty, or is not the name of a predefined culture of `CultureInfo.GetCultureInfo(name, predefinedOnly: true)`. So `HU`, `hu-hu`, and `en-US-x-test` are invalid, because the name of their culture is `hu`, `hu-HU`, and `en-US`. A send looks for the file of the language of its route as it is written, so a file of another spelling is never found on a file system that knows the case of a name.
 - The scope is not a valid `CompanyId`, or its folder name of `ScopeFolders.FolderOf` has more than 255 characters, the limit of a folder name on Windows.
 - The part is not a name of ASCII letters, digits, and `_` that starts with a letter.
@@ -2653,6 +2657,61 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 - The bodies and their JSON context `TemplateEndpointJson` are public types of `MsgHatch.Templates.Api.Contracts` (D227, D228), with public mappings in both directions: `TemplateEntryResponse`, `TemplateResponse`, `TemplateIssueResponse`, and `TemplatePartResponse`. `TemplateResponse.ToSource()` gives a key with a stable id of the lookup, because the API has no template id (D224). The route paths are the internal class `TemplateApiRoutes` in `src/Shared`. The endpoints read and write each body with `TemplateEndpointJson`: camelCase names, enum values as strings, and the required properties `text` and `version`, which are not nullable. A `PUT` or a check with a content type that is not JSON gives 415 (D156). Invalid JSON, a missing required property, and a null `text` give 400.
 - Each error is problem details with the status of `ErrorProblems.StatusCodeOf`, the error name as the title, the error message as the detail, and the extension member `errorType` (D233), as for the subscription endpoints (section 4.17). So `Errors.TemplateInvalid` gives 422, and `Errors.Unavailable` gives 503.
 - A response never has the template id, because the id of the file store is a path on the host.
+
+### 4.23 HTTP API clients
+
+**Confirmed rule (D227, D231, D236):** a host calls the subscription and template management APIs of another host through the query and command interfaces of D231. `MsgHatch.Subscriptions.Api.Client` and `MsgHatch.Templates.Api.Client` implement these interfaces over HTTP. A consumer cannot see which implementation it uses: the same input gives the same result and the same error (D233, D234). A host can read over HTTP and write in process, or the reverse, or use one implementation for both.
+
+Generator (D236). `HttpApiClientGenerator` of `MsgHatch.SourceGeneration` is the second incremental generator of the package:
+- It adds the internal attributes `HttpApi`, `HttpCall`, and `HttpBody` of the namespace `MsgHatch.Http` with `RegisterPostInitializationOutput`. They have `Microsoft.CodeAnalysis.EmbeddedAttribute`, so each compilation with the generator has its own copy, and no other assembly sees them, also with `InternalsVisibleTo`.
+- Its input is an internal interface with `[HttpApi(typeof(TJsonContext))]`. Each method has `[HttpCall(method, route)]` with `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`, and a route of `src/Shared`, for example `SubscriptionApiRoutes.Subscription`.
+- A parameter whose name is in the route is a route value. A constraint, for example `{id:guid}`, is not part of the name. One parameter with `[HttpBody]` is the JSON body. Each other parameter, except the last `CancellationToken`, is a query value, which a request leaves out when it is null.
+- A route value or a query value is a string, a `Guid`, a number, a `bool`, or an enum. A query value can also be a nullable value type. The request escapes each value, writes a number in the invariant culture, a `bool` as `true` or `false`, and an enum with its name.
+- A method returns `Task<ErrorOr<TResponse>>`, or `Task<Error?>` for a success with no body.
+- The generator writes an internal sealed class with the name of the interface with no `I`, for example `TemplateApi` for `ITemplateApi`. Its constructor takes the `HttpClient` and the prefix of the route group. The relative URI is the prefix and the route, so a base address with a path, for example `https://api.example.com/admin/`, keeps its path.
+- The class writes each body and reads each success body with the `JsonTypeInfo<T>` property of the JSON context, so it uses no reflection at run time and no proxy (D237). The generator finds the property in the metadata of the context, so the context comes from a referenced assembly, for example a contracts package. In the same compilation, the generator cannot see the properties that the System.Text.Json generator writes.
+- An error status gives `ErrorProblems.ErrorOf(status, errorType, detail)` with the members `errorType` and `detail` of the problem body (D233). A body that is not a JSON object, or an `errorType` that does not parse, gives the type of the status only. `HttpRequestException` and a timeout of the `HttpClient` give `Errors.Unavailable` with the exception. A cancelled token gives `Errors.OperationCancelled`. A success body that does not parse, or that is the JSON null, gives `Errors.SerializationFailed`. So no method throws for an error status, a network error, or a timeout.
+
+The generator gives an error diagnostic, and writes no class, for an interface that it cannot write:
+
+| Id | Cause |
+|---|---|
+| `MSGHATCH002` | The interface is generic or nested. |
+| `MSGHATCH003` | The JSON context is not a `JsonSerializerContext`. |
+| `MSGHATCH004` | A member is not a method with `HttpCall`, for example a property. |
+| `MSGHATCH005` | The HTTP method is not `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`. |
+| `MSGHATCH006` | A route value has no parameter with its name. |
+| `MSGHATCH007` | A method has a second parameter with `HttpBody`. |
+| `MSGHATCH008` | A route value or a query value has a type that the generator cannot write, a route value is nullable, or a `CancellationToken` is not the last parameter. |
+| `MSGHATCH009` | A method does not return `Task<ErrorOr<TResponse>>` or `Task<Error?>`. |
+| `MSGHATCH010` | A body type or a response type has no `JsonTypeInfo` property in the JSON context. |
+
+Client packages (D227). Each package has only the package `Microsoft.Extensions.Http`, and no ASP.NET Core reference, so a worker, a console host, or Blazor WebAssembly can use it. Its public types are only its options, their source-generated validator, and its setup class, and no public member has a type of `System.Net.Http`. Each package sets `IsAotCompatible` (D237).
+
+| Package | Interfaces | Setup methods | Options section | Default prefix |
+|---|---|---|---|---|
+| `MsgHatch.Templates.Api.Client` | `ITemplateQueries`, `ITemplateCommands` | `UseTemplateApiClient`, `UseTemplateQueriesApiClient`, `UseTemplateCommandsApiClient` | `MsgHatch:TemplateApiClient` | `/templates` |
+| `MsgHatch.Subscriptions.Api.Client` | `ISubscriptionQueries`, `IRoutingVerifier`, `ISubscriptionCommands` | `UseSubscriptionApiClient`, `UseSubscriptionQueriesApiClient` (the queries and the verifier, D232), `UseSubscriptionCommandsApiClient` | `MsgHatch:SubscriptionApiClient` | `/subscriptions` |
+
+- The options are `BaseAddress`, a required absolute URI with no default, `Prefix`, with the default prefix of `MapMsgHatchTemplates` or `MapMsgHatchSubscriptions`, and `Timeout`, from 1 second to 10 minutes, with the default 30 seconds. A value from code wins over the configuration, and an options error stops the start of the host.
+- Each setup method takes `Action<TOptions>? configure = null` and `Action<IHttpClientBuilder>? configureHttp = null`, and has an overload with `Uri baseAddress`. Each interface has its own named HTTP client, whose name stays internal. The host adds its handlers with `configureHttp`, for example a handler that adds a token.
+- Each setup method calls the selection methods of D231 with its own name, so a second selection of one interface gives the setup error "… select an implementation of …". The selection adds the logging wrapper of the interface (D244), which logs each call. A host with `MsgHatchRoles.None` that only calls the clients starts (D230).
+- The internal adapters, for example `HttpTemplateQueries`, run the rules of D234 first: `TemplateLookupRules`, `SubscriptionDraftRules`, and `RoutingVerificationRules` (D248). So an input that breaks a rule gives the error of the rule with no HTTP call. Then an adapter maps the domain values to the bodies (D228), sends `tenantId` for the key of a tenant and no `tenantId` for `TenantKey.None`, calls the generated class, and maps the response back. A list with a null item, or a value that is not valid, gives `Errors.SerializationFailed`.
+- The template API has no template id (D224), so `TemplateSource.Key.Id` of a read is a stable id of the lookup. A caller reads it as opaque, and sends back only the version.
+- The subscription client calls the routes with no `/me`, because a `/me` route narrows each query to the signed-in user, and a browser calls it (D154). It reads the settings of a channel with the entry `Settings:{channel}` of the registry of its host, or gives `JsonChannelSettings` (D229), and a request names the settings type of typed settings (D247). A row of a verification report has its trace only when the host registers the trace type `Trace:Subscription`.
+- A create is not idempotent. So a host does not retry a `POST`, for example with a retry handler of `configureHttp`.
+- `IHttpClientFactory` of .NET 10 logs the URI of each request with the query as `*`, for example `Start processing HTTP request GET http://localhost/templates?*`. So the log of the client holds no user id and no company id. The path holds only the message type, the language, the part, the kind, or the id of a subscription. A host that sets the switch `System.Net.Http.DisableUriRedaction` gets the query in its log.
+
+Setup of a Blazor admin UI (D235). The admin UI uses the clients for all reads and writes, so the API host runs the validation, the engine checks, and the cache invalidation in one place:
+
+```csharp
+builder.Services.AddTransient<TokenHandler>();
+builder.Services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
+    .UseSubscriptionApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>())
+    .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
+```
+
+The base addresses come from the sections `MsgHatch:SubscriptionApiClient` and `MsgHatch:TemplateApiClient`. In Interactive Server mode, `IHttpClientFactory` makes the handlers in a DI scope of its own, and not in the scope of the circuit. So `TokenHandler` reads the token of the signed-in user through a circuit services accessor: a `CircuitHandler` stores the services of the circuit in an `AsyncLocal` for each inbound activity, and the handler reads them there, as the ASP.NET Core documentation "Access server-side Blazor services from a different DI scope" shows. In WebAssembly, the handler of the authentication library of the host adds the token. Phase 28 adds the admin UIs.
 
 ## 5. Repository and conventions
 
@@ -2683,6 +2742,7 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   ├── GeneratedCodeSuppressions.cs                    (phase 1)
 │   ├── Shared/                                         (internal sources that several projects compile, after phase 25)
 │   │   ├── FileNames.cs                                (after phase 25)
+│   │   ├── ApiResults.cs                               (phase 27, D236)
 │   │   ├── ErrorProblems.cs                            (phase 26, D233)
 │   │   ├── SubscriptionApiRoutes.cs                    (phase 26, D228)
 │   │   └── TemplateApiRoutes.cs                        (phase 26, D228)
@@ -2713,7 +2773,9 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   ├── MsgHatch.Templates.AspNetCore/                  (phase 25)
 │   ├── MsgHatch.Api.Contracts/                         (phase 26)
 │   ├── MsgHatch.Subscriptions.Api.Contracts/           (phase 26)
-│   └── MsgHatch.Templates.Api.Contracts/               (phase 26)
+│   ├── MsgHatch.Templates.Api.Contracts/               (phase 26)
+│   ├── MsgHatch.Templates.Api.Client/                  (phase 27)
+│   └── MsgHatch.Subscriptions.Api.Client/              (phase 27)
 ├── tests/                                                                   (section 5.5)
 │   ├── MsgHatch.Domain.Tests.Unit/                                          (phase 1)
 │   ├── MsgHatch.SourceGeneration.Tests.Unit/                                (phase 3)
@@ -2751,7 +2813,9 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 │   ├── MsgHatch.Templates.AspNetCore.Tests.Unit/                            (phase 25)
 │   ├── MsgHatch.Api.Contracts.Tests.Unit/                                   (phase 26, with src/Shared/ErrorProblems.cs)
 │   ├── MsgHatch.Subscriptions.Api.Contracts.Tests.Unit/                     (phase 26)
-│   └── MsgHatch.Templates.Api.Contracts.Tests.Unit/                         (phase 26)
+│   ├── MsgHatch.Templates.Api.Contracts.Tests.Unit/                         (phase 26)
+│   ├── MsgHatch.Templates.Api.Client.Tests.Unit/                            (phase 27)
+│   └── MsgHatch.Subscriptions.Api.Client.Tests.Unit/                        (phase 27)
 └── examples/
     ├── ExampleApp/                                     (phase 13)
     ├── WolverineExample.Contracts/                     (phase 21)
