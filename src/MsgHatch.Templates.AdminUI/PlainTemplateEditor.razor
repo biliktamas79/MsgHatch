@@ -1,0 +1,12 @@
+@inherits TemplateEditorBase
+@* The editor of a part with no registered editor, or with more than one engine (D240): a text area. *@
+<textarea class="form-control font-monospace @(Issues.Count > 0 ? "is-invalid" : null)" rows="16" spellcheck="false"
+          aria-label="Template text" data-editor="plain" value="@Text" disabled="@Disabled" @oninput="OnInputAsync"></textarea>
+@foreach (var issue in Issues)
+{
+    <div class="invalid-feedback d-block" data-issue>@TextOf(issue)</div>
+}
+
+@code {
+    private Task OnInputAsync(ChangeEventArgs args) => TextChanged.InvokeAsync(args.Value as string ?? string.Empty);
+}

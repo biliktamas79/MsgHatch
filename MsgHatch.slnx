@@ -38,6 +38,7 @@
   </Folder>
   <Folder Name="/src/Templates/">
     <Project Path="src/MsgHatch.Templates/MsgHatch.Templates.csproj" />
+    <Project Path="src/MsgHatch.Templates.AdminUI/MsgHatch.Templates.AdminUI.csproj" />
     <Project Path="src/MsgHatch.Templates.Api.Client/MsgHatch.Templates.Api.Client.csproj" />
     <Project Path="src/MsgHatch.Templates.Api.Contracts/MsgHatch.Templates.Api.Contracts.csproj" />
     <Project Path="src/MsgHatch.Templates.AspNetCore/MsgHatch.Templates.AspNetCore.csproj" />
@@ -77,6 +78,7 @@
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Performance/MsgHatch.Subscriptions.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Templates.AdminUI.Tests.Unit/MsgHatch.Templates.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Api.Client.Tests.Unit/MsgHatch.Templates.Api.Client.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Api.Contracts.Tests.Unit/MsgHatch.Templates.Api.Contracts.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.AspNetCore.Tests.Unit/MsgHatch.Templates.AspNetCore.Tests.Unit.csproj" />

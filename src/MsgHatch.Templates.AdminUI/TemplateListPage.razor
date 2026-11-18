@@ -1,0 +1,141 @@
+@attribute [Route(TemplateAdminRoutes.List)]
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+@* The template list, with filters for the message type and the company, and a new template from the declared parts (D240). *@
+
+<h1 class="h3">Templates</h1>
+
+<div class="row g-2 align-items-end mb-3" data-form="filter">
+    <div class="col-auto">
+        <label class="form-label" for="msghatch-template-type">Message type</label>
+        <select id="msghatch-template-type" class="form-select" @bind="_typeFilter">
+            <option value="">All</option>
+            @foreach (var type in TypesOf(_parts))
+            {
+                <option value="@type">@type</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="msghatch-template-company">Company id</label>
+        <input id="msghatch-template-company" class="form-control" @bind="_companyFilter" />
+    </div>
+    <div class="col-auto">
+        <button type="button" class="btn btn-secondary" data-action="filter" @onclick="LoadEntriesAsync">Show</button>
+    </div>
+</div>
+
+<AdminList TItem="TemplateEntry" Items="_entries" EmptyText="There are no templates.">
+    <Head>
+        <tr><th>Message type</th><th>Language</th><th>Company</th><th>Part</th><th>Kind</th><th>Version</th><th></th></tr>
+    </Head>
+    <Row Context="entry">
+        <tr data-row>
+            <td>@entry.Lookup.Type.Name</td>
+            <td>@entry.Lookup.Language</td>
+            <td>@(entry.Lookup.Scope ?? "All companies")</td>
+            <td>@entry.Lookup.Part</td>
+            <td>@entry.Lookup.Kind</td>
+            <td>@entry.Version</td>
+            <td><a href="@TemplateAdminRoutes.Edit(entry.Lookup).TrimStart('/')">Edit</a></td>
+        </tr>
+    </Row>
+</AdminList>
+
+<h2 class="h5 mt-4">New template</h2>
+@if (_parts is { IsError: true } failed)
+{
+    <ErrorAlert Error="failed.Error" />
+}
+else if (_parts is { Value.Count: > 0 } parts)
+{
+    <div class="row g-2 align-items-end" data-form="new">
+        <div class="col-auto">
+            <label class="form-label" for="msghatch-template-part">Part</label>
+            <select id="msghatch-template-part" class="form-select" @bind="_newPart">
+                @for (var index = 0; index < parts.Value.Count; index++)
+                {
+                    var part = parts.Value[index];
+                    <option value="@index">@part.Type.Name / @part.Part.Name / @part.Part.Kind</option>
+                }
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="form-label" for="msghatch-template-language">Language</label>
+            <input id="msghatch-template-language" class="form-control" @bind="_newLanguage" />
+        </div>
+        <div class="col-auto">
+            <label class="form-label" for="msghatch-template-new-company">Company id</label>
+            <input id="msghatch-template-new-company" class="form-control" @bind="_newCompany" />
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-primary" data-action="new" @onclick="OpenNew">Open the editor</button>
+        </div>
+    </div>
+    <ErrorAlert Error="_newError" />
+}
+else if (_parts is not null)
+{
+    <p class="text-secondary" data-state="no-parts">No message type declares a template part.</p>
+}
+
+@code {
+    private ErrorOr<IReadOnlyList<TemplatePartInfo>>? _parts;
+    private ErrorOr<IReadOnlyList<TemplateEntry>>? _entries;
+    private string _typeFilter = string.Empty;
+    private string _companyFilter = string.Empty;
+    private string _newPart = "0";
+    private string _newLanguage = "en";
+    private string _newCompany = string.Empty;
+    private Error? _newError;
+
+    private ITemplateQueries Queries => Services.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        _parts = await Queries.GetTemplatePartsAsync(type: null, CancellationToken.None);
+        await LoadEntriesAsync();
+    }
+
+    private async Task LoadEntriesAsync()
+    {
+        _entries = null;
+        MessageType? type = null;
+        if (_typeFilter.Length > 0)
+        {
+            var parsed = TemplateRouteValues.TypeOf(_typeFilter);
+            if (parsed.IsError)
+            {
+                _entries = parsed.Error;
+                return;
+            }
+
+            type = parsed.Value;
+        }
+
+        _entries = await Queries.GetTemplatesAsync(new TemplateQuery(type, OptionalOf(_companyFilter)), CancellationToken.None);
+    }
+
+    private void OpenNew()
+    {
+        if (_parts is not { IsSuccess: true } parts || !int.TryParse(_newPart, out var index) || index < 0 || index >= parts.Value.Count)
+        {
+            _newError = new Error(Errors.ValidationFailed, "Select a part.");
+            return;
+        }
+
+        var part = parts.Value[index];
+        var lookup = new TemplateLookup(part.Type, _newLanguage.Trim(), OptionalOf(_newCompany), part.Part.Name, part.Part.Kind);
+        _newError = TemplateLookupRules.Check(lookup);
+        if (_newError is null)
+        {
+            Navigation.NavigateTo(TemplateAdminRoutes.Edit(lookup).TrimStart('/'));
+        }
+    }
+
+    private static IEnumerable<string> TypesOf(ErrorOr<IReadOnlyList<TemplatePartInfo>>? parts) =>
+        parts is { IsSuccess: true } found ? found.Value.Select(static part => part.Type.Name).Distinct(StringComparer.Ordinal) : [];
+
+    private static string? OptionalOf(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

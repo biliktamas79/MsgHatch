@@ -1,0 +1,214 @@
+@attribute [Route(TemplateAdminRoutes.EditTemplate)]
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+@* The edit page of one part of a template: the editor of its engine, the version, a save with the expected version, and a delete after a question (D239, D240). *@
+
+<h1 class="h3">Template</h1>
+
+@if (_loadError is not null)
+{
+    <ErrorAlert Error="_loadError" />
+    <a href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a>
+}
+else if (_lookup is not { } lookup)
+{
+    <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+}
+else
+{
+    <dl class="row mb-2">
+        <dt class="col-sm-2">Message type</dt><dd class="col-sm-10">@lookup.Type.Name</dd>
+        <dt class="col-sm-2">Language</dt><dd class="col-sm-10">@lookup.Language</dd>
+        <dt class="col-sm-2">Company</dt><dd class="col-sm-10">@(lookup.Scope ?? "All companies")</dd>
+        <dt class="col-sm-2">Part</dt><dd class="col-sm-10">@lookup.Part (@lookup.Kind)</dd>
+        <dt class="col-sm-2">Version</dt><dd class="col-sm-10" data-field="version">@_version</dd>
+    </dl>
+    @if (!_exists)
+    {
+        <p class="text-secondary" data-state="new">There is no template for this part. A save makes it.</p>
+    }
+
+    <DynamicComponent @ref="_editor" Type="_editorType" Parameters="EditorParameters(lookup)" />
+
+    @if (!string.Equals(_text, _storedText, StringComparison.Ordinal))
+    {
+        <p class="text-warning mt-2" data-state="pending">The text has changes that are not saved.</p>
+    }
+    @if (_saved)
+    {
+        <div class="alert alert-success mt-2" role="status" data-state="saved">The template is saved.</div>
+    }
+    <div class="mt-2"><ErrorAlert Error="_formError" /></div>
+
+    <div class="d-flex gap-2 mt-2">
+        <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
+        @if (_exists)
+        {
+            <button type="button" class="btn btn-outline-danger" data-action="delete" disabled="@_busy" @onclick="() => _confirmDelete = true">Delete</button>
+        }
+        <a class="btn btn-link" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a>
+    </div>
+
+    <DeleteDialog Open="_confirmDelete" Question="@($"Do you want to delete the {lookup.Part} ({lookup.Kind}) template of {lookup.Type.Name} in {lookup.Language}?")"
+                  Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false" />
+}
+
+@code {
+    private TemplateLookup? _lookup;
+    private Type _editorType = typeof(PlainTemplateEditor);
+    private DynamicComponent? _editor;
+    private string _storedText = string.Empty;
+    private string _text = string.Empty;
+    private long _version;
+    private bool _exists;
+    private bool _busy;
+    private bool _saved;
+    private bool _confirmDelete;
+    private Error? _loadError;
+    private Error? _formError;
+    private IReadOnlyList<TemplateIssue> _issues = [];
+
+    /// <summary>The name of the message type, from the address.</summary>
+    [Parameter]
+    public string TypeName { get; set; } = string.Empty;
+
+    /// <summary>The language, from the address.</summary>
+    [Parameter]
+    public string Language { get; set; } = string.Empty;
+
+    /// <summary>The part, from the address.</summary>
+    [Parameter]
+    public string Part { get; set; } = string.Empty;
+
+    /// <summary>The kind of the part, <c>PlainText</c> or <c>Html</c>, from the address.</summary>
+    [Parameter]
+    public string KindName { get; set; } = string.Empty;
+
+    /// <summary>The company of the template scope, from the query <c>companyId</c>, or null for all companies.</summary>
+    [SupplyParameterFromQuery(Name = "companyId")]
+    public string? CompanyId { get; set; }
+
+    [Inject]
+    private TemplateEditors Editors { get; set; } = default!;
+
+    private ITemplateQueries Queries => Services.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None);
+
+    private ITemplateCommands Commands => Services.GetRequiredKeyedService<ITemplateCommands>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        _lookup = null;
+        _loadError = null;
+        _formError = null;
+        _saved = false;
+        _issues = [];
+        var lookup = TemplateRouteValues.LookupOf(TypeName, Language, CompanyId, Part, KindName);
+        if (lookup.IsError)
+        {
+            _loadError = lookup.Error;
+            return;
+        }
+
+        var parts = await Queries.GetTemplatePartsAsync(lookup.Value.Type, CancellationToken.None);
+        _loadError = parts.IsError ? parts.Error : await LoadAsync(lookup.Value);
+        if (_loadError is null)
+        {
+            _editorType = Editors.EditorOf(EnginesOf(parts.Value, lookup.Value));
+            _lookup = lookup.Value;
+        }
+    }
+
+    private async Task<Error?> LoadAsync(TemplateLookup lookup)
+    {
+        var source = await Queries.GetTemplateAsync(lookup, CancellationToken.None);
+        if (source.IsError && source.Error.Type != Errors.NotFound)
+        {
+            return source.Error;
+        }
+
+        _exists = source.IsSuccess;
+        _storedText = _text = source.IsSuccess ? source.Value.Text : string.Empty;
+        _version = source.IsSuccess ? source.Value.Key.Version : 0;
+        return null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_lookup is not { } lookup)
+        {
+            return;
+        }
+
+        _busy = true;
+        _saved = false;
+        _formError = null;
+        try
+        {
+            if (_editor?.Instance is TemplateEditorBase editor && !await editor.CanSaveAsync(CancellationToken.None))
+            {
+                return;
+            }
+
+            var saved = await Commands.SaveTemplateAsync(lookup, _text, _version, CancellationToken.None);
+            if (saved.IsError)
+            {
+                await ShowSaveErrorAsync(lookup, saved.Error);
+                return;
+            }
+
+            (_version, _storedText, _exists, _issues, _saved) = (saved.Value.Version, _text, true, [], true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ShowSaveErrorAsync(TemplateLookup lookup, Error error)
+    {
+        if (error.Type == Errors.TemplateInvalid)
+        {
+            _issues = [new TemplateIssue(error.Message ?? error.Type.Name, Line: null, Column: null)];
+            return;
+        }
+
+        _formError = error.Type == Errors.Conflict ? await LoadAsync(lookup) ?? error : error;
+    }
+
+    private async Task DeleteAsync()
+    {
+        _confirmDelete = false;
+        if (_lookup is not { } lookup)
+        {
+            return;
+        }
+
+        _busy = true;
+        _formError = await Commands.DeleteTemplateAsync(lookup, CancellationToken.None);
+        _busy = false;
+        if (_formError is null)
+        {
+            Navigation.NavigateTo(TemplateAdminRoutes.List.TrimStart('/'));
+        }
+    }
+
+    private void OnTextChanged(string text)
+    {
+        _text = text;
+        _saved = false;
+        _issues = [];
+    }
+
+    private Dictionary<string, object?> EditorParameters(TemplateLookup lookup) => new()
+    {
+        [nameof(TemplateEditorBase.Lookup)] = lookup,
+        [nameof(TemplateEditorBase.Text)] = _text,
+        [nameof(TemplateEditorBase.TextChanged)] = EventCallback.Factory.Create<string>(this, OnTextChanged),
+        [nameof(TemplateEditorBase.Issues)] = _issues,
+        [nameof(TemplateEditorBase.Disabled)] = _busy,
+    };
+
+    private static IReadOnlyList<string> EnginesOf(IReadOnlyList<TemplatePartInfo> parts, TemplateLookup lookup) =>
+        parts.FirstOrDefault(part => part.Part == new TemplatePart(lookup.Part, lookup.Kind))?.Engines ?? [];
+}
