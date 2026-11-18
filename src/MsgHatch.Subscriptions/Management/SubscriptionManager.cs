@@ -21,7 +21,7 @@ internal sealed class SubscriptionManager(
     IEnumerable<ISubscriptionMessage> scopedMessages,
     TimeProvider time,
     IOptions<MsgHatchOptions> options)
-    : ISubscriptionManager
+    : ISubscriptionQueries, ISubscriptionCommands
 {
     private const int _maxNamedUsers = 100;
 

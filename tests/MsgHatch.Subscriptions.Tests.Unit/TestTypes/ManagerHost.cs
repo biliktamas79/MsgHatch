@@ -27,7 +27,22 @@ public static class ManagerHost
         bool withPager = false,
         bool enableLogging = true)
     {
-        var services = TestHost.CreateServices(time);
+        var services = new ServiceCollection();
+        Services(time, directory, store, withPager, enableLogging)(services);
+        return services.Build();
+    }
+
+    public static Action<IServiceCollection> Services(
+        TimeProvider time,
+        IRecipientDirectory? directory = null,
+        Func<TenantKey, ISubscriptionStore>? store = null,
+        bool withPager = false,
+        bool enableLogging = true) =>
+        services => Add(services.AddTestServices(time), directory, store, withPager, enableLogging);
+
+    private static void Add(
+        IServiceCollection services, IRecipientDirectory? directory, Func<TenantKey, ISubscriptionStore>? store, bool withPager, bool enableLogging)
+    {
         var builder = services.AddMsgHatch(o => { o.Roles = MsgHatchRoles.Consumer; o.EnableLogging = enableLogging; })
             .UseSubscriptions()
             .UseInMemoryStores()
@@ -42,8 +57,6 @@ public static class ManagerHost
         {
             AddPager(builder);
         }
-
-        return services.Build();
     }
 
     public static async Task SeedScenarioAsync(this IServiceProvider provider)

@@ -41,7 +41,7 @@ public sealed class ExampleStartupUnitTests : IDisposable
 
         // Assert
         await using var scope = provider.CreateAsyncScope();
-        var subscriptions = await scope.ServiceProvider.GetRequiredService<ISubscriptionManager>().GetSubscriptionsAsync(new SubscriptionQuery(), Ct);
+        var subscriptions = await scope.ServiceProvider.GetRequiredService<ISubscriptionQueries>().GetSubscriptionsAsync(new SubscriptionQuery(), Ct);
         var inbox = await provider.GetRequiredService<IInboxDispatchStore>().ClaimDueAsync(100, _time.UtcNow, TimeSpan.FromMinutes(1), Ct);
         Assert.Equal(
             (12, "A B C D E F C A B C D E F C"),

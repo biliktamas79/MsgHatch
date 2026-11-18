@@ -25,13 +25,13 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
     public static TheoryData<string, string, string, string?, string> RouteRows => new()
     {
-        { "channels", "GET", "/subscriptions/channels", null, nameof(ISubscriptionManager.GetChannelsAsync) },
-        { "message types", "GET", "/subscriptions/message-types", null, nameof(ISubscriptionManager.GetMessageTypesAsync) },
-        { "list", "GET", "/subscriptions", null, nameof(ISubscriptionManager.GetSubscriptionsAsync) },
-        { "read", "GET", $"/subscriptions/{_anId}", null, nameof(ISubscriptionManager.GetSubscriptionAsync) },
-        { "create", "POST", "/subscriptions", _validDraft, nameof(ISubscriptionManager.CreateAsync) },
-        { "update", "PUT", $"/subscriptions/{_anId}", _validDraft, nameof(ISubscriptionManager.UpdateAsync) },
-        { "delete", "DELETE", $"/subscriptions/{_anId}", null, nameof(ISubscriptionManager.DeleteAsync) },
+        { "channels", "GET", "/subscriptions/channels", null, nameof(ISubscriptionQueries.GetChannelsAsync) },
+        { "message types", "GET", "/subscriptions/message-types", null, nameof(ISubscriptionQueries.GetMessageTypesAsync) },
+        { "list", "GET", "/subscriptions", null, nameof(ISubscriptionQueries.GetSubscriptionsAsync) },
+        { "read", "GET", $"/subscriptions/{_anId}", null, nameof(ISubscriptionQueries.GetSubscriptionAsync) },
+        { "create", "POST", "/subscriptions", _validDraft, nameof(ISubscriptionCommands.CreateAsync) },
+        { "update", "PUT", $"/subscriptions/{_anId}", _validDraft, nameof(ISubscriptionCommands.UpdateAsync) },
+        { "delete", "DELETE", $"/subscriptions/{_anId}", null, nameof(ISubscriptionCommands.DeleteAsync) },
     };
 
     public static TheoryData<string, string> InvalidQueryRows => new()
@@ -235,6 +235,6 @@ public sealed partial class SubscriptionEndpointsUnitTests
         Assert.Equal((status, row), await EndpointHost.ProblemOf(response));
     }
 
-    private static string CallsOf(ISubscriptionManager manager) =>
+    private static string CallsOf(ISubscriptionManagement manager) =>
         string.Join(", ", manager.ReceivedCalls().Select(static call => call.GetMethodInfo().Name));
 }

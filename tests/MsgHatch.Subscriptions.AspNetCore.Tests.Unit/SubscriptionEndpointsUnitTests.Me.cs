@@ -85,7 +85,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
         await host.GetAsync("/subscriptions/me/channels?tenantId=t2", tenant: "t2");
 
         // Assert
-        Assert.Equal((nameof(ISubscriptionManager.GetChannelsAsync), 0), (CallsOf(host.Manager), host.T2Manager.ReceivedCalls().Count()));
+        Assert.Equal((nameof(ISubscriptionQueries.GetChannelsAsync), 0), (CallsOf(host.Manager), host.T2Manager.ReceivedCalls().Count()));
     }
 
     [Theory]
@@ -188,7 +188,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
         var response = await host.SendAsync(new HttpMethod(method), $"/subscriptions/me/{Scenario.S12.Id}", body, user: "1");
 
         // Assert
-        Assert.Equal((row, (404, "NotFound"), nameof(ISubscriptionManager.GetSubscriptionAsync)), (row, await EndpointHost.ProblemOf(response), CallsOf(host.Manager)));
+        Assert.Equal((row, (404, "NotFound"), nameof(ISubscriptionQueries.GetSubscriptionAsync)), (row, await EndpointHost.ProblemOf(response), CallsOf(host.Manager)));
     }
 
     [Theory]
@@ -273,7 +273,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            (HttpStatusCode.NoContent, $"{nameof(ISubscriptionManager.GetSubscriptionAsync)}, {nameof(ISubscriptionManager.DeleteAsync)}"),
+            (HttpStatusCode.NoContent, $"{nameof(ISubscriptionQueries.GetSubscriptionAsync)}, {nameof(ISubscriptionCommands.DeleteAsync)}"),
             (response.StatusCode, CallsOf(host.Manager)));
     }
 

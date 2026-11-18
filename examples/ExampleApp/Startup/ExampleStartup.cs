@@ -27,21 +27,21 @@ public static class ExampleStartup
         var directory = ActivatorUtilities.CreateInstance<ExampleRecipientDirectory>(scope.ServiceProvider, TenantKey.None);
         if (!Succeeded(await directory.HasUsersAsync(ct)))
         {
-            await SeedAsync(directory, scope.ServiceProvider.GetRequiredService<ISubscriptionManager>(), ct);
+            await SeedAsync(directory, scope.ServiceProvider.GetRequiredService<ISubscriptionCommands>(), ct);
         }
 
         await AcceptEventsAsync(scope.ServiceProvider.GetRequiredService<INotificationService>(), ct);
     }
 
-    /// <summary>Writes the companies and the users into the directory, and the subscriptions through the manager.</summary>
+    /// <summary>Writes the companies and the users into the directory, and the subscriptions through the commands.</summary>
     /// <param name="directory">The directory of one tenant.</param>
-    /// <param name="manager">The subscription manager of the same tenant.</param>
+    /// <param name="commands">The subscription commands of the same tenant.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A task that completes when the scenario is written.</returns>
-    public static async Task SeedAsync(ExampleRecipientDirectory directory, ISubscriptionManager manager, CancellationToken ct)
+    public static async Task SeedAsync(ExampleRecipientDirectory directory, ISubscriptionCommands commands, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(directory);
-        ArgumentNullException.ThrowIfNull(manager);
+        ArgumentNullException.ThrowIfNull(commands);
         foreach (var company in ExampleScenario.Companies)
         {
             ThrowIfFailed(await directory.SaveCompanyAsync(company, ct));
@@ -54,7 +54,7 @@ public static class ExampleStartup
 
         foreach (var draft in ExampleScenario.Subscriptions)
         {
-            ThrowIfFailed((await manager.CreateAsync(draft, ct)).Error);
+            ThrowIfFailed((await commands.CreateAsync(draft, ct)).Error);
         }
     }
 

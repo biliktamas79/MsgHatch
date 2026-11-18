@@ -15,10 +15,11 @@ public static class SubscriptionExtensions
 {
     /// <summary>
     /// Selects the subscription router as the router of each message type with no router of its own (D99). Registers
-    /// <see cref="ResolutionTrace"/> as the trace type <c>Trace:Subscription</c> (D98), and <see cref="ISubscriptionManager"/>
-    /// and <see cref="IRoutingVerifier"/> as scoped tenant services, each with its logging wrapper (D53, D85). A message type with the
-    /// subscription router needs a scope function from <see cref="WithScope"/>. With the role
-    /// <see cref="MsgHatchRoles.Consumer"/>, the host needs a subscription store and a recipient directory.
+    /// <see cref="ResolutionTrace"/> as the trace type <c>Trace:Subscription</c> (D98), and <see cref="ISubscriptionQueries"/>,
+    /// <see cref="ISubscriptionCommands"/>, and <see cref="IRoutingVerifier"/> as scoped tenant services, each with its logging
+    /// wrapper (D53, D85, D231). A message type with the subscription router needs a scope function from
+    /// <see cref="WithScope"/>. With the role <see cref="MsgHatchRoles.Consumer"/>, the host needs a subscription store and a
+    /// recipient directory.
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <returns>The builder.</returns>
@@ -29,7 +30,11 @@ public static class SubscriptionExtensions
         return builder
             .UseRouter(typeof(SubscriptionRouter<>))
             .AddTraceType("Subscription", 1, SubscriptionJson.Default.ResolutionTrace)
-            .AddTenantService<ISubscriptionManager>(
+            .AddTenantService<ISubscriptionQueries>(
+                ServiceLifetime.Scoped,
+                static (tenantServices, _) => ActivatorUtilities.CreateInstance<SubscriptionManager>(tenantServices),
+                SubscriptionLoggers.Wrap)
+            .AddTenantService<ISubscriptionCommands>(
                 ServiceLifetime.Scoped,
                 static (tenantServices, _) => ActivatorUtilities.CreateInstance<SubscriptionManager>(tenantServices),
                 SubscriptionLoggers.Wrap)

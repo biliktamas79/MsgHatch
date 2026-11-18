@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
@@ -8,12 +9,18 @@ using MsgHatch.Subscriptions.Management;
 namespace MsgHatch.Subscriptions.AspNetCore;
 
 /// <summary>
-/// The manager of the tenant of one request, and the signed-in user of a <c>/me</c> route. A <c>/me</c> route uses only
-/// the user-level subscriptions of that user, and gives the same 404 for an unknown id and for another owner (D154).
+/// The queries and the commands of the tenant of one request, and the signed-in user of a <c>/me</c> route (D231). A
+/// <c>/me</c> route uses only the user-level subscriptions of that user, and gives the same 404 for an unknown id and for
+/// another owner (D154).
 /// </summary>
-internal sealed record Caller(ISubscriptionManager Manager, IContentTypeRegistry Registry, UserId? SignedInUser, TenantId? QueryTenant)
+internal sealed record Caller(
+    IServiceProvider RequestServices, TenantKey Key, IContentTypeRegistry Registry, UserId? SignedInUser, TenantId? QueryTenant)
 {
     private static readonly Error _notStored = new(Errors.NotFound, "The subscription is not stored.");
+
+    public ISubscriptionQueries Queries => RequestServices.GetRequiredKeyedService<ISubscriptionQueries>(Key);
+
+    public ISubscriptionCommands Commands => RequestServices.GetRequiredKeyedService<ISubscriptionCommands>(Key);
 
     public ErrorOr<MessageTypeQuery> MessageTypeQueryOf(string? messageType, string? companyId, string? userId)
     {
@@ -80,7 +87,7 @@ internal sealed record Caller(ISubscriptionManager Manager, IContentTypeRegistry
 
     public async Task<ErrorOr<Subscription>> GetOwnedAsync(Guid id, CancellationToken ct)
     {
-        var subscription = await Manager.GetSubscriptionAsync(id, ct);
+        var subscription = await Queries.GetSubscriptionAsync(id, ct);
         return SignedInUser is not { } user
             || (subscription.IsError && subscription.Error.Type != Errors.NotFound)
             || (subscription.IsSuccess && subscription.Value.Owner == SubscriptionOwner.ForUser(user))

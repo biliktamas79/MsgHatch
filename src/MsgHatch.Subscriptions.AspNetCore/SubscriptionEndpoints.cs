@@ -9,10 +9,10 @@ namespace MsgHatch.Subscriptions.AspNetCore;
 public static class SubscriptionEndpoints
 {
     /// <summary>
-    /// Maps the minimal API endpoints of <see cref="ISubscriptionManager"/>: the channels, the message types, and the list,
-    /// read, create, update, and delete of the subscriptions. It also maps <c>POST {prefix}/verification</c> of
-    /// <see cref="Verification.IRoutingVerifier"/>, only with no <c>/me</c> (D163). Each route takes the optional query parameter
-    /// <c>tenantId</c>, and uses the manager of <see cref="TenantKey.For"/> that tenant, or of <see cref="TenantKey.None"/>.
+    /// Maps the minimal API endpoints of <see cref="ISubscriptionQueries"/> and <see cref="ISubscriptionCommands"/>: the
+    /// channels, the message types, and the list, read, create, update, and delete of the subscriptions (D231). It also maps
+    /// <c>POST {prefix}/verification</c> of <see cref="Verification.IRoutingVerifier"/>, only with no <c>/me</c> (D163). Each
+    /// route takes the optional query parameter <c>tenantId</c>, and uses the services of <see cref="TenantKey.For"/> that tenant, or of <see cref="TenantKey.None"/>.
     /// With <see cref="SubscriptionEndpointOptions.CurrentUser"/>, the same endpoints also exist under <c>{prefix}/me</c>
     /// for the user-level subscriptions of the signed-in user (D154). The library adds no authorization, so the consumer
     /// adds it on the returned group, for example with <c>.RequireAuthorization("SubscriptionAdmin")</c>.

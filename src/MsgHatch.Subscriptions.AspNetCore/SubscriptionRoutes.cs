@@ -62,7 +62,7 @@ internal sealed class SubscriptionRoutes(
 
     private Task<IResult> GetChannelsAsync(HttpContext context) =>
         RunAsync(context, async caller => Json(
-            await caller.Manager.GetChannelsAsync(context.RequestAborted),
+            await caller.Queries.GetChannelsAsync(context.RequestAborted),
             static channels => [.. channels.Select(ChannelResponse.From)],
             _json.IReadOnlyListChannelResponse));
 
@@ -71,7 +71,7 @@ internal sealed class SubscriptionRoutes(
         {
             var query = caller.MessageTypeQueryOf(messageType, companyId, userId);
             return query.IsError ? Problem(query.Error) : Json(
-                await caller.Manager.GetMessageTypesAsync(query.Value, context.RequestAborted),
+                await caller.Queries.GetMessageTypesAsync(query.Value, context.RequestAborted),
                 states => [.. states.Select(state => MessageTypeResponse.From(state, caller.Registry))],
                 _json.IReadOnlyListMessageTypeResponse);
         });
@@ -82,7 +82,7 @@ internal sealed class SubscriptionRoutes(
         {
             var query = caller.SubscriptionQueryOf(messageType, companyId, userId, level);
             return query.IsError ? Problem(query.Error) : Json(
-                await caller.Manager.GetSubscriptionsAsync(query.Value, context.RequestAborted),
+                await caller.Queries.GetSubscriptionsAsync(query.Value, context.RequestAborted),
                 subscriptions => [.. subscriptions.Select(subscription => SubscriptionResponse.From(subscription, caller.Registry))],
                 _json.IReadOnlyListSubscriptionResponse);
         });
@@ -107,7 +107,7 @@ internal sealed class SubscriptionRoutes(
                 return Problem(draft.Error);
             }
 
-            var created = await caller.Manager.CreateAsync(draft.Value, context.RequestAborted);
+            var created = await caller.Commands.CreateAsync(draft.Value, context.RequestAborted);
             if (created.IsError)
             {
                 return Problem(created.Error);
@@ -139,7 +139,7 @@ internal sealed class SubscriptionRoutes(
             }
 
             return await caller.OwnerErrorAsync(id, context.RequestAborted) is { } ownerError ? Problem(ownerError) : Json(
-                await caller.Manager.UpdateAsync(id, revision, draft.Value, context.RequestAborted),
+                await caller.Commands.UpdateAsync(id, revision, draft.Value, context.RequestAborted),
                 subscription => SubscriptionResponse.From(subscription, caller.Registry),
                 _json.SubscriptionResponse);
         });
@@ -148,7 +148,7 @@ internal sealed class SubscriptionRoutes(
         RunAsync(context, async caller =>
         {
             var error = await caller.OwnerErrorAsync(id, context.RequestAborted)
-                ?? await caller.Manager.DeleteAsync(id, context.RequestAborted);
+                ?? await caller.Commands.DeleteAsync(id, context.RequestAborted);
             return error is null ? TypedResults.NoContent() : Problem(error);
         });
 
@@ -160,16 +160,13 @@ internal sealed class SubscriptionRoutes(
             var tenant = RequestValues.Optional(context.Request.Query["tenantId"], TenantId.Create);
             return tenant.IsError
                 ? Problem(tenant.Error)
-                : await action(new Caller(ManagerOf(context, tenant.Value), registry, SignedInUser: null, tenant.Value));
+                : await action(new Caller(context.RequestServices, TenantKey.For(tenant.Value), registry, SignedInUser: null, tenant.Value));
         }
 
         return signedInUser(context.User) is { } user
-            ? await action(new Caller(ManagerOf(context, signedInTenant?.Invoke(context.User)), registry, user, QueryTenant: null))
+            ? await action(new Caller(context.RequestServices, TenantKey.For(signedInTenant?.Invoke(context.User)), registry, user, QueryTenant: null))
             : TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden);
     }
-
-    private static ISubscriptionManager ManagerOf(HttpContext context, TenantId? tenant) =>
-        context.RequestServices.GetRequiredKeyedService<ISubscriptionManager>(TenantKey.For(tenant));
 
     private static async Task<ErrorOr<T>> ReadAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo)
         where T : class

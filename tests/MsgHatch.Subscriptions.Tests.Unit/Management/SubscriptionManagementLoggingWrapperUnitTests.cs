@@ -11,10 +11,10 @@ using NSubstitute;
 namespace MsgHatch.Subscriptions.Tests.Unit.Management;
 
 /// <summary>
-/// The standard logging wrapper tests for <see cref="ISubscriptionManager"/>, through the manager of
-/// <c>UseSubscriptions</c> with the in-memory store, or with a store substitute that fails.
+/// The standard logging wrapper tests for <see cref="ISubscriptionQueries"/> and <see cref="ISubscriptionCommands"/>,
+/// through the services of <c>UseSubscriptions</c> with the in-memory store, or with a store substitute that fails.
 /// </summary>
-public sealed class SubscriptionManagerLoggingWrapperUnitTests
+public sealed class SubscriptionManagementLoggingWrapperUnitTests
 {
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
@@ -58,7 +58,7 @@ public sealed class SubscriptionManagerLoggingWrapperUnitTests
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        var error = await CallAsync(scope.ServiceProvider.GetRequiredService<ISubscriptionManager>(), operation);
+        var error = await CallAsync(scope.ServiceProvider, operation);
 
         // Assert
         var record = Assert.Single(ManagerRecords(provider));
@@ -75,7 +75,7 @@ public sealed class SubscriptionManagerLoggingWrapperUnitTests
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        var returned = await CallAsync(scope.ServiceProvider.GetRequiredService<ISubscriptionManager>(), operation);
+        var returned = await CallAsync(scope.ServiceProvider, operation);
 
         // Assert
         var record = Assert.Single(ManagerRecords(provider));
@@ -92,7 +92,7 @@ public sealed class SubscriptionManagerLoggingWrapperUnitTests
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        await CallAsync(scope.ServiceProvider.GetRequiredService<ISubscriptionManager>(), "GetSubscriptions");
+        await CallAsync(scope.ServiceProvider, "GetSubscriptions");
 
         // Assert
         var record = Assert.Single(ManagerRecords(provider));
@@ -100,28 +100,28 @@ public sealed class SubscriptionManagerLoggingWrapperUnitTests
     }
 
     [Fact]
-    public async Task GetSubscriptionsAsync_ManagerOfAKey_LogsTheTenantOfTheKey()
+    public async Task GetSubscriptionsAsync_QueriesOfAKey_LogsTheTenantOfTheKey()
     {
         // Arrange
         await using var provider = ManagerHost.Build(TestHost.NewFakeTime());
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        await scope.ServiceProvider.GetRequiredKeyedService<ISubscriptionManager>(_t1).GetSubscriptionsAsync(new SubscriptionQuery(), Ct);
+        await scope.ServiceProvider.GetRequiredKeyedService<ISubscriptionQueries>(_t1).GetSubscriptionsAsync(new SubscriptionQuery(), Ct);
 
         // Assert
         Assert.Equal("t1", Assert.Single(ManagerRecords(provider)).GetStructuredStateValue("Tenant"));
     }
 
     [Fact]
-    public async Task UseSubscriptions_EnableLoggingFalse_RegistersNoLoggingWrapperOfTheManager()
+    public async Task UseSubscriptions_EnableLoggingFalse_RegistersNoLoggingWrapperOfTheQueries()
     {
         // Arrange
         await using var provider = ManagerHost.Build(TestHost.NewFakeTime(), enableLogging: false);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        await scope.ServiceProvider.GetRequiredService<ISubscriptionManager>().GetSubscriptionsAsync(new SubscriptionQuery(), Ct);
+        await scope.ServiceProvider.GetRequiredService<ISubscriptionQueries>().GetSubscriptionsAsync(new SubscriptionQuery(), Ct);
 
         // Assert
         Assert.Empty(ManagerRecords(provider));
@@ -134,11 +134,12 @@ public sealed class SubscriptionManagerLoggingWrapperUnitTests
         await using var provider = ManagerHost.Build(TestHost.NewFakeTime());
         await provider.SeedScenarioAsync();
         await using var scope = provider.CreateAsyncScope();
-        var manager = scope.ServiceProvider.GetRequiredService<ISubscriptionManager>();
+        var queries = scope.ServiceProvider.GetRequiredService<ISubscriptionQueries>();
+        var commands = scope.ServiceProvider.GetRequiredService<ISubscriptionCommands>();
 
         // Act
-        await manager.GetMessageTypesAsync(new MessageTypeQuery(User: new UserId("1")), Ct);
-        await manager.CreateAsync(
+        await queries.GetMessageTypesAsync(new MessageTypeQuery(User: new UserId("1")), Ct);
+        await commands.CreateAsync(
             new SubscriptionDraft(
                 SubscriptionOwner.ForCompany(Scenario.Acme), new MessageType("A"), SubscriptionKind.Channel, EmailChannel.Id,
                 new EmailChannelSettings(), SubscriptionRecipients.ForUsers([new UserId("2")])),
@@ -163,20 +164,22 @@ public sealed class SubscriptionManagerLoggingWrapperUnitTests
         return store;
     }
 
-    private static async Task<Error?> CallAsync(ISubscriptionManager manager, string operation)
+    private static async Task<Error?> CallAsync(IServiceProvider services, string operation)
     {
+        var queries = services.GetRequiredService<ISubscriptionQueries>();
+        var commands = services.GetRequiredService<ISubscriptionCommands>();
         var draft = new SubscriptionDraft(
             SubscriptionOwner.ForUser(new UserId("1")), new MessageType("B"), SubscriptionKind.Channel, EmailChannel.Id,
             new EmailChannelSettings("en", EmailFormat.Html));
         return operation switch
         {
-            "GetChannels" => (await manager.GetChannelsAsync(Ct)).Error,
-            "GetMessageTypes" => (await manager.GetMessageTypesAsync(new MessageTypeQuery(), Ct)).Error,
-            "GetSubscriptions" => (await manager.GetSubscriptionsAsync(new SubscriptionQuery(), Ct)).Error,
-            "GetSubscription" => (await manager.GetSubscriptionAsync(Scenario.S6.Id, Ct)).Error,
-            "Create" => (await manager.CreateAsync(draft with { Type = new MessageType("A") }, Ct)).Error,
-            "Update" => (await manager.UpdateAsync(Scenario.S6.Id, 1, draft, Ct)).Error,
-            _ => await manager.DeleteAsync(Scenario.S7.Id, Ct),
+            "GetChannels" => (await queries.GetChannelsAsync(Ct)).Error,
+            "GetMessageTypes" => (await queries.GetMessageTypesAsync(new MessageTypeQuery(), Ct)).Error,
+            "GetSubscriptions" => (await queries.GetSubscriptionsAsync(new SubscriptionQuery(), Ct)).Error,
+            "GetSubscription" => (await queries.GetSubscriptionAsync(Scenario.S6.Id, Ct)).Error,
+            "Create" => (await commands.CreateAsync(draft with { Type = new MessageType("A") }, Ct)).Error,
+            "Update" => (await commands.UpdateAsync(Scenario.S6.Id, 1, draft, Ct)).Error,
+            _ => await commands.DeleteAsync(Scenario.S7.Id, Ct),
         };
     }
 }

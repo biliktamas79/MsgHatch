@@ -270,7 +270,7 @@ Each example calls `ProcessAsync` with the scenario, the in-memory outbox, subst
 
 ### 5.5 Management
 
-Each example uses the scenario of section 4 and `ISubscriptionManager`. A change example starts from the full scenario in its own storage.
+Each example uses the scenario of section 4, `ISubscriptionQueries`, and `ISubscriptionCommands`. A change example starts from the full scenario in its own storage.
 
 | No. | Action | Input | Expected result |
 |---|---|---|---|

@@ -20,9 +20,13 @@ internal static class SubscriptionLoggers
         new RecipientDirectoryLoggingWrapper(
             directory, key, For<RecipientDirectoryLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
 
-    public static ISubscriptionManager Wrap(IServiceProvider services, TenantKey key, ISubscriptionManager manager) =>
-        new SubscriptionManagerLoggingWrapper(
-            manager, key, For<SubscriptionManagerLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
+    public static ISubscriptionQueries Wrap(IServiceProvider services, TenantKey key, ISubscriptionQueries queries) =>
+        new SubscriptionQueriesLoggingWrapper(
+            queries, key, For<SubscriptionQueriesLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
+
+    public static ISubscriptionCommands Wrap(IServiceProvider services, TenantKey key, ISubscriptionCommands commands) =>
+        new SubscriptionCommandsLoggingWrapper(
+            commands, key, For<SubscriptionCommandsLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
 
     public static IRoutingVerifier Wrap(IServiceProvider services, TenantKey key, IRoutingVerifier verifier) =>
         new RoutingVerifierLoggingWrapper(

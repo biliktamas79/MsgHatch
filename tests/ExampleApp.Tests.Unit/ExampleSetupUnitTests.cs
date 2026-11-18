@@ -82,7 +82,7 @@ public sealed class ExampleSetupUnitTests : IDisposable
         await using var scope = provider.CreateAsyncScope();
         var optOut = new SubscriptionDraft(
             SubscriptionOwner.ForUser(UserId.From(2)), new MessageType("E"), SubscriptionKind.OptOut, Channel: null, Settings: null);
-        Assert.False((await ExampleProcess.ManagerOf(scope.ServiceProvider, TenantKey.None).CreateAsync(optOut, Ct)).IsError);
+        Assert.False((await ExampleProcess.CommandsOf(scope.ServiceProvider, TenantKey.None).CreateAsync(optOut, Ct)).IsError);
 
         // Act
         var after = await provider.ProcessAsync(new EventE([2], null, "e"));
@@ -222,7 +222,7 @@ public sealed class ExampleSetupUnitTests : IDisposable
         var key = TenantKey.For(tenant);
         await using var scope = provider.CreateAsyncScope();
         Assert.Null(await ExampleProcess.DirectoryOf(scope.ServiceProvider, key).SaveUserAsync(new ExampleUser(1, CompanyId: null, "en", email), Ct));
-        Assert.False((await ExampleProcess.ManagerOf(scope.ServiceProvider, key).CreateAsync(ExampleScenario.Subscriptions[0], Ct)).IsError);
+        Assert.False((await ExampleProcess.CommandsOf(scope.ServiceProvider, key).CreateAsync(ExampleScenario.Subscriptions[0], Ct)).IsError);
     }
 
     private static string BoundsOf(List<Metric> metrics, string name)

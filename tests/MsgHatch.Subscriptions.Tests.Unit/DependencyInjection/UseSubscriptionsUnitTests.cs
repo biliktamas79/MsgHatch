@@ -141,7 +141,7 @@ public sealed class UseSubscriptionsUnitTests
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        var states = await scope.ServiceProvider.GetRequiredService<ISubscriptionManager>()
+        var states = await scope.ServiceProvider.GetRequiredService<ISubscriptionQueries>()
             .GetMessageTypesAsync(new MessageTypeQuery(), TestContext.Current.CancellationToken);
 
         // Assert

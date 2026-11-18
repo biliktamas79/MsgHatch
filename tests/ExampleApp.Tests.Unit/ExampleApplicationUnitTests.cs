@@ -90,7 +90,7 @@ public sealed class ExampleApplicationUnitTests : IDisposable
             SubscriptionOwner.Default, new MessageType("D"), SubscriptionKind.Channel, BrokerChannel.Id, new BrokerChannelSettings());
         await using (var scope = example.App.Services.CreateAsyncScope())
         {
-            Assert.False((await ExampleProcess.ManagerOf(scope.ServiceProvider, TenantKey.None).CreateAsync(broker, Ct)).IsError);
+            Assert.False((await ExampleProcess.CommandsOf(scope.ServiceProvider, TenantKey.None).CreateAsync(broker, Ct)).IsError);
         }
 
         await ExampleStartup.RunAsync(example.App.Services, Ct);

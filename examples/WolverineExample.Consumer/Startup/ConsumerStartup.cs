@@ -21,12 +21,12 @@ public static class ConsumerStartup
             var directory = ConsumerDirectory.For(scope.ServiceProvider, key);
             if (!Succeeded(await directory.HasUsersAsync(ct)))
             {
-                await SeedTenantAsync(tenant, directory, scope.ServiceProvider.GetRequiredKeyedService<ISubscriptionManager>(key), ct);
+                await SeedTenantAsync(tenant, directory, scope.ServiceProvider.GetRequiredKeyedService<ISubscriptionCommands>(key), ct);
             }
         }
     }
 
-    private static async Task SeedTenantAsync(ScenarioTenant tenant, ConsumerDirectory directory, ISubscriptionManager manager, CancellationToken ct)
+    private static async Task SeedTenantAsync(ScenarioTenant tenant, ConsumerDirectory directory, ISubscriptionCommands commands, CancellationToken ct)
     {
         foreach (var company in tenant.Companies)
         {
@@ -40,7 +40,7 @@ public static class ConsumerStartup
 
         foreach (var draft in ConsumerScenario.Subscriptions)
         {
-            ThrowIfFailed((await manager.CreateAsync(draft, ct)).Error);
+            ThrowIfFailed((await commands.CreateAsync(draft, ct)).Error);
         }
     }
 

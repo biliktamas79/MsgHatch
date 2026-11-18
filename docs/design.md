@@ -402,7 +402,7 @@ The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3
 | Flow step | Library | Consumer implements |
 |---|---|---|
 | 1 Trigger | `INotificationService`, `ReceivedMessage<TEvent>`, `IInboxProcessor` | Domain event records, their `JsonSerializerContext`, and an inbox store when it uses the inbox |
-| 2 Route | `IMessageRouter<TEvent>`, `MessageRoute`, `RouteGrouping`. The package `MsgHatch.Subscriptions` with `SubscriptionRouter<TEvent>`, `SubscriptionResolver`, `ISubscriptionManager`, and its stores. | A router. Or, for the subscription router, `IRecipientDirectory` and a scope function for each message type. |
+| 2 Route | `IMessageRouter<TEvent>`, `MessageRoute`, `RouteGrouping`. The package `MsgHatch.Subscriptions` with `SubscriptionRouter<TEvent>`, `SubscriptionResolver`, `ISubscriptionQueries`, `ISubscriptionCommands`, and its stores. | A router. Or, for the subscription router, `IRecipientDirectory` and a scope function for each message type. |
 | 3 Templates | `ITemplateEngine<TPayload>` with `ITemplateEngineFactory`, the placeholder engine, the Liquid engine of `MsgHatch.Templates.Liquid` (D205, D216), the template selector, the template parser and cache, `EmbeddedResourceTemplateStore`, `FileSystemTemplateStore` | `ITemplateStore`, only for other storage, for example a database |
 | 4 Data | `IPayloadLoader<TEvent, TPayload>`, which the library composers call, and the event loader of `WithEventPayload` (D139) | Template payload types and their loaders, only for a payload that is not the event |
 | 5 Generate | `IEnvelopeComposer<TEvent, TEnvelope>`, one library composer for each channel, the generated placeholder writers, and the placeholder renderer | A composer, only for an own channel |
@@ -1468,12 +1468,16 @@ public interface ISubscriptionCacheBackend
     ValueTask<Error?> RemoveByTagAsync(string tag, CancellationToken ct);
 }
 
-public interface ISubscriptionManager
+public interface ISubscriptionQueries
 {
     ValueTask<ErrorOr<IReadOnlyList<ChannelDescriptor>>> GetChannelsAsync(CancellationToken ct);
     ValueTask<ErrorOr<IReadOnlyList<MessageTypeState>>> GetMessageTypesAsync(MessageTypeQuery query, CancellationToken ct);
     ValueTask<ErrorOr<IReadOnlyList<Subscription>>> GetSubscriptionsAsync(SubscriptionQuery query, CancellationToken ct);
     ValueTask<ErrorOr<Subscription>> GetSubscriptionAsync(Guid id, CancellationToken ct);
+}
+
+public interface ISubscriptionCommands
+{
     ValueTask<ErrorOr<Subscription>> CreateAsync(SubscriptionDraft draft, CancellationToken ct);
     ValueTask<ErrorOr<Subscription>> UpdateAsync(Guid id, int expectedRevision, SubscriptionDraft draft, CancellationToken ct);
     ValueTask<Error?> DeleteAsync(Guid id, CancellationToken ct);
@@ -1505,7 +1509,7 @@ public sealed class PasswordResetRouter : IMessageRouter<PasswordReset>
 }
 ```
 
-Tenant services (D126). These services are tenant services: each router, payload loader, composer, and template engine, the template store of a tenant, `IInboxStore`, `IOutboxStore`, `IDeliveryManager`, and, in `MsgHatch.Subscriptions`, `ISubscriptionStore`, `IRecipientDirectory`, `ISubscriptionCache`, `ISubscriptionManager`, and `IRoutingVerifier`. The other services exist one time for the whole system, for example the dispatch stores, the transports, `IMessageRegistry`, and `IDispatchSignal`.
+Tenant services (D126). These services are tenant services: each router, payload loader, composer, and template engine, the template store of a tenant, `IInboxStore`, `IOutboxStore`, `IDeliveryManager`, and, in `MsgHatch.Subscriptions`, `ISubscriptionStore`, `IRecipientDirectory`, `ISubscriptionCache`, `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier`. The other services exist one time for the whole system, for example the dispatch stores, the transports, `IMessageRegistry`, and `IDispatchSignal`.
 
 Contract rules of the core:
 - Each store, router, loader, composer, engine, and transport method returns an `Error` for a failure, and does not throw (section 4.12).
@@ -1641,7 +1645,7 @@ Setup methods of `MsgHatch.Subscriptions` and its packages (D97):
 
 | Method | Package | One call registers |
 |---|---|---|
-| `UseSubscriptions()` | Subscriptions | `SubscriptionRouter<>` as the open generic router with `UseRouter`, `AddTraceType` for `ResolutionTrace`, and `ISubscriptionManager` and `IRoutingVerifier` as tenant services, each with its logging wrapper. |
+| `UseSubscriptions()` | Subscriptions | `SubscriptionRouter<>` as the open generic router with `UseRouter`, `AddTraceType` for `ResolutionTrace`, and `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` as tenant services, each with its logging wrapper (D231). |
 | `UseSubscriptionStore<TStore>()` | Subscriptions | A subscription store as a tenant service, with its logging wrapper. The store packages call it with the factory overload. A host calls it only for its own store. |
 | `UseInMemorySubscriptionStore()` | Subscriptions | `InMemorySubscriptionStore`, with its logging wrapper, for a host with no database. Each key has its own instance. |
 | `UseRecipientDirectory<TDirectory>()` | Subscriptions | The consumer's recipient directory as a tenant service, with its logging wrapper (D76). |
@@ -1658,7 +1662,7 @@ Setup methods of `MsgHatch.Subscriptions` and its packages (D97):
 
 Shared options (D59). A subscription store package uses the options class of its core package, for example `SqliteStoreOptions`. Its setup method with a value in code sets the same options as the core setup method. If both methods give a value in code, the startup validation fails, and its message names both methods (D62). So the outbox and the subscriptions of one technology always use one storage, and a value never changes the other one with no warning. Each of the two methods binds the configuration section, and gives its value in code through `ConfigureSharedOptions` (D150).
 
-`MsgHatch.Subscriptions.AspNetCore` needs no setup method, because its endpoints need only `ISubscriptionManager`, `IRoutingVerifier`, and `IContentTypeRegistry`, which `AddMsgHatch` registers. The registry gives the JSON type information of the `settings` object of a body (section 4.17). `IEndpointRouteBuilder.MapMsgHatchSubscriptions(prefix, configure?)` maps the HTTP endpoints of section 4.17 on the web application.
+`MsgHatch.Subscriptions.AspNetCore` needs no setup method, because its endpoints need only `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, and `IContentTypeRegistry`, which `AddMsgHatch` registers. The registry gives the JSON type information of the `settings` object of a body (section 4.17). `IEndpointRouteBuilder.MapMsgHatchSubscriptions(prefix, configure?)` maps the HTTP endpoints of section 4.17 on the web application.
 
 `MsgHatch.AspNetCore` needs no setup method either, because its endpoints need only `IDeliveryManager`, `IMessageRegistry`, and `IRegistryWriter`. `MapMsgHatchDelivery(prefix)` and `MapMsgHatchDeliveryContent(prefix)` map the HTTP endpoints of section 4.19, and `MapMsgHatchRegistry(prefix)` the endpoints of section 4.20.
 
@@ -1699,7 +1703,7 @@ Message channel registrations of the channel packages. Each one is an extension 
 
 Lifetimes (D130):
 - Singleton: the options, the content type registry, `IMessageRegistry`, the library stores, the transports, the template stores with their caches, the cache backends, the dispatch signal, the dispatchers, and `TimeProvider`. Each one is thread-safe.
-- Scoped: the routers, the payload loaders, the composers, the template engines, the recipient directory, `INotificationService`, `IDeliveryManager`, `ISubscriptionManager`, `IRoutingVerifier`, and the pipeline.
+- Scoped: the routers, the payload loaders, the composers, the template engines, the recipient directory, `INotificationService`, `IDeliveryManager`, `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, and the pipeline.
 - Only a received message gets a DI scope, because the routers and the payload loaders of the consumer run in it. The inbox processor makes one DI scope for each claimed message. A caller of `ProcessAsync`, `AcceptAsync`, or `PreviewAsync` resolves `INotificationService` in its own scope, for example the scope of an HTTP request or of a broker message. The outbox dispatcher makes no DI scope. It uses the singleton dispatch store and the singleton transport of its channel.
 - A store of the consumer must be thread-safe too, for example an EF Core store on an `IDbContextFactory` that makes one `DbContext` for each operation.
 
@@ -2074,7 +2078,7 @@ These interfaces get a logging wrapper (D36):
 | `IInboxStore`, `IOutboxStore`, `IInboxDispatchStore`, and `IOutboxDispatchStore` | Library or consumer | `InboxStoreLoggingWrapper`, `OutboxStoreLoggingWrapper`, `InboxDispatchStoreLoggingWrapper`, and `OutboxDispatchStoreLoggingWrapper` |
 | `ISubscriptionStore` | `MsgHatch.Subscriptions` or consumer | `SubscriptionStoreLoggingWrapper` |
 | `IRecipientDirectory` | Consumer | `RecipientDirectoryLoggingWrapper` |
-| `ISubscriptionManager` | `MsgHatch.Subscriptions` | `SubscriptionManagerLoggingWrapper` |
+| `ISubscriptionQueries` and `ISubscriptionCommands` | `MsgHatch.Subscriptions` | `SubscriptionQueriesLoggingWrapper` and `SubscriptionCommandsLoggingWrapper` |
 | `IRoutingVerifier` | `MsgHatch.Subscriptions` | `RoutingVerifierLoggingWrapper` |
 | `IPayloadLoader<TEvent, TPayload>` | Consumer | `PayloadLoaderLoggingWrapper<TEvent, TPayload>` |
 | `IEmailClient` | Library (SES, Resend) or consumer | `EmailClientLoggingWrapper` |
@@ -2188,7 +2192,7 @@ Resolution of the subscription example (section 1.1) for one event of the type B
 - Client 2 has no user subscription for B. Acme has an opt-out for B, so Client 2 gets nothing.
 - Acme has a fixed subscription for B for the company. The event concerns Acme, so `admin@acme.example` gets one email in Hungarian. The opt-out of Acme does not stop it, because the opt-out is for the scope users only.
 
-**Confirmed rule (D53):** `ISubscriptionManager` is the API that lists and changes the subscriptions of all three levels. `MsgHatch.Subscriptions` implements it on its contract `ISubscriptionStore` (D78).
+**Confirmed rule (D53, D231):** `ISubscriptionQueries` lists and `ISubscriptionCommands` changes the subscriptions of all three levels. `SubscriptionManager` of `MsgHatch.Subscriptions` implements both interfaces on its contract `ISubscriptionStore` (D78). The queries have `GetChannelsAsync`, `GetMessageTypesAsync`, `GetSubscriptionsAsync`, and `GetSubscriptionAsync`, and the commands have `CreateAsync`, `UpdateAsync`, and `DeleteAsync`.
 
 Actions:
 - `GetChannelsAsync` returns the descriptor of each registered channel, with its features (D77), from `IMessageRegistry`.
@@ -2237,7 +2241,7 @@ HTTP endpoints (D54). `MapMsgHatchSubscriptions(this IEndpointRouteBuilder route
 | PUT | `{prefix}/{id}` | The draft and `revision` | 200 with the subscription |
 | DELETE | `{prefix}/{id}` | none | 204 |
 
-- Each route takes the optional query parameter `tenantId`. The endpoint resolves `ISubscriptionManager` and `IRoutingVerifier` with `TenantKey.For(tenantId)`, and with `TenantKey.None` when the parameter is missing (D126).
+- Each route takes the optional query parameter `tenantId`. The endpoint resolves `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` with `TenantKey.For(tenantId)`, and with `TenantKey.None` when the parameter is missing (D126).
 - The `settings` object is read with the `JsonTypeInfo` of the settings type of the given channel, from the content type registry. For example, `{ "channel": "Email", "settings": { "language": "hu", "format": "PlainText" } }`.
 - The consumer adds the authorization on the returned group, for example `.RequireAuthorization("SubscriptionAdmin")`. The library adds no authorization.
 - With `o => o.CurrentUser = user => ...` and, for several tenants, `o.CurrentTenant = user => ...`, the same endpoints also exist under `{prefix}/me`. They take the user id from the signed-in user, and the tenant from `CurrentTenant` in place of the query parameter. They use only user-level subscriptions of that user. A subscription of another owner gives 404 there. They ignore the owner fields of a body and the owner filters of a query. An unknown id gives the same 404 as another owner, and a signed-in user with no user id gives 403 (D154).

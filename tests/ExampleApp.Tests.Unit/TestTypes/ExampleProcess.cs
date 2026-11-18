@@ -26,14 +26,14 @@ public static class ExampleProcess
     public static async Task SeedScenarioAsync(this IServiceProvider provider, TenantKey key)
     {
         await using var scope = provider.CreateAsyncScope();
-        await ExampleStartup.SeedAsync(DirectoryOf(scope.ServiceProvider, key), ManagerOf(scope.ServiceProvider, key), Ct);
+        await ExampleStartup.SeedAsync(DirectoryOf(scope.ServiceProvider, key), CommandsOf(scope.ServiceProvider, key), Ct);
     }
 
     public static ExampleRecipientDirectory DirectoryOf(IServiceProvider provider, TenantKey key) =>
         ActivatorUtilities.CreateInstance<ExampleRecipientDirectory>(provider, key);
 
-    public static ISubscriptionManager ManagerOf(IServiceProvider provider, TenantKey key) =>
-        provider.GetRequiredKeyedService<ISubscriptionManager>(key);
+    public static ISubscriptionCommands CommandsOf(IServiceProvider provider, TenantKey key) =>
+        provider.GetRequiredKeyedService<ISubscriptionCommands>(key);
 
     public static async Task<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(this IServiceProvider provider, TEvent domainEvent, TenantId? tenant = null)
     {

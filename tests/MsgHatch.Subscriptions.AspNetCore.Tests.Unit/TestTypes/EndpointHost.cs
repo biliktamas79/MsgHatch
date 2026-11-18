@@ -32,7 +32,7 @@ public sealed class EndpointHost : IAsyncDisposable
     private readonly WebApplication _app;
 
     private EndpointHost(
-        WebApplication app, ISubscriptionManager manager, ISubscriptionManager t2Manager, IRoutingVerifier verifier, IRoutingVerifier t2Verifier)
+        WebApplication app, ISubscriptionManagement manager, ISubscriptionManagement t2Manager, IRoutingVerifier verifier, IRoutingVerifier t2Verifier)
     {
         _app = app;
         Manager = manager;
@@ -43,10 +43,10 @@ public sealed class EndpointHost : IAsyncDisposable
     }
 
     /// <summary>The manager of <see cref="TenantKey.None"/>.</summary>
-    public ISubscriptionManager Manager { get; }
+    public ISubscriptionManagement Manager { get; }
 
     /// <summary>The manager of the tenant <see cref="T2"/>.</summary>
-    public ISubscriptionManager T2Manager { get; }
+    public ISubscriptionManagement T2Manager { get; }
 
     /// <summary>The routing verifier of <see cref="TenantKey.None"/>.</summary>
     public IRoutingVerifier Verifier { get; }
@@ -63,10 +63,10 @@ public sealed class EndpointHost : IAsyncDisposable
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
         builder.Services.AddScenarioHost(static _ => Substitute.For<ISubscriptionStore>(), static _ => Substitute.For<IRecipientDirectory>());
-        var manager = Substitute.For<ISubscriptionManager>();
-        var t2Manager = Substitute.For<ISubscriptionManager>();
-        builder.Services.AddKeyedSingleton(TenantKey.None, manager);
-        builder.Services.AddKeyedSingleton(TenantKey.For(T2), t2Manager);
+        var manager = Substitute.For<ISubscriptionManagement>();
+        var t2Manager = Substitute.For<ISubscriptionManagement>();
+        AddBoth(builder.Services, TenantKey.None, manager);
+        AddBoth(builder.Services, TenantKey.For(T2), t2Manager);
         var verifier = Substitute.For<IRoutingVerifier>();
         var t2Verifier = Substitute.For<IRoutingVerifier>();
         builder.Services.AddKeyedSingleton(TenantKey.None, verifier);
@@ -121,6 +121,12 @@ public sealed class EndpointHost : IAsyncDisposable
 
     /// <summary>A manager result with a value.</summary>
     public static ValueTask<ErrorOr<T>> Success<T>(T value) => ValueTask.FromResult(ErrorOr<T>.ForValue(value));
+
+    private static void AddBoth(IServiceCollection services, TenantKey key, ISubscriptionManagement management)
+    {
+        services.AddKeyedSingleton<ISubscriptionQueries>(key, management);
+        services.AddKeyedSingleton<ISubscriptionCommands>(key, management);
+    }
 
     private static void AddHeader(HttpRequestMessage request, string name, string? value)
     {
