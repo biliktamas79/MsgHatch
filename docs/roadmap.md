@@ -1990,6 +1990,13 @@ Done when: the build has no errors and no warnings, all unit tests pass, and `pw
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
 - A template store in a database, for example SQLite, EF Core, or MongoDB, with `ITemplateWriter` (D218), so that a written template survives a deployment that replaces the template folder.
 - Partials of the Liquid engine (D208): `render` and `include` read a partial from the template store, with the lookups of the tenant, the company, and the language, through the asynchronous `ITemplateFileProvider` of the first stable Fluid 3.
+- A general block builder for HTML email templates, as an editor package that knows no engine (D240), for example `MsgHatch.Templates.Builder.AdminUI`:
+  - Layout blocks (section, columns, text, button, image, and spacer) and data blocks (variable, repeat, and condition). The builder writes email HTML with tables and inline styles.
+  - Each engine package gives a syntax adapter that writes and reads its data blocks: Liquid with `{{ Name }}`, `{% for %}`, and `{% if %}`, and the placeholder engine with `{{Name}}` only. The placeholder engine has no repeat and no condition, so the builder hides those blocks for it.
+  - The builder stores no block model. It reads the model again from the template text: each block has a marker, for example a `data-msghatch-block` attribute, and the adapter reads the data blocks. A region with no valid marker becomes a raw HTML block, so a hand edit of the text does not break the other blocks.
+  - The variable names come from the server, for example from the sample payload of D254, with no reflection that breaks AOT (D237).
+  - The edit page offers the builder and the raw editor for one part, so the extension point of D240 changes from one editor for each engine to a choice of editors.
+  - The phase checks the email clients that keep or remove the marker attributes, and the license of each JavaScript library that it uses.
 - A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
 - A PostgreSQL provider for the EF Core stores.
 - SMS and push channels.
