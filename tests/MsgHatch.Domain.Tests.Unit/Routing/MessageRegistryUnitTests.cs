@@ -123,7 +123,7 @@ public sealed class MessageRegistryUnitTests
         services.AddMsgHatch()
             .AddTestChannel()
             .AddChannelType(_second, 1, TestJsonContext.Default.TestChannelSettings, Substitute.For<IChannelSettingsValidator>())
-            .UseRouter(typeof(TestOpenRouter<>))
+            .UseRouter(TestOpenRouter.Factory)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
                 .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()))
             .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m

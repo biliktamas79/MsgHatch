@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -30,10 +31,10 @@ public sealed class MessageBuilder<TEvent>
 
     internal MessageType Type => _registration.Type;
 
-    /// <summary>Selects the router of this message type. It wins over the open generic router of <c>UseRouter</c> (D99).</summary>
+    /// <summary>Selects the router of this message type. It wins over the router of the factory of <c>UseRouter</c> (D99).</summary>
     /// <typeparam name="TRouter">The router type, a tenant service.</typeparam>
     /// <returns>This builder.</returns>
-    public MessageBuilder<TEvent> WithRouter<TRouter>()
+    public MessageBuilder<TEvent> WithRouter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TRouter>()
         where TRouter : class, IMessageRouter<TEvent> =>
         WithRouter(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TRouter>(tenantServices));
 
@@ -58,7 +59,7 @@ public sealed class MessageBuilder<TEvent>
     {
         ArgumentNullException.ThrowIfNull(upgrade);
         _parent.Setup.ContentTypes.Add(
-            ContentTypeRegistry.Entry(_registration.Type.Name, version, typeof(ReceivedMessage<TOld>), json));
+            ContentTypeEntry.ForReceivedMessage(_registration.Type.Name, version, json));
         _registration.AddUpgrade(version, old => upgrade(((ReceivedMessage<TOld>)old).Event));
         return this;
     }
@@ -72,7 +73,7 @@ public sealed class MessageBuilder<TEvent>
     /// <typeparam name="TPayload">The type of the template payload.</typeparam>
     /// <typeparam name="TLoader">The loader type, a tenant service.</typeparam>
     /// <returns>This builder.</returns>
-    public MessageBuilder<TEvent> UsePayloadLoader<TPayload, TLoader>()
+    public MessageBuilder<TEvent> UsePayloadLoader<TPayload, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TLoader>()
         where TLoader : class, IPayloadLoader<TEvent, TPayload> =>
         _registration.TryAddLoader(typeof(TPayload), typeof(TLoader))
             ? AddPayloadLoader<TPayload>(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TLoader>(tenantServices))
@@ -101,7 +102,7 @@ public sealed class MessageBuilder<TEvent>
     /// <typeparam name="TLoader">The loader type, a tenant service.</typeparam>
     /// <param name="channels">The channel registrations of the payload type, for example <c>p =&gt; p.AsEmail("OrderShippedEmail")</c>.</param>
     /// <returns>This builder.</returns>
-    public MessageBuilder<TEvent> WithPayload<TPayload, TLoader>(Action<PayloadBuilder<TEvent, TPayload>> channels)
+    public MessageBuilder<TEvent> WithPayload<TPayload, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TLoader>(Action<PayloadBuilder<TEvent, TPayload>> channels)
         where TLoader : class, IPayloadLoader<TEvent, TPayload>
     {
         ArgumentNullException.ThrowIfNull(channels);
@@ -162,7 +163,7 @@ public sealed class MessageBuilder<TEvent>
     /// <param name="retry">The default retry options of the channel, or null for the library defaults.</param>
     /// <param name="configure">The configuration of the old versions and the retry options of this registration.</param>
     /// <returns>This builder.</returns>
-    public MessageBuilder<TEvent> AsChannel<TEnvelope, TComposer>(
+    public MessageBuilder<TEvent> AsChannel<TEnvelope, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TComposer>(
         ChannelId channel,
         string name,
         int version,
@@ -200,7 +201,7 @@ public sealed class MessageBuilder<TEvent>
         var contentType = $"{channel.Name}:{IdentityNames.Validate(name, nameof(name))}";
         var channelBuilder = new ChannelBuilder<TEnvelope>(_parent.Setup, contentType);
         configure?.Invoke(channelBuilder);
-        _parent.Setup.ContentTypes.Add(ContentTypeRegistry.Entry(contentType, version, typeof(OutgoingMessage<TEnvelope>), json));
+        _parent.Setup.ContentTypes.Add(ContentTypeEntry.ForOutgoingMessage(contentType, version, json));
         TenantServices.Add(Services, _parent.Setup, ServiceLifetime.Scoped, composer);
         AddRetryOptions(channel, contentType, retry, channelBuilder.Retry);
         _registration.AddChannel(new ChannelRegistration<TEvent, TEnvelope>(channel, contentType, version, channelBuilder.Upgrades));

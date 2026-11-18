@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -20,7 +21,7 @@ public static class TemplateExtensions
     /// <typeparam name="TStore">The store type, a thread-safe singleton.</typeparam>
     /// <param name="builder">The builder of the setup.</param>
     /// <returns>The builder.</returns>
-    public static MsgHatchBuilder UseTemplateStore<TStore>(this MsgHatchBuilder builder)
+    public static MsgHatchBuilder UseTemplateStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>(this MsgHatchBuilder builder)
         where TStore : class, ITemplateStore =>
         builder.UseTemplateStore(static services => ActivatorUtilities.CreateInstance<TStore>(services));
 
@@ -83,7 +84,7 @@ public static class TemplateExtensions
     /// <typeparam name="TStore">The store type, with a constructor parameter of type <see cref="TenantKey"/>.</typeparam>
     /// <param name="builder">The builder of the setup.</param>
     /// <returns>The builder.</returns>
-    public static MsgHatchBuilder UseTenantTemplateStore<TStore>(this MsgHatchBuilder builder)
+    public static MsgHatchBuilder UseTenantTemplateStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>(this MsgHatchBuilder builder)
         where TStore : class, ITemplateStore =>
         builder.UseTenantTemplateStore(static (services, key) => ActivatorUtilities.CreateInstance<TStore>(services, key));
 

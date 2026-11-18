@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MsgHatch.Domain.Delivery;
 
@@ -16,10 +17,12 @@ public sealed class RetryOptions : IValidatableObject
     public int MaxTryCount { get; set; } = 8;
 
     /// <summary>The delay after the first failed try.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:00.001", "01:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan BaseDelay { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>The longest delay between two tries. It is not less than <see cref="BaseDelay"/>.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:01", "7.00:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan MaxDelay { get; set; } = TimeSpan.FromMinutes(15);
 
@@ -27,6 +30,7 @@ public sealed class RetryOptions : IValidatableObject
     /// The time after the accept time of the event after which a message is not sent, or null for no expiry (D94). The
     /// options <c>Inbox</c> allow no value, because the time in the inbox counts against this expiry (D142).
     /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:01", "30.00:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan? Expiry { get; set; }
 

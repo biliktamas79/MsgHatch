@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MsgHatch.Subscriptions.Caching;
 
@@ -9,6 +10,7 @@ public sealed class SubscriptionCacheOptions
     public const string SectionName = "MsgHatch:SubscriptionCache";
 
     /// <summary>The time that the cache keeps the subscriptions of one owner and message type.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:01", "1.00:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan Expiration { get; set; } = TimeSpan.FromMinutes(1);
 

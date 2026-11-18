@@ -233,7 +233,7 @@ public sealed class MessageBuilderUnitTests
         // Arrange
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.EnableLogging = false)
-            .UseRouter(typeof(TestOpenRouter<>))
+            .UseRouter(TestOpenRouter.Factory)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
                 .UsePayloadLoader<TestEnvelope, KeyCapturingPayloadLoader>());
         await using var provider = services.Build();
@@ -311,7 +311,7 @@ public sealed class MessageBuilderUnitTests
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.EnableLogging = false)
             .AddTestChannel()
-            .UseRouter(typeof(TestOpenRouter<>))
+            .UseRouter(TestOpenRouter.Factory)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
                 .WithRouter((_, _) => router)
                 .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()))
@@ -327,7 +327,7 @@ public sealed class MessageBuilderUnitTests
             .AddTestChannel()
             .UseInMemoryStores()
             .UseTransport(static _ => TestTransports.For(TestChannel.Id))
-            .UseRouter(typeof(TestOpenRouter<>))
+            .UseRouter(TestOpenRouter.Factory)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
                 .AsChannel(
                     TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>(),

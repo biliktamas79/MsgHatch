@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -29,7 +30,7 @@ public static class SubscriptionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         SubscriptionSetup.Of(builder.Services).UsesSubscriptions = true;
         return builder
-            .UseRouter(typeof(SubscriptionRouter<>))
+            .UseRouter(SubscriptionRouterFactory.Instance)
             .AddTraceType("Subscription", 1, SubscriptionJson.Default.ResolutionTrace)
             .AddDefaultTenantService<ISubscriptionQueries>(
                 ServiceLifetime.Scoped,
@@ -135,7 +136,7 @@ public static class SubscriptionExtensions
     /// <typeparam name="TStore">The store type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
     /// <param name="builder">The builder.</param>
     /// <returns>The builder.</returns>
-    public static MsgHatchBuilder UseSubscriptionStore<TStore>(this MsgHatchBuilder builder)
+    public static MsgHatchBuilder UseSubscriptionStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>(this MsgHatchBuilder builder)
         where TStore : class, ISubscriptionStore =>
         builder.UseSubscriptionStore(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TStore>(tenantServices));
 
@@ -171,7 +172,7 @@ public static class SubscriptionExtensions
     /// <param name="builder">The builder.</param>
     /// <param name="configure">An optional change of the options in code.</param>
     /// <returns>The builder.</returns>
-    public static MsgHatchBuilder UseSubscriptionCache<TBackend>(this MsgHatchBuilder builder, Action<SubscriptionCacheOptions>? configure = null)
+    public static MsgHatchBuilder UseSubscriptionCache<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TBackend>(this MsgHatchBuilder builder, Action<SubscriptionCacheOptions>? configure = null)
         where TBackend : class, ISubscriptionCacheBackend =>
         builder.UseSubscriptionCache(static services => ActivatorUtilities.CreateInstance<TBackend>(services), configure);
 
@@ -219,7 +220,7 @@ public static class SubscriptionExtensions
     /// <typeparam name="TDirectory">The directory type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
     /// <param name="builder">The builder.</param>
     /// <returns>The builder.</returns>
-    public static MsgHatchBuilder UseRecipientDirectory<TDirectory>(this MsgHatchBuilder builder)
+    public static MsgHatchBuilder UseRecipientDirectory<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDirectory>(this MsgHatchBuilder builder)
         where TDirectory : class, IRecipientDirectory =>
         builder.UseRecipientDirectory(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TDirectory>(tenantServices));
 

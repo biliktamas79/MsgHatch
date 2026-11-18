@@ -21,9 +21,6 @@ public sealed class MsgHatchJson
     private const int _currentSchemaVersion = 1;
     private const string _traceContentTypePrefix = "Trace:";
 
-    private static readonly ConcurrentDictionary<Type, ReceivedShape> _receivedShapes = new();
-    private static readonly ConcurrentDictionary<Type, Func<OutgoingHeader, object, OutgoingMessage>> _outgoingFactories = new();
-
     private readonly IContentTypeRegistry _registry;
     private readonly FrozenDictionary<string, int> _newestVersions;
     private readonly FrozenDictionary<Type, ContentTypeEntry> _traceEntries;
@@ -170,7 +167,7 @@ public sealed class MsgHatchJson
             schemaVersion.Value, ReadDelivery(root.GetProperty("delivery")), ReadTenant(root.GetProperty("tenant")), type,
             contentVersion, ReadFlags(root.GetProperty("flags")), root.GetProperty("traceParent").GetString());
         var content = ReadContent(root.GetProperty("event"), entry.Value);
-        return ErrorOr<ReceivedMessage>.ForValue(ReceivedShapeOf(entry.Value.ClrType).Create(header, content));
+        return ErrorOr<ReceivedMessage>.ForValue(ReceivedShapeOf(entry.Value).Create(header, content));
     }
 
     private ErrorOr<OutgoingMessage> ReadOutgoing(JsonElement root)
@@ -201,7 +198,7 @@ public sealed class MsgHatchJson
             new ChannelId(root.GetProperty("channel").GetString()!), ReadTarget(root.GetProperty("target")), contentType,
             contentVersion, ReadFlags(root.GetProperty("flags")), root.GetProperty("traceParent").GetString(), trace.Value);
         var content = ReadContent(root.GetProperty("envelope"), entry.Value);
-        return ErrorOr<OutgoingMessage>.ForValue(OutgoingFactoryOf(entry.Value.ClrType)(header, content));
+        return ErrorOr<OutgoingMessage>.ForValue(OutgoingShapeOf(entry.Value).Create(header, content));
     }
 
     private ErrorOr<RouteTrace?> ReadTrace(JsonElement element)
@@ -302,7 +299,7 @@ public sealed class MsgHatchJson
         writer.WriteString("flags", message.Flags.ToString());
         writer.WriteString("traceParent", message.TraceParent);
         writer.WritePropertyName("event");
-        JsonSerializer.Serialize(writer, ReceivedShapeOf(entry.ClrType).EventOf(message), entry.ContentJsonTypeInfo);
+        JsonSerializer.Serialize(writer, ReceivedShapeOf(entry).EventOf(message), entry.ContentJsonTypeInfo);
         writer.WriteEndObject();
     }
 
@@ -418,55 +415,20 @@ public sealed class MsgHatchJson
     private static Error UnknownTraceDiscriminator(string discriminator) =>
         new(Errors.SerializationFailed, $"The route trace discriminator '{discriminator}' is not registered.");
 
-    private static ReceivedShape ReceivedShapeOf(Type clrType) =>
-        _receivedShapes.GetOrAdd(clrType, static type =>
-        {
-            var shapes = typeof(ReceivedShapes<>).MakeGenericType(GenericArgumentOf(type, typeof(ReceivedMessage<>)));
-            return new ReceivedShape(
-                shapes.GetMethod(nameof(ReceivedShapes<object>.EventOf))!.CreateDelegate<Func<ReceivedMessage, object?>>(),
-                shapes.GetMethod(nameof(ReceivedShapes<object>.Create))!.CreateDelegate<Func<ReceivedHeader, object, ReceivedMessage>>());
-        });
+    private static ReceivedShape ReceivedShapeOf(ContentTypeEntry entry) =>
+        entry.Shape as ReceivedShape
+        ?? throw new InvalidOperationException($"The registered type {entry.ClrType.Name} is not a received message of ContentTypeEntry.ForReceivedMessage.");
 
-    private static Func<OutgoingHeader, object, OutgoingMessage> OutgoingFactoryOf(Type clrType) =>
-        _outgoingFactories.GetOrAdd(clrType, static type =>
-            typeof(OutgoingShapes<>).MakeGenericType(GenericArgumentOf(type, typeof(OutgoingMessage<>)))
-                .GetMethod(nameof(OutgoingShapes<object>.Create))!
-                .CreateDelegate<Func<OutgoingHeader, object, OutgoingMessage>>());
+    private static OutgoingShape OutgoingShapeOf(ContentTypeEntry entry) =>
+        entry.Shape as OutgoingShape
+        ?? throw new InvalidOperationException($"The registered type {entry.ClrType.Name} is not an outgoing message of ContentTypeEntry.ForOutgoingMessage.");
 
-    private static Type GenericArgumentOf(Type closedType, Type genericDefinition) =>
-        closedType.IsGenericType && closedType.GetGenericTypeDefinition() == genericDefinition
-            ? closedType.GetGenericArguments()[0]
-            : throw new InvalidOperationException($"The registered type {closedType.Name} is not a {genericDefinition.Name}.");
-
-    private readonly record struct ReceivedHeader(
+    internal readonly record struct ReceivedHeader(
         int SchemaVersion, DeliveryState Delivery, TenantId? Tenant, MessageType Type, int ContentVersion,
         MessageFlags Flags, string? TraceParent);
 
-    private readonly record struct OutgoingHeader(
+    internal readonly record struct OutgoingHeader(
         int SchemaVersion, DeliveryState Delivery, Guid SourceMessageId, TenantId? Tenant, MessageType Type,
         ChannelId Channel, DeliveryTarget Target, string ContentType, int ContentVersion, MessageFlags Flags,
         string? TraceParent, RouteTrace? Trace);
-
-    private sealed record ReceivedShape(
-        Func<ReceivedMessage, object?> EventOf, Func<ReceivedHeader, object, ReceivedMessage> Create);
-
-    private static class ReceivedShapes<TEvent>
-    {
-        public static object? EventOf(ReceivedMessage message) => ((ReceivedMessage<TEvent>)message).Event;
-
-        public static ReceivedMessage<TEvent> Create(ReceivedHeader header, object content) =>
-            new ReceivedMessage<TEvent>(
-                header.SchemaVersion, header.Delivery, header.Tenant, header.Type, header.ContentVersion, header.Flags,
-                header.TraceParent, (TEvent)content);
-    }
-
-    private static class OutgoingShapes<TEnvelope>
-        where TEnvelope : class
-    {
-        public static OutgoingMessage<TEnvelope> Create(OutgoingHeader header, object content) =>
-            new OutgoingMessage<TEnvelope>(
-                header.SchemaVersion, header.Delivery, header.SourceMessageId, header.Tenant, header.Type, header.Channel,
-                header.Target, header.ContentType, header.ContentVersion, header.Flags, header.TraceParent, header.Trace,
-                (TEnvelope)content);
-    }
 }

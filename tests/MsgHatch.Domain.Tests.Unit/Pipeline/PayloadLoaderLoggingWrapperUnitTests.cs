@@ -138,7 +138,7 @@ public sealed class PayloadLoaderLoggingWrapperUnitTests
     {
         var services = TestHost.CreateServices();
         services.AddMsgHatch(o => o.EnableLogging = enableLogging)
-            .UseRouter(typeof(TestOpenRouter<>))
+            .UseRouter(TestOpenRouter.Factory)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m.UsePayloadLoader((_, _) => inner));
         return services.Build();
     }

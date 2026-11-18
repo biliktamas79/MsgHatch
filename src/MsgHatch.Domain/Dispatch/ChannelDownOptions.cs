@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MsgHatch.Domain.Dispatch;
 
@@ -13,6 +14,7 @@ public sealed class ChannelDownOptions
     public int ErrorThreshold { get; set; } = 5;
 
     /// <summary>The time between two health checks of a down channel.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:01", "01:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan CheckInterval { get; set; } = TimeSpan.FromSeconds(30);
 }

@@ -24,7 +24,7 @@ internal sealed class MsgHatchSetup
 
     public HashSet<ChannelId> ChannelsWithOptions { get; } = [];
 
-    public Type? OpenRouterType { get; set; }
+    public IOpenRouterFactory? OpenRouterFactory { get; set; }
 
     public void Select(Type service, string setupMethod) => Selections.Add(new ImplementationSelection(service, setupMethod));
 }

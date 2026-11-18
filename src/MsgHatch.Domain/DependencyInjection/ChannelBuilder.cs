@@ -34,7 +34,7 @@ public sealed class ChannelBuilder<TEnvelope>
         where TOldEnvelope : class
     {
         ArgumentNullException.ThrowIfNull(upgrade);
-        _setup.ContentTypes.Add(ContentTypeRegistry.Entry(_contentType, version, typeof(OutgoingMessage<TOldEnvelope>), json));
+        _setup.ContentTypes.Add(ContentTypeEntry.ForOutgoingMessage(_contentType, version, json));
         _upgrades.Add(version, old => upgrade((TOldEnvelope)old));
         return this;
     }

@@ -7,15 +7,11 @@ namespace MsgHatch.Domain.Tests.Unit.TestTypes;
 /// <summary>The content type entries of the test types, and registry substitutes with them.</summary>
 public static class TestContentTypes
 {
-    public static readonly ContentTypeEntry TestEventV2 = new(
-        "TestEvent", 2, "TestEvent@2", typeof(ReceivedMessage<TestEvent>), TestJsonContext.Default.TestEvent);
+    public static readonly ContentTypeEntry TestEventV2 = ContentTypeEntry.ForReceivedMessage("TestEvent", 2, TestJsonContext.Default.TestEvent);
 
-    public static readonly ContentTypeEntry TestEventV1 = new(
-        "TestEvent", 1, "TestEvent@1", typeof(ReceivedMessage<TestEventV1>), TestJsonContext.Default.TestEventV1);
+    public static readonly ContentTypeEntry TestEventV1 = ContentTypeEntry.ForReceivedMessage("TestEvent", 1, TestJsonContext.Default.TestEventV1);
 
-    public static readonly ContentTypeEntry TestEnvelopeV1 = new(
-        "Test:TestEnvelope", 1, "Test:TestEnvelope@1", typeof(OutgoingMessage<TestEnvelope>),
-        TestJsonContext.Default.TestEnvelope);
+    public static readonly ContentTypeEntry TestEnvelopeV1 = ContentTypeEntry.ForOutgoingMessage("Test:TestEnvelope", 1, TestJsonContext.Default.TestEnvelope);
 
     public static readonly ContentTypeEntry TestTraceV1 = new(
         "Trace:Test", 1, "Trace:Test@1", typeof(TestTrace), TestJsonContext.Default.TestTrace);

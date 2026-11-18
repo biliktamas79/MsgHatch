@@ -16,7 +16,6 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
     private readonly List<IChannelRegistration<TEvent>> _channels = [];
     private readonly Dictionary<int, Func<ReceivedMessage, TEvent>> _upgrades = [];
     private readonly List<(Type Payload, Type? Loader)> _loaders = [];
-    private Type? _closedOpenRouterType;
 
     public MessageType Type { get; } = type;
 
@@ -101,18 +100,6 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
         }
     }
 
-    public IMessageRouter<TEvent>? CreateRouter(IServiceProvider tenantServices, TenantKey key, Type? openRouterType)
-    {
-        if (RouterFactory is not null)
-        {
-            return RouterFactory(tenantServices, key);
-        }
-
-        return openRouterType is null
-            ? null
-            : (IMessageRouter<TEvent>)ActivatorUtilities.CreateInstance(tenantServices, ClosedRouterType(openRouterType));
-    }
-
-    private Type ClosedRouterType(Type openRouterType) =>
-        _closedOpenRouterType ??= openRouterType.MakeGenericType(typeof(TEvent));
+    public IMessageRouter<TEvent>? CreateRouter(IServiceProvider tenantServices, TenantKey key, IOpenRouterFactory? openRouterFactory) =>
+        RouterFactory is not null ? RouterFactory(tenantServices, key) : openRouterFactory?.Create<TEvent>(tenantServices, key);
 }

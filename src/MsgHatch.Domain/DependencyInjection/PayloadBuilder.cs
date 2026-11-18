@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Delivery;
@@ -46,7 +47,7 @@ public sealed class PayloadBuilder<TEvent, TPayload>
     /// <param name="retry">The default retry options of the channel, or null for the library defaults.</param>
     /// <param name="configure">The configuration of the old versions and the retry options of this registration.</param>
     /// <returns>This builder.</returns>
-    public PayloadBuilder<TEvent, TPayload> AsChannel<TEnvelope, TComposer>(
+    public PayloadBuilder<TEvent, TPayload> AsChannel<TEnvelope, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TComposer>(
         ChannelId channel,
         string name,
         int version,

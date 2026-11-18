@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -160,7 +161,7 @@ public sealed class MsgHatchBuilder
     /// <typeparam name="TClient">The client that uses the classifier, for example <c>WolverineBrokerClient</c>.</typeparam>
     /// <typeparam name="TClassifier">The classifier type.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder AddExceptionClassifier<TClient, TClassifier>()
+    public MsgHatchBuilder AddExceptionClassifier<TClient, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TClassifier>()
         where TClassifier : class, IExceptionClassifier<TClient>
     {
         Services.TryAddEnumerable(ServiceDescriptor.Singleton<IExceptionClassifier<TClient>, TClassifier>());
@@ -168,23 +169,16 @@ public sealed class MsgHatchBuilder
     }
 
     /// <summary>
-    /// Selects an open generic router, for example <c>typeof(SubscriptionRouter&lt;&gt;)</c>, for each message type
-    /// with no router of its own (D99).
+    /// Selects the factory of the router of each message type with no router of its own, for example the factory of the
+    /// subscription router (D99, D237, D245).
     /// </summary>
-    /// <param name="routerType">
-    /// An open generic type with one type parameter <c>T</c> that implements <see cref="IMessageRouter{TEvent}"/> of <c>T</c>.
-    /// </param>
+    /// <param name="factory">The factory, which makes the router of each event type.</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseRouter(Type routerType)
+    public MsgHatchBuilder UseRouter(IOpenRouterFactory factory)
     {
-        ArgumentNullException.ThrowIfNull(routerType);
-        if (!IsOpenGenericRouter(routerType))
-        {
-            throw new ArgumentException("The router type is an open generic type with one type parameter T that implements IMessageRouter<T>.", nameof(routerType));
-        }
-
+        ArgumentNullException.ThrowIfNull(factory);
         Setup.Select(typeof(IMessageRouter<>), nameof(UseRouter));
-        Setup.OpenRouterType = routerType;
+        Setup.OpenRouterFactory = factory;
         return this;
     }
 
@@ -200,12 +194,12 @@ public sealed class MsgHatchBuilder
     {
         ArgumentNullException.ThrowIfNull(configure);
         var registration = new MessageRegistration<TEvent>(new MessageType(name), version);
-        Setup.ContentTypes.Add(ContentTypeRegistry.Entry(name, version, typeof(ReceivedMessage<TEvent>), json));
+        Setup.ContentTypes.Add(ContentTypeEntry.ForReceivedMessage(name, version, json));
         Setup.Messages.Add(registration);
         Services.AddSingleton(registration);
         TenantServices.Add<IMessageRouter<TEvent>>(
             Services, Setup, ServiceLifetime.Scoped,
-            (tenantServices, key) => registration.CreateRouter(tenantServices, key, Setup.OpenRouterType),
+            (tenantServices, key) => registration.CreateRouter(tenantServices, key, Setup.OpenRouterFactory),
             static (tenantServices, key, inner) => new MessageRouterLoggingWrapper<TEvent>(
                 inner, key, Loggers.For<MessageRouterLoggingWrapper<TEvent>>(tenantServices),
                 tenantServices.GetRequiredService<TimeProvider>()));
@@ -265,7 +259,7 @@ public sealed class MsgHatchBuilder
     /// </summary>
     /// <typeparam name="TStore">The store type.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseRegistrySettingsStore<TStore>()
+    public MsgHatchBuilder UseRegistrySettingsStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>()
         where TStore : class, IRegistrySettingsStore =>
         UseRegistrySettingsStore(static services => ActivatorUtilities.CreateInstance<TStore>(services));
 
@@ -287,7 +281,7 @@ public sealed class MsgHatchBuilder
     /// <summary>Registers an inbox tenant store as a tenant service, with its logging wrapper (D127).</summary>
     /// <typeparam name="TStore">The store type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseInboxStore<TStore>()
+    public MsgHatchBuilder UseInboxStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>()
         where TStore : class, IInboxStore =>
         UseInboxStore(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TStore>(tenantServices));
 
@@ -301,7 +295,7 @@ public sealed class MsgHatchBuilder
     /// <summary>Registers the inbox dispatch store as a singleton, with its logging wrapper (D127, D130).</summary>
     /// <typeparam name="TStore">The store type.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseInboxDispatchStore<TStore>()
+    public MsgHatchBuilder UseInboxDispatchStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>()
         where TStore : class, IInboxDispatchStore =>
         UseInboxDispatchStore(static services => ActivatorUtilities.CreateInstance<TStore>(services));
 
@@ -315,7 +309,7 @@ public sealed class MsgHatchBuilder
     /// <summary>Registers an outbox tenant store as a tenant service, with its logging wrapper (D127).</summary>
     /// <typeparam name="TStore">The store type. A constructor parameter of type <see cref="TenantKey"/> gets the key.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseOutboxStore<TStore>()
+    public MsgHatchBuilder UseOutboxStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>()
         where TStore : class, IOutboxStore =>
         UseOutboxStore(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TStore>(tenantServices));
 
@@ -329,7 +323,7 @@ public sealed class MsgHatchBuilder
     /// <summary>Registers the outbox dispatch store as a singleton, with its logging wrapper (D127, D130).</summary>
     /// <typeparam name="TStore">The store type.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseOutboxDispatchStore<TStore>()
+    public MsgHatchBuilder UseOutboxDispatchStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TStore>()
         where TStore : class, IOutboxDispatchStore =>
         UseOutboxDispatchStore(static services => ActivatorUtilities.CreateInstance<TStore>(services));
 
@@ -353,7 +347,7 @@ public sealed class MsgHatchBuilder
     /// <param name="outboxDispatch">The outbox dispatch store of the storage of one key. The composite keeps one instance for each key.</param>
     /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseStorageForEachTenant<TTenantSource>(
+    public MsgHatchBuilder UseStorageForEachTenant<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TTenantSource>(
         Func<IServiceProvider, TenantKey, IInboxStore> inbox,
         Func<IServiceProvider, TenantKey, IInboxDispatchStore> inboxDispatch,
         Func<IServiceProvider, TenantKey, IOutboxStore> outbox,
@@ -413,7 +407,7 @@ public sealed class MsgHatchBuilder
     /// </summary>
     /// <typeparam name="TTransport">The transport type.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseTransport<TTransport>()
+    public MsgHatchBuilder UseTransport<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TTransport>()
         where TTransport : class, ITransport =>
         UseTransport(static services => ActivatorUtilities.CreateInstance<TTransport>(services));
 
@@ -436,7 +430,7 @@ public sealed class MsgHatchBuilder
     /// </summary>
     /// <typeparam name="TSignal">The signal type.</typeparam>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseDispatchSignal<TSignal>()
+    public MsgHatchBuilder UseDispatchSignal<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSignal>()
         where TSignal : class, IDispatchSignal =>
         UseDispatchSignal(static services => ActivatorUtilities.CreateInstance<TSignal>(services));
 
@@ -600,9 +594,4 @@ public sealed class MsgHatchBuilder
 
     private static TimeSpan MaxPollIntervalOf(IServiceProvider services, string dispatch) =>
         services.GetRequiredService<IOptionsMonitor<DispatchOptions>>().Get(dispatch).MaxPollInterval;
-
-    private static bool IsOpenGenericRouter(Type routerType) =>
-        routerType is { IsGenericTypeDefinition: true, IsAbstract: false }
-        && routerType.GetGenericArguments() is [var eventType]
-        && routerType.GetInterfaces().Contains(typeof(IMessageRouter<>).MakeGenericType(eventType));
 }

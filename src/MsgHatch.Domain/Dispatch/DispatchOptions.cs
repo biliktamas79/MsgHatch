@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MsgHatch.Domain.Dispatch;
 
@@ -20,6 +21,7 @@ public sealed class DispatchOptions : IValidatableObject
     public int QueueCapacity { get; set; } = 16;
 
     /// <summary>The duration of the lease of a claimed message (D103).</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:05", "01:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan Lease { get; set; } = TimeSpan.FromSeconds(60);
 
@@ -27,14 +29,17 @@ public sealed class DispatchOptions : IValidatableObject
     /// A worker skips a message whose lease ends within this time, so that no other instance sends it too. It is less
     /// than <see cref="Lease"/>.
     /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:00", "00:30:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan LeaseSafetyMargin { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>The first poll delay after an empty claim.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:00.010", "00:10:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(1);
 
     /// <summary>The longest poll delay. It is not less than <see cref="PollInterval"/>.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [Range(typeof(TimeSpan), "00:00:00.010", "01:00:00", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)]
     public TimeSpan MaxPollInterval { get; set; } = TimeSpan.FromSeconds(30);
 

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MsgHatch.Domain.Delivery;
 
@@ -13,6 +14,7 @@ public sealed class TestDeliveryOptions : IValidatableObject
     public TestDeliveryMode Mode { get; set; } = TestDeliveryMode.Suppress;
 
     /// <summary>The test address or the test group of <see cref="TestDeliveryMode.Redirect"/>. It is required for that mode.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]
     [MaxLength(256)]
     public string? RedirectTo { get; set; }
 

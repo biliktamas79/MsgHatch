@@ -15,15 +15,6 @@ namespace MsgHatch.Domain.Tests.Unit.DependencyInjection;
 
 public sealed class MsgHatchBuilderUnitTests
 {
-    public static TheoryData<Type> TypesThatAreNotOpenGenericRouters =>
-    [
-        typeof(TestOpenRouter<TestEvent>),
-        typeof(string),
-        typeof(List<>),
-        typeof(ListTestOpenRouter<>),
-        typeof(FixedEventTestOpenRouter<>),
-    ];
-
     [Fact]
     public async Task ConfigureSharedOptions_SectionThatALaterSetupMethodBinds_TheValueFromCodeWins()
     {
@@ -398,18 +389,17 @@ public sealed class MsgHatchBuilderUnitTests
                 .Order(StringComparer.Ordinal));
     }
 
-    [Theory]
-    [MemberData(nameof(TypesThatAreNotOpenGenericRouters))]
-    public void UseRouter_TypeThatIsNotAnOpenGenericRouter_ThrowsArgumentException(Type routerType)
+    [Fact]
+    public void UseRouter_NullFactory_ThrowsArgumentNullException()
     {
         // Arrange
         var builder = TestHost.CreateServices().AddMsgHatch();
 
         // Act
-        var exception = Record.Exception(() => builder.UseRouter(routerType));
+        var exception = Record.Exception(() => builder.UseRouter(null!));
 
         // Assert
-        Assert.IsAssignableFrom<ArgumentException>(exception);
+        Assert.Equal("factory", Assert.IsType<ArgumentNullException>(exception).ParamName);
     }
 
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));

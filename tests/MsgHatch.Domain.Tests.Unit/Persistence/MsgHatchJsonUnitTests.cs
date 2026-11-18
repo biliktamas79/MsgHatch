@@ -257,12 +257,12 @@ public sealed class MsgHatchJsonUnitTests
     }
 
     [Fact]
-    public void DeserializeReceived_RegistryEntryOfATypeThatIsNotAReceivedMessage_ReturnsSerializationFailed()
+    public void DeserializeReceived_RegistryEntryOfThePlainConstructorWithNoShape_ReturnsSerializationFailed()
     {
         // Arrange
         var utf8Json = _json.Serialize(TestMessages.AReceivedMessage(new TestEvent("x"))).Value;
         var json = new MsgHatchJson(TestContentTypes.ARegistryOf(
-            TestContentTypes.TestEventV2 with { ClrType = typeof(TestEvent) })); // not a ReceivedMessage<TEvent>
+            new ContentTypeEntry("TestEvent", 2, "TestEvent@2", typeof(ReceivedMessage<TestEvent>), TestJsonContext.Default.TestEvent)));
 
         // Act
         var read = json.DeserializeReceived(utf8Json);

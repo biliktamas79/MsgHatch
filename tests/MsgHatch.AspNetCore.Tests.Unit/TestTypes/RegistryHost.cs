@@ -42,7 +42,7 @@ public sealed class RegistryHost : IAsyncDisposable
         builder.Services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .AddTestChannel()
             .AddSecondTestChannel()
-            .UseRouter(typeof(TestOpenRouter<>))
+            .UseRouter(TestOpenRouter.Factory)
             .UseInMemoryStores()
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
                 .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>())
