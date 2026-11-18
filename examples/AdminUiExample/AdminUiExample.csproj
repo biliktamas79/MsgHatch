@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Api.Client\MsgHatch.Api.Client.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Api.Client\MsgHatch.Subscriptions.Api.Client.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Templates.Api.Client\MsgHatch.Templates.Api.Client.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.AdminUI\MsgHatch.Subscriptions.AdminUI.csproj" />

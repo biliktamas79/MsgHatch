@@ -61,13 +61,13 @@ curl -H "Authorization: Bearer $(dotnet user-jwts create --project examples/Exam
 
 ## Start the admin UI
 
-1. Make a token with the role `TemplateAdmin`. This command also stores the token in the user secrets of `AdminUiExample`:
+1. Make a token with the roles `TemplateAdmin` and `RegistryAdmin`. This command also stores the token in the user secrets of `AdminUiExample`:
 
    ```bash
-   dotnet user-secrets set "AdminUiExample:ApiToken" $(dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin --output token) --project examples/AdminUiExample
+   dotnet user-secrets set "AdminUiExample:ApiToken" $(dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin --role RegistryAdmin --output token) --project examples/AdminUiExample
    ```
 
-   The role `TemplateAdmin` gives access to the template endpoints. The subscription endpoints accept each signed-in user. Never write a token into a file of the repository.
+   The role `TemplateAdmin` gives access to the template endpoints. The role `RegistryAdmin` gives access to the registry endpoints, which the pages Channels and Message types read (D170). The subscription endpoints accept each signed-in user. Never write a token into a file of the repository.
 
 2. Start `ExampleApp` in a terminal, and keep it open:
 
@@ -86,6 +86,8 @@ curl -H "Authorization: Bearer $(dotnet user-jwts create --project examples/Exam
 The emails of the message types A to E use the placeholder engine, so their html parts open in the plain editor with the HTML highlight. The password reset email of F uses the Liquid engine, so its parts open in the Liquid editor with its check.
 
 Each row of the template list has the buttons View and Edit. The view page shows the stored text read-only. The edit page shows the editor. Both pages show a preview of the text next to it, or under it on a narrow screen. The preview renders the text with the sample payload that `ExampleSetup` gives each email with `WithTemplateSample` (D254). For example, the preview of the password reset email shows the link `https://example.com/reset`. The edit page renders the preview again 500 ms after the last change of the text. An html part shows its preview in a frame that runs no script.
+
+The page Channels shows the channels of `ExampleApp`, and the view page of a channel shows the message types that register it. The page Message types shows each message type with its channels. Both pages are read-only. The page Applied subscriptions shows the applied subscriptions of each message type for a company or a user.
 
 The admin UI reads the token one time, at its start. After a change of the token, restart `AdminUiExample`.
 
@@ -107,6 +109,7 @@ dotnet test tests/AdminUiExample.Tests.Unit
 |---|---|---|
 | Each page of the admin UI shows "You have no permission to do this action." | `ExampleApp` rejects the token of the admin UI with 401. The token is not a JWT (for example a placeholder text), or it expired, or another signing key signed it. | Store a new token with step 1 of "Start the admin UI". Then restart `AdminUiExample`. |
 | An endpoint gives 403. | The token does not have the role of the endpoint. | Make a token with the role from the table in "Setup". |
+| The pages Channels and Message types show "You have no permission to do this action.", and the other pages work. | `ExampleApp` rejects the calls of the registry pages with 403, because the token has no role `RegistryAdmin`. | Store a new token with step 1 of "Start the admin UI". Then restart `AdminUiExample`. |
 | `AdminUiExample` stops at its start with an options error about `ApiToken`. | The user secrets of `AdminUiExample` have no token. | Do step 1 of "Start the admin UI". |
 | `dotnet user-jwts` gives "Could not find file ... appsettings.Development.json". | The checkout is older than the commit that added this file. | Pull `main`. |
 | `dotnet run` gives an error that the address is in use. | The app already runs in another terminal. | Use the app that runs, or stop it first. |

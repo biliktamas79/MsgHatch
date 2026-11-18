@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MsgHatch.AdminUI;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Verification;
 using MsgHatch.Templates;
@@ -50,6 +51,25 @@ public sealed class AdminUiApplicationUnitTests
     }
 
     [Fact]
+    public async Task Build_ClientHost_SendsTheRegistryQueriesOverHttpWithTheTokenOfTheConfiguration()
+    {
+        var handler = new RecordingHandler();
+        await using var app = Build(handler);
+        await using var scope = app.Services.CreateAsyncScope();
+        var ct = TestContext.Current.CancellationToken;
+
+        await Service<IRegistryQueries>(scope).GetChannelsAsync(ct);
+        await Service<IRegistryQueries>(scope).GetMessageTypesAsync(ct);
+
+        Assert.Equal(
+            [
+                ("GET http://localhost:5080/api/registry/channels", "Bearer " + _testToken),
+                ("GET http://localhost:5080/api/registry/message-types", "Bearer " + _testToken),
+            ],
+            handler.Requests);
+    }
+
+    [Fact]
     public async Task Get_TemplateListWithNoApi_ShowsTheTextOfUnavailable()
     {
         await using var app = Build(new RecordingHandler(available: false));
@@ -81,6 +101,9 @@ public sealed class AdminUiApplicationUnitTests
     [InlineData("/msghatch/subscriptions/message-types", "Applied subscriptions")]
     [InlineData("/msghatch/subscriptions/verification", "Verification")]
     [InlineData("/msghatch/templates", "Templates")]
+    [InlineData("/msghatch/channels", "Channels")]
+    [InlineData("/msghatch/channels/Email", "Channels")]
+    [InlineData("/msghatch/message-types", "Message types")]
     public async Task Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive(string path, string link)
     {
         await using var app = Build(new RecordingHandler(available: false));
