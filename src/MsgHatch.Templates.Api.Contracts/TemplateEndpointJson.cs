@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace MsgHatch.Templates.AspNetCore;
+namespace MsgHatch.Templates.Api.Contracts;
 
 /// <summary>
 /// The JSON type information of the request and response bodies of the template endpoints, with camelCase names and enum
@@ -17,4 +17,4 @@ namespace MsgHatch.Templates.AspNetCore;
 [JsonSerializable(typeof(TemplateCheckRequest))]
 [JsonSerializable(typeof(IReadOnlyList<TemplateIssueResponse>))]
 [JsonSerializable(typeof(IReadOnlyList<TemplatePartResponse>))]
-internal sealed partial class TemplateEndpointJson : JsonSerializerContext;
+public sealed partial class TemplateEndpointJson : JsonSerializerContext;

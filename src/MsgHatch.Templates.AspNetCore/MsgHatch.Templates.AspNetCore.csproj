@@ -5,12 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MsgHatch.Templates\MsgHatch.Templates.csproj" />
-    <ProjectReference Include="..\MsgHatch.Api.Contracts\MsgHatch.Api.Contracts.csproj" />
+    <ProjectReference Include="..\MsgHatch.Templates.Api.Contracts\MsgHatch.Templates.Api.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" />
+    <Compile Include="..\Shared\TemplateApiRoutes.cs" Link="Shared\TemplateApiRoutes.cs" />
   </ItemGroup>
 
 </Project>

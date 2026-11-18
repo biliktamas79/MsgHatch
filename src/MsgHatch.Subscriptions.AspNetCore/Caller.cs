@@ -4,6 +4,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
+using MsgHatch.Subscriptions.Api.Contracts;
 using MsgHatch.Subscriptions.Management;
 
 namespace MsgHatch.Subscriptions.AspNetCore;

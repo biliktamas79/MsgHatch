@@ -5,12 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
-    <ProjectReference Include="..\MsgHatch.Api.Contracts\MsgHatch.Api.Contracts.csproj" />
+    <ProjectReference Include="..\MsgHatch.Subscriptions.Api.Contracts\MsgHatch.Subscriptions.Api.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" />
+    <Compile Include="..\Shared\SubscriptionApiRoutes.cs" Link="Shared\SubscriptionApiRoutes.cs" />
   </ItemGroup>
 
 </Project>

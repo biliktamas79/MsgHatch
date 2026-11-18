@@ -10,6 +10,7 @@ using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
+using MsgHatch.Subscriptions.Api.Contracts;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Verification;
 
@@ -26,17 +27,17 @@ internal sealed class SubscriptionRoutes(
 
     public void MapTo(RouteGroupBuilder group)
     {
-        group.MapGet("/channels", (Delegate)GetChannelsAsync);
-        group.MapGet("/message-types", GetMessageTypesAsync);
-        group.MapGet(string.Empty, GetSubscriptionsAsync);
-        group.MapGet("/{id:guid}", GetSubscriptionAsync);
-        group.MapPost(string.Empty, (Delegate)CreateAsync);
-        group.MapPut("/{id:guid}", UpdateAsync);
-        group.MapDelete("/{id:guid}", DeleteAsync);
+        group.MapGet(SubscriptionApiRoutes.Channels, (Delegate)GetChannelsAsync);
+        group.MapGet(SubscriptionApiRoutes.MessageTypes, GetMessageTypesAsync);
+        group.MapGet(SubscriptionApiRoutes.Subscriptions, GetSubscriptionsAsync);
+        group.MapGet(SubscriptionApiRoutes.Subscription, GetSubscriptionAsync);
+        group.MapPost(SubscriptionApiRoutes.Subscriptions, (Delegate)CreateAsync);
+        group.MapPut(SubscriptionApiRoutes.Subscription, UpdateAsync);
+        group.MapDelete(SubscriptionApiRoutes.Subscription, DeleteAsync);
     }
 
     /// <summary>Maps <c>POST /verification</c>, only on the group with no <c>/me</c> (D163).</summary>
-    public static void MapVerificationTo(RouteGroupBuilder group) => group.MapPost("/verification", (Delegate)VerifyAsync);
+    public static void MapVerificationTo(RouteGroupBuilder group) => group.MapPost(SubscriptionApiRoutes.Verification, (Delegate)VerifyAsync);
 
     private static async Task<IResult> VerifyAsync(HttpContext context)
     {

@@ -39,7 +39,7 @@ public static class SubscriptionEndpoints
         SubscriptionRoutes.MapVerificationTo(group);
         if (options.CurrentUser is { } currentUser)
         {
-            new SubscriptionRoutes(currentUser, options.CurrentTenant).MapTo(group.MapGroup("/me"));
+            new SubscriptionRoutes(currentUser, options.CurrentTenant).MapTo(group.MapGroup(SubscriptionApiRoutes.Me));
         }
 
         return group;

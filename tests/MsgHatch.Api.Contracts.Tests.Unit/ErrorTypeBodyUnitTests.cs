@@ -73,6 +73,24 @@ public sealed class ErrorTypeBodyUnitTests
         Assert.Equal(("""{"code":503,"name":"Unavailable","isTransient":true}""", body), (json, read));
     }
 
+    [Fact]
+    public void ContractsAssembly_ReferencesAndPublicTypes_HaveNoHttpConcernAndNoException()
+    {
+        // Arrange
+        var assembly = typeof(ErrorTypeBody).Assembly;
+
+        // Act
+        string[] httpReferences =
+        [
+            .. assembly.GetReferencedAssemblies().Select(static reference => reference.Name!)
+                .Where(static name => name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal) || name == "System.Net.Http"),
+        ];
+        string[] exceptions = [.. assembly.GetExportedTypes().Where(static type => typeof(Exception).IsAssignableFrom(type)).Select(static type => type.Name)];
+
+        // Assert
+        Assert.Equal((0, 0, true), (httpReferences.Length, exceptions.Length, assembly.GetExportedTypes().Length > 0));
+    }
+
     [Theory]
     [InlineData("""{"code":503,"name":"Unavailable"}""")]
     [InlineData("""{"code":503,"name":null,"isTransient":true}""")]

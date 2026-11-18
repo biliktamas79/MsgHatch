@@ -1,5 +1,6 @@
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Subscriptions.Api.Contracts;
 using MsgHatch.Subscriptions.Verification;
 
 namespace MsgHatch.Subscriptions.AspNetCore;

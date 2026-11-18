@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Templates.Api.Contracts;
 using MsgHatch.Templates.Management;
 
 namespace MsgHatch.Templates.AspNetCore;
@@ -18,18 +19,16 @@ namespace MsgHatch.Templates.AspNetCore;
 /// </summary>
 internal static class TemplateRoutes
 {
-    private const string _templatePath = "/{messageType}/{language}/{part}/{kind}";
-
     private static readonly TemplateEndpointJson _json = TemplateEndpointJson.Default;
 
     public static void MapTo(RouteGroupBuilder group)
     {
-        group.MapGet(string.Empty, GetTemplatesAsync);
-        group.MapGet("/parts", GetTemplatePartsAsync);
-        group.MapGet(_templatePath, GetTemplateAsync);
-        group.MapPut(_templatePath, SaveTemplateAsync);
-        group.MapDelete(_templatePath, DeleteTemplateAsync);
-        group.MapPost(_templatePath + "/check", CheckTemplateAsync);
+        group.MapGet(TemplateApiRoutes.Templates, GetTemplatesAsync);
+        group.MapGet(TemplateApiRoutes.Parts, GetTemplatePartsAsync);
+        group.MapGet(TemplateApiRoutes.Template, GetTemplateAsync);
+        group.MapPut(TemplateApiRoutes.Template, SaveTemplateAsync);
+        group.MapDelete(TemplateApiRoutes.Template, DeleteTemplateAsync);
+        group.MapPost(TemplateApiRoutes.Check, CheckTemplateAsync);
     }
 
     private static Task<IResult> GetTemplatesAsync(HttpContext context, string? messageType, string? companyId) =>

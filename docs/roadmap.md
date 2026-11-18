@@ -1716,6 +1716,11 @@ The implementation changed the plan in these points:
 - The template package had no logging wrapper of the manager (section 4.22). The selections need one (step 4), so `TemplateQueriesLoggingWrapper` and `TemplateCommandsLoggingWrapper` wrap the default and each selection, with the event ids 2017 to 2028 (D244, Recommended).
 - `TemplateLookupRules` also has `Check(TemplateQuery)`, which checks the scope of a list, because `GetTemplatesAsync` takes a query and no lookup.
 - `SubscriptionManager.GetSubscriptionsAsync` gives an `ArgumentNullException` for a null query, as the other methods do. Before, the store got the null.
+- `TemplateSaveRequest` and `TemplateCheckRequest` hold only the text and the version, which are domain values already, so they get no mapping. Each other body record gets a mapping in both directions.
+- `ChannelResponse.ToChannelDescriptor(registry)` gives a private descriptor type of the contracts package, with the settings type of the newest entry `Settings:{channel}`, or `ChannelSettings` (D229). So the client of phase 27 can use this mapping in place of its own `HttpChannelDescriptor`.
+- `RoutingCheckResponse.ToCheck(registry)` reads the trace with the entry `Trace:Subscription` of the registry of the host. A host with no such entry, for example a host with only API clients and no `UseSubscriptions`, gets each row with no trace.
+- `SettingsJson` is public, because the server reads the settings of a request with it, and the server is in another assembly. Its server read keeps `Errors.ValidationFailed`, and the mappings from the wire give `JsonChannelSettings` or `Errors.SerializationFailed`.
+- The contracts tests are in `tests/MsgHatch.Api.Contracts.Tests.Unit`, `tests/MsgHatch.Subscriptions.Api.Contracts.Tests.Unit`, and `tests/MsgHatch.Templates.Api.Contracts.Tests.Unit`, one for each contracts package. The first one compiles `src/Shared/ErrorProblems.cs` to test the internal class with no `InternalsVisibleTo`.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 

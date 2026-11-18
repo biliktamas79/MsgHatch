@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Templates.Api.Contracts\MsgHatch.Templates.Api.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

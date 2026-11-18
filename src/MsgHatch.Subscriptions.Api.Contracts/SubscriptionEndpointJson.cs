@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace MsgHatch.Subscriptions.AspNetCore;
+namespace MsgHatch.Subscriptions.Api.Contracts;
 
 /// <summary>
 /// The JSON type information of the request and response bodies of the subscription endpoints, with camelCase names and
@@ -16,4 +16,4 @@ namespace MsgHatch.Subscriptions.AspNetCore;
 [JsonSerializable(typeof(IReadOnlyList<ChannelResponse>))]
 [JsonSerializable(typeof(RoutingVerificationBody))]
 [JsonSerializable(typeof(RoutingVerificationResponse))]
-internal sealed partial class SubscriptionEndpointJson : JsonSerializerContext;
+public sealed partial class SubscriptionEndpointJson : JsonSerializerContext;
