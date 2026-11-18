@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Subscriptions.Api.Contracts\MsgHatch.Subscriptions.Api.Contracts.csproj" />
+    <ProjectReference Include="..\MsgHatch.AdminUI\MsgHatch.AdminUI.csproj" />
+  </ItemGroup>
+
+</Project>

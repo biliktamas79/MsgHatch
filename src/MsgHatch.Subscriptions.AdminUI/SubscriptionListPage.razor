@@ -1,0 +1,107 @@
+@attribute [Route(SubscriptionAdminRoutes.List)]
+@inject IServiceProvider Services
+@* The subscriptions, with filters for the owner level, the message type, and the channel (D239). *@
+
+<h1 class="h3">Subscriptions</h1>
+<p>
+    <a class="btn btn-primary btn-sm" href="@SubscriptionAdminRoutes.New.TrimStart('/')">New subscription</a>
+    <a class="btn btn-link btn-sm" href="@SubscriptionAdminRoutes.MessageTypes.TrimStart('/')">Message types</a>
+    <a class="btn btn-link btn-sm" href="@SubscriptionAdminRoutes.Verification.TrimStart('/')">Routing verification</a>
+</p>
+
+<div class="row g-2 align-items-end mb-3" data-form="filter">
+    <div class="col-auto">
+        <label class="form-label" for="msghatch-subscription-level">Owner level</label>
+        <select id="msghatch-subscription-level" class="form-select" @bind="_levelFilter">
+            <option value="">All</option>
+            @foreach (var level in Enum.GetValues<SubscriptionLevel>())
+            {
+                <option value="@level">@level</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="msghatch-subscription-type">Message type</label>
+        <select id="msghatch-subscription-type" class="form-select" @bind="_typeFilter">
+            <option value="">All</option>
+            @foreach (var type in _types)
+            {
+                <option value="@type">@type</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="msghatch-subscription-channel">Channel</label>
+        <select id="msghatch-subscription-channel" class="form-select" @bind="_channelFilter">
+            <option value="">All</option>
+            @foreach (var channel in _channels)
+            {
+                <option value="@channel">@channel</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="button" class="btn btn-secondary" data-action="filter" @onclick="LoadAsync">Show</button>
+    </div>
+</div>
+
+<AdminList TItem="Subscription" Items="_subscriptions" EmptyText="There are no subscriptions.">
+    <Head>
+        <tr><th>Owner</th><th>Message type</th><th>Kind</th><th>Channel</th><th>Recipients</th><th>Mandatory</th><th>Revision</th><th></th></tr>
+    </Head>
+    <Row Context="subscription">
+        <tr data-row>
+            <td>@SubscriptionTexts.OwnerOf(subscription.Owner)</td>
+            <td>@subscription.Type.Name</td>
+            <td>@subscription.Kind</td>
+            <td>@(subscription.Channel?.Name ?? "All channels")</td>
+            <td>@SubscriptionTexts.RecipientsOf(subscription.Recipients)</td>
+            <td>@(subscription.Mandatory ? "Yes" : "No")</td>
+            <td>@subscription.Revision</td>
+            <td><a href="@SubscriptionAdminRoutes.Edit(subscription.Id).TrimStart('/')">Edit</a></td>
+        </tr>
+    </Row>
+</AdminList>
+
+@code {
+    private ErrorOr<IReadOnlyList<Subscription>>? _subscriptions;
+    private IReadOnlyList<string> _types = [];
+    private IReadOnlyList<string> _channels = [];
+    private string _levelFilter = string.Empty;
+    private string _typeFilter = string.Empty;
+    private string _channelFilter = string.Empty;
+
+    private ISubscriptionQueries Queries => Services.GetRequiredKeyedService<ISubscriptionQueries>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        var types = await Queries.GetMessageTypesAsync(new MessageTypeQuery(), CancellationToken.None);
+        var channels = await Queries.GetChannelsAsync(CancellationToken.None);
+        _types = types.IsSuccess ? [.. types.Value.Select(static state => state.Type.Name)] : [];
+        _channels = channels.IsSuccess ? [.. channels.Value.Select(static channel => channel.Id.Name)] : [];
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _subscriptions = null;
+        MessageType? type = null;
+        if (_typeFilter.Length > 0)
+        {
+            var parsed = SubscriptionTexts.MessageTypeOf(_typeFilter);
+            if (parsed.IsError)
+            {
+                _subscriptions = parsed.Error;
+                return;
+            }
+
+            type = parsed.Value;
+        }
+
+        SubscriptionLevel? level = Enum.TryParse<SubscriptionLevel>(_levelFilter, out var known) && Enum.IsDefined(known) ? known : null;
+        var found = await Queries.GetSubscriptionsAsync(new SubscriptionQuery(Type: type, Level: level), CancellationToken.None);
+        _subscriptions = found.IsError || _channelFilter.Length == 0 ? found
+            : ErrorOr<IReadOnlyList<Subscription>>.ForValue([.. found.Value.Where(subscription => subscription.Channel?.Name == _channelFilter)]);
+    }
+}

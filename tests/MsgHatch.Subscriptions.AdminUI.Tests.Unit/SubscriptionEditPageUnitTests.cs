@@ -1,0 +1,218 @@
+using Bunit;
+using MsgHatch.AdminUI;
+using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Routing;
+using MsgHatch.Subscriptions.AdminUI.Tests.Unit.TestTypes;
+using MsgHatch.Subscriptions.Api.Contracts;
+using NSubstitute;
+using static MsgHatch.Subscriptions.AdminUI.Tests.Unit.TestTypes.SubscriptionTestData;
+
+namespace MsgHatch.Subscriptions.AdminUI.Tests.Unit;
+
+public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
+{
+    private const string _faxSettingsText = "{\n  \"number\": \"123\"\n}";
+
+    public SubscriptionEditPageUnitTests()
+    {
+        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+    }
+
+    [Fact]
+    public void Render_StoredSubscription_ShowsItsValuesAndTheIndentedSettings()
+    {
+        var cut = RenderEdit();
+
+        Assert.Equal("Company", cut.Find("#msghatch-edit-level").GetAttribute("value"));
+        Assert.Equal("42", cut.Find("#msghatch-edit-company").GetAttribute("value"));
+        Assert.Equal("Requests", cut.Find("#msghatch-edit-type").GetAttribute("value"));
+        Assert.Equal("Fax", cut.Find("#msghatch-edit-channel").GetAttribute("value"));
+        Assert.Equal(_faxSettingsText, cut.Find("#msghatch-edit-settings").GetAttribute("value"));
+        Assert.Equal("3", cut.Find("[data-field=revision]").TextContent);
+        Assert.Equal("This host reads the settings as FaxSettings.", cut.Find("[data-field=settings-type]").TextContent);
+    }
+
+    [Fact]
+    public void Render_NotFound_ShowsTheMessageOfTheError()
+    {
+        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.NotFound, "The subscription does not exist."));
+
+        var cut = RenderEdit();
+
+        Assert.Equal("The subscription does not exist.", cut.Find(".alert-danger").TextContent);
+        Assert.Empty(cut.FindAll("[data-action=save]"));
+    }
+
+    [Fact]
+    public void Render_ChannelsUnavailable_ShowsTheTextOfUnavailable()
+    {
+        Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<ChannelDescriptor>>(Errors.Unavailable));
+
+        var cut = RenderEdit();
+
+        Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+    }
+
+    [Fact]
+    public void Change_Settings_ShowsThePendingChanges()
+    {
+        var cut = RenderEdit();
+
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
+
+        Assert.Equal("Changes that are not saved: settings.", cut.Find("[data-state=pending]").TextContent);
+    }
+
+    [Fact]
+    public void ClickSave_ChangedSettings_SendsTheExpectedRevisionAndTheTypedSettings()
+    {
+        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.Channel, Fax,
+            new FaxSettings("456"), SubscriptionRecipients.ScopeUsers);
+        Commands.UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>()).Returns(Ok(Subscription(settings: new FaxSettings("456"), revision: 4)));
+        var cut = RenderEdit();
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
+
+        cut.Find("[data-action=save]").Click();
+
+        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
+        Assert.Equal("4", cut.Find("[data-field=revision]").TextContent);
+        Assert.Single(cut.FindAll("[data-state=saved]"));
+        Assert.Empty(cut.FindAll("[data-state=pending]"));
+    }
+
+    [Fact]
+    public void ClickSave_ChannelWithNoSettingsTypeInTheHost_SendsTheSettingsAsJsonChannelSettings()
+    {
+        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+        var cut = RenderEdit();
+        cut.Find("#msghatch-edit-channel").Change("Pager");
+        cut.Find("#msghatch-edit-settings").Change("""{"code":7}""");
+
+        cut.Find("[data-action=save]").Click();
+
+        Commands.Received(1).UpdateAsync(Id, 3, Arg.Is<SubscriptionDraft>(draft =>
+            draft.Channel == Pager && draft.Settings is JsonChannelSettings && ((JsonChannelSettings)draft.Settings).Json.GetRawText() == """{"code":7}"""),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClickSave_Conflict_LoadsTheStoredVersionAgainAndShowsTheTextOfConflict()
+    {
+        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.Conflict));
+        var cut = RenderEdit();
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
+        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Ok(Subscription(settings: new FaxSettings("789"), revision: 5)));
+
+        cut.Find("[data-action=save]").Click();
+
+        Assert.Equal("5", cut.Find("[data-field=revision]").TextContent);
+        Assert.Equal("{\n  \"number\": \"789\"\n}", cut.Find("#msghatch-edit-settings").GetAttribute("value"));
+        Assert.Equal(AdminErrors.ConflictText, cut.Find(".alert-danger").TextContent);
+    }
+
+    [Fact]
+    public void ClickSave_ValidationFailedOfTheServer_ShowsTheMessageNextToTheForm()
+    {
+        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>())
+            .Returns(Fail<Subscription>(Errors.ValidationFailed, "A mandatory subscription is a default or company subscription for the scope users."));
+        var cut = RenderEdit();
+
+        cut.Find("[data-action=save]").Click();
+
+        Assert.Equal("A mandatory subscription is a default or company subscription for the scope users.", cut.Find("[data-form=subscription] ~ div .alert-danger").TextContent);
+    }
+
+    [Fact]
+    public void ClickSave_SettingsThatAreNotJson_ShowsValidationFailedAndSendsNothing()
+    {
+        var cut = RenderEdit();
+        cut.Find("#msghatch-edit-settings").Change("{ number");
+
+        cut.Find("[data-action=save]").Click();
+
+        Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code"));
+        Commands.DidNotReceiveWithAnyArgs().UpdateAsync(default, default, default!, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClickSave_UserLevelWithNoUserId_ShowsValidationFailedAndSendsNothing()
+    {
+        var cut = RenderEdit();
+        cut.Find("#msghatch-edit-level").Change("User");
+
+        cut.Find("[data-action=save]").Click();
+
+        Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code"));
+        Commands.DidNotReceiveWithAnyArgs().UpdateAsync(default, default, default!, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClickCreate_NamedUsers_CreatesTheDraftAndOpensTheEditPageOfTheNewSubscription()
+    {
+        var created = Guid.Parse("00000000-0000-0000-0000-000000000009");
+        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Ok(Subscription(id: created)));
+        var cut = Render<SubscriptionEditPage>();
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"1"}""");
+        cut.Find("#msghatch-edit-recipients").Change("NamedUsers");
+        cut.Find("#msghatch-edit-users").Change("1\n 2 \n");
+
+        cut.Find("[data-action=save]").Click();
+
+        var expected = new SubscriptionDraft(SubscriptionOwner.Default, Requests, SubscriptionKind.Channel, Fax, new FaxSettings("1"),
+            SubscriptionRecipients.ForUsers([new UserId("1"), new UserId("2")]));
+        Commands.Received(1).CreateAsync(expected, Arg.Any<CancellationToken>());
+        Assert.Equal("http://localhost/msghatch/subscriptions/00000000-0000-0000-0000-000000000009", Navigation.Uri);
+    }
+
+    [Fact]
+    public void ClickCreate_Rejected_ShowsTheTextOfRejectedAndStays()
+    {
+        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.Rejected));
+        var cut = Render<SubscriptionEditPage>();
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"1"}""");
+
+        cut.Find("[data-action=save]").Click();
+
+        Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        Assert.Equal("http://localhost/", Navigation.Uri);
+    }
+
+    [Fact]
+    public void ClickDelete_NoAnswer_DeletesNothing()
+    {
+        var cut = RenderEdit();
+
+        cut.Find("[data-action=delete]").Click();
+
+        Assert.Single(cut.FindAll(".modal"));
+        Commands.DidNotReceiveWithAnyArgs().DeleteAsync(default, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClickDelete_Cancelled_DeletesNothing()
+    {
+        var cut = RenderEdit();
+        cut.Find("[data-action=delete]").Click();
+
+        cut.Find("[data-action=cancel-delete]").Click();
+
+        Assert.Empty(cut.FindAll(".modal"));
+        Commands.DidNotReceiveWithAnyArgs().DeleteAsync(default, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ClickDelete_Confirmed_DeletesTheSubscriptionAndOpensTheList()
+    {
+        Commands.DeleteAsync(Id, Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult<Error?>(null));
+        var cut = RenderEdit();
+        cut.Find("[data-action=delete]").Click();
+
+        cut.Find("[data-action=confirm-delete]").Click();
+
+        Commands.Received(1).DeleteAsync(Id, Arg.Any<CancellationToken>());
+        Assert.Equal("http://localhost/msghatch/subscriptions", Navigation.Uri);
+    }
+
+    private IRenderedComponent<SubscriptionEditPage> RenderEdit() => Render<SubscriptionEditPage>(p => p.Add(x => x.Id, Id));
+}

@@ -1,0 +1,108 @@
+@attribute [Route(SubscriptionAdminRoutes.Verification)]
+@inject IServiceProvider Services
+@* The routing verification: a run with test users and languages, and its report (D163). It changes no stored subscription (D232). *@
+
+<h1 class="h3">Routing verification</h1>
+
+<div class="row g-3" data-form="verification">
+    <div class="col-md-4">
+        <label class="form-label" for="msghatch-verify-users">Test users, one user id on each line</label>
+        <textarea id="msghatch-verify-users" class="form-control" rows="4" @bind="_users"></textarea>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="msghatch-verify-languages">Languages, one on each line</label>
+        <textarea id="msghatch-verify-languages" class="form-control" rows="4" @bind="_languages"></textarea>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label" for="msghatch-verify-type">Message type</label>
+        <select id="msghatch-verify-type" class="form-select" @bind="_type">
+            <option value="">All</option>
+            @foreach (var type in _types)
+            {
+                <option value="@type">@type</option>
+            }
+        </select>
+    </div>
+</div>
+<div class="mt-3"><ErrorAlert Error="_formError" /></div>
+<button type="button" class="btn btn-primary mt-2" data-action="verify" disabled="@_busy" @onclick="VerifyAsync">Run the verification</button>
+
+@if (_report is { } report)
+{
+    @if (report.IsSuccess)
+    {
+        <p class="mt-3" data-field="totals">Passed: @report.Value.Passed. Failed: @report.Value.Failed. Skipped: @report.Value.Skipped.</p>
+    }
+    <AdminList TItem="RoutingCheck" Items="ChecksOf(report)" EmptyText="The verification found nothing to check.">
+        <Head>
+            <tr><th>Outcome</th><th>Message type</th><th>Test case</th><th>Owner</th><th>Target</th><th>Channel</th><th>Language</th><th>Error</th></tr>
+        </Head>
+        <Row Context="check">
+            <tr data-row>
+                <td><span class="badge @BadgeOf(check.Outcome)">@check.Outcome</span></td>
+                <td>@check.Type.Name</td>
+                <td>@check.TestCase</td>
+                <td>@(check.Owner is { } owner ? SubscriptionTexts.OwnerOf(owner) : null)</td>
+                <td>@(check.Target is { } target ? $"{target.Kind} {target.Id}" : null)</td>
+                <td>@check.Channel?.Name</td>
+                <td>@check.Language</td>
+                <td>@check.ErrorName</td>
+            </tr>
+        </Row>
+    </AdminList>
+}
+
+<a href="@SubscriptionAdminRoutes.List.TrimStart('/')">Back to the subscriptions</a>
+
+@code {
+    private ErrorOr<RoutingVerificationReport>? _report;
+    private IReadOnlyList<string> _types = [];
+    private string _users = string.Empty;
+    private string _languages = "en";
+    private string _type = string.Empty;
+    private Error? _formError;
+    private bool _busy;
+
+    private IRoutingVerifier Verifier => Services.GetRequiredKeyedService<IRoutingVerifier>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        var types = await Services.GetRequiredKeyedService<ISubscriptionQueries>(TenantKey.None).GetMessageTypesAsync(new MessageTypeQuery(), CancellationToken.None);
+        _types = types.IsSuccess ? [.. types.Value.Select(static state => state.Type.Name)] : [];
+    }
+
+    private async Task VerifyAsync()
+    {
+        (_formError, _report) = (null, null);
+        var users = SubscriptionTexts.UsersOf(_users);
+        var type = _type.Length > 0 ? SubscriptionTexts.MessageTypeOf(_type) : (ErrorOr<MessageType>?)null;
+        _formError = users.Error ?? type?.Error;
+        if (_formError is not null)
+        {
+            return;
+        }
+
+        _busy = true;
+        var request = new RoutingVerificationRequest(users.Value, [.. SubscriptionTexts.LinesOf(_languages)], type?.Value);
+        var report = await Verifier.VerifyAsync(request, CancellationToken.None);
+        _busy = false;
+        if (report.IsError)
+        {
+            _formError = report.Error;
+            return;
+        }
+
+        _report = report;
+    }
+
+    private static ErrorOr<IReadOnlyList<RoutingCheck>> ChecksOf(ErrorOr<RoutingVerificationReport> report) =>
+        report.IsError ? report.Error : ErrorOr<IReadOnlyList<RoutingCheck>>.ForValue(report.Value.Checks);
+
+    private static string BadgeOf(RoutingCheckOutcome outcome) => outcome switch
+    {
+        RoutingCheckOutcome.Passed => "text-bg-success",
+        RoutingCheckOutcome.Failed => "text-bg-danger",
+        _ => "text-bg-secondary",
+    };
+}
