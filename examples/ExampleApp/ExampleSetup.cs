@@ -2,6 +2,7 @@ using ExampleApp.Notices;
 using ExampleApp.PasswordResets;
 using ExampleApp.Recipients;
 using MsgHatch.Templates.DependencyInjection;
+using MsgHatch.Templates.Liquid;
 using MsgHatch.Broker.DependencyInjection;
 using MsgHatch.Data.Sqlite.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
@@ -90,7 +91,7 @@ public static class ExampleSetup
                 .WithPayload<Notice, NoticeLoader<EventE>>(p => p.AsBroker("EEvent", 1, json.BrokerEnvelopeNotice)))
             .AddMessage("F", 1, json.PasswordReset, static m => m
                 .WithRouter<PasswordResetRouter>()
-                .WithPayload<PasswordResetEmail, PasswordResetEmailLoader>(static p => p.AsEmail("FEmail")));
+                .WithPayload<PasswordResetEmail, PasswordResetEmailLoader>(static p => p.AsEmail("FEmail", LiquidTemplates.Engine)));
     }
 
     /// <summary>Turns on the traces and the metrics of MsgHatch (D131). The host adds its exporter after it.</summary>

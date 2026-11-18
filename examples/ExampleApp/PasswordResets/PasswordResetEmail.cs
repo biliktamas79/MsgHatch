@@ -1,8 +1,5 @@
-using MsgHatch.Templates.Placeholders;
-
 namespace ExampleApp.PasswordResets;
 
-/// <summary>The payload of the email template of the message type F.</summary>
+/// <summary>The payload of the email template of the message type F, which the Liquid engine renders (D253).</summary>
 /// <param name="ResetLink">The link that resets the password.</param>
-[PlaceholderPayload]
-public sealed partial record PasswordResetEmail(string ResetLink);
+public sealed record PasswordResetEmail(string ResetLink);

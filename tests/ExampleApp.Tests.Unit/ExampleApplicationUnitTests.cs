@@ -269,6 +269,26 @@ public sealed class ExampleApplicationUnitTests : IDisposable
             (saved.StatusCode, text, File.ReadAllText(Path.Combine(ExampleSetup.TemplateFolder, "A.en.subject.txt"))));
     }
 
+    [Theory]
+    [InlineData("A", "placeholder")]
+    [InlineData("F", "liquid")]
+    public async Task PartsRoute_EmailOfAMessageType_NamesTheEngineOfEachPart_D253(string messageType, string engine)
+    {
+        // Arrange
+        await using var example = ExampleWebApp.Build(_configuration);
+        await example.App.StartAsync(Ct);
+
+        // Act
+        using var response = await SendAsync(
+            example, HttpMethod.Get, $"{ExampleApplication.TemplatesPrefix}/parts?messageType={messageType}", body: null, ExampleApplication.TemplateAdmin);
+
+        // Assert
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        List<JsonElement> parts = [.. body.RootElement.EnumerateArray()];
+        Assert.NotEmpty(parts);
+        Assert.All(parts, part => Assert.Equal([engine], part.GetProperty("engines").EnumerateArray().Select(static name => name.GetString())));
+    }
+
     [Fact]
     public async Task TemplateRoute_PutOfAnUnknownPlaceholder_Gives422()
     {

@@ -15,6 +15,7 @@
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Caching.FusionCache\MsgHatch.Subscriptions.Caching.FusionCache.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.AspNetCore\MsgHatch.Subscriptions.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Templates.AspNetCore\MsgHatch.Templates.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Templates.Liquid\MsgHatch.Templates.Liquid.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.SourceGeneration\MsgHatch.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
