@@ -1,8 +1,34 @@
+using MsgHatch.Templates.AdminUI;
+
 namespace MsgHatch.Templates.Liquid.AdminUI;
 
-internal readonly record struct LiquidSegment(LiquidSpanKind Kind, int Start, int Length, string? Mark)
+internal static class LiquidSegments
 {
-    public string CssClass => Kind switch
+    private const char _codeMask = 'x';
+
+    public static List<TextSegment> Of(string text, Dictionary<int, string> marks, bool html)
+    {
+        var htmlSpans = html ? HtmlTokenizer.Tokenize(MaskLiquidCode(text)) : [];
+        var segments = new List<TextSegment>();
+        foreach (var span in LiquidTokenizer.Tokenize(text))
+        {
+            if (html && span.Kind == LiquidSpanKind.Text)
+            {
+                foreach (var piece in HtmlPiecesOf(htmlSpans, span.Start, span.Start + span.Length))
+                {
+                    AddWithMarks(segments, piece, marks);
+                }
+            }
+            else
+            {
+                AddWithMarks(segments, new TextSegment(span.Start, span.Length, CssClassOf(span.Kind)), marks);
+            }
+        }
+
+        return segments;
+    }
+
+    private static string CssClassOf(LiquidSpanKind kind) => kind switch
     {
         LiquidSpanKind.Delimiter => "liquid-delimiter",
         LiquidSpanKind.TagName => "liquid-tagname",
@@ -14,38 +40,56 @@ internal readonly record struct LiquidSegment(LiquidSpanKind Kind, int Start, in
         LiquidSpanKind.Raw => "liquid-raw",
         _ => "liquid-text",
     };
-}
 
-internal static class LiquidSegments
-{
-    public static List<LiquidSegment> Of(string text, Dictionary<int, string> marks)
+    private static string MaskLiquidCode(string text)
     {
-        var segments = new List<LiquidSegment>();
+        var masked = text.ToCharArray();
         foreach (var span in LiquidTokenizer.Tokenize(text))
         {
-            var start = span.Start;
-            var end = span.Start + span.Length;
-            for (var offset = start; offset < end; offset++)
+            if (span.Kind != LiquidSpanKind.Text)
             {
-                if (marks.TryGetValue(offset, out var mark))
-                {
-                    AddUnmarked(segments, span.Kind, start, offset);
-                    segments.Add(new LiquidSegment(span.Kind, offset, 1, mark));
-                    start = offset + 1;
-                }
+                masked.AsSpan(span.Start, span.Length).Fill(_codeMask);
             }
-
-            AddUnmarked(segments, span.Kind, start, end);
         }
 
-        return segments;
+        return new string(masked);
     }
 
-    private static void AddUnmarked(List<LiquidSegment> segments, LiquidSpanKind kind, int start, int end)
+    private static IEnumerable<TextSegment> HtmlPiecesOf(IReadOnlyList<HtmlSpan> htmlSpans, int start, int end)
+    {
+        foreach (var span in htmlSpans)
+        {
+            var pieceStart = Math.Max(start, span.Start);
+            var pieceEnd = Math.Min(end, span.Start + span.Length);
+            if (pieceEnd > pieceStart)
+            {
+                yield return new TextSegment(pieceStart, pieceEnd - pieceStart, HtmlTokenizer.CssClassOf(span.Kind));
+            }
+        }
+    }
+
+    private static void AddWithMarks(List<TextSegment> segments, TextSegment piece, Dictionary<int, string> marks)
+    {
+        var start = piece.Start;
+        var end = piece.Start + piece.Length;
+        for (var offset = start; offset < end; offset++)
+        {
+            if (marks.TryGetValue(offset, out var mark))
+            {
+                AddUnmarked(segments, piece.CssClass, start, offset);
+                segments.Add(new TextSegment(offset, 1, piece.CssClass, mark));
+                start = offset + 1;
+            }
+        }
+
+        AddUnmarked(segments, piece.CssClass, start, end);
+    }
+
+    private static void AddUnmarked(List<TextSegment> segments, string cssClass, int start, int end)
     {
         if (end > start)
         {
-            segments.Add(new LiquidSegment(kind, start, end - start, Mark: null));
+            segments.Add(new TextSegment(start, end - start, cssClass));
         }
     }
 }

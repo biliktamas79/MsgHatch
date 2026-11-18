@@ -12,6 +12,7 @@ namespace MsgHatch.Templates.Liquid.AdminUI.Tests.Unit;
 public sealed class LiquidTemplateEditorUnitTests : BunitContext
 {
     private static readonly TemplateLookup _lookup = new(new MessageType("Requests"), "en", null, "body", TemplatePartKind.Html);
+    private static readonly TemplateLookup _subject = new(new MessageType("Requests"), "en", null, "subject", TemplatePartKind.PlainText);
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
     private readonly ITemplateQueries _queries = Substitute.For<ITemplateQueries>();
 
@@ -38,7 +39,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
     [Fact]
     public void Render_EachKindOfSpan_GetsTheClassOfItsKind()
     {
-        var cut = RenderEditor("t{{ 'q' | plus: 1 }}{% comment %}c{% endcomment %}{% raw %}r{% endraw %}");
+        var cut = RenderEditor("t{{ 'q' | plus: 1 }}{% comment %}c{% endcomment %}{% raw %}r{% endraw %}", lookup: _subject);
 
         Assert.Equal("'q'", cut.Find(".liquid-quoted").TextContent);
         Assert.Equal("1", cut.Find(".liquid-number").TextContent);
@@ -50,11 +51,39 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_HtmlPart_HighlightsTheHtmlInTheTextSpans()
+    {
+        var cut = RenderEditor("<a href=\"{{ Link }}\">{{ Name }}</a>");
+
+        Assert.Equal(["a", "a"], cut.FindAll(".html-tagname").Select(static span => span.TextContent));
+        Assert.Equal("href", cut.Find(".html-attribute").TextContent);
+        Assert.Equal(["\"", "\""], cut.FindAll(".html-value").Select(static span => span.TextContent));
+        Assert.Equal(4, cut.FindAll(".liquid-delimiter").Count);
+    }
+
+    [Fact]
+    public void Render_HtmlPartWithALessThanInLiquidCode_StartsNoTagThere()
+    {
+        var cut = RenderEditor("{{ a<b }}<i>x</i>");
+
+        Assert.Equal(["i", "i"], cut.FindAll(".html-tagname").Select(static span => span.TextContent));
+    }
+
+    [Fact]
+    public void Render_PlainTextPart_HighlightsNoHtml()
+    {
+        var cut = RenderEditor("<p>{{ x }}</p>", lookup: _subject);
+
+        Assert.Empty(cut.FindAll(".html-tagname"));
+        Assert.Equal("<p>", cut.Find(".liquid-text").TextContent);
+    }
+
+    [Fact]
     public void Render_OpenOutput_MarksItWithNoCall()
     {
         var cut = RenderEditor("a {{ x");
 
-        Assert.Equal("1:3", cut.Find("mark.liquid-issue").GetAttribute("data-mark"));
+        Assert.Equal("1:3", cut.Find("mark.template-issue").GetAttribute("data-mark"));
         Assert.Equal("Line 1, column 3: " + LiquidTokenizer.OpenOutputMessage, cut.Find("[data-issue]").TextContent);
         _queries.DidNotReceiveWithAnyArgs().CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>());
     }
@@ -64,7 +93,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
     {
         var cut = RenderEditor("a\n{% liquid echo 1 %}");
 
-        Assert.Equal("2:1", cut.Find("mark.liquid-issue").GetAttribute("data-mark"));
+        Assert.Equal("2:1", cut.Find("mark.template-issue").GetAttribute("data-mark"));
         _queries.DidNotReceiveWithAnyArgs().CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>());
     }
 
@@ -107,8 +136,8 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
         cut.Find("textarea").Input("ab\ncd x");
         _clock.Advance(TimeSpan.FromMilliseconds(500));
 
-        cut.WaitForAssertion(() => Assert.Equal("2:4", cut.Find("mark.liquid-issue").GetAttribute("data-mark")));
-        Assert.Equal("x", cut.Find("mark.liquid-issue").TextContent);
+        cut.WaitForAssertion(() => Assert.Equal("2:4", cut.Find("mark.template-issue").GetAttribute("data-mark")));
+        Assert.Equal("x", cut.Find("mark.template-issue").TextContent);
         Assert.Equal("Line 2, column 4: The tag is not known.", cut.Find("[data-issue]").TextContent);
     }
 
@@ -204,6 +233,6 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
     private void GivenCheck(IReadOnlyList<TemplateIssue> issues) =>
         _queries.CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues)));
 
-    private IRenderedComponent<LiquidTemplateEditor> RenderEditor(string text, Action<string>? textChanged = null) =>
-        Render<LiquidTemplateEditor>(p => p.Add(x => x.Lookup, _lookup).Add(x => x.Text, text).Add(x => x.TextChanged, textChanged ?? (static _ => { })));
+    private IRenderedComponent<LiquidTemplateEditor> RenderEditor(string text, Action<string>? textChanged = null, TemplateLookup? lookup = null) =>
+        Render<LiquidTemplateEditor>(p => p.Add(x => x.Lookup, lookup ?? _lookup).Add(x => x.Text, text).Add(x => x.TextChanged, textChanged ?? (static _ => { })));
 }
