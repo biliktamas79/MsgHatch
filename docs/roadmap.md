@@ -1872,6 +1872,26 @@ Tests, with bUnit, in `tests/MsgHatch.AdminUI.Tests.Unit`, `tests/MsgHatch.Templ
 - The example host resolves each interface to its HTTP client.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-18). The probes are projects in a scratch folder, outside the repository, on Windows 11 build 26300 with the .NET SDK 10.0.404 and `Microsoft.AspNetCore.Components.Web` 10.0.14:
+
+| Fact | Source |
+|---|---|
+| bUnit 2.15.2 is the current version, from 2026-11-10, with the license MIT. For `net10.0` it needs `Microsoft.AspNetCore.Components`, `Microsoft.AspNetCore.Components.Web`, and the packages of WebAssembly and authorization 10.0.13 or later, and AngleSharp, which has the license MIT. | The NuGet registration of `bunit` |
+| A Razor class library with `IsAotCompatible` and `TreatWarningsAsErrors` builds with no warning, also with a setup method whose type parameter has `DynamicallyAccessedMembers(All)`, except IL2111 for each `DynamicComponent` in its markup: the generated `OpenComponent<DynamicComponent>` keeps all members of `DynamicComponent`, and its setter of `Type` has `DynamicallyAccessedMembers`. `UnconditionalSuppressMessage` for IL2111 on a partial class of the page removes the warning (D250). | The build of a probe library |
+| A Blazor WebAssembly host with `PublishTrimmed` publishes with no .NET workload, because the runtime pack comes from the NuGet restore. Its default `TrimMode` is `partial`, so the trimmer trims each assembly with `IsTrimmable`, which `IsAotCompatible` sets. The trimmed probe library had no page type and no plain editor, and the router of the host gave "Not found". | `dotnet msbuild -getProperty:TrimMode`, the linked assembly of the probe, and the page in the browser pane |
+| With `DynamicDependency(All)` of the page and of the plain editor on the setup method of the probe library, the trimmed host published with no trim warning, and the page showed the registered editor and the plain editor through `DynamicComponent` (D250). | The publish output, and the DOM of the page in the browser pane, from a static file server on `127.0.0.1` |
+| A `[SupplyParameterFromQuery]` property of .NET 10 is no component parameter, so a bUnit test sets its value through the address of `BunitNavigationManager`. | The bUnit documentation through Context7, and `Render_CompanyInTheQuery_ReadsTheTemplateOfTheCompany` |
+| The event triggers of bUnit return while an event handler waits for the pause of `FakeTimeProvider`. After `Advance`, the rest of the handler runs on the renderer, and `WaitForAssertion` sees the check of the Liquid editor. | `Input_ThreeChangesAndAPause_CallsTheCheckOneTimeWithTheLastText` |
+| In the example host, each selection of a client has its logging wrapper (D244), so the services of `TenantKey.None` resolve to `SubscriptionQueriesLoggingWrapper` and the other wrappers, and not to the internal client types. So the test of the example host checks that the call of each interface goes over HTTP to the prefix of its API with the token. | The first run of `AdminUiExample.Tests.Unit` |
+| `MapStaticAssets` and `@Assets` work in the example host on a `TestServer` in the environment `Testing`, and the prerender of an admin page calls the API clients: with no API, the template list shows the text of `Unavailable`. | `Get_TemplateListWithNoApi_ShowsTheTextOfUnavailable` |
+| The 34 unit test projects pass 4,460 tests and skip 1 test: the path limit test of the named pipe signal on Windows. `MsgHatch.AdminUI.Tests.Unit` passes 24 tests, `MsgHatch.Templates.AdminUI.Tests.Unit` 45, `MsgHatch.Templates.Liquid.AdminUI.Tests.Unit` 42, `MsgHatch.Subscriptions.AdminUI.Tests.Unit` 36, and `AdminUiExample.Tests.Unit` 3. The line coverage of the production code is 98.8 %: `MsgHatch.AdminUI` 100 %, `MsgHatch.Subscriptions.AdminUI` 97.0 %, `MsgHatch.Templates.AdminUI` 96.2 %, and `MsgHatch.Templates.Liquid.AdminUI` 98.3 %. The lines with no test are the loading state of the edit pages, the guards of a save or a delete with no loaded item, a part index and a channel name that the selects cannot give, the save of company recipients, the badge of a skipped check, the catch of a closed circuit, and the result of a check that a new key cancelled. `AdminUiExample` is not part of the coverage, because the report includes only the assemblies `MsgHatch.*`. | `pwsh ./coverage.ps1` on the content of `ac7e30c` |
+| Each new test failed with a break of the code that it covers: the shared parts (24 tests, with an empty markup, a render mode, and an empty error text), the template admin UI (44 tests, with empty pages, a render mode, other route templates, a route builder with no values, and no checks of the setup method), the later editor of one engine (1 test, with the first editor), the Liquid editor (38 tests, with an empty editor, a render mode, another engine name, and a tokenizer with no spans and a wrong issue), the pause of the check (1 test, with no pause), the subscription admin UI (34 tests, with empty pages, a render mode, other route templates, and a route builder with no id), the example host (3 tests, with no start check of the options, no token handler, and no admin assemblies), and the 6 tests of commit 7 (the class of each span kind, a position after the end of the text, no guard of a tag at the end of a text, the text of the company recipients, and no guard of empty settings). Two tests of a null service collection passed with the break, because the DI method that follows throws the same exception, so the phase removed them. | The breaks, each one reverted after its run |
+
+Checks that the phase did not do:
+- A trimmed WebAssembly host of the four real admin packages. The probe used a library of its own with the same patterns, and the real packages build with `IsAotCompatible` and no warning.
+- A run of `AdminUiExample` against a live `ExampleApp`. The phase starts no host, and the test of the example host runs the host on a `TestServer` with a fake API.
+- The integrity hash of Bootstrap 5.3.3 in `App.razor` comes from the Bootstrap documentation. The phase downloads no file, so it did not compute the hash. A browser checks it when it loads the page, and refuses the style sheet when the hash is wrong.
+
 Commits:
 1. "Add the shared parts of the admin UIs"
 2. "Add the admin UI of the templates with the editor extension point"
@@ -1879,8 +1899,26 @@ Commits:
 4. "Add the admin UI of the subscriptions"
 5. "Add the example host of the admin UIs"
 6. "Describe the admin UIs in the design"
-7. "Record the commits and the checked facts of phase 28 in the plan"
-8. "Record phase 28 as done in README and AGENTS.md"
+7. "Test the behaviors of the admin pages that the coverage showed"
+8. "Record the commits and the checked facts of phase 28 in the plan"
+9. "Record phase 28 as done in README and AGENTS.md"
+
+Commit 1 holds item 2 (`b6fbe83`), commit 2 item 3 (`811ddd2`), commit 3 item 4 (`3d40f59`), commit 4 item 5 (`2e105e1`), commit 5 item 6 (`bf71132`), commit 6 item 7 (`fd721b6`), and commit 7 the tests of the lines that the first coverage report showed with no test (`ac7e30c`). Item 1 is a check, and its results are in the checked facts. Commits 1 to 5 add their projects and test projects to `MsgHatch.slnx`, and commit 1 adds `Microsoft.AspNetCore.Components.Web` 10.0.14 and `bunit` 2.15.2 to `Directory.Packages.props`. The unit test project of each new package passed at its commit, and the solution build with `--no-incremental` had no errors and no warnings at commit 6 and at commit 7.
+
+The implementation changed the plan in these points:
+- A library page with `DynamicComponent` gives IL2111, and a trimmed WebAssembly host removes the pages of a library with `IsAotCompatible`. So each setup method keeps the pages of its package with `DynamicDependency`, and the template edit page suppresses IL2111 with its reason (D250, Recommended).
+- The pages resolve the services of `TenantKey.None` through the `IServiceProvider` of their scope, because `[Inject]` takes only a constant key, and the plan has no tenant selection (D249, Recommended).
+- The save button is on the edit page, so `TemplateEditorBase` has `CanSaveAsync`, which the page calls before each save, and the protected `CheckAsync`. The Liquid editor runs its check before a save there (D251, Recommended).
+- The setup methods `AddMsgHatchTemplatesAdminUI`, `AddTemplateEditor<TEditor>`, `AddLiquidTemplateEditor`, and `AddMsgHatchSubscriptionsAdminUI` extend `IServiceCollection`, as their names start with `Add`, so a host adds the pages with no MsgHatch builder.
+- `SubscriptionQuery` has no channel, so the subscription list applies the filter of the channel to the result in the page. The lists page their rows in the page, 25 rows on one page, because the APIs give each list in full.
+- The template edit page reads the template with no fallback, and `NotFound` gives a new template with the version 0, so the new template of the list opens the same edit page.
+- The subscription edit page decides the type of the settings with `ChannelDescriptor.SettingsType` of `GetChannelsAsync`: a settings type of the host gives `SettingsJson.Read`, and `ChannelSettings` gives `JsonChannelSettings` (D229). So the page never calls `SubscriptionRequest.From` with typed settings that the client host does not register.
+- The links and the navigation of the pages use the addresses of the route builders with no leading `/`, so a host with a base path keeps its path.
+- The span kind of a quoted text is `LiquidSpanKind.Quoted`, because the analyzer rule CA1720 rejects a member name that is a type name, for example `String`.
+- The styles of the Liquid editor are scoped CSS, so a host loads its bundle `{assembly of the host}.styles.css`, and the JavaScript module is a static web asset under `_content/MsgHatch.Templates.Liquid.AdminUI/`.
+- The example host reads the token from the required option `AdminUiExample:ApiToken`, and `ApiTokenHandler` adds it to each request. The example has no sign-in, so the handler needs no circuit services accessor of section 4.23.
+- The first coverage report showed lines of the admin packages with no test, for example the class of each span kind and the save of an opt-out. So commit 7 adds their tests, and the commits of the plan and of README and AGENTS.md follow it as commits 8 and 9.
+- The test of the example host checks the calls over HTTP, because each selection wraps its client in its logging wrapper (D244). The test uses a hand-written fake primary HTTP handler, as the Resend tests do, because NSubstitute cannot configure the protected `SendAsync` (section 5.5).
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
