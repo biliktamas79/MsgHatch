@@ -231,6 +231,19 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
+    public void ClickDelete_StoredTemplate_ShowsItsMetadataAndTheFallbackInTheQuestion()
+    {
+        var cut = RenderPage();
+
+        cut.Find("[data-action=delete]").Click();
+
+        Assert.Equal(
+            "Message type Requests | Language en | Company All companies | Part subject (PlainText) | Version 7",
+            string.Join(" | ", cut.Find(".modal [data-delete-details] [data-metadata]").Children.Select(static item => item.TextContent)));
+        Assert.Equal((1, 1), (cut.FindAll(".modal [data-delete-effect]").Count, cut.FindAll(".modal [data-delete-warning]").Count));
+    }
+
+    [Fact]
     public void ClickDelete_NoAnswer_DeletesNothing()
     {
         var cut = RenderPage();

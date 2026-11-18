@@ -206,6 +206,20 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void ClickDelete_StoredSubscription_ShowsItsDetailsAndTheEffectInTheQuestion()
+    {
+        var cut = RenderEdit();
+        cut.Find("#msghatch-edit-company").Change("43");
+
+        cut.Find("[data-action=delete]").Click();
+
+        Assert.Equal(
+            "owner: Company 42, type: Requests, kind: Channel, channel: Fax, recipients: Scope users, mandatory: No, revision: 3",
+            string.Join(", ", cut.FindAll(".modal [data-delete-details] [data-detail]").Select(static dd => $"{dd.GetAttribute("data-detail")}: {dd.TextContent}")));
+        Assert.Equal((1, 1), (cut.FindAll(".modal [data-delete-effect]").Count, cut.FindAll(".modal [data-delete-warning]").Count));
+    }
+
+    [Fact]
     public void ClickDelete_NoAnswer_DeletesNothing()
     {
         var cut = RenderEdit();

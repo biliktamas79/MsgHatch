@@ -53,7 +53,16 @@ else
     </AdminActions>
 
     <DeleteDialog Open="_confirmDelete" Question="@($"Do you want to delete the {lookup.Part} ({lookup.Kind}) template of {lookup.Type.Name} in {lookup.Language}?")"
-                  Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false" />
+                  Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false">
+        <Details>
+            <TemplateMetadata Lookup="lookup" Version="_version" />
+            <p class="small text-secondary mb-0" data-delete-effect>
+                After the delete, a send uses the next template of the fallback, for example the template with no company or the template
+                of the default language. When no template is left, a required part, for example the subject, gives an error, and an
+                optional part, for example the text body, is left out.
+            </p>
+        </Details>
+    </DeleteDialog>
 }
 
 @code {

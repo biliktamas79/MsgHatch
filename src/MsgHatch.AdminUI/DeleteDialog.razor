@@ -1,7 +1,12 @@
-@* The question before a delete (D239, D261). A delete runs only after the user confirms it. *@
+@* The question before a delete, with the details of the item (D239, D261, D262). A delete runs only after the user confirms it. *@
 <AdminDialog Open="Open" Title="Delete">
     <ChildContent>
         <p>@Question</p>
+        @if (Details is not null)
+        {
+            <div class="mb-3" data-delete-details>@Details</div>
+        }
+        <p class="text-danger mb-0" data-delete-warning>The delete cannot be undone.</p>
     </ChildContent>
     <Start>
         <button type="button" class="btn btn-outline-secondary" data-action="cancel-delete" @onclick="() => Cancelled.InvokeAsync()">Cancel</button>
@@ -19,6 +24,10 @@
     /// <summary>The question, for example the name of the item to delete.</summary>
     [Parameter]
     public string Question { get; set; } = "Do you want to delete this item?";
+
+    /// <summary>The details of the item to delete, and what changes after the delete, or null for no details.</summary>
+    [Parameter]
+    public RenderFragment? Details { get; set; }
 
     /// <summary>Runs when the user confirms the delete.</summary>
     [Parameter]

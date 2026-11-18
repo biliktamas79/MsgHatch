@@ -21,6 +21,24 @@ public sealed class DeleteDialogUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_OpenWithDetails_ShowsTheDetailsAndThatTheDeleteCannotBeUndone()
+    {
+        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true).Add(x => x.Details, builder => builder.AddMarkupContent(0, "<dl><dt>Owner</dt><dd>Company 42</dd></dl>")));
+
+        Assert.Equal(
+            ("Company 42", "The delete cannot be undone."),
+            (cut.Find(".modal-body [data-delete-details] dd").TextContent, cut.Find(".modal-body [data-delete-warning]").TextContent));
+    }
+
+    [Fact]
+    public void Render_OpenWithNoDetails_ShowsNoDetailsArea()
+    {
+        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true));
+
+        Assert.Equal((0, 1), (cut.FindAll("[data-delete-details]").Count, cut.FindAll("[data-delete-warning]").Count));
+    }
+
+    [Fact]
     public void Render_Open_PutsCancelOnTheLeftAndDeleteOnTheRight()
     {
         var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true));
