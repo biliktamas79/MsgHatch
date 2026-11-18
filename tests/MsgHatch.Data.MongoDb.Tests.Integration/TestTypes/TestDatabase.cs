@@ -12,7 +12,7 @@ public sealed class TestDatabase(IMongoDatabase database)
 {
     private static readonly string[] _collections =
     [
-        MongoDbInboxStore.CollectionName, MongoDbOutboxStore.CollectionName, MongoDbOutboxStore.ChannelDownCollectionName,
+        MongoDbInboxStore.CollectionName, MongoDbOutboxStore.CollectionName, MongoDbOutboxStore.ChannelStateCollectionName,
         MongoDbRegistrySettingsStore.ChannelEntryCollectionName, MongoDbRegistrySettingsStore.MessageTypeEntryCollectionName,
     ];
 

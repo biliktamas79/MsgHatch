@@ -16,29 +16,37 @@ namespace MsgHatch.Data.MongoDb;
 /// <summary>
 /// The outbox on MongoDB (section 4.5, D121): one document of the collection <c>MsgHatchOutbox</c> for each outgoing
 /// message, converted from the JSON document of <see cref="MsgHatchJson"/> (D184), with each time as <c>{ d, t }</c>
-/// (D185), and its publish tries in the embedded array <c>tries</c> (D27). The collection <c>MsgHatchChannelDown</c>
-/// has one document for each down channel (D106). It is the dispatch store of all tenants, and <see cref="For"/> gives
-/// the tenant store of one key.
+/// (D185), and its publish tries in the embedded array <c>tries</c> (D27). The collection <c>MsgHatchChannelState</c> has
+/// one document for each insert-only state row of a channel, with the unique index on the channel and the version (D106,
+/// D277). It is the dispatch store of all tenants, and <see cref="For"/> gives the tenant store of one key.
 /// </summary>
 public sealed class MongoDbOutboxStore : IOutboxDispatchStore
 {
     /// <summary>The name of the collection of the outgoing messages.</summary>
     public const string CollectionName = "MsgHatchOutbox";
 
-    /// <summary>The name of the collection of the down states.</summary>
-    public const string ChannelDownCollectionName = "MsgHatchChannelDown";
+    /// <summary>The name of the collection of the state rows of the channels.</summary>
+    public const string ChannelStateCollectionName = "MsgHatchChannelState";
 
     private const string _channel = "channel";
     private const string _tries = "tries";
     private const string _reason = "reason";
     private const string _nextCheckAtUtc = "nextCheckAtUtc";
+    private const string _version = "version";
+    private const string _kind = "kind";
+    private const string _sinceUtc = "sinceUtc";
+    private const string _previousKind = "previousKind";
+    private const string _previousDurationMs = "previousDurationMs";
+    private const string _errorCode = "errorCode";
+    private const string _errorName = "errorName";
+    private const string _note = "note";
 
     private static readonly FilterDefinitionBuilder<BsonDocument> _filter = Builders<BsonDocument>.Filter;
 
     private static readonly string[] _content = ["trace", "envelope", _tries];
 
     private readonly MongoDbStorage _storage;
-    private readonly IMongoCollection<BsonDocument> _downs;
+    private readonly MongoDbStorage _states;
     private readonly MsgHatchJson _json;
 
     /// <summary>Makes the store on a database.</summary>
@@ -58,7 +66,9 @@ public sealed class MongoDbOutboxStore : IOutboxDispatchStore
                 Index("IX_MsgHatchOutbox_Target", new BsonDocument { { Tenant, 1 }, { "target.kind", 1 }, { "target.id", 1 }, { CreatedAtTicks, 1 } }),
                 Index("IX_MsgHatchOutbox_Source", new BsonDocument("sourceMessageId", 1)),
             ]);
-        _downs = database.GetCollection<BsonDocument>(ChannelDownCollectionName);
+        _states = new MongoDbStorage(
+            database, ChannelStateCollectionName,
+            [Index("UX_MsgHatchChannelState_Version", new BsonDocument { { _channel, 1 }, { _version, 1 } }, unique: true)]);
         _json = json;
     }
 
@@ -73,8 +83,8 @@ public sealed class MongoDbOutboxStore : IOutboxDispatchStore
         maxCount < 1
             ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
             : await _storage.RunAsync(
-                async () => await _downs.Find(_filter.Eq(Id, channel.Name)).FirstOrDefaultAsync(ct) is { } down
-                    ? new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, DownOf(down))
+                async () => (await LatestStateAsync(channel, ct))?.ToDown() is { } down
+                    ? new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down)
                     : await ClaimAsync(_storage.Documents, _filter.Eq(_channel, channel.Name), maxCount, nowUtc, lease, Read, ct),
                 ct);
 
@@ -125,11 +135,11 @@ public sealed class MongoDbOutboxStore : IOutboxDispatchStore
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct) =>
-        _storage.RunAsync<IReadOnlyList<ChannelDown>>(
+        _states.RunAsync<IReadOnlyList<ChannelDown>>(
             async () =>
             {
-                var documents = await _downs.Find(_filter.Empty).Sort(Builders<BsonDocument>.Sort.Ascending(Id)).ToListAsync(ct);
-                IReadOnlyList<ChannelDown> downs = [.. documents.Select(DownOf)];
+                var latest = await LatestOfEachChannelAsync(_filter.Empty, ct);
+                IReadOnlyList<ChannelDown> downs = [.. latest.Select(static row => row.ToDown()).OfType<ChannelDown>()];
                 return ErrorOr<IReadOnlyList<ChannelDown>>.ForValue(downs);
             },
             ct);
@@ -138,61 +148,103 @@ public sealed class MongoDbOutboxStore : IOutboxDispatchStore
     public ValueTask<ErrorOr<bool>> SetChannelDownAsync(ChannelDown down, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(down);
-        var document = new BsonDocument
-        {
-            { Id, down.Channel.Name },
-            { _reason, down.Reason.ToString() },
-            { "sinceUtc", BsonDocuments.Time(down.SinceUtc) },
-            { _nextCheckAtUtc, BsonDocuments.Time(down.NextCheckAtUtc) },
-            { "errorCode", down.ErrorCode is { } code ? new BsonInt32(code) : BsonNull.Value },
-            { "errorName", BsonDocuments.Text(down.ErrorName) },
-            { "note", BsonDocuments.Text(down.Note) },
-        };
-        return _storage.RunAsync<bool>(
-            async () =>
-            {
-                if (down.Reason == ChannelDownReason.Operator)
-                {
-                    await _downs.ReplaceOneAsync(_filter.Eq(Id, down.Channel.Name), document, new ReplaceOptions { IsUpsert = true }, ct);
-                    return true;
-                }
-
-                try
-                {
-                    await _downs.InsertOneAsync(document, cancellationToken: ct);
-                    return true;
-                }
-                catch (MongoException exception) when (MongoDbStorage.IsDuplicateKey(exception))
-                {
-                    return false;
-                }
-            },
+        return _states.RunAsync(
+            async () => await ChannelState.ChangeAsync(
+                async () => await LatestStateAsync(down.Channel, ct), latest => ChannelState.AfterDown(latest, down), row => TryAddStateAsync(row, ct)),
             ct);
     }
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
-        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
+        _states.RunAsync<IReadOnlyList<ChannelState>>(
+            async () =>
+            {
+                var since = await _states.Documents.Find(_filter.Gte($"{_sinceUtc}.{BsonDocuments.Ticks}", fromUtc.Ticks)).ToListAsync(ct);
+                var currentAtFrom = await LatestOfEachChannelAsync(_filter.Lt($"{_sinceUtc}.{BsonDocuments.Ticks}", fromUtc.Ticks), ct);
+                return ErrorOr<IReadOnlyList<ChannelState>>.ForValue(ChannelState.NewestFirst([.. since.Select(StateOf), .. currentAtFrom], fromUtc));
+            },
+            ct);
 
     /// <inheritdoc />
-    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct)
-    {
-        var filter = _filter.Eq(Id, channel.Name);
-        filter = reason is { } value ? filter & _filter.Eq(_reason, value.ToString()) : filter;
-        return _storage.RunAsync<bool>(async () => (await _downs.DeleteOneAsync(filter, ct)).DeletedCount > 0, ct);
-    }
+    public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
+        _states.RunAsync(
+            async () => await ChannelState.ChangeAsync(
+                async () => await LatestStateAsync(channel, ct), latest => ChannelState.AfterUp(latest, channel, reason, upAtUtc),
+                row => TryAddStateAsync(row, ct)),
+            ct);
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> TryStartChannelCheckAsync(
         ChannelId channel, DateTime nowUtc, DateTime nextCheckAtUtc, CancellationToken ct) =>
-        _storage.RunAsync<bool>(
-            async () => (await _downs.UpdateOneAsync(
+        _states.RunAsync<bool>(
+            async () => await LatestStateAsync(channel, ct) is { } latest && (await _states.Documents.UpdateOneAsync(
                 _filter.And(
-                    _filter.Eq(Id, channel.Name), _filter.Eq(_reason, nameof(ChannelDownReason.Errors)),
-                    _filter.Lte($"{_nextCheckAtUtc}.{BsonDocuments.Ticks}", nowUtc.Ticks)),
+                    _filter.Eq(_channel, channel.Name), _filter.Eq(_version, latest.Version), _filter.Eq(_kind, nameof(ChannelStateKind.Down)),
+                    _filter.Eq(_reason, nameof(ChannelDownReason.Errors)), _filter.Lte($"{_nextCheckAtUtc}.{BsonDocuments.Ticks}", nowUtc.Ticks)),
                 Builders<BsonDocument>.Update.Set(_nextCheckAtUtc, BsonDocuments.Time(nextCheckAtUtc)),
                 cancellationToken: ct)).MatchedCount > 0,
             ct);
+
+    private async Task<ChannelState?> LatestStateAsync(ChannelId channel, CancellationToken ct) =>
+        await _states.Documents.Find(_filter.Eq(_channel, channel.Name)).Sort(Builders<BsonDocument>.Sort.Descending(_version)).FirstOrDefaultAsync(ct)
+            is { } document ? StateOf(document) : null;
+
+    /// <summary>Gives the row with the highest version of each channel among the rows of a filter.</summary>
+    private async Task<List<ChannelState>> LatestOfEachChannelAsync(FilterDefinition<BsonDocument> filter, CancellationToken ct)
+    {
+        var documents = await _states.Documents.Aggregate()
+            .Match(filter)
+            .Sort(Builders<BsonDocument>.Sort.Ascending(_channel).Descending(_version))
+            .Group(new BsonDocument { { Id, $"${_channel}" }, { "row", new BsonDocument("$first", "$$ROOT") } })
+            .ReplaceRoot<BsonDocument>("$row")
+            .ToListAsync(ct);
+        return [.. documents.Select(StateOf)];
+    }
+
+    /// <summary>Inserts a state row. A stored version gives a duplicate key, so the row stays, and gives false (D277).</summary>
+    private async ValueTask<bool> TryAddStateAsync(ChannelState row, CancellationToken ct)
+    {
+        try
+        {
+            await _states.Documents.InsertOneAsync(StateDocument(row), cancellationToken: ct);
+            return true;
+        }
+        catch (MongoException exception) when (MongoDbStorage.IsDuplicateKey(exception))
+        {
+            return false;
+        }
+    }
+
+    /// <summary>A state row as one document, with the ObjectId of its start time and the counter of the driver (D187).</summary>
+    private static BsonDocument StateDocument(ChannelState row) =>
+        new()
+        {
+            { Id, ObjectId.GenerateNewId((int)((row.SinceUtc.Ticks - DateTime.UnixEpoch.Ticks) / TimeSpan.TicksPerSecond)) },
+            { _channel, row.Channel.Name },
+            { _version, row.Version },
+            { _kind, row.Kind.ToString() },
+            { _sinceUtc, BsonDocuments.Time(row.SinceUtc) },
+            { _previousKind, BsonDocuments.Text(row.PreviousKind?.ToString()) },
+            { _previousDurationMs, row.PreviousDuration is { } duration ? new BsonInt64((long)duration.TotalMilliseconds) : BsonNull.Value },
+            { _reason, BsonDocuments.Text(row.Reason?.ToString()) },
+            { _nextCheckAtUtc, BsonDocuments.Time(row.NextCheckAtUtc) },
+            { _errorCode, row.ErrorCode is { } code ? new BsonInt32(code) : BsonNull.Value },
+            { _errorName, BsonDocuments.Text(row.ErrorName) },
+            { _note, BsonDocuments.Text(row.Note) },
+        };
+
+    /// <exception cref="ArgumentException">The document has an invalid channel name, kind, or reason.</exception>
+    /// <exception cref="InvalidCastException">A field has another BSON type.</exception>
+    private static ChannelState StateOf(BsonDocument document) =>
+        new(
+            new ChannelId(document[_channel].AsString), document[_version].AsInt32, Enum.Parse<ChannelStateKind>(document[_kind].AsString),
+            BsonDocuments.TimeOf(document[_sinceUtc]),
+            BsonDocuments.NullableTextOf(document[_previousKind]) is { } previousKind ? Enum.Parse<ChannelStateKind>(previousKind) : null,
+            document[_previousDurationMs].IsBsonNull ? null : TimeSpan.FromMilliseconds(document[_previousDurationMs].AsInt64),
+            BsonDocuments.NullableTextOf(document[_reason]) is { } reason ? Enum.Parse<ChannelDownReason>(reason) : null,
+            BsonDocuments.NullableTimeOf(document[_nextCheckAtUtc]),
+            document[_errorCode].IsBsonNull ? null : document[_errorCode].AsInt32, BsonDocuments.NullableTextOf(document[_errorName]),
+            BsonDocuments.NullableTextOf(document[_note]));
 
     /// <summary>A publish try as one document of the array <c>tries</c>, with the names of section 4.5.</summary>
     private static BsonDocument TryDocument(PublishTry publishTry) =>
@@ -207,15 +259,6 @@ public sealed class MongoDbOutboxStore : IOutboxDispatchStore
             { "errorName", BsonDocuments.Text(publishTry.ErrorName) },
             { "errorMessage", BsonDocuments.Text(publishTry.ErrorMessage) },
         };
-
-    /// <exception cref="ArgumentException">The document has an invalid channel name or reason.</exception>
-    /// <exception cref="InvalidCastException">A field has another BSON type.</exception>
-    private static ChannelDown DownOf(BsonDocument document) =>
-        new(
-            new ChannelId(document[Id].AsString), Enum.Parse<ChannelDownReason>(document[_reason].AsString),
-            BsonDocuments.TimeOf(document["sinceUtc"]), BsonDocuments.NullableTimeOf(document[_nextCheckAtUtc]),
-            document["errorCode"].IsBsonNull ? null : document["errorCode"].AsInt32, BsonDocuments.NullableTextOf(document["errorName"]),
-            BsonDocuments.NullableTextOf(document["note"]));
 
     private ErrorOr<OutgoingMessage> Read(BsonDocument document) => _json.DeserializeOutgoing(BsonDocuments.ToJson(document, Id, _tries));
 

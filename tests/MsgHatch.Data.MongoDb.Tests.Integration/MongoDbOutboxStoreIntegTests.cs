@@ -101,19 +101,56 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
     }
 
     [Fact]
-    public async Task SetChannelDownAsync_ReasonErrors_WritesTheReasonAndTheTimes()
+    public async Task SetChannelDownAsync_ReasonErrors_WritesTheStateDocumentWithTheEnumValuesAndTheTimes()
     {
         // Act
         await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
 
         // Assert
+        var document = Assert.Single(await Database.DocumentsAsync(MongoDbOutboxStore.ChannelStateCollectionName, Ct));
+        Assert.Equal(Now, document["_id"].AsObjectId.CreationTime);
+        document.Remove("_id");
         Assert.Equal(
             new BsonDocument
             {
-                { "_id", "Test" }, { "reason", "Errors" }, { "sinceUtc", StartTime }, { "nextCheckAtUtc", StartTime }, { "errorCode", 503 },
-                { "errorName", "Unavailable" }, { "note", BsonNull.Value },
+                { "channel", "Test" }, { "version", 1 }, { "kind", "Down" }, { "sinceUtc", StartTime }, { "previousKind", BsonNull.Value },
+                { "previousDurationMs", BsonNull.Value },
+                { "reason", "Errors" }, { "nextCheckAtUtc", StartTime }, { "errorCode", 503 }, { "errorName", "Unavailable" }, { "note", BsonNull.Value },
             },
-            Assert.Single(await Database.DocumentsAsync(MongoDbOutboxStore.ChannelDownCollectionName, Ct)));
+            document);
+    }
+
+    [Fact]
+    public async Task SetChannelUpAsync_DownChannel_WritesTheDurationOfTheDownStateAsWholeMilliseconds()
+    {
+        // Arrange
+        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
+
+        // Act
+        await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now.AddMinutes(90), Ct);
+
+        // Assert
+        var up = (await Database.DocumentsAsync(MongoDbOutboxStore.ChannelStateCollectionName, Ct)).Single(static document => document["version"] == 2);
+        Assert.Equal(
+            (new BsonString("Up"), new BsonString("Down"), new BsonInt64(5_400_000), BsonNull.Value),
+            (up["kind"], up["previousKind"], up["previousDurationMs"], up["reason"]));
+    }
+
+    [Fact]
+    public async Task SetChannelDownAsync_VersionThatIsStored_KeepsTheStoredDocumentAndAddsTheNextVersion()
+    {
+        // Arrange
+        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, null, null, null, "first"), Ct);
+        await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now, Ct);
+        var second = new MongoDbOutboxStore(Database.Database, new MsgHatchJson(TestContentTypes.ARegistry()));
+
+        // Act
+        var added = await second.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, null, null, null, "second"), Ct);
+
+        // Assert
+        Assert.Equal(
+            (true, "first,,second"),
+            (added.Value, string.Join(',', (await Store.GetChannelStatesAsync(DateTime.MinValue, Ct)).Value.OrderBy(static row => row.Version).Select(static row => row.Note))));
     }
 
     [Fact]
@@ -253,7 +290,7 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
         await AddAsync(AMessage(T1));
         await Store.SetChannelDownAsync(
             new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance"), Ct);
-        await Database.Collection(MongoDbOutboxStore.ChannelDownCollectionName).UpdateOneAsync(
+        await Database.Collection(MongoDbOutboxStore.ChannelStateCollectionName).UpdateOneAsync(
             FilterDefinition<BsonDocument>.Empty, new BsonDocument("$set", new BsonDocument("reason", "Unknown")), cancellationToken: Ct);
 
         // Act
