@@ -14,6 +14,5 @@ public sealed partial class NumbersJsonContext : JsonSerializerContext;
 
 public static class NumbersContentTypes
 {
-    public static ContentTypeEntry NumbersEventV1 { get; } = new(
-        "NumbersEvent", 1, "NumbersEvent@1", typeof(ReceivedMessage<NumbersEvent>), NumbersJsonContext.Default.NumbersEvent);
+    public static ContentTypeEntry NumbersEventV1 { get; } = ContentTypeEntry.ForReceivedMessage("NumbersEvent", 1, NumbersJsonContext.Default.NumbersEvent);
 }
