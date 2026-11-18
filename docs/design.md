@@ -2944,6 +2944,8 @@ The pipeline itself is out of scope. A unit test never needs a database server o
 | `SubscriptionStoreTestsBase<TStore>` | `MsgHatch.Subscriptions.Tests.Unit` | `ISubscriptionStoreTestData` | `InMemorySubscriptionStoreUnitTests` (9), `FileSystemSubscriptionStoreUnitTests` (10), `SqliteSubscriptionStoreUnitTests` (10), `EntityFrameworkSubscriptionStoreIntegTests` (18), `MongoDbSubscriptionStoreIntegTests` (19) |
 | `SubscriptionCacheBackendTestsBase<TBackend>` | `MsgHatch.Subscriptions.Tests.Unit` | `ISubscriptionCacheBackendTestData` | `HybridCacheSubscriptionBackendUnitTests` (11), `FusionCacheSubscriptionBackendUnitTests` (11) |
 | `RecipientDirectoryTestsBase<TDirectory>` | `MsgHatch.Subscriptions.Tests.Unit` | `IRecipientDirectoryTestData` | `ExampleRecipientDirectoryUnitTests` (13) |
+| `SubscriptionQueriesTestsBase<T>`, `SubscriptionCommandsTestsBase<T>`, `RoutingVerifierTestsBase<T>` | `MsgHatch.Subscriptions.Tests.Unit` | `IManagementTestHost<T>`, which the subclass starts on the services of each test | `SubscriptionManagerQueriesUnitTests`, `SubscriptionManagerCommandsUnitTests`, `RoutingVerifierUnitTests` (26), and the HTTP clients of phase 27 |
+| `TemplateQueriesTestsBase<T>`, `TemplateCommandsTestsBase<T>` | `MsgHatch.Templates.Tests.Unit` | `IManagementTestHost<T>`; each test method uses a message type of its own | `TemplateManagerQueriesUnitTests`, `TemplateManagerCommandsUnitTests` (26), and the HTTP clients of phase 27 |
 
 Rules for a base class:
 1. The type parameter is constrained to the interface, for example `where TStore : class, IOutboxDispatchStore`. A store base class also takes a function that gives the tenant store of a key, so that it tests both parts of the store (D127).
