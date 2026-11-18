@@ -455,7 +455,7 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         var lookup = new TemplateLookup(new MessageType("TestEvent"), "en", $"parts-{part}-{kind}", part, kind);
 
         // Act
-        var result = await scope.ServiceProvider.GetRequiredService<MsgHatch.Templates.Management.ITemplateManager>()
+        var result = await scope.ServiceProvider.GetRequiredService<MsgHatch.Templates.Management.ITemplateCommands>()
             .SaveTemplateAsync(lookup, "Order of {{Name}}", 0, Ct);
 
         // Assert

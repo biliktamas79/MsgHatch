@@ -37,7 +37,7 @@ MsgHatch turns domain events into messages, and delivers them by email, as real-
 | Package | Content | Phase |
 |---|---|---|
 | `MsgHatch.Domain` | The routing contract, the pipeline, the inbox, the outbox, the dispatch loops, and the dispatch composites for a storage for each tenant | 1, done; 17, done |
-| `MsgHatch.Templates` | The template library, which knows no channel: the template engine contract, the template stores, the placeholder engine, and the template manager | 24 and 25, done |
+| `MsgHatch.Templates` | The template library, which knows no channel: the template engine contract, the template stores, the placeholder engine, and the template queries and commands | 24 and 25, done |
 | `MsgHatch.Email` | The email channel, as a thin layer on `MsgHatch.Templates` | 3, done; 22 and 24, done |
 | `MsgHatch.Email.AmazonSES` | The Amazon SES email client | 4 and 20, done |
 | `MsgHatch.Templates.Liquid` | The Liquid template engine, for templates that a host adds at run time | 23 and 24, done |

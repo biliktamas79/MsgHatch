@@ -20,7 +20,7 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
 
     private readonly WebApplication _app;
 
-    private TemplateEndpointHost(WebApplication app, ITemplateManager manager, ITemplateManager t2Manager)
+    private TemplateEndpointHost(WebApplication app, ITemplateManagement manager, ITemplateManagement t2Manager)
     {
         _app = app;
         Manager = manager;
@@ -29,10 +29,10 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
     }
 
     /// <summary>The manager of <see cref="TenantKey.None"/>.</summary>
-    public ITemplateManager Manager { get; }
+    public ITemplateManagement Manager { get; }
 
     /// <summary>The manager of the tenant <see cref="T2"/>.</summary>
-    public ITemplateManager T2Manager { get; }
+    public ITemplateManagement T2Manager { get; }
 
     public HttpClient Client { get; }
 
@@ -44,8 +44,8 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
         builder.WebHost.UseTestServer();
         var manager = AManager();
         var t2Manager = AManager();
-        builder.Services.AddKeyedSingleton(TenantKey.None, manager);
-        builder.Services.AddKeyedSingleton(TenantKey.For(T2), t2Manager);
+        AddBoth(builder.Services, TenantKey.None, manager);
+        AddBoth(builder.Services, TenantKey.For(T2), t2Manager);
         var app = builder.Build();
         app.MapMsgHatchTemplates();
         await app.StartAsync(Ct);
@@ -59,9 +59,15 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
         await _app.DisposeAsync();
     }
 
-    private static ITemplateManager AManager()
+    private static void AddBoth(IServiceCollection services, TenantKey key, ITemplateManagement management)
     {
-        var manager = Substitute.For<ITemplateManager>();
+        services.AddKeyedSingleton<ITemplateQueries>(key, management);
+        services.AddKeyedSingleton<ITemplateCommands>(key, management);
+    }
+
+    private static ITemplateManagement AManager()
+    {
+        var manager = Substitute.For<ITemplateManagement>();
         manager.SaveTemplateAsync(default, default!, default, default).ReturnsForAnyArgs(static call =>
             ValueTask.FromResult(ErrorOr<TemplateEntry>.ForValue(new TemplateEntry(call.ArgAt<TemplateLookup>(0), 7))));
         manager.GetTemplateAsync(default, default).ReturnsForAnyArgs(

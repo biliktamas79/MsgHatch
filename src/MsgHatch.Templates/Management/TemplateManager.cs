@@ -14,7 +14,8 @@ namespace MsgHatch.Templates.Management;
 /// <param name="store">The template store of the key, or null when none is registered.</param>
 /// <param name="setup">The registrations of the template engines.</param>
 /// <param name="tenantServices">The service provider of the tenant services of the key, which gives the engines of the key.</param>
-internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup, IServiceProvider tenantServices) : ITemplateManager
+internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup, IServiceProvider tenantServices)
+    : ITemplateQueries, ITemplateCommands
 {
     private const int _maxTextLength = 1_000_000;
     private const int _maxFolderNameLength = 255;

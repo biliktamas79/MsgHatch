@@ -10,7 +10,7 @@ using NSubstitute.Extensions;
 
 namespace MsgHatch.Templates.AspNetCore.Tests.Unit;
 
-/// <summary>The template endpoints (section 4.22, D224) on a <c>TestServer</c> with an <see cref="ITemplateManager"/> substitute for each key.</summary>
+/// <summary>The template endpoints (section 4.22, D224) on a <c>TestServer</c> with a substitute of both template interfaces for each key.</summary>
 public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
 {
     private const string _path = "/templates/OrderShipped/hu/subject/PlainText";
@@ -25,10 +25,10 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
 
     public static TheoryData<string, string, string?, string> RouteRows => new()
     {
-        { "GET", "/templates", null, nameof(ITemplateManager.GetTemplatesAsync) },
-        { "GET", _path, null, nameof(ITemplateManager.GetTemplateAsync) },
-        { "PUT", _path, """{"text":"Rendelés","version":0}""", nameof(ITemplateManager.SaveTemplateAsync) },
-        { "DELETE", _path, null, nameof(ITemplateManager.DeleteTemplateAsync) },
+        { "GET", "/templates", null, nameof(ITemplateQueries.GetTemplatesAsync) },
+        { "GET", _path, null, nameof(ITemplateQueries.GetTemplateAsync) },
+        { "PUT", _path, """{"text":"Rendelés","version":0}""", nameof(ITemplateCommands.SaveTemplateAsync) },
+        { "DELETE", _path, null, nameof(ITemplateCommands.DeleteTemplateAsync) },
     };
 
     public static TheoryData<string, string, string> InvalidValueRows => new()

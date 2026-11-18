@@ -109,7 +109,7 @@ public static class TemplateExtensions
     /// Registers the template engine of one payload type for one registration of a channel, as a tenant service with
     /// its logging wrapper (D126, D213), with the parts that the channel reads (D220). The registrations of one payload
     /// type must give the same engine factory, and with the role <see cref="MsgHatchRoles.Consumer"/> each registration
-    /// needs a template store (D62). The template manager checks a written text of a declared part with this engine (D219).
+    /// needs a template store (D62). The template commands check a written text of a declared part with this engine (D219).
     /// </summary>
     /// <typeparam name="TEvent">The type of the domain event.</typeparam>
     /// <typeparam name="TPayload">The payload type.</typeparam>
@@ -160,7 +160,9 @@ public static class TemplateExtensions
         if (!setup.ManagerRegistered)
         {
             setup.ManagerRegistered = true;
-            builder.AddTenantService<ITemplateManager>(ServiceLifetime.Scoped, TemplateManager.For);
+            builder
+                .AddTenantService<ITemplateQueries>(ServiceLifetime.Scoped, TemplateManager.For)
+                .AddTenantService<ITemplateCommands>(ServiceLifetime.Scoped, TemplateManager.For);
         }
 
         return builder;

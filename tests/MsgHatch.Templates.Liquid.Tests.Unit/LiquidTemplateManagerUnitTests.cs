@@ -35,7 +35,7 @@ public sealed class LiquidTemplateManagerUnitTests : IDisposable
         var lookup = new TemplateLookup(new MessageType("TestEvent"), "en", Scope: null, "body", TemplatePartKind.Html);
 
         // Act
-        var result = await scope.ServiceProvider.GetRequiredService<ITemplateManager>().SaveTemplateAsync(lookup, html, 0, Ct);
+        var result = await scope.ServiceProvider.GetRequiredService<ITemplateCommands>().SaveTemplateAsync(lookup, html, 0, Ct);
 
         // Assert
         Assert.Equal((expectedCode, expectedCode is null), (result.Error?.Type.Code, File.Exists(Path.Combine(_root, "TestEvent.en.body.html"))));

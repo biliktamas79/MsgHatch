@@ -13,7 +13,7 @@ namespace MsgHatch.Templates.AspNetCore;
 
 /// <summary>
 /// The routes of the template administration (section 4.22). An endpoint checks only the values that need a type: the
-/// message type, the kind, and the tenant id. The manager validates the language, the part, and the company id (D222).
+/// message type, the kind, and the tenant id. The queries and the commands validate the language, the part, and the company id (D222, D231).
 /// </summary>
 internal static class TemplateRoutes
 {
@@ -30,22 +30,22 @@ internal static class TemplateRoutes
     }
 
     private static Task<IResult> GetTemplatesAsync(HttpContext context, string? messageType, string? companyId) =>
-        RunAsync(context, async manager =>
+        RunAsync(context, async (ITemplateQueries queries) =>
         {
             var type = Optional(messageType, MessageTypeOf);
             return type.IsError ? Problem(type.Error) : Json(
-                await manager.GetTemplatesAsync(new TemplateQuery(type.Value, companyId), context.RequestAborted),
+                await queries.GetTemplatesAsync(new TemplateQuery(type.Value, companyId), context.RequestAborted),
                 static entries => [.. entries.Select(TemplateEntryResponse.From)],
                 _json.IReadOnlyListTemplateEntryResponse);
         });
 
     private static Task<IResult> GetTemplateAsync(
         HttpContext context, string messageType, string language, string part, string kind, string? companyId) =>
-        RunAsync(context, async manager =>
+        RunAsync(context, async (ITemplateQueries queries) =>
         {
             var lookup = LookupOf(messageType, language, part, kind, companyId);
             return lookup.IsError ? Problem(lookup.Error) : Json(
-                await manager.GetTemplateAsync(lookup.Value, context.RequestAborted),
+                await queries.GetTemplateAsync(lookup.Value, context.RequestAborted),
                 source => TemplateResponse.From(lookup.Value, source),
                 _json.TemplateResponse);
         });
@@ -54,7 +54,7 @@ internal static class TemplateRoutes
         HttpContext context, string messageType, string language, string part, string kind, string? companyId) =>
         !context.Request.HasJsonContentType()
             ? Task.FromResult<IResult>(TypedResults.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType))
-            : RunAsync(context, async manager =>
+            : RunAsync(context, async (ITemplateCommands commands) =>
             {
                 var lookup = LookupOf(messageType, language, part, kind, companyId);
                 if (lookup.IsError)
@@ -64,14 +64,14 @@ internal static class TemplateRoutes
 
                 var body = await ReadAsync(context, _json.TemplateSaveRequest);
                 return body.IsError ? Problem(body.Error) : Json(
-                    await manager.SaveTemplateAsync(lookup.Value, body.Value.Text, body.Value.Version, context.RequestAborted),
+                    await commands.SaveTemplateAsync(lookup.Value, body.Value.Text, body.Value.Version, context.RequestAborted),
                     TemplateEntryResponse.From,
                     _json.TemplateEntryResponse);
             });
 
     private static Task<IResult> DeleteTemplateAsync(
         HttpContext context, string messageType, string language, string part, string kind, string? companyId) =>
-        RunAsync(context, async manager =>
+        RunAsync(context, async (ITemplateCommands commands) =>
         {
             var lookup = LookupOf(messageType, language, part, kind, companyId);
             if (lookup.IsError)
@@ -79,16 +79,17 @@ internal static class TemplateRoutes
                 return Problem(lookup.Error);
             }
 
-            var error = await manager.DeleteTemplateAsync(lookup.Value, context.RequestAborted);
+            var error = await commands.DeleteTemplateAsync(lookup.Value, context.RequestAborted);
             return error is null ? TypedResults.NoContent() : Problem(error);
         });
 
-    private static async Task<IResult> RunAsync(HttpContext context, Func<ITemplateManager, Task<IResult>> action)
+    private static async Task<IResult> RunAsync<TService>(HttpContext context, Func<TService, Task<IResult>> action)
+        where TService : notnull
     {
         var tenant = Optional(context.Request.Query["tenantId"], TenantId.Create);
         return tenant.IsError
             ? Problem(tenant.Error)
-            : await action(context.RequestServices.GetRequiredKeyedService<ITemplateManager>(TenantKey.For(tenant.Value)));
+            : await action(context.RequestServices.GetRequiredKeyedService<TService>(TenantKey.For(tenant.Value)));
     }
 
     private static ErrorOr<T?> Optional<T>(string? value, Func<string, ErrorOr<T>> parse)

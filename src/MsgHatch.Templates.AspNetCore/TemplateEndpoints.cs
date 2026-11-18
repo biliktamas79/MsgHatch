@@ -9,11 +9,11 @@ namespace MsgHatch.Templates.AspNetCore;
 public static class TemplateEndpoints
 {
     /// <summary>
-    /// Maps the minimal API endpoints of <see cref="ITemplateManager"/>: the list of the templates, and the read, the save,
-    /// and the delete of one part at <c>{prefix}/{messageType}/{language}/{part}/{kind}</c>. Each route takes the optional
-    /// query parameters <c>companyId</c> and <c>tenantId</c>, and uses the manager of <see cref="TenantKey.For"/> that
-    /// tenant, or of <see cref="TenantKey.None"/>. The library adds no authorization, so the consumer adds it on the
-    /// returned group, for example with <c>.RequireAuthorization("TemplateAdmin")</c>.
+    /// Maps the minimal API endpoints of <see cref="ITemplateQueries"/> and <see cref="ITemplateCommands"/>: the list of the
+    /// templates, and the read, the save, and the delete of one part at <c>{prefix}/{messageType}/{language}/{part}/{kind}</c>
+    /// (D231). Each route takes the optional query parameters <c>companyId</c> and <c>tenantId</c>, and uses the services of
+    /// <see cref="TenantKey.For"/> that tenant, or of <see cref="TenantKey.None"/>. The library adds no authorization, so the
+    /// consumer adds it on the returned group, for example with <c>.RequireAuthorization("TemplateAdmin")</c>.
     /// </summary>
     /// <param name="routes">The endpoint route builder, for example the web application.</param>
     /// <param name="prefix">The path of the route group.</param>

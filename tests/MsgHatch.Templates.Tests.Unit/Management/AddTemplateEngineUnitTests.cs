@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Templates;
@@ -62,7 +63,7 @@ public sealed class AddTemplateEngineUnitTests
     [InlineData("store of each tenant")]
     [InlineData("engine")]
     [InlineData("all three")]
-    public void TemplateSetupMethods_AnySetup_RegisterTheTemplateManagerOneTime(string setup)
+    public void TemplateSetupMethods_AnySetup_RegisterTheQueriesAndTheCommandsOneTime(string setup)
     {
         // Arrange
         var services = TestHost.CreateServices();
@@ -86,9 +87,9 @@ public sealed class AddTemplateEngineUnitTests
 
         // Assert
         Assert.Equal(
-            (1, 1),
-            (services.Count(static descriptor => descriptor.ServiceType == typeof(Templates.Management.ITemplateManager) && !descriptor.IsKeyedService),
-                services.Count(static descriptor => descriptor.ServiceType == typeof(Templates.Management.ITemplateManager) && descriptor.IsKeyedService)));
+            (setup, 1, 1, 1, 1),
+            (setup, CountOf<Templates.Management.ITemplateQueries>(services, keyed: false), CountOf<Templates.Management.ITemplateQueries>(services, keyed: true),
+                CountOf<Templates.Management.ITemplateCommands>(services, keyed: false), CountOf<Templates.Management.ITemplateCommands>(services, keyed: true)));
     }
 
     [Fact]
@@ -105,4 +106,7 @@ public sealed class AddTemplateEngineUnitTests
         // Assert
         Assert.Equal(new MessageType("OrderShipped"), type);
     }
+
+    private static int CountOf<TService>(IServiceCollection services, bool keyed) =>
+        services.Count(descriptor => descriptor.ServiceType == typeof(TService) && descriptor.IsKeyedService == keyed);
 }
