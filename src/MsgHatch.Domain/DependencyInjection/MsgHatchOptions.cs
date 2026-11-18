@@ -16,7 +16,10 @@ public sealed class MsgHatchOptions : IValidatableObject
     /// <summary>Adds or removes all logging wrappers (D35).</summary>
     public bool EnableLogging { get; set; } = true;
 
-    /// <summary>The roles of the host (D105). The default is both roles, for a host with one process. It is not <see cref="MsgHatchRoles.None"/>.</summary>
+    /// <summary>
+    /// The roles of the host (D105). The default is both roles, for a host with one process. <see cref="MsgHatchRoles.None"/> is
+    /// for a host that only calls the API clients, and registers no message type (D230).
+    /// </summary>
     public MsgHatchRoles Roles { get; set; } = MsgHatchRoles.Consumer | MsgHatchRoles.Publisher;
 
     /// <inheritdoc />
@@ -25,11 +28,6 @@ public sealed class MsgHatchOptions : IValidatableObject
         if (!string.IsNullOrWhiteSpace(DefaultLanguage) && !IsKnownCulture(DefaultLanguage))
         {
             yield return new ValidationResult("DefaultLanguage is not a known culture.", [nameof(DefaultLanguage)]);
-        }
-
-        if (Roles == MsgHatchRoles.None)
-        {
-            yield return new ValidationResult("Roles has at least one role.", [nameof(Roles)]);
         }
     }
 

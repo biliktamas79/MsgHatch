@@ -237,6 +237,38 @@ public sealed class StartupValidatorUnitTests
     }
 
     [Fact]
+    public async Task Validate_NoRoleWithNoMessageTypeAndNoStore_Succeeds()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.None);
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Validate_NoRoleWithAMessageType_ThrowsTheSetupErrorThatNamesTheMessageType()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        AddTestMessage(services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.None).AddTestChannel().UseInMemoryStores());
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Equal(
+            ["The host has no role, but registers the message type TestEvent. A host with no role only calls the API clients (D230)."],
+            Assert.IsType<OptionsValidationException>(exception).Failures);
+    }
+
+    [Fact]
     public async Task Validate_ContentTypeAndVersionTwoTimes_ThrowsOptionsValidationException()
     {
         // Arrange

@@ -47,7 +47,7 @@ public sealed class MsgHatchOptionsValidatorUnitTests
 
     public static TheoryData<MsgHatchRoles, string[]> RolesRows => new()
     {
-        { MsgHatchRoles.None, [nameof(MsgHatchOptions.Roles)] },
+        { MsgHatchRoles.None, [] },
         { MsgHatchRoles.Consumer, [] },
         { MsgHatchRoles.Publisher, [] },
         { MsgHatchRoles.Consumer | MsgHatchRoles.Publisher, [] },
@@ -65,7 +65,7 @@ public sealed class MsgHatchOptionsValidatorUnitTests
 
     [Theory]
     [MemberData(nameof(RolesRows))]
-    public void Validate_Roles_FailsForNoRole(MsgHatchRoles value, string[] expectedFailedProperties)
+    public void Validate_Roles_AcceptsEachRoleAndNoRole(MsgHatchRoles value, string[] expectedFailedProperties)
     {
         // Arrange
         var options = new MsgHatchOptions { Roles = value };

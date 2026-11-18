@@ -12,7 +12,8 @@ namespace MsgHatch.Domain.DependencyInjection;
 /// one transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
 /// registrations and the payload loaders of each message type (D135). With the role
 /// <see cref="MsgHatchRoles.Consumer"/>, a router for each message type (D95), and with the role
-/// <see cref="MsgHatchRoles.Publisher"/>, at least one transport (D105).
+/// <see cref="MsgHatchRoles.Publisher"/>, at least one transport (D105). With no role, no message type and no outbox store
+/// (D230).
 /// </summary>
 internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatchSetup setup) : IValidateOptions<MsgHatchSetupCheck>
 {
@@ -21,7 +22,7 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         var roles = services.GetRequiredService<IOptions<MsgHatchOptions>>().Value.Roles;
         string[] failures =
         [
-            .. MissingOutboxStores(),
+            .. roles == MsgHatchRoles.None ? MessageTypesOfAHostWithNoRole() : MissingOutboxStores(),
             .. MissingRegistrySettingsStore(),
             .. Duplicates(setup.Selections, "select an implementation of"),
             .. Duplicates(setup.SharedOptionsValues, "give a value in code to"),
@@ -39,6 +40,10 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         services.GetServices<ITransport>().Any()
             ? []
             : ["The host has the role Publisher, but no setup method registers a transport, for example UseAmazonSes."];
+
+    private IEnumerable<string> MessageTypesOfAHostWithNoRole() =>
+        setup.Messages.Select(static message =>
+            $"The host has no role, but registers the message type {message.Descriptor.Type.Name}. A host with no role only calls the API clients (D230).");
 
     private IEnumerable<string> MissingOutboxStores() =>
         new[] { typeof(IOutboxStore), typeof(IOutboxDispatchStore) }

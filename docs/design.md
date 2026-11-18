@@ -963,7 +963,7 @@ Options (D49, D63, D64, D65). Each options class is a `sealed class` with a publ
 |---|---|---|---|---|
 | `MsgHatchOptions` | `MsgHatch` | `DefaultLanguage` | `"en"` | `[Required]`. The culture must be known to `CultureInfo.GetCultureInfo`. |
 | | | `EnableLogging` | `true` | none |
-| | | `Roles` | `Consumer, Publisher` | Not `None` (D105) |
+| | | `Roles` | `Consumer, Publisher` | `None` only with no message type (D105, D230) |
 | `RetryOptions` (named: `Inbox`, the channel name, or the content type of a channel registration) | `MsgHatch:Retry:{Name}` | `MaxTryCount` | 8 (SignalR: 3) | `[Range(1, 100)]` |
 | | | `BaseDelay` | 5 seconds | `[Range(typeof(TimeSpan), "00:00:00.001", "01:00:00")]` |
 | | | `MaxDelay` | 15 minutes | `[Range(typeof(TimeSpan), "00:00:01", "7.00:00:00")]`, and not less than `BaseDelay` |
@@ -1724,9 +1724,10 @@ Roles (D105). `MsgHatchOptions.Roles` tells the startup validation what the host
 - `Consumer`: the host routes and composes. It runs the inbox processor, or calls `ProcessAsync`.
 - `Publisher`: the host sends. It runs the outbox dispatcher for the channels of its transports.
 - The default is both, for a host with one process.
+- `None`: the host only calls the API clients, for example an admin UI (D230). It needs no router, no transport, and no store, and the startup validation gives an error for each message type that it registers.
 
 Startup validation, with `ValidateOnStart`:
-- An outbox tenant store and an outbox dispatch store are registered.
+- An outbox tenant store and an outbox dispatch store are registered. A host with the role `None` needs none.
 - No interface has two selected implementations (D62). Each channel has at most one transport (D129).
 - With `UseStoredRegistry`, a registry settings store is registered.
 - At most one setup method gives a value in code to one shared options class (section 4.7, shared options).
