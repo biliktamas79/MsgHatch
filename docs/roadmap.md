@@ -36,6 +36,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 26 Query and command interfaces | 12, 14, 25 |
 | 27 HTTP API clients | 26 |
 | 28 Admin UIs | 27 |
+| 29 Template preview | 28 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -1919,6 +1920,68 @@ The implementation changed the plan in these points:
 - The example host reads the token from the required option `AdminUiExample:ApiToken`, and `ApiTokenHandler` adds it to each request. The example has no sign-in, so the handler needs no circuit services accessor of section 4.23.
 - The first coverage report showed lines of the admin packages with no test, for example the class of each span kind and the save of an opt-out. So commit 7 adds their tests, and the commits of the plan and of README and AGENTS.md follow it as commits 8 and 9.
 - The test of the example host checks the calls over HTTP, because each selection wraps its client in its logging wrapper (D244). The test uses a hand-written fake primary HTTP handler, as the Resend tests do, because NSubstitute cannot configure the protected `SendAsync` (section 5.5).
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
+### Phase 29: template preview
+
+Goal: an operator sees a template as it renders, with sample data from the setup of the host, in a read-only view and next to the editor (D254 to D257). The template pages use less vertical space.
+
+Starting point: after the tag `phase-28`, the commits `168e0a8` to `1ee5060` added the development settings and the README of the example app, the console titles of the example apps, the HTML highlight of each html part (D252), and the Liquid password reset email of the example app (D253).
+
+1. Check first, before the code:
+   - The placeholder engine and the Liquid engine can render a draft text with a payload through the code of their prepare and render, with no store. If they cannot, the plan changes before the code.
+   - An `iframe` with `sandbox=""` and `srcdoc` shows an HTML text with no script in an Interactive Server host, and bUnit renders its `srcdoc` attribute.
+2. Add the render of a draft to the engines (D255):
+   - `ITemplateEngine<TPayload>.RenderAsync(TemplateLookup lookup, string text, TPayload payload, CancellationToken ct)` gives `ErrorOr<string>`. It renders with the culture of the language of the lookup, the html part with the HTML encoder, and a text part with no encoder (D210). A text that does not parse gives `Errors.TemplateInvalid` with the first issue.
+   - The placeholder engine and the Liquid engine implement it. The logging wrapper of an engine logs each render with a new event id, and never logs the text or the payload.
+3. Add the sample payload of a registration (D254):
+   - `WithTemplateSample<TEvent, TPayload>(this PayloadBuilder<TEvent, TPayload> payload, TPayload sample)` in `MsgHatch.Templates` stores the sample for the template registrations of the payload type and the message type. A second sample of one payload type and one message type gives a setup error (D62).
+   - `TemplatePartInfo` gets `HasSample`, so a page shows "No sample data" with no call. `TemplatePartResponse` gets the same field.
+4. Add the preview query (D256):
+   - `ITemplateQueries.PreviewTemplateAsync(TemplateLookup lookup, string text, CancellationToken ct)` gives `ErrorOr<IReadOnlyList<TemplatePreview>>`, with `TemplatePreview(string Registration, string Text)` for each registration of the part with a sample. It runs `TemplateLookupRules` first (D234), and saves nothing, so it is a query, as the check of D241 is.
+   - A part with no sample gives an empty list. A text that does not parse gives `Errors.TemplateInvalid`.
+   - The logging wrapper logs it with the next event id after D244. `TemplateQueriesTestsBase` gets its use cases.
+5. Add the preview to the HTTP API and the client:
+   - `POST {prefix}/{messageType}/{language}/{part}/{kind}/preview` with the text as the body gives a list of `TemplatePreviewResponse` of `MsgHatch.Templates.Api.Contracts`. `TemplateApiRoutes.Preview` holds the route.
+   - `ITemplateApi` gets the method, and `HttpTemplateQueries` maps it.
+6. Show the metadata of a template on one line: the edit page shows the message type, the language, the company, the part with its kind, and the version in one row of small labels and values, in place of five rows (D257).
+7. Add the read-only view page and the buttons of the list (D257):
+   - Each row of the template list has the buttons View and Edit.
+   - `TemplateViewPage` at `/msghatch/templates/{messageType}/{language}/{part}/{kind}/view?companyId=`, with the route builder `TemplateAdminRoutes.View(TemplateLookup)`, shows the one-line metadata and the stored text read-only with the highlight of D252. It has the buttons Edit and Back. `AddMsgHatchTemplatesAdminUI` keeps the page with `DynamicDependency` (D250).
+8. Show the live preview on the view page and the edit page (D257):
+   - On a wide screen, the text is on the left and the preview on the right. On a narrow screen, the preview is under the text.
+   - The edit page calls the preview 500 ms after the last change of the text, through `TimeProvider`, and a new change cancels the call before it. The view page calls it one time for the stored text.
+   - An html preview is an `iframe` with `sandbox=""` and `srcdoc`, so no script of a template runs. A text preview is a `pre`. A part with more than one registration with a sample gets a select of the registration. A part with no sample shows "No sample data". An error of the preview shows its text in place of the preview.
+9. Give each email of the example app a sample with `WithTemplateSample`, and add the preview to the README of the example app.
+10. Describe the preview in the design: sections 4.10, 4.23, and 4.24.
+
+Tests:
+- The engines: a render of a draft with each engine gives the values of the payload, the HTML encoding of an html part, and the culture of the language. A text that does not parse gives `TemplateInvalid`.
+- The sample: a second sample of one payload type and one message type gives the setup error. `HasSample` of each part, also over HTTP.
+- The preview query, in `TemplateQueriesTestsBase`: a preview for each registration with a sample, an empty list with no sample, `TemplateInvalid`, `ValidationFailed` before any engine call, and no change of the store.
+- The HTTP preview: the route, the body, the errors of D233, and the parity of the in-process and the HTTP implementations.
+- The pages, with bUnit:
+  - The View and Edit buttons of a row, and the addresses of their route builders.
+  - The view page with the read-only text and the preview.
+  - The edit page with one preview call after a pause.
+  - The `sandbox` and the `srcdoc` of the iframe, the select of two registrations, "No sample data", and the error of a preview.
+  - The one-line metadata.
+- The example app: the preview of the password reset email gives the link of its sample.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Render a draft text with a payload in the template engines"
+2. "Add the sample payload of a template registration"
+3. "Add the preview of a template draft to the template queries"
+4. "Add the preview to the template HTTP API and its client"
+5. "Show the metadata of a template on one line"
+6. "Add the read-only view page and the View and Edit buttons of the template list"
+7. "Show the live preview on the template view page and edit page"
+8. "Give the emails of the example app their samples"
+9. "Describe the template preview in the design"
+10. "Record the commits and the checked facts of phase 29 in the plan"
+11. "Record phase 29 as done in README and AGENTS.md"
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
