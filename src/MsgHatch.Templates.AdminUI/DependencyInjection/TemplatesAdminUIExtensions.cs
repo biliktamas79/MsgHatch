@@ -17,6 +17,7 @@ public static class TemplatesAdminUIExtensions
     /// <returns>The same services.</returns>
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(TemplateListPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(TemplateEditPage))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(TemplateViewPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(PlainTemplateEditor))]
     public static IServiceCollection AddMsgHatchTemplatesAdminUI(this IServiceCollection services)
     {

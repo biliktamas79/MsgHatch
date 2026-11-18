@@ -14,7 +14,7 @@
             }
         }@("\n")</pre>
     <textarea class="highlight-input form-control @(Invalid ? "is-invalid" : null)" spellcheck="false" aria-label="Template text" @ref="_input"
-              value="@Text" disabled="@Disabled" @oninput="OnInputAsync"></textarea>
+              value="@Text" disabled="@Disabled" readonly="@ReadOnly" @oninput="OnInputAsync"></textarea>
 </div>
 
 @code {
@@ -41,6 +41,10 @@
     /// <summary>True when the text area accepts no change.</summary>
     [Parameter]
     public bool Disabled { get; set; }
+
+    /// <summary>True when the text area shows a text that the user can read, select, and copy, but not change (D257).</summary>
+    [Parameter]
+    public bool ReadOnly { get; set; }
 
     [Inject]
     private IJSRuntime JS { get; set; } = default!;

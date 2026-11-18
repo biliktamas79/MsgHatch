@@ -32,6 +32,18 @@ public sealed class HighlightedTextAreaUnitTests : BunitContext
         module.VerifyInvoke("syncScroll");
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Render_ReadOnly_SetsTheReadOnlyAttributeOfTheTextAreaOnlyWhenTrue(bool readOnly)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var cut = Render<HighlightedTextArea>(p => p.Add(x => x.Text, "x").Add(x => x.Segments, [new TextSegment(0, 1, "a")]).Add(x => x.ReadOnly, readOnly));
+
+        Assert.Equal((readOnly, false), (cut.Find("textarea").HasAttribute("readonly"), cut.Find("textarea").HasAttribute("disabled")));
+    }
+
     [Fact]
     public void Input_NewText_GivesTheTextToTextChanged()
     {

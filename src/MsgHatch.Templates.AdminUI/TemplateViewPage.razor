@@ -1,0 +1,77 @@
+@attribute [Route(TemplateAdminRoutes.ViewTemplate)]
+@inject IServiceProvider Services
+@* The read-only view of one part of a template: the metadata, the stored text with the highlight of D252, and the buttons Edit and Back (D257). *@
+
+<h1 class="h3">Template</h1>
+
+@if (_loadError is not null)
+{
+    <ErrorAlert Error="_loadError" />
+    <a href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a>
+}
+else if (_lookup is not { } lookup || _source is null)
+{
+    <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+}
+else
+{
+    <TemplateMetadata Lookup="lookup" Version="_source.Key.Version" />
+
+    <div data-view="text">
+        <HighlightedTextArea Text="@_source.Text" Segments="TextSegments.Of(_source.Text, lookup.Kind)" ReadOnly="true" />
+    </div>
+
+    <div class="d-flex gap-2 mt-2">
+        <a class="btn btn-primary" data-action="edit" href="@TemplateAdminRoutes.Edit(lookup).TrimStart('/')">Edit</a>
+        <a class="btn btn-link" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a>
+    </div>
+}
+
+@code {
+    private TemplateLookup? _lookup;
+    private TemplateSource? _source;
+    private Error? _loadError;
+
+    /// <summary>The name of the message type, from the address.</summary>
+    [Parameter]
+    public string TypeName { get; set; } = string.Empty;
+
+    /// <summary>The language, from the address.</summary>
+    [Parameter]
+    public string Language { get; set; } = string.Empty;
+
+    /// <summary>The part, from the address.</summary>
+    [Parameter]
+    public string Part { get; set; } = string.Empty;
+
+    /// <summary>The kind of the part, <c>PlainText</c> or <c>Html</c>, from the address.</summary>
+    [Parameter]
+    public string KindName { get; set; } = string.Empty;
+
+    /// <summary>The company of the template scope, from the query <c>companyId</c>, or null for all companies.</summary>
+    [SupplyParameterFromQuery(Name = "companyId")]
+    public string? CompanyId { get; set; }
+
+    private ITemplateQueries Queries => Services.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        (_lookup, _source, _loadError) = (null, null, null);
+        var lookup = TemplateRouteValues.LookupOf(TypeName, Language, CompanyId, Part, KindName);
+        if (lookup.IsError)
+        {
+            _loadError = lookup.Error;
+            return;
+        }
+
+        var source = await Queries.GetTemplateAsync(lookup.Value, CancellationToken.None);
+        if (source.IsError)
+        {
+            _loadError = source.Error;
+            return;
+        }
+
+        (_lookup, _source) = (lookup.Value, source.Value);
+    }
+}

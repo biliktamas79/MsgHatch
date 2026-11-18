@@ -3,7 +3,7 @@
 @if (Lookup.Kind == TemplatePartKind.Html)
 {
     <div data-editor="plain">
-        <HighlightedTextArea Text="@Text" Segments="HtmlSegments()" TextChanged="TextChanged" Invalid="Issues.Count > 0" Disabled="Disabled" />
+        <HighlightedTextArea Text="@Text" Segments="TextSegments.Of(Text, Lookup.Kind)" TextChanged="TextChanged" Invalid="Issues.Count > 0" Disabled="Disabled" />
     </div>
 }
 else
@@ -18,7 +18,4 @@ else
 
 @code {
     private Task OnInputAsync(ChangeEventArgs args) => TextChanged.InvokeAsync(args.Value as string ?? string.Empty);
-
-    private List<TextSegment> HtmlSegments() =>
-        [.. HtmlTokenizer.Tokenize(Text).Select(static span => new TextSegment(span.Start, span.Length, HtmlTokenizer.CssClassOf(span.Kind)))];
 }

@@ -18,16 +18,21 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     }
 
     [Fact]
-    public void Render_TwoTemplates_ShowsARowForEachTemplateWithItsEditLink()
+    public void Render_TwoTemplates_ShowsARowForEachTemplateWithTheButtonsViewAndEdit()
     {
-        GivenTemplates(new TemplateEntry(Lookup(), 7), new TemplateEntry(Lookup("hu", "42", "body", TemplatePartKind.Html), 3));
+        var company = Lookup("hu", "42", "body", TemplatePartKind.Html);
+        GivenTemplates(new TemplateEntry(Lookup(), 7), new TemplateEntry(company, 3));
 
         var cut = Render<TemplateListPage>();
 
         var rows = cut.FindAll("tr[data-row]");
         Assert.Equal(2, rows.Count);
-        Assert.Equal(["Requests", "en", "All companies", "subject", "PlainText", "7", "Edit"], rows[0].Children.Select(static cell => cell.TextContent));
-        Assert.Equal("msghatch/templates/Requests/hu/body/Html?companyId=42", rows[1].QuerySelector("a")!.GetAttribute("href"));
+        Assert.Equal(["Requests", "en", "All companies", "subject", "PlainText", "7"], rows[0].Children.SkipLast(1).Select(static cell => cell.TextContent));
+        Assert.Equal(["View", "Edit"], rows[0].Children.Last().Children.Select(static button => button.TextContent));
+        Assert.Equal(
+            (TemplateAdminRoutes.View(company).TrimStart('/'), TemplateAdminRoutes.Edit(company).TrimStart('/')),
+            (rows[1].QuerySelector("[data-action=view]")!.GetAttribute("href"), rows[1].QuerySelector("[data-action=edit]")!.GetAttribute("href")));
+        Assert.Equal("msghatch/templates/Requests/hu/body/Html/view?companyId=42", rows[1].QuerySelector("[data-action=view]")!.GetAttribute("href"));
     }
 
     [Fact]

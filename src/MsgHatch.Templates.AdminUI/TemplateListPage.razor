@@ -37,7 +37,10 @@
             <td>@entry.Lookup.Part</td>
             <td>@entry.Lookup.Kind</td>
             <td>@entry.Version</td>
-            <td><a href="@TemplateAdminRoutes.Edit(entry.Lookup).TrimStart('/')">Edit</a></td>
+            <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@TemplateAdminRoutes.View(entry.Lookup).TrimStart('/')">View</a>
+                <a class="btn btn-sm btn-outline-primary" data-action="edit" href="@TemplateAdminRoutes.Edit(entry.Lookup).TrimStart('/')">Edit</a>
+            </td>
         </tr>
     </Row>
 </AdminList>
