@@ -1,0 +1,65 @@
+@typeparam TItem
+@* The list layout of an admin page with the states loading, error, and empty, and a pager (D239). *@
+@if (Items is not { } items)
+{
+    <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+}
+else if (items.IsError)
+{
+    <ErrorAlert Error="items.Error" />
+}
+else if (items.Value.Count == 0)
+{
+    <p class="text-secondary" data-state="empty">@EmptyText</p>
+}
+else
+{
+    <table class="table table-sm table-hover align-middle">
+        @if (Head is not null)
+        {
+            <thead>@Head</thead>
+        }
+        <tbody>
+            @foreach (var item in PageOf(items.Value))
+            {
+                @Row?.Invoke(item)
+            }
+        </tbody>
+    </table>
+    <AdminPager Page="_page" PageCount="PageCountOf(items.Value.Count)" PageChanged="page => _page = page" />
+}
+
+@code {
+    private int _page;
+
+    /// <summary>The items, an error, or null while the page loads them.</summary>
+    [Parameter]
+    public ErrorOr<IReadOnlyList<TItem>>? Items { get; set; }
+
+    /// <summary>The row of the column names.</summary>
+    [Parameter]
+    public RenderFragment? Head { get; set; }
+
+    /// <summary>The row of one item.</summary>
+    [Parameter]
+    public RenderFragment<TItem>? Row { get; set; }
+
+    /// <summary>The text of an empty list.</summary>
+    [Parameter]
+    public string EmptyText { get; set; } = "There are no items.";
+
+    /// <summary>The number of items on one page, 25 by default.</summary>
+    [Parameter]
+    public int PageSize { get; set; } = 25;
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        var count = Items is { IsSuccess: true } items ? items.Value.Count : 0;
+        _page = Math.Clamp(_page, 0, Math.Max(PageCountOf(count) - 1, 0));
+    }
+
+    private int PageCountOf(int count) => (count + Math.Max(PageSize, 1) - 1) / Math.Max(PageSize, 1);
+
+    private IEnumerable<TItem> PageOf(IReadOnlyList<TItem> items) => items.Skip(_page * Math.Max(PageSize, 1)).Take(Math.Max(PageSize, 1));
+}

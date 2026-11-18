@@ -53,6 +53,10 @@
     <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.9.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Admin UIs">
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.14" />
+  </ItemGroup>
+
   <ItemGroup Label="ExampleApp and WolverineExample.Consumer">
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
@@ -91,6 +95,10 @@
 
   <ItemGroup Label="Performance tests">
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+
+  <ItemGroup Label="Admin UI tests">
+    <PackageVersion Include="bunit" Version="2.15.2" />
   </ItemGroup>
 
   <ItemGroup Label="Analyzers">

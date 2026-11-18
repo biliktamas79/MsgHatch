@@ -1,0 +1,11 @@
+@* The text of an error in a Bootstrap alert, or nothing for no error (D239). *@
+@if (Error is not null)
+{
+    <div class="alert alert-danger" role="alert" data-error-code="@Error.Type.Code">@AdminErrors.TextOf(Error)</div>
+}
+
+@code {
+    /// <summary>The error to show, or null for no error.</summary>
+    [Parameter]
+    public Error? Error { get; set; }
+}

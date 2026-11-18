@@ -1,0 +1,32 @@
+@* The pager of a list: the previous page, the number of the page, and the next page. *@
+@if (PageCount > 1)
+{
+    <nav aria-label="Pages">
+        <ul class="pagination">
+            <li class="page-item @(Page == 0 ? "disabled" : null)">
+                <button type="button" class="page-link" data-page="previous" disabled="@(Page == 0)" @onclick="() => GoToAsync(Page - 1)">Previous</button>
+            </li>
+            <li class="page-item active" aria-current="page"><span class="page-link">Page @(Page + 1) of @PageCount</span></li>
+            <li class="page-item @(Page >= PageCount - 1 ? "disabled" : null)">
+                <button type="button" class="page-link" data-page="next" disabled="@(Page >= PageCount - 1)" @onclick="() => GoToAsync(Page + 1)">Next</button>
+            </li>
+        </ul>
+    </nav>
+}
+
+@code {
+    /// <summary>The index of the shown page, from 0.</summary>
+    [Parameter]
+    public int Page { get; set; }
+
+    /// <summary>The number of pages. The pager shows nothing for one page or less.</summary>
+    [Parameter]
+    public int PageCount { get; set; }
+
+    /// <summary>Gets the index of the page that the user selects.</summary>
+    [Parameter]
+    public EventCallback<int> PageChanged { get; set; }
+
+    private Task GoToAsync(int page) =>
+        page >= 0 && page < PageCount ? PageChanged.InvokeAsync(page) : Task.CompletedTask;
+}

@@ -7,6 +7,7 @@
     <Project Path="examples/WolverineExample.UserSimulator/WolverineExample.UserSimulator.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/MsgHatch.AdminUI/MsgHatch.AdminUI.csproj" />
     <Project Path="src/MsgHatch.Api.Contracts/MsgHatch.Api.Contracts.csproj" />
     <Project Path="src/MsgHatch.AspNetCore/MsgHatch.AspNetCore.csproj" />
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
@@ -44,6 +45,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ExampleApp.Tests.Unit/ExampleApp.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.AdminUI.Tests.Unit/MsgHatch.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Api.Contracts.Tests.Unit/MsgHatch.Api.Contracts.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.AspNetCore.Tests.Unit/MsgHatch.AspNetCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />

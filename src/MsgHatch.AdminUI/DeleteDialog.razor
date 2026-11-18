@@ -1,0 +1,35 @@
+@* The question before a delete (D239). A delete runs only after the user confirms it. *@
+@if (Open)
+{
+    <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="msghatch-delete-title">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" id="msghatch-delete-title">Delete</h5></div>
+                <div class="modal-body"><p>@Question</p></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-action="cancel-delete" @onclick="() => Cancelled.InvokeAsync()">Cancel</button>
+                    <button type="button" class="btn btn-danger" data-action="confirm-delete" @onclick="() => Confirmed.InvokeAsync()">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    /// <summary>True when the dialog shows the question.</summary>
+    [Parameter]
+    public bool Open { get; set; }
+
+    /// <summary>The question, for example the name of the item to delete.</summary>
+    [Parameter]
+    public string Question { get; set; } = "Do you want to delete this item?";
+
+    /// <summary>Runs when the user confirms the delete.</summary>
+    [Parameter]
+    public EventCallback Confirmed { get; set; }
+
+    /// <summary>Runs when the user cancels the delete.</summary>
+    [Parameter]
+    public EventCallback Cancelled { get; set; }
+}
