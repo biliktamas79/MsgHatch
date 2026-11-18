@@ -19,6 +19,7 @@ public sealed class RegistryAdminRoutesUnitTests
     {
         Assert.Equal([RegistryAdminRoutes.Channels], TemplatesOf<ChannelListPage>());
         Assert.Equal([RegistryAdminRoutes.Channels + "/{ChannelName}"], TemplatesOf<ChannelViewPage>());
+        Assert.Equal(["/msghatch/message-types"], TemplatesOf<MessageTypeListPage>());
     }
 
     [Fact]

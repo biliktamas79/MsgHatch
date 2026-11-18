@@ -8,6 +8,9 @@ public static class RegistryAdminRoutes
     /// <summary>The address of the channel list.</summary>
     public const string Channels = "/msghatch/channels";
 
+    /// <summary>The address of the message type list (D273).</summary>
+    public const string MessageTypes = "/msghatch/message-types";
+
     internal const string ChannelTemplate = Channels + "/{ChannelName}";
 
     /// <summary>Gives the address of the view page of one channel.</summary>

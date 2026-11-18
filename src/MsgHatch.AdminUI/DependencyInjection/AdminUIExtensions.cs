@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace MsgHatch.AdminUI.DependencyInjection;
 
-/// <summary>The setup method of the registry pages of the core admin UI (D272).</summary>
+/// <summary>The setup method of the registry pages of the core admin UI (D272, D273).</summary>
 public static class AdminUIExtensions
 {
     /// <summary>
@@ -16,6 +16,7 @@ public static class AdminUIExtensions
     /// <returns>The same services.</returns>
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ChannelListPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ChannelViewPage))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(MessageTypeListPage))]
     public static IServiceCollection AddMsgHatchAdminUI(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

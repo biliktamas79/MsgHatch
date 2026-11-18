@@ -1,0 +1,40 @@
+@attribute [Route(RegistryAdminRoutes.MessageTypes)]
+@inject IServiceProvider Services
+@* The message types of the registry with their channels. Each channel links to its view page, and a disabled channel of the message type has a mark (D273). *@
+
+<AdminListPage Title="Message types">
+<AdminList TItem="RegistryMessageType" Items="_types" EmptyText="There are no message types.">
+    <Head>
+        <tr><th>Message type</th><th>Display name</th><th>Description</th><th>Enabled</th><th>Channels</th></tr>
+    </Head>
+    <Row Context="type">
+        <tr data-row>
+            <td>@type.Type.Name</td>
+            <td>@type.DisplayName</td>
+            <td>@type.Description</td>
+            <td>@RegistryTexts.YesOrNo(type.Enabled)</td>
+            <td>
+                @foreach (var channel in type.Channels)
+                {
+                    <span class="me-2 text-nowrap" data-channel="@channel.Name">
+                        <a href="@RegistryAdminRoutes.Channel(channel).TrimStart('/')">@channel.Name</a>
+                        @if (type.DisabledChannels.Contains(channel))
+                        {
+                            <span class="badge text-bg-warning ms-1" data-disabled>disabled</span>
+                        }
+                    </span>
+                }
+            </td>
+        </tr>
+    </Row>
+</AdminList>
+</AdminListPage>
+
+@code {
+    private ErrorOr<IReadOnlyList<RegistryMessageType>>? _types;
+
+    private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync() => _types = await Queries.GetMessageTypesAsync(CancellationToken.None);
+}
