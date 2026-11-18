@@ -2041,6 +2041,14 @@ Goal: the admin pages of the subscriptions and the templates have one layout (D2
    - `SubscriptionAdminRoutes.New` gives the address of the list with the query `new=true`, which opens the dialog. The page address `/msghatch/subscriptions/new` goes away. The HTTP API does not change.
 8. Describe the layout in section 4.24 of the design, with the layout that a host gives its main area.
 
+The owner added these items during the phase:
+9. The titles "Editor" and "Live preview" over the two columns of the template edit page.
+10. Delete on each row of the template list and of the subscription list, with the question of D262 (D263).
+11. The actions of an edit page and of the view page on screen: `AdminEditPage` with a body that scrolls by itself and the bar of the actions under it (D264).
+12. The filters of a list in a framed bar with small uppercase labels (D265).
+13. The dark mode of the example host, and a white background of the html preview (D266).
+14. `ITemplateStore.RenderVersion`, so the store that knows the format of its versions gives the text of a version for a user, through the HTTP API too (D267).
+
 Tests, with bUnit:
 - `AdminActions`, `AdminDialog`, and `DeleteDialog`: the content on the left and on the right, the title, and the details. A delete runs only after the user confirms it.
 - The buttons of each page in their places, with their addresses.
@@ -2067,6 +2075,51 @@ Checked facts (2026-11-18), on Windows 11 build 26300 with the .NET SDK 10.0.404
 | Fact | Source |
 |---|---|
 | A Razor component is always public. A code-behind `internal partial class` gives CS0262, and a public parameter of an internal type gives CS0053. So the create form of a subscription is the public component `SubscriptionEditor` with the parameter `Guid? Id`, and `SubscriptionForm` stays internal. | The build of a probe component in a scratch folder |
+| In a window of 916 px, a layout of one column with `vh-100`, a main area with `flex-grow: 1`, `min-height: 0`, and `overflow-y: auto`, a list page column, and a table area with `overflow-y: auto` and `min-height: 0` scrolled only the table area, with a height of 743 px. The document and the main area did not scroll, the header stayed under the navigation bar, and the pager ended at the bottom of the window. After a scroll of 2,000 px, the `th` with `position: sticky` stayed at the top of the table area. | A static page of the probe app on `localhost`, measured in the browser pane |
+| In the probe app, the script of the color mode set `data-bs-theme` from the system setting when the local storage had no choice (dark on the probe machine). A click switched to light and stored it, a new apply kept the stored choice, and a second click gave dark. | A static page of the probe app on `localhost`, in the browser pane |
+| A test server in the environment `Testing` answers 200 with an empty body for the fingerprinted address of `theme.js`, because the static files of the app project are not in the content root of the test. So the test of the example host checks the page: the script tag before the styles of Bootstrap, and the button of the color mode. | `Get_Page_LoadsTheThemeScriptBeforeTheStylesAndHasTheThemeSwitch` |
+| The 34 unit test projects pass 4,670 tests and skip 1 test: the path limit test of the named pipe signal on Windows. At `224c695`, they passed 4,614 tests. `MsgHatch.Templates.Tests.Unit` passes 409 tests, `MsgHatch.Templates.Api.Client.Tests.Unit` 134, `MsgHatch.Templates.AdminUI.Tests.Unit` 118, `MsgHatch.Subscriptions.AdminUI.Tests.Unit` 48, `MsgHatch.AdminUI.Tests.Unit` 40, and `AdminUiExample.Tests.Unit` 4. The line coverage of the production code is 98.8 %: `MsgHatch.AdminUI` 100 %, `MsgHatch.Templates` 100 %, `MsgHatch.Templates.Api.Contracts` 97.2 %, `MsgHatch.Templates.AdminUI` 97.0 %, `MsgHatch.Subscriptions.AdminUI` 96.1 %, `MsgHatch.Templates.AspNetCore` 95.0 %, and `MsgHatch.Templates.Api.Client` 89.9 %. The solution build with `--no-incremental` has no errors and no warnings at commit 15. | `pwsh ./coverage.ps1` on the content of commit 15, and `dotnet build MsgHatch.slnx --no-incremental` |
+| Each new test failed with a break of the code that it covers, or with the code before its commit: the shared dialog and bottom bar (6 tests, in two runs), the buttons of the pages (3 tests), the details in the delete question (4 tests), the list layout (6 tests, in two runs), the dialog of a new template (2 tests), the dialog of a new subscription (7 tests, in two runs), the column titles (1 test), the delete on a list row (8 tests), the actions on screen (6 tests), the filter bar (2 tests), the dark mode (1 test), and the version text (14 tests and test rows). | The breaks, each one reverted after its run |
+
+Checks that the phase did not do:
+- A run of `AdminUiExample` against a live `ExampleApp`. The probe app checked the scroll of the layout and the script of the color mode, and the bUnit tests check the structure of the pages.
+- The bar of the editor in the wide dialog of a new subscription with Bootstrap in a browser. The body of `AdminDialog` is a flex column, and the structure is the one that the probe checked for a page.
+- The look of each page in the dark mode in a browser. The parts use only the color variables of Bootstrap.
+
+Commits:
+1. "Plan phase 30: the layout of the admin pages"
+2. "Add the shared dialog and the bottom bar of the admin UIs"
+3. "Put the actions of the admin pages into the bottom bar"
+4. "Show the details of an item in the delete question"
+5. "Scroll only the list on the admin list pages"
+6. "Open a new template in a dialog from the button above the list"
+7. "Create a subscription in a dialog from the button above the list"
+8. "Describe the layout of the admin pages in the design"
+9. "Add the titles Editor and Live preview on the template edit page"
+10. "Delete a template or a subscription from its row of the list"
+11. "Keep the actions of the edit pages on screen"
+12. "Set the filters of a list apart in a framed bar"
+13. "Add the dark mode to the example host of the admin UIs"
+14. "Render the version of a template in the store that knows its format"
+15. "Describe the later additions of the owner to phase 30 in the design"
+16. "Record the commits and the checked facts of phase 30 in the plan"
+17. "Record phase 30 as done in README and AGENTS.md"
+
+Commit 1 holds the plan and the decisions (`674003a`), commit 2 item 2 (`bf82497`), commit 3 item 3 (`be85e26`), commit 4 item 4 (`3bb4179`), commit 5 item 5 (`2f751f8`), commit 6 item 6 (`0b1fea4`), commit 7 item 7 (`71abdcf`), commit 8 item 8 (`4179493`), commit 9 item 9 (`f92f3b4`), commit 10 item 10 (`534d38a`), commit 11 item 11 (`b020bcc`), commit 12 item 12 (`df1365c`), commit 13 item 13 (`5d36aee`), commit 14 item 14 (`05caa12`), and commit 15 the decisions D263 to D267 in the design (`91aa64b`). Item 1 is a check, and its results are in the checked facts. The unit test projects of the changed code passed at each commit. The phase adds no project and no package.
+
+The implementation changed the plan in these points:
+- `AdminDialog` has no footer when a dialog gives it no `Start` and no `End`, because `SubscriptionEditor` has its own bar of `AdminActions`, also in the dialog.
+- `SubscriptionEditor` has the parameters `Cancelled` and `Created`. With no `Cancelled`, its left button is the link back to the subscriptions. With no `Created`, a create opens the edit page of the new subscription. The edit page gives neither, and the dialog gives both.
+- The parameter `Id` of `SubscriptionEditPage` is a `Guid` now, because the page has only the address with an id. The two tests of a create moved from the edit page to the dialog of the list.
+- A Cancel of the dialog that the query `new=true` opened gives the list address with no query, so a reload of the page does not open the dialog again.
+- The bar of the editor shows Save and Delete only when the load had no error, because the editor makes an empty form also after a load error.
+- The link back to the subscriptions of the message types page is a link next to its title. The Edit link of a subscription row is a small button, as on the template list. The filters of the toolbars use the small Bootstrap controls.
+- The verification page keeps its layout, because it is a form with a report and no list page. The scroll area of `AdminList` grows only in a flex column, so on that page it is a normal block.
+- The dialog of a new template shows an error of the parts, or no declared part, in its body, and then has no "Open the editor".
+- The owner added the items 9 to 14 during the phase, so the phase has 17 commits in place of 10.
+- The view page has no column titles, because the owner asked for them on the editor pages.
+- `ITemplateStore.RenderVersion` is a default interface member, so a store of a host needs no change, and gives the number. The logging wrappers forward it, because the default of a wrapper would hide the text of the inner store.
+- A new template on the edit page shows the version 0, because no store rendered a text for it.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
