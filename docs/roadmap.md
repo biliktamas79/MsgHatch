@@ -2318,6 +2318,25 @@ Tests:
 - The example host: the menu order, and the mark of each menu link on its page.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-18), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| The check of item 1 found that the MongoDB stores use no transaction and no session (D186), and that MongoDB has no transaction on a standalone server ("MongoDB standalone deployments do not support transactions", the MongoDB manual). The Testcontainers fallback of the MongoDB tests starts a standalone server, and only the local dev-mongo is a replica set (`rs0`). A file system cannot change two files in one atomic step. The in-memory, SQLite, and EF Core stores can change two rows in one lock or transaction. So the owner changed the design to the insert-only rows, which need no transaction. | A search for `StartSession`, `WithTransaction`, and `IClientSession` in the MongoDB stores, the MongoDB manual, and `MongoDbFixture.cs` |
+| `SqliteSchema.Core` runs `CREATE TABLE IF NOT EXISTS` at the first connection of each connection string. So a database file of phase 31 gets the table `MsgHatchChannelState`, keeps its data, and keeps the schema version 1, as the registry tables of phase 16 did. The old table `MsgHatchChannelDown` stays, and the store does not read it. The EF Core package creates no schema, so a host adds a migration of `MsgHatchDbContext` for the new table. | `SetChannelDownAsync_DatabaseWithADownRowOfPhase31_AddsTheStateTableAndReadsNoDownState`, and section 4.1 of `docs/stores.md` |
+| Bootstrap 5.3.3 has the classes `progress-stacked` and `progress-stacked>.progress>.progress-bar`. | The file `bootstrap.min.css` of Bootstrap 5.3.3 on jsDelivr |
+| A SQLite store serializes its writes, so two parallel changes of one channel in one process never tried to add the same version. A break of `INSERT OR IGNORE` to an insert that replaces a row passed the parallel rows of the contract. A second connection that adds the version after the read of the store and before its insert finds the break. | `SetChannelDownAsync_VersionThatAnotherConnectionInsertsAfterTheRead_KeepsThatRowAndAddsNoRow` |
+| On SQL Server, the insert of a state row has the condition `WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK`. With the condition removed, the second of two parallel inserts gave a key error, and a parallel row failed in each of three runs. So the parallel rows of the contract also check that no change gives an error. | The parallel rows of `OutboxStoreTestsBase` on dev-mssql |
+| The MongoDB store passes 356 tests on dev-mongo, a replica set, and 356 tests on the standalone server `mongo:8.3` of Testcontainers. The standalone run uses a copy of the test project with no `appsettings.Local.json`. With the unique index `UX_MsgHatchChannelState_Version` removed, the parallel rows of the contract fail. | `dotnet test` of the test project and of its copy in `artifacts/container-tests` |
+| The EF Core integration tests pass 338 tests of the stores and 48 tests of the subscription store on dev-mssql. The MongoDB integration tests pass 50 tests of the subscription store. The solution build with an artifacts path in a scratch folder has no errors and no warnings at commit 15. | `dotnet test` of each integration project, and `dotnet build MsgHatch.slnx --artifacts-path` |
+| The 35 unit test projects pass 4,940 tests and skip 1 test: the path limit test of the named pipe signal on Windows. The phase adds 161 tests and test rows. `MsgHatch.Domain.Tests.Unit` passes 1,527 tests, `MsgHatch.Data.FileSystem.Tests.Unit` 340, `MsgHatch.Data.Sqlite.Tests.Unit` 355, `MsgHatch.AspNetCore.Tests.Unit` 125, `MsgHatch.Api.Contracts.Tests.Unit` 85, `MsgHatch.AdminUI.Tests.Unit` 79, `MsgHatch.Subscriptions.AdminUI.Tests.Unit` 58, `MsgHatch.Api.Client.Tests.Unit` 35, and `AdminUiExample.Tests.Unit` 13. The line coverage of the production code is 98.7 %: `MsgHatch.AdminUI` 100 %, `MsgHatch.Api.Contracts` 100 %, `MsgHatch.Data.FileSystem` 99.8 %, `MsgHatch.Data.Sqlite` 99.8 %, `MsgHatch.Domain` 99.6 %, `MsgHatch.AspNetCore` 97.9 %, `MsgHatch.Subscriptions.AdminUI` 96.4 %, and `MsgHatch.Api.Client` 80.8 %, with the same shared sources with no caller as in phase 31. The first report showed lines with no test in `ChannelTimeline` (81.4 %) and in `ChannelState.ChangeAsync`, so commit 16 adds two tests. After commit 16, each new class has 100 %. The example apps of the owner ran from `examples/*/bin/Debug`, so the run used a copy of `coverage.ps1` that builds with `--artifacts-path` in a scratch folder, with no other change. | The copy of `pwsh ./coverage.ps1` on the content of commit 16 |
+| The new tests failed with a break of the code that they cover, or before the code of their commit existed. The breaks failed: the domain rows of the versions, the previous state, the window, and the tries, the rows of the file, SQLite, EF Core, and MongoDB stores, the write of `PreviousKind` in each store, the registry queries with the window and the store read, the mappings of `Current` and `previousKind` in the contracts, the history route and client, the state and the dialog of the channel pages, the columns of the message types page, and the subscription counts. In commit 16, the breaks of the success path of `ChangeAsync`, of the merge of two neighbor parts of the timeline, and of the skip of a part with no duration each failed one new test. The test of the menu order failed with the files before commit 14. | The breaks, each one reverted after its run |
+
+Checks that the phase did not do:
+- A browser check of the channel pages and the dialog. The bUnit tests check the cells, the segments of the bar, and the rows of the dialog with `FakeTimeProvider`.
+- The pages in the dark mode in a browser. They use only the color variables of Bootstrap.
+- A database of phase 31 on SQL Server or MongoDB. The EF Core host adds the table with its own migration, and the MongoDB store makes the new collection and its unique index at their first use.
+
 Commits:
 1. "Plan phase 32: the channel state and the order of the admin pages"
 2. "Record the transaction check of MongoDB in the plan of phase 32"
@@ -2334,8 +2353,22 @@ Commits:
 13. "Remove the Applied subscriptions page"
 14. "Put the admin pages of the example host in the new order"
 15. "Describe the channel state and the new page order in the design"
-16. "Record the commits and the checked facts of phase 32 in the plan"
-17. "Record phase 32 as done in README and AGENTS.md"
+16. "Test the lines that the coverage report of phase 32 showed with no test"
+17. "Record the commits and the checked facts of phase 32 in the plan"
+18. "Record phase 32 as done in README and AGENTS.md"
+
+Commit 1 holds the plan and the decisions (`0a0b933` and `fd1d082`), commit 2 the result of the check of item 1 (`aeb6c50`), commit 3 the plan of the insert-only rows (`2b4f71b`), commit 4 item 2 (`1a891b5`), commit 5 item 3 (`7f35192`), commit 6 item 4 (`f821227`), commit 7 item 5 (`d09f9db`), commit 8 item 6 (`b481e01`), commit 9 item 7 (`531b694`), commit 10 item 8 (`12d8616`), commit 11 item 9 (`5d7ac89`), commit 12 item 10 (`d8da986`), commit 13 item 11 (`726eb9d`), commit 14 item 12 (`33859db`), commit 15 item 13 (`90c9038`), and commit 16 the tests of the lines that the first coverage report showed with no test (`42c375d`). Item 1 is a check, and its results are in the checked facts. The unit test projects of the changed code passed at each commit before the rebuild of the history. After the rebuild, the tree of commit 15 was the same as before it, and the commits 4 and 9 built again. The phase adds no project and no package. Commit 5 adds the golden-file sample `ChannelState.v1.json` as an embedded resource of `MsgHatch.Data.FileSystem.Tests.Unit`.
+
+The first commits of items 2 to 6 wrote a down state row and a second table of events in one transaction, and a transaction on MongoDB only when the server is a replica set. The owner replaced this design with the insert-only rows, and the history of the phase was built again from `aeb6c50`. The branch `backup/phase-32-event-table` keeps the old commits.
+
+The implementation changed the plan in these points:
+- The file store writes a state row to a temporary file, and moves it to the path of its version with no overwrite (`MessageFiles.TryCreate`), not with `FileMode.CreateNew`. So a reader never sees half a file.
+- The SQLite tests add a test with a second connection, because the parallel rows of the contract do not find a lost insert in one process (checked facts).
+- The badge of the state is `ChannelStateBadge`, because a component with the name `ChannelState` hides the domain type `ChannelState` in the pages.
+- The column "Subscriptions" also reads the message types of `IRegistryQueries`, so a message type with no subscription gets the counts 0.
+- The README of the example app names the pause route `POST /api/delivery/channels/{channel}/pause` with the role `DeliveryAdmin`.
+- Commit 15 also changes the sections 4.5, 4.6, and 5.5 of the design, because they describe the store contract, the store tables, and the contract tests.
+- Commit 16 is new. The first coverage report showed two behaviors with no unit test, so the phase has 18 commits.
 
 Done when: the build has no errors and no warnings, all unit tests pass, the integration tests of the EF Core and MongoDB outbox stores pass, also the MongoDB tests on a standalone server, and `pwsh ./coverage.ps1` passes.
 
