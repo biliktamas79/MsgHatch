@@ -22,7 +22,8 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers the core services of MsgHatch: the options, the in-memory <see cref="IMessageRegistry"/> from the
     /// registrations (D117), the content type registry, <see cref="MsgHatchJson"/>, <see cref="InProcessDispatchSignal"/>
-    /// as the <see cref="IDispatchSignal"/>, and <see cref="TimeProvider.System"/>
+    /// as the <see cref="IDispatchSignal"/>, the in-process <see cref="IRegistryQueries"/> as the default of
+    /// <see cref="MsgHatchBuilder.UseRegistryQueries"/> (D268, D269), and <see cref="TimeProvider.System"/>
     /// if the host has registered no <see cref="TimeProvider"/>. The options bind from the section <c>MsgHatch</c>
     /// of the <c>IConfiguration</c> of the host.
     /// </summary>
@@ -78,7 +79,8 @@ public static class ServiceCollectionExtensions
             services, OutboxDispatcher.Create(services),
             static (services, inner) => new OutboxDispatcherLoggingWrapper(
                 inner, Loggers.For<OutboxDispatcherLoggingWrapper>(services), services.GetRequiredService<TimeProvider>())));
-        return new MsgHatchBuilder(services, setup);
+        return new MsgHatchBuilder(services, setup).AddDefaultTenantService<IRegistryQueries>(
+            ServiceLifetime.Scoped, static (tenantServices, _) => RegistryManager.Create(tenantServices), RegistryQueriesLoggingWrapper.Wrap);
     }
 
     private static void AddDeliveryManager(IServiceCollection services, MsgHatchSetup setup) =>

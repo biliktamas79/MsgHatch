@@ -26,6 +26,17 @@ public static class RegistryTestHost
     public static ServiceProvider Build(IRegistrySettingsStore? store = null, TimeProvider? time = null, bool enableLogging = true)
     {
         var services = TestHost.CreateServices(time, new Dictionary<string, string?> { ["MsgHatch:Registry:RefreshInterval"] = RefreshInterval });
+        AddRegistry(services, store, enableLogging).UseStoredRegistry();
+        return services.Build();
+    }
+
+    /// <summary>
+    /// Adds the channels and the message types of the host, and the store or the in-memory stores, with no
+    /// <c>UseStoredRegistry</c>. So the registry is the in-memory reader of a setup in code until the caller selects the
+    /// stored registry.
+    /// </summary>
+    public static MsgHatchBuilder AddRegistry(IServiceCollection services, IRegistrySettingsStore? store = null, bool enableLogging = true)
+    {
         var builder = services.AddMsgHatch(o => o.EnableLogging = enableLogging)
             .AddTestChannel()
             .AddSecondTestChannel()
@@ -37,9 +48,7 @@ public static class RegistryTestHost
                 .AsChannel(TestChannel.ThirdId, "OtherEnvelope", 1, TestJsonContext.Default.OtherTestEnvelope, AnyComposer<TestEvent, OtherTestEnvelope>()))
             .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m
                 .AsChannel(TestChannel.Id, "OtherEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<OtherTestEvent>()));
-        _ = store is null ? builder.UseInMemoryStores() : builder.UseRegistrySettingsStore(_ => store);
-        builder.UseStoredRegistry();
-        return services.Build();
+        return store is null ? builder.UseInMemoryStores() : builder.UseRegistrySettingsStore(_ => store);
     }
 
     /// <summary>A store substitute that gives the reads in order, and succeeds each save and each delete.</summary>

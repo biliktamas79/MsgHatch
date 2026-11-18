@@ -13,7 +13,7 @@ using NSubstitute;
 
 namespace MsgHatch.Domain.Tests.Unit.DependencyInjection;
 
-public sealed class MsgHatchBuilderUnitTests
+public sealed partial class MsgHatchBuilderUnitTests
 {
     [Fact]
     public async Task ConfigureSharedOptions_SectionThatALaterSetupMethodBinds_TheValueFromCodeWins()
