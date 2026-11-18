@@ -1,0 +1,19 @@
+@* The bottom bar of a dialog or a page (D261): Cancel or Back on the bottom left, and the main action on the bottom right. *@
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 @Class" data-actions>
+    <div class="d-flex flex-wrap gap-2" data-actions-start>@Start</div>
+    <div class="d-flex flex-wrap gap-2 ms-auto" data-actions-end>@End</div>
+</div>
+
+@code {
+    /// <summary>The content on the left, for example Cancel or Back.</summary>
+    [Parameter]
+    public RenderFragment? Start { get; set; }
+
+    /// <summary>The content on the right, for example Save, Create, Edit, or Delete, with the main action last.</summary>
+    [Parameter]
+    public RenderFragment? End { get; set; }
+
+    /// <summary>More CSS classes of the bar, for example <c>mt-3</c>.</summary>
+    [Parameter]
+    public string? Class { get; set; }
+}

@@ -1,20 +1,15 @@
-@* The question before a delete (D239). A delete runs only after the user confirms it. *@
-@if (Open)
-{
-    <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="msghatch-delete-title">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title" id="msghatch-delete-title">Delete</h5></div>
-                <div class="modal-body"><p>@Question</p></div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-action="cancel-delete" @onclick="() => Cancelled.InvokeAsync()">Cancel</button>
-                    <button type="button" class="btn btn-danger" data-action="confirm-delete" @onclick="() => Confirmed.InvokeAsync()">Delete</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="modal-backdrop show"></div>
-}
+@* The question before a delete (D239, D261). A delete runs only after the user confirms it. *@
+<AdminDialog Open="Open" Title="Delete">
+    <ChildContent>
+        <p>@Question</p>
+    </ChildContent>
+    <Start>
+        <button type="button" class="btn btn-outline-secondary" data-action="cancel-delete" @onclick="() => Cancelled.InvokeAsync()">Cancel</button>
+    </Start>
+    <End>
+        <button type="button" class="btn btn-danger" data-action="confirm-delete" @onclick="() => Confirmed.InvokeAsync()">Delete</button>
+    </End>
+</AdminDialog>
 
 @code {
     /// <summary>True when the dialog shows the question.</summary>

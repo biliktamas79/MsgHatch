@@ -21,6 +21,17 @@ public sealed class DeleteDialogUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_Open_PutsCancelOnTheLeftAndDeleteOnTheRight()
+    {
+        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true));
+
+        Assert.Equal(
+            ("Cancel", "Delete"),
+            (cut.Find(".modal-footer [data-actions-start] [data-action=cancel-delete]").TextContent,
+                cut.Find(".modal-footer [data-actions-end] [data-action=confirm-delete]").TextContent));
+    }
+
+    [Fact]
     public void ClickDelete_Open_RunsConfirmedOnly()
     {
         var confirmed = 0;

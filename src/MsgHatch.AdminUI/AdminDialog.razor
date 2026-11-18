@@ -1,0 +1,44 @@
+@* A dialog of the admin UIs (D261): a Bootstrap modal with a title, a body, and the bottom bar of AdminActions. *@
+@if (Open)
+{
+    <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="@_titleId" data-dialog>
+        <div class="modal-dialog modal-dialog-scrollable @(Wide ? "modal-lg" : null)">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" id="@_titleId">@Title</h5></div>
+                <div class="modal-body">@ChildContent</div>
+                <div class="modal-footer">
+                    <AdminActions Start="Start" End="End" Class="w-100" />
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop show"></div>
+}
+
+@code {
+    private readonly string _titleId = $"msghatch-dialog-{Guid.NewGuid():N}";
+
+    /// <summary>True when the dialog shows.</summary>
+    [Parameter]
+    public bool Open { get; set; }
+
+    /// <summary>The title of the dialog.</summary>
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>True for a dialog with a wide body, for example a form with many fields.</summary>
+    [Parameter]
+    public bool Wide { get; set; }
+
+    /// <summary>The body of the dialog.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The content on the bottom left, for example Cancel.</summary>
+    [Parameter]
+    public RenderFragment? Start { get; set; }
+
+    /// <summary>The content on the bottom right, for example Save, with the main action last.</summary>
+    [Parameter]
+    public RenderFragment? End { get; set; }
+}
