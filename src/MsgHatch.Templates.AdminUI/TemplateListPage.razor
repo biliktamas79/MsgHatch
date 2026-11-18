@@ -1,9 +1,12 @@
 @attribute [Route(TemplateAdminRoutes.List)]
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
-@* The template list, with filters for the message type and the company, and a new template from the declared parts (D240). *@
+@* The template list, with filters for the message type and the company, and a dialog of a new template from the declared parts (D240, D260). *@
 
 <AdminListPage Title="Templates">
+<Actions>
+    <button type="button" class="btn btn-sm btn-primary" data-action="new" @onclick="OpenNewDialog">+ New template</button>
+</Actions>
 <Filters>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-type">Message type</label>
@@ -46,42 +49,51 @@
 </ChildContent>
 </AdminListPage>
 
-<h2 class="h5 mt-4">New template</h2>
-@if (_parts is { IsError: true } failed)
-{
-    <ErrorAlert Error="failed.Error" />
-}
-else if (_parts is { Value.Count: > 0 } parts)
-{
-    <div class="row g-2 align-items-end" data-form="new">
-        <div class="col-auto">
-            <label class="form-label" for="msghatch-template-part">Part</label>
-            <select id="msghatch-template-part" class="form-select" @bind="_newPart">
-                @for (var index = 0; index < parts.Value.Count; index++)
-                {
-                    var part = parts.Value[index];
-                    <option value="@index">@part.Type.Name / @part.Part.Name / @part.Part.Kind</option>
-                }
-            </select>
-        </div>
-        <div class="col-auto">
-            <label class="form-label" for="msghatch-template-language">Language</label>
-            <input id="msghatch-template-language" class="form-control" @bind="_newLanguage" />
-        </div>
-        <div class="col-auto">
-            <label class="form-label" for="msghatch-template-new-company">Company id</label>
-            <input id="msghatch-template-new-company" class="form-control" @bind="_newCompany" />
-        </div>
-        <div class="col-auto">
-            <button type="button" class="btn btn-primary" data-action="new" @onclick="OpenNew">Open the editor</button>
-        </div>
-    </div>
-    <ErrorAlert Error="_newError" />
-}
-else if (_parts is not null)
-{
-    <p class="text-secondary" data-state="no-parts">No message type declares a template part.</p>
-}
+<AdminDialog Open="_newOpen" Title="New template">
+    <ChildContent>
+        @if (_parts is { IsError: true } failed)
+        {
+            <ErrorAlert Error="failed.Error" />
+        }
+        else if (_parts is { Value.Count: > 0 } parts)
+        {
+            <div data-form="new">
+                <div class="mb-3">
+                    <label class="form-label" for="msghatch-template-part">Part</label>
+                    <select id="msghatch-template-part" class="form-select" @bind="_newPart">
+                        @for (var index = 0; index < parts.Value.Count; index++)
+                        {
+                            var part = parts.Value[index];
+                            <option value="@index">@part.Type.Name / @part.Part.Name / @part.Part.Kind</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="msghatch-template-language">Language</label>
+                    <input id="msghatch-template-language" class="form-control" @bind="_newLanguage" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="msghatch-template-new-company">Company id</label>
+                    <input id="msghatch-template-new-company" class="form-control" @bind="_newCompany" />
+                </div>
+            </div>
+            <ErrorAlert Error="_newError" />
+        }
+        else
+        {
+            <p class="text-secondary mb-0" data-state="no-parts">No message type declares a template part.</p>
+        }
+    </ChildContent>
+    <Start>
+        <button type="button" class="btn btn-outline-secondary" data-action="cancel-new" @onclick="CloseNewDialog">Cancel</button>
+    </Start>
+    <End>
+        @if (_parts is { IsSuccess: true, Value.Count: > 0 })
+        {
+            <button type="button" class="btn btn-primary" data-action="open-editor" @onclick="OpenNew">Open the editor</button>
+        }
+    </End>
+</AdminDialog>
 
 @code {
     private ErrorOr<IReadOnlyList<TemplatePartInfo>>? _parts;
@@ -92,6 +104,7 @@ else if (_parts is not null)
     private string _newLanguage = "en";
     private string _newCompany = string.Empty;
     private Error? _newError;
+    private bool _newOpen;
 
     private ITemplateQueries Queries => Services.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None);
 
@@ -137,6 +150,10 @@ else if (_parts is not null)
             Navigation.NavigateTo(TemplateAdminRoutes.Edit(lookup).TrimStart('/'));
         }
     }
+
+    private void OpenNewDialog() => (_newOpen, _newError) = (true, null);
+
+    private void CloseNewDialog() => (_newOpen, _newError) = (false, null);
 
     private static IEnumerable<string> TypesOf(ErrorOr<IReadOnlyList<TemplatePartInfo>>? parts) =>
         parts is { IsSuccess: true } found ? found.Value.Select(static part => part.Type.Name).Distinct(StringComparer.Ordinal) : [];

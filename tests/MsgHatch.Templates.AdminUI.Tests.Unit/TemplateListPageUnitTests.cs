@@ -120,11 +120,12 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     {
         GivenTemplates();
         var cut = Render<TemplateListPage>();
+        cut.Find("[data-action=new]").Click();
 
         cut.Find("#msghatch-template-part").Change("1");
         cut.Find("#msghatch-template-language").Change("hu");
         cut.Find("#msghatch-template-new-company").Change("42");
-        cut.Find("[data-action=new]").Click();
+        cut.Find("[data-action=open-editor]").Click();
 
         Assert.Equal("http://localhost/msghatch/templates/Requests/hu/body/Html?companyId=42", Navigation.Uri);
     }
@@ -134,9 +135,10 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     {
         GivenTemplates();
         var cut = Render<TemplateListPage>();
+        cut.Find("[data-action=new]").Click();
 
         cut.Find("#msghatch-template-language").Change(" ");
-        cut.Find("[data-action=new]").Click();
+        cut.Find("[data-action=open-editor]").Click();
 
         Assert.Equal("400", cut.Find("[data-form=new] ~ .alert-danger").GetAttribute("data-error-code"));
         Assert.Equal("http://localhost/", Navigation.Uri);
@@ -149,8 +151,10 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         Queries.GetTemplatePartsAsync(null, Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<TemplatePartInfo>>(Errors.Unavailable));
 
         var cut = Render<TemplateListPage>();
+        cut.Find("[data-action=new]").Click();
 
-        Assert.Equal(AdminErrors.UnavailableText, cut.Find("h2 + .alert-danger").TextContent);
+        Assert.Equal(AdminErrors.UnavailableText, cut.Find(".modal-body .alert-danger").TextContent);
+        Assert.Empty(cut.FindAll("[data-action=open-editor]"));
     }
 
     [Fact]
@@ -160,8 +164,40 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         Queries.GetTemplatePartsAsync(null, Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<TemplatePartInfo>>([]));
 
         var cut = Render<TemplateListPage>();
+        cut.Find("[data-action=new]").Click();
 
-        Assert.Single(cut.FindAll("[data-state=no-parts]"));
+        Assert.Single(cut.FindAll(".modal-body [data-state=no-parts]"));
+        Assert.Empty(cut.FindAll("[data-action=open-editor]"));
+    }
+
+    [Fact]
+    public void ClickNew_DeclaredParts_OpensTheDialogWithCancelOnTheLeftAndOpenTheEditorOnTheRight()
+    {
+        GivenTemplates();
+        var cut = Render<TemplateListPage>();
+        Assert.Empty(cut.FindAll(".modal"));
+
+        cut.Find("[data-list-actions] [data-action=new]").Click();
+
+        Assert.Equal(
+            ("New template", "Cancel", "Open the editor", 2),
+            (cut.Find(".modal-title").TextContent, cut.Find(".modal-footer [data-actions-start] button").TextContent,
+                cut.Find(".modal-footer [data-actions-end] button").TextContent, cut.FindAll(".modal-body #msghatch-template-part option").Count));
+    }
+
+    [Fact]
+    public void ClickCancel_OpenDialogWithAnError_ClosesTheDialogAndStays()
+    {
+        GivenTemplates();
+        var cut = Render<TemplateListPage>();
+        cut.Find("[data-action=new]").Click();
+        cut.Find("#msghatch-template-language").Change(" ");
+        cut.Find("[data-action=open-editor]").Click();
+
+        cut.Find("[data-action=cancel-new]").Click();
+        cut.Find("[data-action=new]").Click();
+
+        Assert.Equal((0, "http://localhost/"), (cut.FindAll(".modal-body .alert-danger").Count, Navigation.Uri));
     }
 
     private void GivenTemplates(params TemplateEntry[] entries) =>
