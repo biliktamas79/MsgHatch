@@ -25,4 +25,20 @@ public static class AdminUIExtensions
         services.TryAddSingleton(TimeProvider.System);
         return services;
     }
+
+    /// <summary>
+    /// Adds a column of the message types page (D275). The page shows the columns after its own columns, in the order of
+    /// registration. A second call with the same column adds nothing. The container makes the column in the scope of the page.
+    /// </summary>
+    /// <typeparam name="TColumn">The column. The trimming keeps its public constructors (D237).</typeparam>
+    /// <param name="services">The services of the host.</param>
+    /// <returns>The same services.</returns>
+    public static IServiceCollection AddMessageTypeColumn<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TColumn>(
+        this IServiceCollection services)
+        where TColumn : class, IMessageTypeColumn
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IMessageTypeColumn, TColumn>());
+        return services;
+    }
 }

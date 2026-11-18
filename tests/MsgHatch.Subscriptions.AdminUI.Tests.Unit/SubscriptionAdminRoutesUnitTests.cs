@@ -27,6 +27,14 @@ public sealed class SubscriptionAdminRoutesUnitTests
         Assert.Equal("/msghatch/subscriptions?new=true", SubscriptionAdminRoutes.New);
     }
 
+    [Theory]
+    [InlineData(SubscriptionLevel.Default, "/msghatch/subscriptions?type=Requests&level=Default")]
+    [InlineData(SubscriptionLevel.User, "/msghatch/subscriptions?type=Requests&level=User")]
+    public void ListOf_MessageTypeAndLevel_GivesTheListAddressWithTheQueryOfBothFilters(SubscriptionLevel level, string expected)
+    {
+        Assert.Equal(expected, SubscriptionAdminRoutes.ListOf(SubscriptionTestData.Requests, level));
+    }
+
     [Fact]
     public void ComponentTypes_OfTheLibrary_SetNoRenderMode()
     {

@@ -1,11 +1,21 @@
 @attribute [Route(RegistryAdminRoutes.MessageTypes)]
 @inject IServiceProvider Services
-@* The message types of the registry with their channels. Each channel links to its view page, and a disabled channel of the message type has a mark (D273). *@
+@* The message types of the registry with their channels. Each channel links to its view page, and a disabled channel of the message type has a mark (D273). The columns of other admin UI packages follow, with their items as badges (D275). *@
 
 <AdminListPage Title="Message types">
+@foreach (var (column, error) in _columnErrors)
+{
+    <div class="alert alert-danger" role="alert" data-column-error="@column.Header" data-error-code="@error.Type.Code">@column.Header: @AdminErrors.TextOf(error)</div>
+}
 <AdminList TItem="RegistryMessageType" Items="_types" EmptyText="There are no message types.">
     <Head>
-        <tr><th>Message type</th><th>Display name</th><th>Description</th><th>Enabled</th><th>Channels</th></tr>
+        <tr>
+            <th>Message type</th><th>Display name</th><th>Description</th><th>Enabled</th><th>Channels</th>
+            @foreach (var column in _columns)
+            {
+                <th data-column="@column.Header">@column.Header</th>
+            }
+        </tr>
     </Head>
     <Row Context="type">
         <tr data-row>
@@ -25,6 +35,22 @@
                     </span>
                 }
             </td>
+            @foreach (var column in _columns)
+            {
+                <td data-column="@column.Header">
+                    @foreach (var item in ItemsOf(column, type.Type))
+                    {
+                        if (item.Href is { } href)
+                        {
+                            <a class="badge text-bg-secondary text-decoration-none me-1" href="@href" data-item>@item.Text</a>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary me-1" data-item>@item.Text</span>
+                        }
+                    }
+                </td>
+            }
         </tr>
     </Row>
 </AdminList>
@@ -32,9 +58,36 @@
 
 @code {
     private ErrorOr<IReadOnlyList<RegistryMessageType>>? _types;
+    private IReadOnlyList<IMessageTypeColumn> _columns = [];
+    private readonly Dictionary<IMessageTypeColumn, IReadOnlyDictionary<MessageType, IReadOnlyList<MessageTypeCellItem>>> _cells = [];
+    private readonly List<(IMessageTypeColumn Column, Error Error)> _columnErrors = [];
 
     private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
 
     /// <inheritdoc />
-    protected override async Task OnInitializedAsync() => _types = await Queries.GetMessageTypesAsync(CancellationToken.None);
+    protected override async Task OnInitializedAsync()
+    {
+        _types = await Queries.GetMessageTypesAsync(CancellationToken.None);
+        if (_types.Value.IsError)
+        {
+            return;
+        }
+
+        _columns = [.. Services.GetServices<IMessageTypeColumn>()];
+        foreach (var column in _columns)
+        {
+            var cells = await column.GetCellsAsync(CancellationToken.None);
+            if (cells.IsError)
+            {
+                _columnErrors.Add((column, cells.Error));
+            }
+            else
+            {
+                _cells[column] = cells.Value;
+            }
+        }
+    }
+
+    private IReadOnlyList<MessageTypeCellItem> ItemsOf(IMessageTypeColumn column, MessageType type) =>
+        _cells.TryGetValue(column, out var cells) && cells.TryGetValue(type, out var items) ? items : [];
 }

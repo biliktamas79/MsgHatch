@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.AdminUI.DependencyInjection;
 
 namespace MsgHatch.Subscriptions.AdminUI.DependencyInjection;
 
@@ -11,7 +12,7 @@ public static class SubscriptionsAdminUIExtensions
     /// <c>IRoutingVerifier</c> of <c>TenantKey.None</c>, so the host selects the HTTP client or the in-process implementation in
     /// its setup (D235). The host adds the authorization, and maps the pages with the assembly of
     /// <see cref="SubscriptionAdminRoutes"/> as an additional assembly of its router. The method keeps the pages in a trimmed
-    /// host.
+    /// host. It adds the column "Subscriptions" of the message types page of the core admin UI (D276).
     /// </summary>
     /// <param name="services">The services of the host.</param>
     /// <returns>The same services.</returns>
@@ -22,6 +23,6 @@ public static class SubscriptionsAdminUIExtensions
     public static IServiceCollection AddMsgHatchSubscriptionsAdminUI(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        return services;
+        return services.AddMessageTypeColumn<SubscriptionCountColumn>();
     }
 }

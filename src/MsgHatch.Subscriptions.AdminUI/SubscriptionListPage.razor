@@ -119,6 +119,14 @@
     [SupplyParameterFromQuery(Name = "new")]
     public bool? New { get; set; }
 
+    /// <summary>The message type filter from the query <c>type</c> of <see cref="SubscriptionAdminRoutes.ListOf"/> (D276).</summary>
+    [SupplyParameterFromQuery(Name = "type")]
+    public string? Type { get; set; }
+
+    /// <summary>The level filter from the query <c>level</c> of <see cref="SubscriptionAdminRoutes.ListOf"/> (D276).</summary>
+    [SupplyParameterFromQuery(Name = "level")]
+    public string? Level { get; set; }
+
     private ISubscriptionQueries Queries => Services.GetRequiredKeyedService<ISubscriptionQueries>(TenantKey.None);
 
     private ISubscriptionCommands Commands => Services.GetRequiredKeyedService<ISubscriptionCommands>(TenantKey.None);
@@ -127,6 +135,7 @@
     protected override async Task OnInitializedAsync()
     {
         _newOpen = New == true;
+        StartWithTheFiltersOfTheAddress();
         var types = await Queries.GetMessageTypesAsync(new MessageTypeQuery(), CancellationToken.None);
         var channels = await Queries.GetChannelsAsync(CancellationToken.None);
         _types = types.IsSuccess ? [.. types.Value.Select(static state => state.Type.Name)] : [];
@@ -185,6 +194,20 @@
         SubscriptionLevel? level = Enum.TryParse<SubscriptionLevel>(_levelFilter, out var known) && Enum.IsDefined(known) ? known : null;
         var found = await Queries.GetSubscriptionsAsync(new SubscriptionQuery(Type: type, Level: level), CancellationToken.None);
         _subscriptions = found.IsError ? found : ErrorOr<IReadOnlyList<Subscription>>.ForValue([.. found.Value.Where(MatchesTheListFilters)]);
+    }
+
+    /// <summary>Starts with the filters of the query <c>type</c> and <c>level</c>. A value that is not valid gives no filter for that value.</summary>
+    private void StartWithTheFiltersOfTheAddress()
+    {
+        if (Type is { } type && SubscriptionTexts.MessageTypeOf(type) is { IsSuccess: true } parsed)
+        {
+            _typeFilter = parsed.Value.Name;
+        }
+
+        if (Level is { } level && Enum.GetNames<SubscriptionLevel>().Contains(level, StringComparer.Ordinal))
+        {
+            _levelFilter = level;
+        }
     }
 
     private bool MatchesTheListFilters(Subscription subscription) =>

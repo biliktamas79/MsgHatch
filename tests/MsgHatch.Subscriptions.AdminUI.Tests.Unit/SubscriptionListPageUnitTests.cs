@@ -142,6 +142,34 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void Render_AddressOfTheListOfAMessageTypeAndALevel_StartsWithBothFilters()
+    {
+        GivenSubscriptions();
+        Navigation.NavigateTo(SubscriptionAdminRoutes.ListOf(Requests, SubscriptionLevel.Company).TrimStart('/'));
+
+        var cut = Render<SubscriptionListPage>();
+
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(Type: Requests, Level: SubscriptionLevel.Company), Arg.Any<CancellationToken>());
+        Assert.Equal(
+            ("Company", "Requests"),
+            (cut.Find("#msghatch-subscription-level").GetAttribute("value"), cut.Find("#msghatch-subscription-type").GetAttribute("value")));
+    }
+
+    [Theory]
+    [InlineData("msghatch/subscriptions?type=not%20a%20name&level=Boss")]
+    [InlineData("msghatch/subscriptions?level=1")]
+    [InlineData("msghatch/subscriptions?level=company")]
+    public void Render_AddressWithValuesThatAreNotValid_StartsWithNoFilter(string address)
+    {
+        GivenSubscriptions();
+        Navigation.NavigateTo(address);
+
+        Render<SubscriptionListPage>();
+
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void ClickShow_MessageTypeThatIsNotAName_ShowsValidationFailed()
     {
         GivenSubscriptions();
