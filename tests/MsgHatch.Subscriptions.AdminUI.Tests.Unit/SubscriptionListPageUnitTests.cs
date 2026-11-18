@@ -25,6 +25,17 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void Render_CompanyAndNamedUsersRecipients_ShowsTheTextOfEachKind()
+    {
+        GivenSubscriptions(Subscription(recipients: SubscriptionRecipients.Company),
+            Subscription(recipients: SubscriptionRecipients.ForUsers([new UserId("1"), new UserId("2")]), id: Guid.Empty));
+
+        var cut = Render<SubscriptionListPage>();
+
+        Assert.Equal(["Company", "2 named users"], cut.FindAll("tr[data-row]").Select(static row => row.Children[4].TextContent));
+    }
+
+    [Fact]
     public void Render_NoSubscription_ShowsTheEmptyState()
     {
         GivenSubscriptions();

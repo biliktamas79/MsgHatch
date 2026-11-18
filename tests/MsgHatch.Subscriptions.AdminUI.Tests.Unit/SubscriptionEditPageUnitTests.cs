@@ -97,6 +97,22 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void ClickSave_OptOutWithNoChannelAndNoSettings_SendsNoChannelAndNoSettings()
+    {
+        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.OptOut, Channel: null,
+            Settings: null, SubscriptionRecipients.ScopeUsers);
+        Commands.UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+        var cut = RenderEdit();
+        cut.Find("#msghatch-edit-kind").Change("OptOut");
+        cut.Find("#msghatch-edit-channel").Change("");
+        cut.Find("#msghatch-edit-settings").Change(" ");
+
+        cut.Find("[data-action=save]").Click();
+
+        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void ClickSave_Conflict_LoadsTheStoredVersionAgainAndShowsTheTextOfConflict()
     {
         Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.Conflict));

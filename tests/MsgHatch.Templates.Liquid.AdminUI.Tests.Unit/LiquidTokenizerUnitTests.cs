@@ -24,6 +24,7 @@ public sealed class LiquidTokenizerUnitTests
         },
         { "{% comment %}open", ["Delimiter:{%", "Code: ", "TagName:comment", "Code: ", "Delimiter:%}", "Comment:open"] },
         { "a {{ x", ["Text:a ", "Delimiter:{{", "Code: x"] },
+        { "{%", ["Delimiter:{%"] },
     };
 
     public static TheoryData<string, string[]> IssueRows => new()
@@ -31,6 +32,7 @@ public sealed class LiquidTokenizerUnitTests
         { "Hello {{ Name }} {% if x %}{% endif %}", [] },
         { "a\nb {{ x", ["2:3:" + LiquidTokenizer.OpenOutputMessage] },
         { "{% if x", ["1:1:" + LiquidTokenizer.OpenTagMessage] },
+        { "ab {%", ["1:4:" + LiquidTokenizer.OpenTagMessage] },
         { "x\n{% liquid echo 1 %}", ["2:1:" + LiquidTokenizer.LiquidTagMessage] },
         { "{%-liquid%}", ["1:1:" + LiquidTokenizer.LiquidTagMessage] },
         { "{% raw %}{% liquid %}{% endraw %}", ["1:10:" + LiquidTokenizer.LiquidTagMessage] },

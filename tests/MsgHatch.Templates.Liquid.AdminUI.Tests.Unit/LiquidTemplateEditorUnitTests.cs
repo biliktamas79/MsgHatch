@@ -36,6 +36,20 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_EachKindOfSpan_GetsTheClassOfItsKind()
+    {
+        var cut = RenderEditor("t{{ 'q' | plus: 1 }}{% comment %}c{% endcomment %}{% raw %}r{% endraw %}");
+
+        Assert.Equal("'q'", cut.Find(".liquid-quoted").TextContent);
+        Assert.Equal("1", cut.Find(".liquid-number").TextContent);
+        Assert.Equal("c", cut.Find(".liquid-comment").TextContent);
+        Assert.Equal("r", cut.Find(".liquid-raw").TextContent);
+        Assert.Equal("t", cut.Find(".liquid-text").TextContent);
+        Assert.NotEmpty(cut.FindAll(".liquid-code"));
+        Assert.NotEmpty(cut.FindAll(".liquid-delimiter"));
+    }
+
+    [Fact]
     public void Render_OpenOutput_MarksItWithNoCall()
     {
         var cut = RenderEditor("a {{ x");
@@ -108,6 +122,19 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
         _clock.Advance(TimeSpan.FromMilliseconds(500));
 
         cut.WaitForAssertion(() => Assert.Equal("The filter shout is not known.", cut.Find("[data-issue]").TextContent));
+        Assert.Empty(cut.FindAll("mark"));
+    }
+
+    [Fact]
+    public void Input_CheckGivesAnIssueAfterTheEndOfTheText_ShowsOnlyItsMessage()
+    {
+        GivenCheck([new TemplateIssue("The tag has no end.", 5, 1)]);
+        var cut = RenderEditor("a");
+
+        cut.Find("textarea").Input("a");
+        _clock.Advance(TimeSpan.FromMilliseconds(500));
+
+        cut.WaitForAssertion(() => Assert.Equal("Line 5, column 1: The tag has no end.", cut.Find("[data-issue]").TextContent));
         Assert.Empty(cut.FindAll("mark"));
     }
 
