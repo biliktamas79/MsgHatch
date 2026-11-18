@@ -2228,7 +2228,7 @@ Done when: the build has no errors and no warnings, all unit tests pass, and `pw
 
 ### Phase 32: channel state and page order
 
-Goal: an operator sees if each channel is up or down, since when, and the down and up events of the last 30 days. The admin menu has the order Channels, Message types, Subscriptions, Templates, and Verification. The message types page shows the number of subscriptions of each owner level, and the page "Applied subscriptions" goes away (D274 to D279).
+Goal: an operator sees if each channel is up or down, since when, and the state changes of the last 30 days. The admin menu has the order Channels, Message types, Subscriptions, Templates, and Verification. The message types page shows the number of subscriptions of each owner level, and the page "Applied subscriptions" goes away (D274 to D279).
 
 Starting point: the commits of phase 31, `2d8a9bc` to `df73dab`. The owner looked at the pages of phase 31 and asked for these changes:
 - "change page order to: Channels, Message Types, Subscriptions, Templates and Verification".
@@ -2239,39 +2239,40 @@ The owner chose "Registry queries" for the channel state, and "Timeline and list
 
 The check of item 1 found two limits. MongoDB has no transaction on a standalone server ("MongoDB standalone deployments do not support transactions", the MongoDB manual), and the stores use no transaction (D186). A file system cannot change two files in one atomic step. The owner chose: "detect whether the Mongo connection supports transactions and use the best option for the circumstances, transaction if available". Items 3 and 6 and D277 have the result.
 
+Then the owner changed the design of the channel state: "Refactor the ChannelDown in a way that we have ChannelState records, each recorded only if the state changed from the previous one, so when it got down or get back up. By such an insert-only table we can track history of each channel." And: "Each channel state change record should store not just the timestamp, but the duration from the previous state change event of the same channel, so it would be easy to query and report the availability time percentage." The owner chose to update `NextCheckAtUtc` on the latest row, to keep all rows, to do no data migration ("the library is still in beta"), and to rebuild the commits of the phase after `aeb6c50`. So items 2 to 9 and D277 to D279 describe the insert-only rows, and no store needs a transaction.
+
 1. Check first, before the code:
    - Each of the five outbox stores can write or remove the down state of a channel, and add its event, in one atomic operation: the in-memory store, the file store, a SQLite transaction, an EF Core transaction on SQL Server, and MongoDB. For MongoDB, the check finds how the store keeps two writes atomic now, also on a server with no replica set. If a store cannot do it, the plan changes before the code.
    - The SQLite and EF Core stores add a table to an existing database with their current schema setup, and keep the data. The check names the step of the schema version that each store needs.
    - Bootstrap 5.3.3 of the example host has the class `progress-stacked`.
-2. Record the down and up events of a channel in the outbox dispatch store (D277):
-   - `ChannelEvent` and `ChannelEventKind` with `Down` and `Up` in `MsgHatch.Domain.Dispatch`. An event has the channel, the kind, the time, the reason, and the error code, the error name, and the note of the down state.
-   - `SetChannelDownAsync` adds a `Down` event with the time `SinceUtc` when it writes. `SetChannelUpAsync` gets the parameter `DateTime upAtUtc`, and adds an `Up` event with the reason of the removed state when it removes a down state. Each change and its event are one atomic operation.
-   - The new `GetChannelEventsAsync(DateTime fromUtc, CancellationToken ct)` gives the events of all channels at or after `fromUtc`, newest first.
-   - An add of an event removes the events of its channel that are older than `ChannelEvent.HistoryWindow`, 30 days.
-   - The in-memory store, `TenantOutboxDispatchStore`, the logging wrapper with the events 1320 and 1321, `OutboxChannelWork`, and `DeliveryManager` change. `TenantOutboxDispatchStore` calls the system store, as it does for the down state. The callers give the time of `TimeProvider`.
-3. Record the channel events in the file store, with the format in section 2 of `docs/stores.md` (D277). The store holds `down.json` open with no sharing while it writes the event file of the channel, so parallel callers see the change and its event together, and only the caller that changed the state writes the event. A stop of the process between the two writes loses the event, and the down state stays correct.
-4. Record the channel events in the SQLite store, in the new table `MsgHatchChannelEvents` (D277).
-5. Record the channel events in the EF Core store, in the same table on SQL Server (D277).
-6. Record the channel events in the MongoDB store, in a new collection (D277):
-   - The store asks the server one time with the command `hello` whether it supports transactions: a member of a replica set, with `setName`, or a `mongos`, with `msg: "isdbgrid"`.
-   - With transactions, each change and its event are one transaction of `WithTransactionAsync`, which tries a transient error again.
-   - With no transactions, for example on a standalone server, the store writes the change first, and only the caller that changed the state adds the event in a second write. A server failure between the two writes loses the event, and the down state stays correct.
+2. Keep the state of a channel as insert-only rows in the outbox dispatch store (D277):
+   - `ChannelState` and `ChannelStateKind` with `Up` and `Down` in `MsgHatch.Domain.Dispatch`. A row has the channel, its version, the kind, `SinceUtc`, `PreviousKind`, `PreviousDuration`, and for `Down` the reason, `NextCheckAtUtc`, the error code, the error name, and the note. `ToDown()` gives the `ChannelDown` of a `Down` row. `ChannelDown` stays as the view of the current down state.
+   - The version of the first row of a channel is 1, and each next row has the version of the latest row plus 1. A store keeps a unique key on the channel and the version. `PreviousKind` is the kind of the previous row, and `PreviousDuration` is `SinceUtc` minus the `SinceUtc` of the previous row in whole milliseconds, 0 for a negative difference. Both are null for the version 1. So a report of the up time is `SUM(PreviousDurationMs) WHERE PreviousKind = 'Up'`.
+   - A store adds a row only when the state changes (`ChannelState.AfterDown` and `ChannelState.AfterUp`): `SetChannelDownAsync` with the reason `Errors` only on an up channel, with the reason `Operator` unless the channel is paused, and `SetChannelUpAsync` only on a down channel with the given reason. `SetChannelUpAsync` gets `DateTime upAtUtc`.
+   - A change is one insert. When another caller added the same version first, the insert adds nothing, and the store reads the new latest row and tries the change again, at most `ChannelState.ChangeTries` times, 3 (`ChannelState.Change` and `ChangeAsync`). After the last try, it gives `Errors.Conflict`.
+   - The current state is the latest row. `ClaimDueAsync` and `GetDownChannelsAsync` read it. `TryStartChannelCheckAsync` updates only `NextCheckAtUtc` of the latest row.
+   - The new `GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct)` gives the rows of all channels at or after `fromUtc`, and the row of each channel that was current at `fromUtc`, newest first. A store keeps all rows.
+   - The in-memory store, `TenantOutboxDispatchStore`, the logging wrapper with the events 1320 and 1321, `OutboxChannelWork`, and `DeliveryManager` change. `TenantOutboxDispatchStore` calls the system store. The callers give the time of `TimeProvider`.
+3. Keep the channel states in the file store: one file `{RootPath}/outbox/{channel}/states/{version:D10}.json` for each row, which the store creates with `FileMode.CreateNew`, so of two parallel inserts of one version only the first succeeds. The file `down.json` goes away (D277).
+4. Keep the channel states in the SQLite store, in the new table `MsgHatchChannelState` with the primary key `(Channel, Version)` and `INSERT OR IGNORE`. The table `MsgHatchChannelDown` goes away (D277).
+5. Keep the channel states in the EF Core store, in the same table on SQL Server, with an insert `WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK` (D277).
+6. Keep the channel states in the MongoDB store, in the new collection `MsgHatchChannelState` with the unique index `UX_MsgHatchChannelState_Version` on `(channel, version)` and one `insertOne`, with no transaction. The collection `MsgHatchChannelDown` goes away (D277).
 7. Add the channel state to the registry queries (D278):
-   - `RegistryChannel` gets `ChannelDown? Down` and `DateTime? UpSinceUtc`. `UpSinceUtc` is the time of the newest `Up` event of the channel in the window of 30 days. It is null for a down channel, and for an up channel with no `Up` event in the window.
-   - `IRegistryQueries.GetChannelHistoryAsync(ChannelId channel, CancellationToken ct)` gives the events of one channel in the window, newest first. An unknown channel gives `Errors.NotFound`.
-   - `RegistryManager` reads `GetDownChannelsAsync` and `GetChannelEventsAsync` of `IOutboxDispatchStore`. An error of the store is the error of the query.
+   - `RegistryChannel` gets `ChannelState? Current`, the latest row of the channel, with its kind, its start, and the kind and the duration of the previous state. It is null for a channel with no row, which was never down.
+   - `IRegistryQueries.GetChannelHistoryAsync(ChannelId channel, CancellationToken ct)` gives the rows of one channel in the window of `ChannelState.HistoryWindow`, 30 days, and the row that was current at the start of the window, newest first. A channel that is not registered gives `Errors.NotFound`.
+   - `RegistryManager` reads `GetChannelStatesAsync` of `IOutboxDispatchStore` with the start of the window from `TimeProvider`. An error of the store is the error of the query.
    - The logging wrapper logs the history call with the events 2913 and 2914.
 8. Add the channel history to the registry contracts, route, and client (D278):
    - `ChannelDownResponse` moves from `MsgHatch.AspNetCore` to `MsgHatch.Api.Contracts`, with a public `From` and the mapping back. The delivery body `ChannelStatusResponse` keeps it.
-   - `RegistryChannelResponse` gets `down` and `upSinceUtc`. The new `ChannelEventResponse` and its list go into `RegistryEndpointJson`.
+   - `RegistryChannelResponse` gets `current`, the latest row as a `ChannelStateResponse`. The new `ChannelStateResponse`, with `previousKind`, and `previousDurationMs` as a number, and its list go into `RegistryEndpointJson`.
    - `RegistryApiRoutes.ChannelHistory` holds `/channels/{channel}/history`. The GET route calls `IRegistryQueries` of `TenantKey.None`, in the registry group with its policy.
    - `IRegistryApi` and `HttpRegistryQueries` get the history call.
 9. Show the channel state and history on the channel pages (D279):
    - The column "State" shows the badge "Up" with `text-bg-success`, or "Down" with `text-bg-danger`. A down channel also shows its reason: the error name for `Errors`, or "Paused" and the note for `Operator`.
-   - The column "Since" shows the start of the current state in UTC and the time since then, for example "2026-11-18 13:32 UTC (3 d 4 h)". An up channel with no `UpSinceUtc` shows "No down state in 30 days".
+   - The column "Since" shows the start of the current state in UTC and the time since then, for example "2026-11-18 13:32 UTC (3 d 4 h)", and the previous state with its duration, for example "after Down for 4 min". A channel with no row shows "No down state recorded".
    - The page reads the current time from `TimeProvider`. `AddMsgHatchAdminUI` adds `TimeProvider.System` when the host has none.
-   - The button "History" opens `AdminDialog`. The dialog shows a timeline bar of the last 30 days with `progress-stacked`: red with `bg-danger` where the channel was down, and green with `bg-success` where it was up. Under the bar, it lists the events, newest first: the time, "Down" or "Restored", the reason, the error name, and the note.
-   - The state before the first event of the window is the opposite of the kind of that event. With no event in the window, the current state fills the bar. An error shows in the dialog, and the dialog has Close on the left (D261).
+   - The button "History" opens `AdminDialog`. The dialog shows a timeline bar of the last 30 days with `progress-stacked`: red with `bg-danger` where the channel was down, and green with `bg-success` where it was up. Under the bar, it lists the rows, newest first: the time, "Down" or "Up", the reason, the error name, the note, and the duration of the previous state.
+   - The row that was current at the start of the window gives the state at the start of the bar. With no such row, the channel was up. An error shows in the dialog, and the dialog has Close on the left (D261).
    - `ChannelViewPage` shows the same "State" and "Since" fields. "History" is the main action on the right of `AdminActions`, and opens the same dialog. The list and the view page use the same parts for the state and the dialog.
    - `AddMsgHatchAdminUI` keeps the pages with `DynamicDependency` (D250).
 10. Add message type columns and the subscription counts of each level (D275, D276):
@@ -2286,29 +2287,29 @@ The check of item 1 found two limits. MongoDB has no transaction on a standalone
     - The README of the example app names the channel state, the history, and the subscription counts, and no longer names the page "Applied subscriptions".
 13. Describe the phase in the design and the store guide:
     - The design: the sections 4.19, 4.20, 4.23, and 4.24.
-    - `docs/stores.md`: the format of the events in each store, the removal after 30 days, the new parameter of `SetChannelUpAsync`, and what a store for another storage must do.
+    - `docs/stores.md`: the format of the state rows in each store, the unique key on the channel and the version, the new parameter of `SetChannelUpAsync`, and what a store for another storage must do.
     - AGENTS.md: the exception of D275 to the rule of the admin pages.
 
 Tests:
 - `OutboxStoreTestsBase<TStore>`:
-  - A written down state adds a `Down` event. A down state with the reason `Errors` that is not written adds no event.
-  - A removed down state adds an `Up` event with the removed reason. A call that removes nothing adds no event.
-  - `GetChannelEventsAsync` gives the events of each channel at or after `fromUtc`, newest first.
-  - An add removes the events of its channel that are older than 30 days, and keeps the events of the other channels.
-  - The in-memory, file, and SQLite stores get these tests in the unit tests, and the EF Core and MongoDB stores in their integration tests.
-  - The MongoDB tests pass with transactions on a replica set, for example dev-mongo, and with no transactions on a standalone server, for example the container of Testcontainers.
-- A golden-file sample of the event format of the file store (section 1.8 of `docs/stores.md`).
+  - A written down state adds a `Down` row with the version 1, and no `PreviousKind` and `PreviousDuration`. A down state with the reason `Errors` on a down channel, and a pause on a paused channel, add no row.
+  - An up change of a down channel adds an `Up` row with the next version, the `PreviousKind` `Down`, and the `PreviousDuration` of the down state. A call on an up channel, or with another reason, adds no row.
+  - `GetChannelStatesAsync` gives the rows of each channel at or after `fromUtc` and the row that was current at `fromUtc`, newest first. Rows older than 30 days stay.
+  - Two parallel changes of one channel add one row. `TryStartChannelCheckAsync` keeps the version of the latest row.
+  - The in-memory, file, and SQLite stores get these tests in the unit tests, and the EF Core and MongoDB stores in their integration tests. The MongoDB tests pass on a replica set, for example dev-mongo, and on a standalone server, for example the container of Testcontainers.
+- `ChannelState.Change` and `ChangeAsync`: a lost insert reads the latest row again, and the third lost insert gives `Errors.Conflict`.
+- A golden-file sample of the row format of the file store (section 1.8 of `docs/stores.md`).
 - `OutboxChannelWork` and `DeliveryManager` give the time of `TimeProvider` to `SetChannelUpAsync`, and the logging wrapper logs the new store call.
 - `RegistryQueriesTestsBase<T>`:
-  - An up channel with no event, and a down channel with each reason.
-  - `UpSinceUtc` from the newest `Up` event, and null with no `Up` event in the window.
-  - The history of one channel, newest first, `NotFound` for an unknown channel, and the error of the store.
+  - A channel with no row, and a down channel with each reason.
+  - `Current` is the latest row of each channel, also before the window, with the kind and the duration of the previous state.
+  - The history of one channel with the row before the window, newest first, `NotFound` for a channel that is not registered, and the error of the store.
   - `RegistryManager` and the HTTP client get the new rows.
 - The logging wrapper of the registry queries: one event for each history call, with the count or the error type.
-- The contracts: `ChannelDownResponse` and `ChannelEventResponse` map to their domain types and back, and a name that is not valid gives `SerializationFailed`.
+- The contracts: `ChannelDownResponse` and `ChannelStateResponse` map to their domain types and back, and a name that is not valid gives `SerializationFailed`.
 - The pages, with bUnit and `FakeTimeProvider`:
-  - The cells "State" and "Since" of an up channel, of a down channel with each reason, and of an up channel with no `UpSinceUtc`.
-  - The dialog "History": the widths and the colors of the segments of a known list of events, the rows of the events, and the text of an error.
+  - The cells "State" and "Since" of an up channel, of a down channel with each reason, of a row with a previous state, and of a channel with no row.
+  - The dialog "History": the widths and the colors of the segments of a known list of rows, the start of the bar from the row before the window, the rows of the list, and the text of an error.
   - The view page: the fields "State" and "Since", and "History" opens the dialog.
   - The message types page: the items of a registered column as badges, an item with an address as a link, and the error of a column above the list.
   - The column "Subscriptions": the counts of each level, also 0, and the address of each count.
@@ -2320,20 +2321,21 @@ Tests:
 Commits:
 1. "Plan phase 32: the channel state and the order of the admin pages"
 2. "Record the transaction check of MongoDB in the plan of phase 32"
-3. "Record the down and up events of a channel in the outbox dispatch store"
-4. "Record the channel events in the file store"
-5. "Record the channel events in the SQLite store"
-6. "Record the channel events in the EF Core store"
-7. "Record the channel events in the MongoDB store"
-8. "Add the channel state and history to the registry queries"
-9. "Add the channel history to the registry contracts, route, and client"
-10. "Show the channel state and history on the channel pages"
-11. "Add message type columns and the subscription counts of each level"
-12. "Remove the Applied subscriptions page"
-13. "Put the admin pages of the example host in the new order"
-14. "Describe the channel state and the new page order in the design"
-15. "Record the commits and the checked facts of phase 32 in the plan"
-16. "Record phase 32 as done in README and AGENTS.md"
+3. "Plan the insert-only channel states of phase 32"
+4. "Keep the channel states as insert-only rows in the outbox dispatch store"
+5. "Keep the channel states in the file store"
+6. "Keep the channel states in the SQLite store"
+7. "Keep the channel states in the EF Core store"
+8. "Keep the channel states in the MongoDB store"
+9. "Add the channel state and history to the registry queries"
+10. "Add the channel history to the registry contracts, route, and client"
+11. "Show the channel state and history on the channel pages"
+12. "Add message type columns and the subscription counts of each level"
+13. "Remove the Applied subscriptions page"
+14. "Put the admin pages of the example host in the new order"
+15. "Describe the channel state and the new page order in the design"
+16. "Record the commits and the checked facts of phase 32 in the plan"
+17. "Record phase 32 as done in README and AGENTS.md"
 
 Done when: the build has no errors and no warnings, all unit tests pass, the integration tests of the EF Core and MongoDB outbox stores pass, also the MongoDB tests on a standalone server, and `pwsh ./coverage.ps1` passes.
 
