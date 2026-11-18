@@ -16,11 +16,13 @@ public static class TemplateLookupRules
 
     /// <summary>
     /// Checks a lookup: the template scope is null or a valid <see cref="CompanyId"/> whose folder name has at most 255
-    /// characters, and the part is a name of ASCII letters, digits, and <c>_</c> that starts with a letter.
+    /// characters, the part is a name of ASCII letters, digits, and <c>_</c> that starts with a letter, and the language is
+    /// not empty. An HTTP route cannot hold an empty language (D246). The check of the culture of the language needs the
+    /// culture data of the machine, so it is not a rule.
     /// </summary>
     /// <param name="lookup">The lookup.</param>
     /// <returns>Null, or <see cref="Errors.ValidationFailed"/> with the message of the first rule that the lookup breaks.</returns>
-    public static Error? Check(TemplateLookup lookup) => ScopeError(lookup.Scope) ?? PartError(lookup.Part);
+    public static Error? Check(TemplateLookup lookup) => ScopeError(lookup.Scope) ?? PartError(lookup.Part) ?? LanguageError(lookup.Language);
 
     /// <summary>Checks the filters of a list: the template scope is null or a valid <see cref="CompanyId"/> whose folder name has at most 255 characters.</summary>
     /// <param name="query">The filters.</param>
@@ -58,6 +60,9 @@ public static class TemplateLookupRules
 
     private static Error? PartError(string? part) =>
         TemplatePartNames.IsValid(part) ? null : Invalid($"The part {part} is not a name of ASCII letters, digits, and _ that starts with a letter.");
+
+    private static Error? LanguageError(string? language) =>
+        string.IsNullOrEmpty(language) ? Invalid("A template lookup has a language, for example en or hu-HU.") : null;
 
     private static Error Invalid(string message) => new(Errors.ValidationFailed, message);
 }

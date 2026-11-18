@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Templates.Api.Client\MsgHatch.Templates.Api.Client.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Templates.AspNetCore\MsgHatch.Templates.AspNetCore.csproj" />
+    <ProjectReference Include="..\MsgHatch.Templates.Tests.Unit\MsgHatch.Templates.Tests.Unit.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Templates.Api.Contracts\MsgHatch.Templates.Api.Contracts.csproj" />
+    <ProjectReference Include="..\MsgHatch.SourceGeneration\MsgHatch.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" />
+    <Compile Include="..\Shared\TemplateApiRoutes.cs" Link="Shared\TemplateApiRoutes.cs" />
+    <Compile Include="..\Shared\ApiResults.cs" Link="Shared\ApiResults.cs" />
+  </ItemGroup>
+
+</Project>

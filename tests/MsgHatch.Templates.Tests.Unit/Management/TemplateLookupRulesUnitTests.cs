@@ -36,6 +36,22 @@ public sealed class TemplateLookupRulesUnitTests
     }
 
     [Theory]
+    [InlineData("", "subject")]
+    [InlineData(null, "subject")]
+    [InlineData("", "sub ject")]
+    public void Check_EmptyOrNullLanguage_GivesValidationFailed_D246(string? language, string part)
+    {
+        // Arrange
+        var lookup = new TemplateLookup(new MessageType("TestEvent"), language!, Scope: null, part, TemplatePartKind.PlainText);
+
+        // Act
+        var error = TemplateLookupRules.Check(lookup);
+
+        // Assert
+        Assert.Equal((part, 400), (part, error?.Type.Code));
+    }
+
+    [Theory]
     [InlineData(null, null)]
     [InlineData("acme-1", null)]
     [InlineData("", 400)]

@@ -122,7 +122,7 @@ public sealed record TemplatePartResponse(string MessageType, string Part, Templ
     /// <returns>The declared part, or an error.</returns>
     public ErrorOr<TemplatePartInfo> ToPartInfo()
     {
-        var lookup = TemplateWireValues.LookupOf(MessageType, string.Empty, companyId: null, Part, Kind);
+        var lookup = TemplateWireValues.LookupOf(MessageType, TemplateWireValues.NoLanguage, companyId: null, Part, Kind);
         return lookup.IsError ? lookup.Error
             : Engines is null || Engines.Any(string.IsNullOrWhiteSpace) ? TemplateWireValues.Invalid("A part has the names of its engines.")
             : new TemplatePartInfo(lookup.Value.Type, new TemplatePart(Part, Kind), [.. Engines]);
@@ -132,6 +132,9 @@ public sealed record TemplatePartResponse(string MessageType, string Part, Templ
 /// <summary>Checks each value of a template body from the wire. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
 internal static class TemplateWireValues
 {
+    /// <summary>The language of the lookup that checks a declared part, which has no language: the BCP 47 tag of an undetermined language.</summary>
+    public const string NoLanguage = "und";
+
     public static ErrorOr<TemplateLookup> LookupOf(string messageType, string language, string? companyId, string part, TemplatePartKind kind)
     {
         var type = MessageTypeOf(messageType);
