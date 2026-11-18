@@ -1794,13 +1794,50 @@ Tests, in `tests/MsgHatch.SourceGeneration.Tests.Unit`, `tests/MsgHatch.Template
 - No log record holds a user id, a company id, or a template text.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-18). The checks ran on Windows 11 build 26300 with the .NET SDK 10.0.404 and `Microsoft.CodeAnalysis.CSharp` 5.0.0:
+
+| Fact | Source |
+|---|---|
+| A routing verification changes no stored subscription. `RoutingVerifier` calls only `ISubscriptionStore.QueryAsync`, and runs the routing on the `InMemorySubscriptionStore` copy of `VerificationRun`. So the verifier goes with the queries (D232), and the check-first item of step 1 holds. | `RoutingVerifier.cs` and `VerificationRun.cs`, and the example X7 over HTTP |
+| `IHttpClientFactory` of .NET 10 logs the URI of each request with the query as `*`, for example `Start processing HTTP request PUT http://localhost/templates/Requests/en/subject/PlainText?*`. So step 5 adds no `RemoveAllLoggers()`. With the switch `System.Net.Http.DisableUriRedaction`, the log holds the query, and the log test of the template client fails. | The log tests of both clients, and one run with the switch |
+| An HTTP route cannot hold an empty segment. The in-process template manager gives `ValidationFailed` for an empty language, and a request with an empty language gets the 404 of the framework, so the client gave `Exception` (D246). | The row "an empty language" of `TemplateManagementTestRows.InvalidLookupRows` |
+| The JSON of the settings has no type. Before D247, the server read the settings of the type of another channel as the settings of the channel, so the HTTP subclass of `SubscriptionCommandsTestsBase` failed 2 rows of rule 2.3.4: `M11` and the email settings on the channel `Pager`. | The first run of `HttpSubscriptionCommandsUnitTests` |
+| The endpoint of the verification rejected an empty language, but the in-process verifier gave a report for it (D248). | The first run of `SubscriptionApiClientParityUnitTests` |
+| `AddEmbeddedAttributeDefinition` of `IncrementalGeneratorPostInitializationContext` exists in `Microsoft.CodeAnalysis.CSharp` 5.0.0, and adds the source `Microsoft.CodeAnalysis.EmbeddedAttribute.cs`. | The hint names of the generator tests |
+| A source-generated JSON context has a `JsonTypeInfo<T>` property also for each type that its body types reach, for example `String` in `TemplateEndpointJson`. So the rows of `MSGHATCH010` use `Uri`. The generator finds the properties only in the metadata of a referenced assembly, because one generator does not see the output of the System.Text.Json generator in the same compilation. | The generator tests |
+| Both client packages, with the generated code, build with `IsAotCompatible` and no warning. The generator tests check the errors and the warnings of the C# compiler, with no trim analyzer. | The build of each client package |
+| A minimal API route `/templates` matches the generated URI `templates` relative to the base address `http://localhost/`, and a base address with a path, for example `https://api.example.com/api/`, keeps its path. | The HTTP subclasses, and `UseTemplateApiClient_OptionsFromTheConfiguration_SendsEachRequestToTheBaseAddressAndThePrefix` |
+| The unit test projects pass 4,310 tests and skip 1 test: the path limit test of the named pipe signal on Windows. `MsgHatch.SourceGeneration.Tests.Unit` passes 62 tests, `MsgHatch.Templates.Tests.Unit` 360, `MsgHatch.Templates.Api.Client.Tests.Unit` 103, `MsgHatch.Subscriptions.Tests.Unit` 418, `MsgHatch.Subscriptions.Api.Contracts.Tests.Unit` 56, `MsgHatch.Subscriptions.AspNetCore.Tests.Unit` 150, and `MsgHatch.Subscriptions.Api.Client.Tests.Unit` 123. The line coverage of the production code is 99.0 %. | `pwsh ./coverage.ps1` on the content of `0150113` |
+| The client packages compile `src/Shared/ErrorProblems.cs` and use only `ErrorOf`, so `StatusCodeOf` has 12 lines with no test in each client assembly. The adapters and the setup classes have no line with no test, and the generated code is not part of the coverage, as each `*.g.cs` file. | The coverage report of `pwsh ./coverage.ps1` |
+| Each new test failed first, or failed with a break of the code that it covers: the 16 diagnostic rows (no report of a diagnostic), the compile test of the shapes (no `#nullable enable`), the 21 tests of the generated client (a wrong separator, a wrong prefix, no `errorType`, no `detail`, the status 500, no catch of `JsonException`, and no mapping of a cancellation, a timeout, or an `HttpRequestException`), the 3 rows of the empty language of `TemplateLookupRules` before the rule, the tests of both clients (no selection, a wrong prefix, no rules, no tenant, no options rules, an internal validator, a changed default prefix, and no check of a null item), the endpoint rows and the contract tests of `settingsType` before D247, the rows of the empty language of the verifier and the parity row before D248, and the log tests (the switch `System.Net.Http.DisableUriRedaction`). | The breaks, each one reverted after its run |
+
 Commits:
 1. "Add the generator of the HTTP API clients"
 2. "Add the HTTP client of the template management API"
-3. "Add the HTTP client of the subscription management API"
-4. "Describe the HTTP clients and the setup of an admin UI in the design"
-5. "Record the commits and the checked facts of phase 27 in the plan"
-6. "Record phase 27 as done in README and AGENTS.md"
+3. "Name the settings type in a subscription request"
+4. "Check a routing verification request with rules first"
+5. "Add the HTTP client of the subscription management API"
+6. "Describe the HTTP clients and the setup of an admin UI in the design"
+7. "Record the commits and the checked facts of phase 27 in the plan"
+8. "Record phase 27 as done in README and AGENTS.md"
+
+Commit 1 holds item 2 (`a484703`), commit 2 item 3 with D246 (`d24513d`), commit 3 D247 (`f0fb4e6`), commit 4 D248 (`4f8c81b`), commit 5 item 4 (`23ba5f3`), and commit 6 item 6 (`0150113`). Item 1 and item 5 are checks, and their results are in the checked facts. The unit test projects of the changed code passed at each commit, and the solution build had no errors and no warnings at commit 6. Commits 2 and 5 add the client projects and their test projects to `MsgHatch.slnx`.
+
+The implementation changed the plan in these points:
+- The generated class takes the `HttpClient` and the prefix of the route group, because the prefix is an option of the host. The relative URI is the prefix and the route, so a base address with a path keeps its path.
+- The attributes of the generator are `HttpApi`, `HttpCall`, and `HttpBody` in the namespace `MsgHatch.Http`, with `Microsoft.CodeAnalysis.EmbeddedAttribute`. The package `MsgHatch.Templates` gives the generator to each consumer, so each consumer compilation gets its own copy, and two assemblies with `InternalsVisibleTo` get no conflict.
+- The generator gives the diagnostics `MSGHATCH002` to `MSGHATCH010`, one for each cause (section 4.23). The interface must not be generic or nested, and the JSON context comes from a referenced assembly.
+- The test "An interface of each supported shape compiles with no warning, also with `IsAotCompatible`" checks the compiler errors and warnings of a Roslyn compilation. The trim and AOT analyzers run in the build of each client package, which sets `IsAotCompatible`, as for phase 26.
+- The errors of D233 that need no server are tests of the generated client `ShapesApi` of the generator tests: a body with `errorType`, an error type of the consumer, a 401 and a 403 with a default problem body, a 404 with a default problem body, a body that is not a problem object, `HttpRequestException`, a timeout, a cancelled token, and a success body that does not parse. The client tests check the 404 of a wrong prefix against a real server.
+- The internal source `src/Shared/ApiResults.cs`, which both client packages compile, maps a generated result with the mapping of a contract record, and gives `SerializationFailed` for a null item of a list.
+- Each interface has its own named HTTP client, so a host that calls `UseTemplateQueriesApiClient` and `UseTemplateCommandsApiClient` does not add its handlers two times to one client. The subscription verifier uses the HTTP client of the queries.
+- `GetChannelsAsync` of the subscription client uses `ChannelResponse.ToChannelDescriptor`, as phase 26 recorded, so the client has no `HttpChannelDescriptor`.
+- `TemplateLookupRules.Check(TemplateLookup)` also rejects a null or empty language, because an HTTP route cannot hold an empty segment (D246, Recommended). `TemplatePartResponse.ToPartInfo` checks a part with the language `und`.
+- `SubscriptionRequest` gets the optional field `settingsType`, and the server reads the settings with it, so the manager checks the settings type of each request (D247, Recommended). Commit 3 holds this change.
+- `RoutingVerificationRules.Check` runs first in each verifier, because the endpoint rejected an empty language and the in-process verifier did not (D248, Recommended). The endpoint keeps its check of the body, with the same message. Commit 4 holds this change, and `RoutingVerifierTestsBase` gets the test of an empty language.
+- The test bases of phase 26 run over HTTP on a `WebApplication` with a `TestServer`. The server removes `IStartupValidator`, because the in-process host of the test bases builds its services with no setup check, and some test setups have no transport. The template client host has `MsgHatchRoles.None` and only the client. The subscription client host has the services of the server and the client, so it has the settings types and the trace type of the server.
+- `IHttpClientFactory` logs the query as `*` (step 5), so the setup methods call no `RemoveAllLoggers()`.
+- Section 4.7 gets the setup methods of both client packages, and sections 4.17, 4.18, and 4.22 get D246 to D248.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
