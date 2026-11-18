@@ -6,6 +6,11 @@
     background-color: var(--bs-body-bg);
 }
 
+iframe.template-preview {
+    background-color: #fff;
+    color-scheme: light;
+}
+
 pre.template-preview {
     font-family: var(--bs-font-monospace);
     font-size: 0.875rem;

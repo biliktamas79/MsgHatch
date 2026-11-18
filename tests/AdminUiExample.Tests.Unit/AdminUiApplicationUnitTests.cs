@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
@@ -58,6 +59,20 @@ public sealed class AdminUiApplicationUnitTests
 
         Assert.Contains(AdminErrors.UnavailableText, page, StringComparison.Ordinal);
         Assert.Contains("bootstrap@5.3.3", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Get_Page_LoadsTheThemeScriptBeforeTheStylesAndHasTheThemeSwitch()
+    {
+        await using var app = Build(new RecordingHandler(available: false));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        var page = await app.GetTestClient().GetStringAsync(new Uri("/msghatch/templates", UriKind.Relative), TestContext.Current.CancellationToken);
+        var script = Regex.Match(page, "<script src=\"(?<src>theme[^\"]*\\.js)\"").Groups["src"].Value;
+
+        Assert.Equal(
+            (true, true, true),
+            (script.Length > 0, page.IndexOf(script, StringComparison.Ordinal) < page.IndexOf("bootstrap@5.3.3", StringComparison.Ordinal),
+                page.Contains("data-theme-toggle", StringComparison.Ordinal)));
     }
 
     [Fact]
