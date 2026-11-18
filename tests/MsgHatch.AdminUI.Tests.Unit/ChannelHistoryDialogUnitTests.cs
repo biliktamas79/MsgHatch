@@ -78,6 +78,21 @@ public sealed class ChannelHistoryDialogUnitTests : RegistryPageContext
     }
 
     [Fact]
+    public void Render_PauseOfAChannelDownForErrorsAndAnUpRowNow_ShowsOneDownSegmentAndNoEmptySegment()
+    {
+        GivesHistory(
+            ARow(3, ChannelStateKind.Up, 0),
+            ARow(2, ChannelStateKind.Down, -5, ChannelDownReason.Operator),
+            ARow(1, ChannelStateKind.Down, -10, ChannelDownReason.Errors));
+
+        var cut = RenderDialog(Channels[0]);
+
+        Assert.Equal(
+            [("up", "width: 66.667%"), ("down", "width: 33.333%")],
+            cut.FindAll("[data-segment]").Select(static segment => (segment.GetAttribute("data-segment"), segment.GetAttribute("style"))));
+    }
+
+    [Fact]
     public void Render_HistoryUnavailable_ShowsTheTextOfTheErrorAndNoBar()
     {
         Queries.GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<ChannelState>>(Errors.Unavailable));

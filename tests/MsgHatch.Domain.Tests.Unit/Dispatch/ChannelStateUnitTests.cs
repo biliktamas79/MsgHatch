@@ -94,6 +94,27 @@ public sealed class ChannelStateUnitTests
     }
 
     [Fact]
+    public async Task ChangeAsync_InsertThatLosesOneTry_AddsTheRowAfterTheNewLatestRow()
+    {
+        // Arrange
+        var reads = new Queue<ChannelState?>([null, _otherDown]);
+        var inserted = new List<ChannelState>();
+
+        // Act
+        var changed = await ChannelState.ChangeAsync(
+            () => ValueTask.FromResult(reads.Dequeue()),
+            latest => ChannelState.AfterUp(latest, TestChannel.Id, reason: null, _nowUtc.AddMinutes(1)) ?? ChannelState.AfterDown(latest, _down),
+            row =>
+            {
+                inserted.Add(row);
+                return ValueTask.FromResult(inserted.Count > 1);
+            });
+
+        // Assert
+        Assert.Equal((true, "1,2"), (changed.Value, string.Join(',', inserted.Select(static row => row.Version))));
+    }
+
+    [Fact]
     public void AfterUp_ClockOfAnotherInstanceBeforeTheDownState_GivesTheDuration0()
     {
         // Act
