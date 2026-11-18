@@ -1,4 +1,5 @@
 using MsgHatch.Api.Contracts;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
@@ -11,6 +12,7 @@ public sealed class RegistryResponsesUnitTests
 {
     private static readonly ChannelId _email = new("Email");
     private static readonly ChannelId _sms = new("Sms");
+    private static readonly DateTime _sinceUtc = new(2026, 11, 18, 13, 32, 0, DateTimeKind.Utc);
 
     public static TheoryData<string, RegistryChannelResponse> InvalidChannelRows => new()
     {
@@ -79,6 +81,95 @@ public sealed class RegistryResponsesUnitTests
 
         // Assert
         Assert.Equal((row, Errors.SerializationFailed.Code), (row, mapped.Error?.Type.Code));
+    }
+
+    [Theory]
+    [MemberData(nameof(StateRows))]
+    public void ToChannel_BodyOfAChannelWithACurrentRow_GivesTheChannelWithThatRow(ChannelState current)
+    {
+        // Arrange
+        var channel = new RegistryChannel(_sms, "Text messages", null, ChannelFeatures.None, Enabled: true, Revision: 0, current);
+
+        // Act
+        var mapped = RegistryChannelResponse.From(channel).ToChannel();
+
+        // Assert
+        Assert.Equal(channel, mapped.Value);
+    }
+
+    [Fact]
+    public void ToChannel_CurrentRowThatIsNotValid_GivesSerializationFailed()
+    {
+        // Arrange
+        var body = AChannelResponse() with { Current = new ChannelStateResponse("Email", 1, ChannelStateKind.Down, _sinceUtc, null, null, null, null, null, null, null) };
+
+        // Act
+        var mapped = body.ToChannel();
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed.Code, mapped.Error?.Type.Code);
+    }
+
+    [Theory]
+    [InlineData(ChannelDownReason.Errors)]
+    [InlineData(ChannelDownReason.Operator)]
+    public void ToDown_BodyOfADownState_GivesTheDownStateOfTheChannel(ChannelDownReason reason)
+    {
+        // Arrange
+        var down = reason == ChannelDownReason.Errors
+            ? new ChannelDown(_email, reason, _sinceUtc, _sinceUtc.AddSeconds(30), 503, "Unavailable", Note: null)
+            : new ChannelDown(_email, reason, _sinceUtc, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "Ősz-űr maintenance");
+
+        // Act
+        var mapped = ChannelDownResponse.From(down).ToDown(_email);
+
+        // Assert
+        Assert.Equal(down, mapped);
+    }
+
+    public static TheoryData<ChannelState> StateRows => new()
+    {
+        new ChannelState(_sms, 1, ChannelStateKind.Down, _sinceUtc, null, null, ChannelDownReason.Errors, _sinceUtc.AddSeconds(30), 503, "Unavailable", null),
+        new ChannelState(_sms, 2, ChannelStateKind.Up, _sinceUtc, ChannelStateKind.Down, TimeSpan.FromMilliseconds(5_400_250), null, null, null, null, null),
+        new ChannelState(_sms, 3, ChannelStateKind.Down, _sinceUtc, ChannelStateKind.Up, TimeSpan.Zero, ChannelDownReason.Operator, null, null, null, "Ősz-űr maintenance"),
+    };
+
+    [Theory]
+    [MemberData(nameof(StateRows))]
+    public void ToState_BodyOfAStateRow_GivesTheRow(ChannelState row)
+    {
+        // Act
+        var mapped = ChannelStateResponse.From(row).ToState();
+
+        // Assert
+        Assert.Equal(row, mapped.Value);
+    }
+
+    [Fact]
+    public void From_RowWithAPreviousDuration_GivesItInWholeMilliseconds()
+    {
+        // Act
+        var body = ChannelStateResponse.From(
+            new ChannelState(_sms, 2, ChannelStateKind.Up, _sinceUtc, ChannelStateKind.Down, TimeSpan.FromMinutes(90), null, null, null, null, null));
+
+        // Assert
+        Assert.Equal(5_400_000, body.PreviousDurationMs);
+    }
+
+    [Theory]
+    [InlineData("not a name", ChannelStateKind.Up, null)]
+    [InlineData(null, ChannelStateKind.Up, null)]
+    [InlineData("Sms", ChannelStateKind.Down, null)]
+    public void ToState_ValueThatIsNotValid_GivesSerializationFailed(string? channel, ChannelStateKind kind, ChannelDownReason? reason)
+    {
+        // Arrange
+        var body = new ChannelStateResponse(channel!, 1, kind, _sinceUtc, null, null, reason, null, null, null, null);
+
+        // Act
+        var mapped = body.ToState();
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed.Code, mapped.Error?.Type.Code);
     }
 
     private static RegistryChannelResponse AChannelResponse() => new("Email", "Email", null, ChannelFeatures.None, Enabled: true, Revision: 0);

@@ -26,6 +26,7 @@ internal static class RegistryRoutes
     public static void MapTo(RouteGroupBuilder group, bool writable)
     {
         group.MapGet(RegistryApiRoutes.Channels, (Delegate)GetChannelsAsync);
+        group.MapGet(RegistryApiRoutes.ChannelHistory, GetChannelHistoryAsync);
         group.MapGet(RegistryApiRoutes.MessageTypes, (Delegate)GetMessageTypesAsync);
         if (writable)
         {
@@ -41,6 +42,19 @@ internal static class RegistryRoutes
         var channels = await Queries(context).GetChannelsAsync(context.RequestAborted);
         return channels.IsError ? Problem(channels.Error) : TypedResults.Json<IReadOnlyList<RegistryChannelResponse>>(
             [.. channels.Value.Select(RegistryChannelResponse.From)], _json.IReadOnlyListRegistryChannelResponse);
+    }
+
+    private static async Task<IResult> GetChannelHistoryAsync(HttpContext context, string channel)
+    {
+        var id = ChannelOf(channel);
+        if (id.IsError)
+        {
+            return Problem(id.Error!);
+        }
+
+        var history = await Queries(context).GetChannelHistoryAsync(id.Value, context.RequestAborted);
+        return history.IsError ? Problem(history.Error) : TypedResults.Json<IReadOnlyList<ChannelStateResponse>>(
+            [.. history.Value.Select(ChannelStateResponse.From)], _json.IReadOnlyListChannelStateResponse);
     }
 
     private static async Task<IResult> GetMessageTypesAsync(HttpContext context)

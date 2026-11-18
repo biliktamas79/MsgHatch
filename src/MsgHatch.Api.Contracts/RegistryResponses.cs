@@ -1,3 +1,4 @@
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
@@ -5,15 +6,19 @@ using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.Api.Contracts;
 
-/// <summary>One channel in the body of <c>GET {prefix}/channels</c> (section 4.20, D270).</summary>
+/// <summary>One channel in the body of <c>GET {prefix}/channels</c> (section 4.20, D270, D278).</summary>
 /// <param name="Id">The id of the channel, for example <c>Email</c>.</param>
 /// <param name="Name">The display name, from the entry or from the code.</param>
 /// <param name="Description">The description, or null.</param>
 /// <param name="Features">The features, as one text (D155).</param>
 /// <param name="Enabled">False when the pipeline skips each route on the channel (D118).</param>
 /// <param name="Revision">The revision of the stored entry, or 0 for no entry.</param>
+/// <param name="Current">
+/// The latest state row of the channel, or null for a channel with no row, which was never down. A body with no value is a
+/// channel with no row.
+/// </param>
 public sealed record RegistryChannelResponse(
-    string Id, string Name, string? Description, ChannelFeatures Features, bool Enabled, int Revision)
+    string Id, string Name, string? Description, ChannelFeatures Features, bool Enabled, int Revision, ChannelStateResponse? Current = null)
 {
     /// <summary>Gives the body of a channel of the registry queries (D228).</summary>
     /// <param name="channel">The channel.</param>
@@ -22,7 +27,9 @@ public sealed record RegistryChannelResponse(
     public static RegistryChannelResponse From(RegistryChannel channel)
     {
         ArgumentNullException.ThrowIfNull(channel);
-        return new RegistryChannelResponse(channel.Id.Name, channel.Name, channel.Description, channel.Features, channel.Enabled, channel.Revision);
+        return new RegistryChannelResponse(
+            channel.Id.Name, channel.Name, channel.Description, channel.Features, channel.Enabled, channel.Revision,
+            channel.Current is { } current ? ChannelStateResponse.From(current) : null);
     }
 
     /// <summary>Gives the channel of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
@@ -30,9 +37,83 @@ public sealed record RegistryChannelResponse(
     public ErrorOr<RegistryChannel> ToChannel()
     {
         var id = RegistryWireValues.ChannelOf(Id);
+        var current = Current?.ToState();
         return id.IsError ? id.Error
             : Name is null ? RegistryWireValues.Invalid("A channel has a name.")
-            : new RegistryChannel(id.Value, Name, Description, Features, Enabled, Revision);
+            : current is { IsError: true } ? current.Value.Error
+            : new RegistryChannel(id.Value, Name, Description, Features, Enabled, Revision, current?.Value);
+    }
+}
+
+/// <summary>
+/// The down state of a channel (D106), in the bodies of the registry channels and of the delivery channel status (D278).
+/// </summary>
+/// <param name="Reason">Why the channel is down.</param>
+/// <param name="SinceUtc">The start of the down state.</param>
+/// <param name="NextCheckAtUtc">The time of the next health check, only for the reason <c>Errors</c>.</param>
+/// <param name="ErrorCode">The code of the last transient error, only for the reason <c>Errors</c>.</param>
+/// <param name="ErrorName">The name of the last transient error, only for the reason <c>Errors</c>.</param>
+/// <param name="Note">The text of the person, only for the reason <c>Operator</c>.</param>
+public sealed record ChannelDownResponse(
+    ChannelDownReason Reason, DateTime SinceUtc, DateTime? NextCheckAtUtc, int? ErrorCode, string? ErrorName, string? Note)
+{
+    /// <summary>Gives the body of a down state (D228).</summary>
+    /// <param name="down">The down state.</param>
+    /// <returns>The body.</returns>
+    /// <exception cref="ArgumentNullException">The down state is null.</exception>
+    public static ChannelDownResponse From(ChannelDown down)
+    {
+        ArgumentNullException.ThrowIfNull(down);
+        return new ChannelDownResponse(down.Reason, down.SinceUtc, down.NextCheckAtUtc, down.ErrorCode, down.ErrorName, down.Note);
+    }
+
+    /// <summary>Gives the down state of the body for its channel.</summary>
+    /// <param name="channel">The channel of the body that holds this body.</param>
+    /// <returns>The down state.</returns>
+    public ChannelDown ToDown(ChannelId channel) => new(channel, Reason, SinceUtc, NextCheckAtUtc, ErrorCode, ErrorName, Note);
+}
+
+/// <summary>One state row in the body of <c>GET {prefix}/channels/{channel}/history</c> (D277, D278).</summary>
+/// <param name="Channel">The id of the channel.</param>
+/// <param name="Version">The version of the row in its channel.</param>
+/// <param name="Kind">Up or down.</param>
+/// <param name="SinceUtc">The start of the state.</param>
+/// <param name="PreviousKind">The kind of the previous state, or null for the version 1.</param>
+/// <param name="PreviousDurationMs">The duration of the previous state in whole milliseconds, or null for the version 1.</param>
+/// <param name="Reason">Why the channel is down, only for <c>Down</c>.</param>
+/// <param name="NextCheckAtUtc">The time of the next health check, only for the reason <c>Errors</c>.</param>
+/// <param name="ErrorCode">The code of the last transient error, only for the reason <c>Errors</c>.</param>
+/// <param name="ErrorName">The name of the last transient error, only for the reason <c>Errors</c>.</param>
+/// <param name="Note">The text of the person, only for the reason <c>Operator</c>.</param>
+public sealed record ChannelStateResponse(
+    string Channel, int Version, ChannelStateKind Kind, DateTime SinceUtc, ChannelStateKind? PreviousKind, long? PreviousDurationMs,
+    ChannelDownReason? Reason, DateTime? NextCheckAtUtc, int? ErrorCode, string? ErrorName, string? Note)
+{
+    /// <summary>Gives the body of a state row (D228).</summary>
+    /// <param name="row">The state row.</param>
+    /// <returns>The body.</returns>
+    /// <exception cref="ArgumentNullException">The row is null.</exception>
+    public static ChannelStateResponse From(ChannelState row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new ChannelStateResponse(
+            row.Channel.Name, row.Version, row.Kind, row.SinceUtc, row.PreviousKind, (long?)row.PreviousDuration?.TotalMilliseconds, row.Reason,
+            row.NextCheckAtUtc, row.ErrorCode, row.ErrorName, row.Note);
+    }
+
+    /// <summary>
+    /// Gives the state row of the body. A channel name that is not valid, or a <c>Down</c> row with no reason, gives
+    /// <see cref="Errors.SerializationFailed"/> (D228).
+    /// </summary>
+    /// <returns>The state row, or an error.</returns>
+    public ErrorOr<ChannelState> ToState()
+    {
+        var channel = RegistryWireValues.ChannelOf(Channel);
+        return channel.IsError ? channel.Error
+            : Kind == ChannelStateKind.Down && Reason is null ? RegistryWireValues.Invalid("A Down row has a reason.")
+            : new ChannelState(
+                channel.Value, Version, Kind, SinceUtc, PreviousKind,
+                PreviousDurationMs is { } milliseconds ? TimeSpan.FromMilliseconds(milliseconds) : null, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note);
     }
 }
 

@@ -13,6 +13,7 @@ namespace MsgHatch.Api.Contracts;
 [JsonSerializable(typeof(MessageTypeEntryRequest))]
 [JsonSerializable(typeof(IReadOnlyList<RegistryChannelResponse>))]
 [JsonSerializable(typeof(IReadOnlyList<RegistryMessageTypeResponse>))]
+[JsonSerializable(typeof(IReadOnlyList<ChannelStateResponse>))]
 [JsonSerializable(typeof(ChannelEntryResponse))]
 [JsonSerializable(typeof(MessageTypeEntryResponse))]
 public sealed partial class RegistryEndpointJson : JsonSerializerContext;

@@ -15,6 +15,9 @@ internal interface IRegistryApi
     [HttpCall("GET", RegistryApiRoutes.Channels)]
     Task<ErrorOr<IReadOnlyList<RegistryChannelResponse>>> GetChannelsAsync(CancellationToken ct);
 
+    [HttpCall("GET", RegistryApiRoutes.ChannelHistory)]
+    Task<ErrorOr<IReadOnlyList<ChannelStateResponse>>> GetChannelHistoryAsync(string channel, CancellationToken ct);
+
     [HttpCall("GET", RegistryApiRoutes.MessageTypes)]
     Task<ErrorOr<IReadOnlyList<RegistryMessageTypeResponse>>> GetMessageTypesAsync(CancellationToken ct);
 }

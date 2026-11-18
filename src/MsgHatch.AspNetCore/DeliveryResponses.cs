@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Management;
@@ -25,20 +26,6 @@ public sealed record ChannelStatusResponse(
             status.Descriptor.Id.Name, status.Descriptor.Name, status.Descriptor.Features, status.Descriptor.Description,
             status.Descriptor.Enabled, status.Down is { } down ? ChannelDownResponse.From(down) : null, status.Pending,
             status.PendingTest, status.OldestDueAtUtc);
-}
-
-/// <summary>The down state of a channel (D106).</summary>
-/// <param name="Reason">Why the channel is down.</param>
-/// <param name="SinceUtc">The start of the down state.</param>
-/// <param name="NextCheckAtUtc">The time of the next health check, only for the reason <c>Errors</c>.</param>
-/// <param name="ErrorCode">The code of the last transient error, only for the reason <c>Errors</c>.</param>
-/// <param name="ErrorName">The name of the last transient error, only for the reason <c>Errors</c>.</param>
-/// <param name="Note">The text of the person, only for the reason <c>Operator</c>.</param>
-public sealed record ChannelDownResponse(
-    ChannelDownReason Reason, DateTime SinceUtc, DateTime? NextCheckAtUtc, int? ErrorCode, string? ErrorName, string? Note)
-{
-    internal static ChannelDownResponse From(ChannelDown down) =>
-        new(down.Reason, down.SinceUtc, down.NextCheckAtUtc, down.ErrorCode, down.ErrorName, down.Note);
 }
 
 /// <summary>One count row of <c>GET {prefix}/traffic</c> (D164).</summary>

@@ -114,8 +114,8 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(
-            """[{"id":"Test","name":"Test channel","description":null,"features":"None","enabled":true,"revision":0},"""
-            + """{"id":"Second","name":"Second test channel","description":null,"features":"GroupDelivery","enabled":true,"revision":4}]""",
+            """[{"id":"Test","name":"Test channel","description":null,"features":"None","enabled":true,"revision":0,"current":null},"""
+            + """{"id":"Second","name":"Second test channel","description":null,"features":"GroupDelivery","enabled":true,"revision":4,"current":null}]""",
             json);
     }
 

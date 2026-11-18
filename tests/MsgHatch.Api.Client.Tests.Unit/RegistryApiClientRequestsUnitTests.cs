@@ -42,9 +42,11 @@ public sealed class RegistryApiClientRequestsUnitTests
         // Act
         await queries.GetChannelsAsync(Ct);
         await queries.GetMessageTypesAsync(Ct);
+        await queries.GetChannelHistoryAsync(new ChannelId("Email"), Ct);
 
         // Assert
-        Assert.Equal(["/registry/channels", "/registry/message-types"], handler.Uris.Select(static uri => uri.PathAndQuery));
+        Assert.Equal(
+            ["/registry/channels", "/registry/message-types", "/registry/channels/Email/history"], handler.Uris.Select(static uri => uri.PathAndQuery));
     }
 
     [Fact]
@@ -109,6 +111,38 @@ public sealed class RegistryApiClientRequestsUnitTests
 
         // Assert
         Assert.Equal(Errors.SerializationFailed, types.Error?.Type);
+    }
+
+    [Fact]
+    public async Task GetChannelsAsync_BodyOfAServerWithNoChannelState_GivesAChannelWithNoCurrentRow()
+    {
+        // Arrange
+        await using var provider = AProvider(new StubHandler(HttpStatusCode.OK, $"[{_channel}]"));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var channels = await scope.ServiceProvider.GetRequiredService<IRegistryQueries>().GetChannelsAsync(Ct);
+
+        // Assert
+        Assert.Null(channels.Value[0].Current);
+    }
+
+    [Fact]
+    public async Task GetChannelHistoryAsync_RowWithAChannelThatIsNotAName_GivesSerializationFailed()
+    {
+        // Arrange
+        const string json = """
+            [{"channel":"not a name","version":1,"kind":"Down","sinceUtc":"2030-01-01T00:00:00Z","previousKind":null,"previousDurationMs":null,"reason":"Operator",
+            "nextCheckAtUtc":null,"errorCode":null,"errorName":null,"note":null}]
+            """;
+        await using var provider = AProvider(new StubHandler(HttpStatusCode.OK, json));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var history = await scope.ServiceProvider.GetRequiredService<IRegistryQueries>().GetChannelHistoryAsync(new ChannelId("Email"), Ct);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, history.Error?.Type);
     }
 
     private static ServiceProvider AProvider(StubHandler handler) =>
