@@ -2237,6 +2237,8 @@ Starting point: the commits of phase 31, `2d8a9bc` to `df73dab`. The owner looke
 
 The owner chose "Registry queries" for the channel state, and "Timeline and list" for the history. Then the owner asked to "add the count links to the filtered subscription list and the channel state to the channel view page". So the plan has two commits: `0a0b933` and the commit after it.
 
+The check of item 1 found two limits. MongoDB has no transaction on a standalone server ("MongoDB standalone deployments do not support transactions", the MongoDB manual), and the stores use no transaction (D186). A file system cannot change two files in one atomic step. The owner chose: "detect whether the Mongo connection supports transactions and use the best option for the circumstances, transaction if available". Items 3 and 6 and D277 have the result.
+
 1. Check first, before the code:
    - Each of the five outbox stores can write or remove the down state of a channel, and add its event, in one atomic operation: the in-memory store, the file store, a SQLite transaction, an EF Core transaction on SQL Server, and MongoDB. For MongoDB, the check finds how the store keeps two writes atomic now, also on a server with no replica set. If a store cannot do it, the plan changes before the code.
    - The SQLite and EF Core stores add a table to an existing database with their current schema setup, and keep the data. The check names the step of the schema version that each store needs.
@@ -2247,10 +2249,13 @@ The owner chose "Registry queries" for the channel state, and "Timeline and list
    - The new `GetChannelEventsAsync(DateTime fromUtc, CancellationToken ct)` gives the events of all channels at or after `fromUtc`, newest first.
    - An add of an event removes the events of its channel that are older than `ChannelEvent.HistoryWindow`, 30 days.
    - The in-memory store, `TenantOutboxDispatchStore`, the logging wrapper with the events 1320 and 1321, `OutboxChannelWork`, and `DeliveryManager` change. `TenantOutboxDispatchStore` calls the system store, as it does for the down state. The callers give the time of `TimeProvider`.
-3. Record the channel events in the file store, with the format in section 2 of `docs/stores.md` (D277).
+3. Record the channel events in the file store, with the format in section 2 of `docs/stores.md` (D277). The store holds `down.json` open with no sharing while it writes the event file of the channel, so parallel callers see the change and its event together, and only the caller that changed the state writes the event. A stop of the process between the two writes loses the event, and the down state stays correct.
 4. Record the channel events in the SQLite store, in the new table `MsgHatchChannelEvents` (D277).
 5. Record the channel events in the EF Core store, in the same table on SQL Server (D277).
-6. Record the channel events in the MongoDB store, in a new collection (D277).
+6. Record the channel events in the MongoDB store, in a new collection (D277):
+   - The store asks the server one time with the command `hello` whether it supports transactions: a member of a replica set, with `setName`, or a `mongos`, with `msg: "isdbgrid"`.
+   - With transactions, each change and its event are one transaction of `WithTransactionAsync`, which tries a transient error again.
+   - With no transactions, for example on a standalone server, the store writes the change first, and only the caller that changed the state adds the event in a second write. A server failure between the two writes loses the event, and the down state stays correct.
 7. Add the channel state to the registry queries (D278):
    - `RegistryChannel` gets `ChannelDown? Down` and `DateTime? UpSinceUtc`. `UpSinceUtc` is the time of the newest `Up` event of the channel in the window of 30 days. It is null for a down channel, and for an up channel with no `Up` event in the window.
    - `IRegistryQueries.GetChannelHistoryAsync(ChannelId channel, CancellationToken ct)` gives the events of one channel in the window, newest first. An unknown channel gives `Errors.NotFound`.
@@ -2291,6 +2296,7 @@ Tests:
   - `GetChannelEventsAsync` gives the events of each channel at or after `fromUtc`, newest first.
   - An add removes the events of its channel that are older than 30 days, and keeps the events of the other channels.
   - The in-memory, file, and SQLite stores get these tests in the unit tests, and the EF Core and MongoDB stores in their integration tests.
+  - The MongoDB tests pass with transactions on a replica set, for example dev-mongo, and with no transactions on a standalone server, for example the container of Testcontainers.
 - A golden-file sample of the event format of the file store (section 1.8 of `docs/stores.md`).
 - `OutboxChannelWork` and `DeliveryManager` give the time of `TimeProvider` to `SetChannelUpAsync`, and the logging wrapper logs the new store call.
 - `RegistryQueriesTestsBase<T>`:
@@ -2313,22 +2319,23 @@ Tests:
 
 Commits:
 1. "Plan phase 32: the channel state and the order of the admin pages"
-2. "Record the down and up events of a channel in the outbox dispatch store"
-3. "Record the channel events in the file store"
-4. "Record the channel events in the SQLite store"
-5. "Record the channel events in the EF Core store"
-6. "Record the channel events in the MongoDB store"
-7. "Add the channel state and history to the registry queries"
-8. "Add the channel history to the registry contracts, route, and client"
-9. "Show the channel state and history on the channel pages"
-10. "Add message type columns and the subscription counts of each level"
-11. "Remove the Applied subscriptions page"
-12. "Put the admin pages of the example host in the new order"
-13. "Describe the channel state and the new page order in the design"
-14. "Record the commits and the checked facts of phase 32 in the plan"
-15. "Record phase 32 as done in README and AGENTS.md"
+2. "Record the transaction check of MongoDB in the plan of phase 32"
+3. "Record the down and up events of a channel in the outbox dispatch store"
+4. "Record the channel events in the file store"
+5. "Record the channel events in the SQLite store"
+6. "Record the channel events in the EF Core store"
+7. "Record the channel events in the MongoDB store"
+8. "Add the channel state and history to the registry queries"
+9. "Add the channel history to the registry contracts, route, and client"
+10. "Show the channel state and history on the channel pages"
+11. "Add message type columns and the subscription counts of each level"
+12. "Remove the Applied subscriptions page"
+13. "Put the admin pages of the example host in the new order"
+14. "Describe the channel state and the new page order in the design"
+15. "Record the commits and the checked facts of phase 32 in the plan"
+16. "Record phase 32 as done in README and AGENTS.md"
 
-Done when: the build has no errors and no warnings, all unit tests pass, the integration tests of the EF Core and MongoDB outbox stores pass, and `pwsh ./coverage.ps1` passes.
+Done when: the build has no errors and no warnings, all unit tests pass, the integration tests of the EF Core and MongoDB outbox stores pass, also the MongoDB tests on a standalone server, and `pwsh ./coverage.ps1` passes.
 
 ### Later phases
 
