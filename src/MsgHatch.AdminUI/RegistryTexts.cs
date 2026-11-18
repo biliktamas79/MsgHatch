@@ -6,7 +6,7 @@ using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.AdminUI;
 
-/// <summary>The texts of the registry pages (D272, D273).</summary>
+/// <summary>The texts of the registry pages (D272, D273, D279, D283).</summary>
 internal static class RegistryTexts
 {
     private static readonly ChannelFeatures[] _features =
@@ -42,6 +42,17 @@ internal static class RegistryTexts
     /// <summary>Gives the previous state of a row and its duration, for example "Down for 4 min", or nothing for the version 1.</summary>
     public static string PreviousOf(ChannelState row) =>
         row is { PreviousKind: { } kind, PreviousDuration: { } duration } ? $"{kind} for {DurationOf(duration)}" : string.Empty;
+
+    /// <summary>
+    /// Gives the result of a channel check (D283): "healthy" or the error name of the check, and the new state or "The state
+    /// did not change.", for example "Email: Unavailable. The channel is down now.".
+    /// </summary>
+    public static string CheckTextOf(ChannelCheck check) =>
+        $"{check.Channel.Name}: {(check.Healthy ? "healthy" : check.ErrorName)}. "
+        + (!check.Changed ? "The state did not change." : check.Healthy ? "The channel is up again." : "The channel is down now.");
+
+    /// <summary>Gives the Bootstrap class of the alert of a check: <c>alert-success</c> with no error, else <c>alert-warning</c>.</summary>
+    public static string CheckClassOf(ChannelCheck check) => check.Healthy ? "alert-success" : "alert-warning";
 
     /// <summary>Gives a UTC time to the minute, for example "2026-11-18 13:32 UTC".</summary>
     public static string TimeOf(DateTime utc) => utc.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);

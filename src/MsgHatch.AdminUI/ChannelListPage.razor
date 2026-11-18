@@ -1,9 +1,13 @@
 @attribute [Route(RegistryAdminRoutes.Channels)]
 @inject IServiceProvider Services
 @inject TimeProvider Time
-@* The channels of the registry, with their features, their enabled flag, the number of their message types (D272), and their state with its history (D279). *@
+@* The channels of the registry, with their features, their enabled flag, the number of their message types (D272), their state with its history (D279), and the channel check (D283). *@
 
 <AdminListPage Title="Channels">
+@if (_check is { } check)
+{
+    <div class="alert @(check.IsError ? "alert-danger" : RegistryTexts.CheckClassOf(check.Value)) py-2" role="status" data-check-result>@(check.IsError ? AdminErrors.TextOf(check.Error) : RegistryTexts.CheckTextOf(check.Value))</div>
+}
 <AdminList TItem="RegistryChannel" Items="_channels" EmptyText="There are no channels.">
     <Head>
         <tr><th>Channel</th><th>Name</th><th>Features</th><th>Enabled</th><th>Message types</th><th>State</th><th>Since</th><th></th></tr>
@@ -24,6 +28,7 @@
             <td data-cell="since">@RegistryTexts.SinceOf(channel, _nowUtc)</td>
             <td class="text-end text-nowrap">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-action="history" @onclick="() => _historyChannel = channel">History</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="check" disabled="@_checking" @onclick="() => CheckAsync(channel.Id)">Check</button>
                 <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@RegistryAdminRoutes.Channel(channel.Id).TrimStart('/')">View</a>
             </td>
         </tr>
@@ -37,12 +42,28 @@
     private ErrorOr<IReadOnlyList<RegistryChannel>>? _channels;
     private Dictionary<ChannelId, int> _messageTypeCounts = [];
     private RegistryChannel? _historyChannel;
+    private ErrorOr<ChannelCheck>? _check;
+    private bool _checking;
     private DateTime _nowUtc;
 
     private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
 
+    private IRegistryCommands Commands => Services.GetRequiredKeyedService<IRegistryCommands>(TenantKey.None);
+
     /// <inheritdoc />
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => ReadChannelsAsync();
+
+    /// <summary>Runs the check of one channel, and then reads the channels again, so the row shows a new state (D283).</summary>
+    private async Task CheckAsync(ChannelId channel)
+    {
+        _checking = true;
+        _check = null;
+        _check = await Commands.CheckChannelAsync(channel, CancellationToken.None);
+        await ReadChannelsAsync();
+        _checking = false;
+    }
+
+    private async Task ReadChannelsAsync()
     {
         _nowUtc = Time.GetUtcNow().UtcDateTime;
         var channels = await Queries.GetChannelsAsync(CancellationToken.None);
