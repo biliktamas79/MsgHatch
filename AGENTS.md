@@ -4,11 +4,11 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 27 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, the query and command interfaces of the management APIs with their contracts packages, and the HTTP clients of the management APIs with their source generator.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 28 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, the query and command interfaces of the management APIs with their contracts packages, the HTTP clients of the management APIs with their source generator, and the admin UIs of the subscriptions and the templates with the Liquid editor.
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D248), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D251), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -31,8 +31,9 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Dispatch signal | `MsgHatch.Dispatch.NamedPipes` |
 | API contracts | `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts` |
 | API clients | `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
+| Admin UIs | `MsgHatch.AdminUI`, `MsgHatch.Subscriptions.AdminUI`, `MsgHatch.Templates.AdminUI`, `MsgHatch.Templates.Liquid.AdminUI` |
 
-Phase 28 (the admin UIs) has a detailed plan. No phase after phase 28 has one yet. The section "Later phases" of the roadmap lists the next items.
+No phase after phase 28 has a detailed plan yet. The section "Later phases" of the roadmap lists the next items.
 
 ## Commands
 
@@ -87,6 +88,16 @@ dotnet run --project examples/ExampleApp
 dotnet test tests/ExampleApp.Tests.Unit
 ```
 
+The admin UI example `examples/AdminUiExample` calls the subscription and template APIs of `ExampleApp` through the HTTP clients, so `ExampleApp` runs first (section 4.24). It reads its token from the option `AdminUiExample:ApiToken` in its user secrets, which git ignores. A token with the role `TemplateAdmin` also passes the policy of the subscription routes. Never write a token into a file of the repository. The host listens only on `http://localhost:5090`:
+
+```bash
+dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin
+dotnet user-secrets set "AdminUiExample:ApiToken" "<the token of user-jwts>" --project examples/AdminUiExample
+dotnet run --project examples/ExampleApp
+dotnet run --project examples/AdminUiExample
+dotnet test tests/AdminUiExample.Tests.Unit
+```
+
 From phase 18 on, the EF Core integration tests use the SQL Server of `SqlServerIntegration:ConnectionString` in `appsettings.Local.json` of each EF Core integration project, which git ignores, for example the local container dev-mssql. `appsettings.json` next to it describes the key. The tests drop and create only the databases whose names start with the name of their project, at the start and at the end of a run (D180). With no connection string, they need a container runtime, for example Docker: Testcontainers starts SQL Server from the image `mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04`, and pulls the image only when it is missing. A machine with no image of the Ryuk container of Testcontainers sets `TESTCONTAINERS_RYUK_DISABLED=true` for its run (D177):
 
 ```bash
@@ -117,7 +128,8 @@ dotnet test tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration
 - Each implementation package has one `Use<Technology>` setup method for each layout. One call registers all parts of the package. It calls the generic domain `Use` methods, so that the wrappers and the validation are the same for each package.
 - The library stores, transports, template stores, and registries are thread-safe singletons. Only a received message gets a DI scope.
 - The core packages never reference `MsgHatch.Subscriptions`. The core knows only the router contract `IMessageRouter<TEvent>` and the composer contract `IEnvelopeComposer<TEvent, TEnvelope>`.
-- The packages of the API boundary set `IsAotCompatible` (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, the contracts packages, the client packages, and the two management `.AspNetCore` packages. Each warning of the trim and AOT analyzers is an error. Use no `MakeGenericType`, `Activator.CreateInstance`, assembly scan, or dynamic proxy in them, and give each type parameter that reaches `ActivatorUtilities` the attribute `DynamicallyAccessedMembers(PublicConstructors)`.
+- The packages of the API boundary set `IsAotCompatible` (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, the contracts packages, the client packages, the two management `.AspNetCore` packages, and the admin UI packages. Each warning of the trim and AOT analyzers is an error. Use no `MakeGenericType`, `Activator.CreateInstance`, assembly scan, or dynamic proxy in them, and give each type parameter that reaches `ActivatorUtilities` the attribute `DynamicallyAccessedMembers(PublicConstructors)`.
+- An admin page resolves only the query and command interfaces of `TenantKey.None` (D235, D249), sets no render mode, and uses the CSS classes of Bootstrap 5 (D239). The setup method of an admin UI package keeps its pages in a trimmed host with `DynamicDependency` (D250). A template editor derives from `TemplateEditorBase`, and a package registers it with `AddTemplateEditor<TEditor>(engine)` (D240).
 - The management APIs have a query interface and a command interface each (D231). An implementation runs the stateless rules first, `SubscriptionDraftRules`, `RoutingVerificationRules`, or `TemplateLookupRules` (D234, D248). The HTTP bodies and their mappings are in the contracts packages, and the route paths and `ErrorProblems` are internal sources in `src/Shared` (D228, D233). A client package declares its routes in an internal interface with `[HttpApi]`, and the generator writes its HTTP calls (D236). Its adapters run the same rules first, so a client gives the error of a rule with no HTTP call.
 
 ## Testing
