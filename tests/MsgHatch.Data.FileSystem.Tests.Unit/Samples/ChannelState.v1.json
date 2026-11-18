@@ -1,0 +1,13 @@
+{
+  "channel": "Test",
+  "version": 3,
+  "kind": "Down",
+  "sinceUtc": "2030-01-01T01:00:00Z",
+  "previousKind": "Up",
+  "previousDuration": "00:50:00",
+  "reason": "Operator",
+  "nextCheckAtUtc": null,
+  "errorCode": null,
+  "errorName": null,
+  "note": "maintenance"
+}

@@ -123,6 +123,26 @@ internal sealed class MessageFiles
         }
     }
 
+    /// <summary>
+    /// Creates a file with its whole content through a temporary file and a move that does not overwrite. So of two parallel
+    /// creators of one path only the first succeeds, and a reader never sees half a file.
+    /// </summary>
+    /// <returns>True when it created the file, or false when the file exists.</returns>
+    public static bool TryCreate(string path, byte[] content)
+    {
+        var temporary = WriteTemporary(path, content);
+        try
+        {
+            File.Move(temporary, path, overwrite: false);
+            return true;
+        }
+        catch (IOException) when (File.Exists(path))
+        {
+            File.Delete(temporary);
+            return false;
+        }
+    }
+
     /// <summary>Writes the new content of a file in its place, through a temporary file and a rename.</summary>
     public static void Overwrite(string path, byte[] content) => File.Move(WriteTemporary(path, content), path, overwrite: true);
 

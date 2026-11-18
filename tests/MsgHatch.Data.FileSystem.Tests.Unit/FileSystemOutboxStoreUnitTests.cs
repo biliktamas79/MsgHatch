@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Nodes;
 using MsgHatch.Data.FileSystem.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
@@ -17,6 +18,8 @@ public sealed class FileSystemOutboxStoreUnitTests()
         static (store, key) => store.For(key),
         static store => new FileSystemOutboxStoreTestData(store))
 {
+    private static readonly string _firstStateFile = Path.Combine("states", "0000000001.json");
+
     [Fact]
     public async Task RecordTryAsync_PermanentError_MovesTheFileToTheFailedFolderOfItsChannel()
     {
@@ -51,11 +54,11 @@ public sealed class FileSystemOutboxStoreUnitTests()
     }
 
     [Fact]
-    public async Task ClaimDueAsync_DownFileThatIsNotJson_ReturnsSerializationFailed()
+    public async Task ClaimDueAsync_StateFileThatIsNotJson_ReturnsSerializationFailed()
     {
         // Arrange
         await AddAsync(AMessage(T1));
-        WriteChannelFile("down.json", "{ not json");
+        WriteChannelFile(_firstStateFile, "{ not json");
 
         // Act
         var result = await ClaimAsync();
@@ -124,12 +127,12 @@ public sealed class FileSystemOutboxStoreUnitTests()
     }
 
     [Fact]
-    public async Task ClaimDueAsync_DownFileThatAnotherCallerHoldsOpen_ReturnsUnavailable()
+    public async Task ClaimDueAsync_StateFileThatAnotherCallerHoldsOpen_ReturnsUnavailable()
     {
         // Arrange
         await AddAsync(AMessage(T1));
         await Store.SetChannelDownAsync(ADownOfAPerson(), Ct);
-        using var held = HoldTheDownFileOpen();
+        using var held = HoldTheFirstStateFileOpen();
 
         // Act
         var result = await ClaimAsync();
@@ -139,12 +142,12 @@ public sealed class FileSystemOutboxStoreUnitTests()
     }
 
     [Fact]
-    public async Task TryStartChannelCheckAsync_DownFileThatAnotherCallerHoldsOpen_ReturnsFalse()
+    public async Task TryStartChannelCheckAsync_StateFileThatAnotherCallerHoldsOpen_ReturnsFalse()
     {
         // Arrange
         await Store.SetChannelDownAsync(
             new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
-        using var held = HoldTheDownFileOpen();
+        using var held = HoldTheFirstStateFileOpen();
 
         // Act
         var started = await Store.TryStartChannelCheckAsync(TestChannel.Id, Now, Now.AddSeconds(30), Ct);
@@ -182,11 +185,87 @@ public sealed class FileSystemOutboxStoreUnitTests()
         Assert.Equal([message.Delivery.Id], page.Value.Items.Select(static summary => summary.Delivery.Id));
     }
 
+    [Fact]
+    public async Task GetChannelStatesAsync_GoldenSampleOfVersion1_GivesTheSampleRow()
+    {
+        // Arrange
+        WriteChannelFile(Path.Combine("states", "0000000003.json"), ReadSample("ChannelState.v1.json"));
+
+        // Act
+        var rows = await Store.GetChannelStatesAsync(DateTime.MinValue, Ct);
+
+        // Assert
+        Assert.Equal(
+            [
+                new ChannelState(
+                    TestChannel.Id, 3, ChannelStateKind.Down, Now.AddHours(1), ChannelStateKind.Up, TimeSpan.FromMinutes(50), ChannelDownReason.Operator, null,
+                    null, null, "maintenance"),
+            ],
+            rows.Value);
+    }
+
+    [Fact]
+    public async Task SetChannelDownAsync_ThirdRowOfTheGoldenSample_WritesTheFileOfItsVersionInTheFormatOfTheSample()
+    {
+        // Arrange
+        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now.AddSeconds(30), 503, "Unavailable", Note: null), Ct);
+        await Store.SetChannelUpAsync(TestChannel.Id, ChannelDownReason.Errors, Now.AddMinutes(10), Ct);
+        Time.Advance(TimeSpan.FromHours(1));
+
+        // Act
+        await Store.SetChannelDownAsync(ADownOfAPerson(), Ct);
+
+        // Assert
+        Assert.True(JsonNode.DeepEquals(
+            JsonNode.Parse(ReadSample("ChannelState.v1.json")),
+            JsonNode.Parse(File.ReadAllText(Path.Combine(Store.RootPath, "outbox", "Test", "states", "0000000003.json")))));
+    }
+
+    [Theory]
+    [InlineData("{ not json")]
+    [InlineData("null")]
+    public async Task GetChannelStatesAsync_StateFileThatTheCodeCannotRead_ReturnsSerializationFailed(string text)
+    {
+        // Arrange
+        WriteChannelFile(_firstStateFile, text);
+
+        // Act
+        var rows = await Store.GetChannelStatesAsync(DateTime.MinValue, Ct);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, rows.Error?.Type);
+    }
+
+    [Fact]
+    public async Task SetChannelDownAsync_VersionThatAnotherProcessCreatedFirst_KeepsItsFileAndAddsTheNextVersion()
+    {
+        // Arrange
+        var second = new FileSystemOutboxStore(Store.RootPath, new MsgHatchJson(TestContentTypes.ARegistry()));
+        await second.SetChannelDownAsync(ADownOfAPerson(), Ct);
+        await second.SetChannelUpAsync(TestChannel.Id, reason: null, Now, Ct);
+
+        // Act
+        var added = await Store.SetChannelDownAsync(ADownOfAPerson(), Ct);
+
+        // Assert
+        Assert.Equal(
+            (true, "0000000001.json,0000000002.json,0000000003.json"),
+            (added.Value, string.Join(',', Directory.GetFiles(Path.Combine(Store.RootPath, "outbox", "Test", "states")).Select(Path.GetFileName).Order(StringComparer.Ordinal))));
+    }
+
+    private static string ReadSample(string fileName)
+    {
+        using var stream = typeof(FileSystemOutboxStoreUnitTests).Assembly
+            .GetManifestResourceStream($"MsgHatch.Data.FileSystem.Tests.Unit.Samples.{fileName}")!;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
     private ChannelDown ADownOfAPerson() =>
         new(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance");
 
-    private FileStream HoldTheDownFileOpen() =>
-        new(Path.Combine(Store.RootPath, "outbox", "Test", "down.json"), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+    private FileStream HoldTheFirstStateFileOpen() =>
+        new(Path.Combine(Store.RootPath, "outbox", "Test", _firstStateFile), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
 
     private static string NewerVersionOf(OutgoingMessage message) =>
         Encoding.UTF8.GetString(new MsgHatchJson(TestContentTypes.ARegistry()).Serialize(message).Value)

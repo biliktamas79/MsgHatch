@@ -10,4 +10,8 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Samples\*.json" />
+  </ItemGroup>
+
 </Project>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
@@ -12,14 +13,14 @@ namespace MsgHatch.Data.FileSystem;
 /// <summary>
 /// The outbox in JSON files (section 4.5, D26): one file for each outgoing message, with its publish tries, under
 /// <c>{RootPath}/outbox/{channel}</c>, and each test message under <c>{RootPath}/test/outbox/{channel}</c> (D104). A claim
-/// moves a file from <c>pending</c> to <c>claimed</c> with an atomic rename. The down state of a channel is the file
-/// <c>{RootPath}/outbox/{channel}/down.json</c> (D106). It is the dispatch store of all tenants, and <see cref="For"/>
-/// gives the tenant store of one key.
+/// moves a file from <c>pending</c> to <c>claimed</c> with an atomic rename. The state of a channel is one file for each
+/// insert-only state row, <c>{RootPath}/outbox/{channel}/states/{version:D10}.json</c> (D106, D277). It is the dispatch store
+/// of all tenants, and <see cref="For"/> gives the tenant store of one key.
 /// </summary>
 // ponytail: rename-based claims suit one machine or a shared folder with atomic rename, use a database store for more throughput
 public sealed class FileSystemOutboxStore : IOutboxDispatchStore
 {
-    private const string _downFileName = "down.json";
+    private const string _statesFolderName = "states";
 
     private readonly MsgHatchJson _json;
     private readonly MessageFiles _files = new();
@@ -54,7 +55,7 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
         ChannelId channel, int maxCount, DateTime nowUtc, TimeSpan lease, CancellationToken ct) =>
         ValueTask.FromResult(maxCount < 1
             ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
-            : FileFailures.Run(() => ReadDown(channel) is { } down
+            : FileFailures.Run(() => LatestStateOf(channel)?.ToDown() is { } down
                 ? new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down)
                 : Claim(channel, maxCount, nowUtc, nowUtc + lease)));
 
@@ -88,24 +89,27 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
     public ValueTask<ErrorOr<IReadOnlyList<ChannelDown>>> GetDownChannelsAsync(CancellationToken ct) =>
         ValueTask.FromResult(FileFailures.Run(() => ErrorOr<IReadOnlyList<ChannelDown>>.ForValue(
         [
-            .. ChannelFolders().Select(static folder => Path.Combine(folder, _downFileName)).Where(File.Exists).Select(ReadDownFile),
+            .. ChannelFolders().Select(static folder => StateFilesOf(folder).LastOrDefault()).OfType<string>()
+                .Select(static path => ReadStateFile(path).ToDown()).OfType<ChannelDown>(),
         ])));
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> SetChannelDownAsync(ChannelDown down, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(down);
-        return ValueTask.FromResult(FileFailures.Run(() => ErrorOr<bool>.ForValue(
-            down.Reason == ChannelDownReason.Errors ? TryCreateDown(down) : ReplaceDown(down))));
+        return ValueTask.FromResult(FileFailures.Run(
+            () => ChannelState.Change(() => LatestStateOf(down.Channel), latest => ChannelState.AfterDown(latest, down), TryAddState)));
     }
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelStatesAsync(DateTime fromUtc, CancellationToken ct) =>
-        ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue([]));
+        ValueTask.FromResult(FileFailures.Run(() => ErrorOr<IReadOnlyList<ChannelState>>.ForValue(
+            ChannelState.NewestFirst(ChannelFolders().SelectMany(StateFilesOf).Select(ReadStateFile), fromUtc))));
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> SetChannelUpAsync(ChannelId channel, ChannelDownReason? reason, DateTime upAtUtc, CancellationToken ct) =>
-        ValueTask.FromResult(FileFailures.Run(() => ErrorOr<bool>.ForValue(EndDown(channel, reason))));
+        ValueTask.FromResult(FileFailures.Run(
+            () => ChannelState.Change(() => LatestStateOf(channel), latest => ChannelState.AfterUp(latest, channel, reason, upAtUtc), TryAddState)));
 
     /// <inheritdoc />
     public ValueTask<ErrorOr<bool>> TryStartChannelCheckAsync(
@@ -302,71 +306,30 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
         });
     }
 
-    private ChannelDown? ReadDown(ChannelId channel)
-    {
-        var path = DownPathOf(channel);
-        return File.Exists(path) ? ReadDownFile(path) : null;
-    }
+    private ChannelState? LatestStateOf(ChannelId channel) =>
+        StateFilesOf(Path.Combine(_root, channel.Name)).LastOrDefault() is { } path ? ReadStateFile(path) : null;
 
-    private bool TryCreateDown(ChannelDown down)
-    {
-        var path = DownPathOf(down.Channel);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        try
-        {
-            using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            JsonSerializer.Serialize(stream, down, FileStoreJsonContext.Default.ChannelDown);
-            return true;
-        }
-        catch (IOException) when (File.Exists(path))
-        {
-            return false;
-        }
-    }
-
-    private bool ReplaceDown(ChannelDown down)
-    {
-        var path = DownPathOf(down.Channel);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        stream.SetLength(0);
-        JsonSerializer.Serialize(stream, down, FileStoreJsonContext.Default.ChannelDown);
-        return true;
-    }
-
-    private bool EndDown(ChannelId channel, ChannelDownReason? reason)
-    {
-        var path = DownPathOf(channel);
-        bool ends;
-        try
-        {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            var down = JsonSerializer.Deserialize(stream, FileStoreJsonContext.Default.ChannelDown);
-            ends = down is not null && (reason is null || down.Reason == reason);
-        }
-        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
-        {
-            return false;
-        }
-
-        if (ends)
-        {
-            File.Delete(path);
-        }
-
-        return ends;
-    }
+    /// <summary>Adds a state row as a new file of its version. A stored version keeps its file, and gives false.</summary>
+    private bool TryAddState(ChannelState row) =>
+        MessageFiles.TryCreate(
+            Path.Combine(_root, row.Channel.Name, _statesFolderName, string.Create(CultureInfo.InvariantCulture, $"{row.Version:D10}.json")),
+            JsonSerializer.SerializeToUtf8Bytes(row, FileStoreJsonContext.Default.ChannelState));
 
     /// <summary>
-    /// Moves the next check time while the file is open with <see cref="FileShare.None"/>, so of two parallel callers
-    /// only one can start the check. A caller that cannot open the file does not start the check.
+    /// Moves the next check time of the latest state row while its file is open with <see cref="FileShare.None"/>, so of two
+    /// parallel callers only one can start the check. A caller that cannot open the file does not start the check.
     /// </summary>
     private bool TryMoveNextCheck(ChannelId channel, DateTime nowUtc, DateTime nextCheckAtUtc)
     {
+        if (StateFilesOf(Path.Combine(_root, channel.Name)).LastOrDefault() is not { } path)
+        {
+            return false;
+        }
+
         FileStream stream;
         try
         {
-            stream = new FileStream(DownPathOf(channel), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         }
         catch (IOException)
         {
@@ -375,13 +338,13 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
 
         using (stream)
         {
-            var down = JsonSerializer.Deserialize(stream, FileStoreJsonContext.Default.ChannelDown);
-            var due = down is { Reason: ChannelDownReason.Errors } && down.NextCheckAtUtc <= nowUtc;
+            var latest = JsonSerializer.Deserialize(stream, FileStoreJsonContext.Default.ChannelState);
+            var due = latest is { Kind: ChannelStateKind.Down, Reason: ChannelDownReason.Errors } && latest.NextCheckAtUtc <= nowUtc;
             if (due)
             {
                 stream.SetLength(0);
                 stream.Position = 0;
-                JsonSerializer.Serialize(stream, down! with { NextCheckAtUtc = nextCheckAtUtc }, FileStoreJsonContext.Default.ChannelDown);
+                JsonSerializer.Serialize(stream, latest! with { NextCheckAtUtc = nextCheckAtUtc }, FileStoreJsonContext.Default.ChannelState);
             }
 
             return due;
@@ -390,13 +353,20 @@ public sealed class FileSystemOutboxStore : IOutboxDispatchStore
 
     private IEnumerable<string> ChannelFolders() => Directory.Exists(_root) ? Directory.EnumerateDirectories(_root) : [];
 
-    private string DownPathOf(ChannelId channel) => Path.Combine(_root, channel.Name, _downFileName);
-
     private string RootOf(MessageFlags flags) => flags.HasFlag(MessageFlags.Test) ? _testRoot : _root;
 
-    private static ChannelDown ReadDownFile(string path) =>
-        JsonSerializer.Deserialize(File.ReadAllBytes(path), FileStoreJsonContext.Default.ChannelDown)
-        ?? throw new JsonException($"The down state file {path} holds null.");
+    /// <summary>The state files of a channel folder in the order of their versions.</summary>
+    private static IEnumerable<string> StateFilesOf(string channelFolder)
+    {
+        var folder = Path.Combine(channelFolder, _statesFolderName);
+        return Directory.Exists(folder)
+            ? Directory.EnumerateFiles(folder).Where(static path => path.EndsWith(".json", StringComparison.Ordinal)).Order(StringComparer.Ordinal)
+            : [];
+    }
+
+    private static ChannelState ReadStateFile(string path) =>
+        JsonSerializer.Deserialize(File.ReadAllBytes(path), FileStoreJsonContext.Default.ChannelState)
+        ?? throw new JsonException($"The state file {path} holds null.");
 
     private static OutgoingMessage Leased(OutgoingMessage message, DateTime leaseUntilUtc) =>
         message with { Delivery = message.Delivery with { NextTryAtUtc = leaseUntilUtc, LeaseUntilUtc = leaseUntilUtc } };
