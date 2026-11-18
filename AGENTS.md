@@ -33,7 +33,7 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | API clients | `MsgHatch.Api.Client`, `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
 | Admin UIs | `MsgHatch.AdminUI`, `MsgHatch.Subscriptions.AdminUI`, `MsgHatch.Templates.AdminUI`, `MsgHatch.Templates.Liquid.AdminUI` |
 
-Phase 33 (the channel check) has a detailed plan. No phase after phase 33 has one yet. The section "Later phases" of the roadmap lists the next items.
+Phase 33 (the channel check) and phase 34 (the open allocations of the hot path) have a detailed plan. No phase after phase 34 has one yet. The section "Later phases" of the roadmap lists the next items.
 
 ## Commands
 

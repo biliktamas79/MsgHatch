@@ -41,6 +41,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 31 Registry queries and pages | 16, 30 |
 | 32 Channel state and page order | 31 |
 | 33 Channel check | 32 |
+| 34 Open allocations | 13, 33 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2424,6 +2425,115 @@ Commits:
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
+### Phase 34: open allocations
+
+Goal: the hot path allocates only what section 4.11 permits. The phase removes the avoidable allocations of the event path, of a send, of a subscription cache hit, and of the subscription resolution. Then it measures the three benchmark projects again and records the new budget (D159, D280 to D282).
+
+Starting point: the commits of phase 33. The probe of the plan ran on the production code of phase 32, so item 1 measures again after phase 33. The owner asked to "do the investigation and plan the changes for the open allocations improvements". The owner also said that a template store in a database is not needed yet, because the file template store is enough for now.
+
+The investigation of the plan used a probe outside the repository. The probe ran the benchmark classes of the three performance projects in Release on the production code of phase 32, with an `EventListener` in the process on the event `AllocationSampled` of the .NET 10 runtime (keyword `0x80000000000`). The event samples about one object in each 100 KB at random, so the share of the samples of a type is its share of the bytes. Each scenario had 2,600 to 4,600 samples. The probe found these bytes:
+
+| Scenario | Bytes | Avoidable part |
+|---|---|---|
+| `ProcessAsync`, 1 route | 3,472 B | About 2.5 KB: the closures of the boundary, the measurement, the route selection, and the registry lookup, the LINQ iterators of the store step, the dictionary and the lists of `RouteGrouping`, the copies of the routes, the set of the topics, and 3 boxed `TenantKey` values |
+| `ProcessAsync`, each further route, from 1 to 100 routes | 776 B | The closure of `FindChannel` 94 B, the topic string 46 B, two copies of the routes and the list of the checked routes 212 B, the growth of the set of the targets about 80 B, and the second result array 24 B. The outgoing message, 231 B, stays. |
+| `DispatchPendingAsync`, each message of a batch of 100 | 254 B | The `SemaphoreSlim` waiter of `Parallel.ForEachAsync` 88 B, and two boxed `PublishOutcome` values 45 B. The publish try, 91 B, stays. |
+| `RunAsync`, each message of a batch of 100 | 237 B | Two boxed `PublishOutcome` values 46 B. The read operation of the work queue, 82 B, stays (D281), and the publish try, 91 B, stays. |
+| Subscription cache hit for the defaults, one company, and one user | 448 B | Two owner part strings, about 55 B, two boxed enumerators 60 B, and the empty list of the missing owners 30 B |
+| `SubscriptionResolver.Resolve`, each further user of an opt-out, from 1 to 100 users | 1,739 B | The skipped subscriptions in a list, a second list, and an array for each user 728 B, the growth of the opt-out list 218 B, the growth of the pair index 144 B, the candidate list of each pair 153 B, the list of the matching subscriptions 89 B, and a boxed enumerator of the channels 42 B. The result is about 180 B. |
+
+So the 150 B of each route that phase 13 did not attribute are the closure of `FindChannel` and the topic string. The 150 B of each send are the waiter, the two boxes, and the state machines of each batch.
+
+1. Measure the start: run the three benchmark projects at the last commit of phase 33, one at a time, and keep the results for item 10. The probe numbers above give the attribution, and the benchmark numbers give the budget.
+2. Remove the closures from the event path (D280):
+   - `MessageRegistration.FindChannel` is a loop with no closure.
+   - `Boundary` gets the overload `RunAsync<T, TState>(Func<TState, ValueTask<ErrorOr<T>>> run, TState state, CancellationToken ct)`, and `NotificationService` calls it with a static lambda.
+   - `NotificationPipeline.MeasureAsync` and the route selection of `ProcessInSpanAsync` get their values as arguments, with no closure.
+   - `RouteGrouping` builds its groups with loops, with no closure and no LINQ. `ByChannel` and `ByLanguageAndScope` keep their results.
+3. Notify each channel of an event one time (D280):
+   - `IChannelRegistration` gets `Topic`, which the registration makes one time with `DispatchTopic.ForChannel`.
+   - `StoreAsync` makes the message array and the error array in one loop, each with its exact size. It notifies the topic of each channel with a stored message one time, in the order of the first stored message of the channel, with no `Distinct`.
+4. Compose the routes of each channel with no copies of the route list (D280):
+   - A first pass checks each route, writes the error of a failed route into the result array, and counts the routes of each channel in a small list of the channels of the event.
+   - When all routes are on one channel, no route failed, and the router gave a `MessageRoute[]`, the composer gets that array. Else one new array holds the routes of all channels, in groups by channel and in the order of the router, and one `int[]` holds the position of each route.
+   - `IChannelRegistration.ComposeAsync` gets the result array and the positions of its group, writes each outgoing message at the position of its route, and gives `Error?`.
+   - The set of the targets gets the capacity of the route count, and one route needs no set.
+5. Resolve the tenant services with boxed keys made one time (D280):
+   - The internal `TenantKeyBoxes.Of(TenantKey key)` gives one box for `TenantKey.None`, and one box for each tenant, for at most 1,024 tenants. After the limit, each call makes a new box. A `ponytail:` comment names the limit.
+   - The keyed lookups of `NotificationPipeline` and `ChannelRegistration` use it, because they run for each event or for each channel of an event.
+6. Record the outcome tags of a send with no boxing (D281): a switch gives the literal name of each `PublishOutcome` to `RecordTry` and `RecordSendDuration`.
+7. Run the batch of `DispatchPendingAsync` with `Parallel.ForAsync(0, count, ...)` in place of `Parallel.ForEachAsync` over `Enumerable.Range` (D281).
+8. Build the subscription cache keys with no owner part strings (D282):
+   - `SubscriptionCacheKeys.Key` and `OwnerTag` write the owner part into the key in one interpolation. The text of each key and tag stays the same.
+   - `FindForDeliveryAsync` makes the list of the missing owners at the first miss, and reads the companies and the users by index.
+9. Reduce the scratch allocations of the subscription resolution (D282):
+   - `ResolutionRun` reads its lists by index.
+   - `ResolveOverridable` makes no list of the matching subscriptions. A second pass over the subscriptions writes the skipped subscriptions into an array of their exact size.
+   - A pair keeps its first candidate in a field, and makes a list only for a second candidate. A pair with one candidate keeps the skipped array of that candidate. A pair with more candidates makes one array of the exact size, in level order.
+   - `Merge` counts the deliveries and the opt-outs first, and makes two arrays of their exact sizes.
+   - The pair index, the pair list, the set of the seen users, and the list of the scope users get the capacity of the scope.
+10. Record the measured budget in the design (D159):
+    - Run the three benchmark projects after item 9, one at a time.
+    - Section 4.11: the measured table with the numbers of item 1 and of this run, the new budget lines, the line of the wait of a worker (D281), and the line of the resolution (D282). The numbers of the placeholder engine and of the composer replace those of phase 13, which are from before D214.
+    - Each open item of section 4.11 goes away, or stays with its measured cause.
+
+Targets, for the benchmark runs of item 10. Each target holds after item 9, or the phase records the measured value and its cause (D159):
+
+| Benchmark | Probe of the plan | Target |
+|---|---|---|
+| `ProcessAsync`, 1 route | 3,472 B | At most 1,000 B |
+| `ProcessAsync`, each further route | 776 B | At most 330 B |
+| `DispatchPendingAsync`, each message | 254 B | At most 110 B |
+| `RunAsync`, each message | 237 B | At most 190 B |
+| Subscription cache hit | 448 B | At most 300 B |
+| `SubscriptionResolver.Resolve`, each further user | 1,739 B | At most 500 B |
+
+Tests:
+- The use-case tests of the pipeline, the dispatcher, the caching wrapper, and the resolver stay as they are, and pass at each commit, because the behavior does not change.
+- The pipeline, with new rows where a new path starts:
+  - Routes on one channel as an array and as a `List<MessageRoute>`, routes on two channels in turns, and a failed route in the middle: each outcome keeps the position of its route, and each composer gets the routes of its channel in the order of the router.
+  - A second route for the same target on one channel, among three routes, gives `Errors.Conflict` at its position. One route gives no conflict.
+  - Routes on two channels notify the topic of each channel one time, in the order of the first stored message. A channel whose routes all fail gets no notify.
+- The tenant services: the services of two tenants and of no tenant resolve with the same results at the first call and at later calls.
+- The send: a theory over each `PublishOutcome` value. The tag `msghatch.outcome` of `msghatch.publish.tries` and of `msghatch.send.duration` is the name of the value.
+- `DispatchPendingAsync` with `MaxDegreeOfParallelism` 4 and 20 messages sends each message one time, with at most 4 sends at the same time.
+- The caching wrapper: the key and the tags of a default, of a company with `:` in its id, and of a user keep their text. A hit for one company and one user reads no store.
+- The resolver: a unit test calls `Resolve` for 100 users of an opt-out after one call to warm it up. It allows at most the target of each user with `GC.GetAllocatedBytesForCurrentThread()`. The rows of the domain examples check the order of the skipped subscriptions of a pair with one candidate and of a merged pair.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Checked facts of the plan (2026-11-18), on Windows 11 build 26300 with the .NET SDK 10.0.404 and .NET 10:
+
+| Fact | Source |
+|---|---|
+| The bytes and the types of the investigation table. The probe measured with `GC.GetAllocatedBytesForCurrentThread()` on the thread of the call, and with `GC.GetTotalAllocatedBytes(true)` for the dispatch loops, after 3 seconds of calls to warm up. | The probe `allocprobe` in a scratch folder, with project references to the three performance projects |
+| `Parallel.ForEachAsync` over `Enumerable.Range(0, 100)` with 8 workers allocated 99.9 B for each item with a body that completes at once, and 207.7 B with `Task.Yield`. `Parallel.ForAsync(0, 100)` allocated 4.1 B and 118.3 B. | A second probe in a scratch folder, 20,000 batches after 20,000 batches to warm up |
+| The waiter of `Parallel.ForEachAsync` is `TaskNode` of `SemaphoreSlim`. The read operation of the work queue is `WaitingReadAsyncOperation` of `System.Threading.Channels`. | The type names of the samples |
+| `TenantKey` is a `readonly record struct`, and a keyed service lookup takes `object? serviceKey`, so each lookup boxes the key. | `TenantKey.cs`, and the samples of the type `TenantKey` |
+| `PublishOutcome.ToString()` boxes the value in `RecordTry` and `RecordSendDuration`. | The samples of the type `PublishOutcome`, and `MsgHatchMetrics.cs` |
+| `MessageRegistration.FindChannel` calls `List<T>.Find` with a lambda that captures the channel, so each route allocates a closure and a delegate. `DispatchTopic.ForChannel` makes a new string at each call, and `StoreAsync` calls it for each stored message. | `MessageRegistration.cs`, `DispatchTopic.cs`, `NotificationPipeline.cs`, and the samples of `Predicate<T>` and `String` |
+
+Checks that the phase does not do:
+- The integration tests of the stores, because no store changes.
+- An allocation test of an async path in the unit tests, because the Debug build makes each async state machine a class (section 4.11). The benchmarks measure these paths.
+
+Commits:
+1. "Plan phase 34: the open allocations of the hot path"
+2. "Remove the closures from the event path of the pipeline"
+3. "Notify each channel of an event one time with its stored topic"
+4. "Compose the routes of each channel with no copies of the route list"
+5. "Resolve the tenant services with boxed keys made one time"
+6. "Record the outcome tags of a send with no boxing"
+7. "Run the batch of DispatchPendingAsync with Parallel.ForAsync"
+8. "Build the subscription cache keys with no owner part strings"
+9. "Reduce the scratch allocations of the subscription resolution"
+10. "Record the measured allocation budget of phase 34 in the design"
+11. "Record the commits and the checked facts of phase 34 in the plan"
+12. "Record phase 34 as done in README and AGENTS.md"
+
+Item 1 is a measurement, and its results go into commit 10.
+
+Done when: the build has no errors and no warnings, all unit tests pass, the three benchmark projects run, section 4.11 has the measured table of the phase, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -2448,7 +2558,6 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
   - The phase checks the SDK call of the `Publish` action, and the size limit of a message with its attributes, in the pinned version.
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
 - More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
-- The open allocations of section 4.11 (D159): an allocation profile, for example an EventPipe trace with `GcVerbose`, attributes the bytes that phase 13 did not attribute, and the phase removes the avoidable ones: the three copies of the routes and the set of the targets in the pipeline, about 150 B for each send, and the owner part strings and the empty list of a subscription cache hit. It also gives the resolution a budget line, because it allocates about 1.7 KB for each user.
 - The delivery endpoints of `MsgHatch.AspNetCore` write their errors with `ErrorProblems` (D233), and get contracts, a generated HTTP client in `MsgHatch.Api.Client` (D271), and admin pages in the same way as phases 26 to 28.
 - The registry gets its command interface `IRegistryCommands` for the PUT and DELETE routes, with its HTTP client and the edit pages of a channel and a message type. Phase 31 adds only the queries and the read-only pages of the channels and the message types (D268, D273).
 - AOT for the other packages (D237): each package outside the API boundary sets `IsAotCompatible` when its dependencies allow it, or the design records why not.
