@@ -69,10 +69,13 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
         [
             .. setup.EngineSelections
                 .Where(selection => type is null || selection.Type == type)
-                .SelectMany(static selection => selection.Parts.Select(part => (selection.Type, Part: part, selection.EngineName)))
+                .SelectMany(static selection => selection.Parts.Select(part => (selection.Type, Part: part, selection.EngineName, selection.PayloadType)))
                 .GroupBy(static declared => (declared.Type, declared.Part))
-                .Select(static group => new TemplatePartInfo(
-                    group.Key.Type, group.Key.Part, [.. group.Select(static declared => declared.EngineName).Distinct(StringComparer.Ordinal)])),
+                .Select(group => new TemplatePartInfo(
+                    group.Key.Type,
+                    group.Key.Part,
+                    [.. group.Select(static declared => declared.EngineName).Distinct(StringComparer.Ordinal)],
+                    group.Any(declared => setup.HasSample(declared.Type, declared.PayloadType)))),
         ];
         return ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue(parts));
     }

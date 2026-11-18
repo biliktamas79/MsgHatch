@@ -12,7 +12,7 @@ public static class TemplateTestData
         new(Requests, language, scope, part, kind);
 
     public static TemplatePartInfo Part(string part = "subject", TemplatePartKind kind = TemplatePartKind.PlainText, params string[] engines) =>
-        new(Requests, new TemplatePart(part, kind), engines.Length == 0 ? ["placeholder"] : engines);
+        new(Requests, new TemplatePart(part, kind), engines.Length == 0 ? ["placeholder"] : engines, HasSample: true);
 
     public static TemplateSource Source(string text = "Hello {{Name}}", long version = 7) => new(new TemplateKey("Requests/en/subject/PlainText", version), text);
 

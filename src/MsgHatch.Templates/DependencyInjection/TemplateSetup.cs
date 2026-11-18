@@ -19,6 +19,11 @@ internal sealed class TemplateSetup
 
     public List<EngineSelection> EngineSelections { get; } = [];
 
+    public List<TemplateSample> Samples { get; } = [];
+
+    public bool HasSample(MessageType type, Type payloadType) =>
+        Samples.Exists(sample => sample.Type == type && sample.PayloadType == payloadType);
+
     public static TemplateSetup Of(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(TemplateSetup))?.ImplementationInstance as TemplateSetup
         ?? Add(services);
@@ -38,7 +43,8 @@ internal sealed class TemplateSetupCheck;
 
 /// <summary>
 /// The startup validation of the template setup (section 4.7): one selection of the shared template store, one of the
-/// template store of each tenant, and one engine factory for each payload type (D62), and with the role
+/// template store of each tenant, one engine factory for each payload type, one sample for each payload type of a message
+/// type (D62, D254), and with the role
 /// <see cref="MsgHatchRoles.Consumer"/>, a template store for each registration of a template engine.
 /// </summary>
 internal sealed class TemplateSetupValidator(IServiceProvider services, TemplateSetup setup) : IValidateOptions<TemplateSetupCheck>
@@ -51,6 +57,7 @@ internal sealed class TemplateSetupValidator(IServiceProvider services, Template
             .. DuplicateSelections(setup.SharedStoreSelections, "the shared ITemplateStore"),
             .. DuplicateSelections(setup.TenantStoreSelections, "the ITemplateStore of each tenant"),
             .. TwoEnginesForOnePayloadType(),
+            .. TwoSamplesForOnePayloadType(),
             .. roles.HasFlag(MsgHatchRoles.Consumer) ? RegistrationsWithNoTemplateStore() : [],
         ];
         return failures.Length == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
@@ -65,6 +72,13 @@ internal sealed class TemplateSetupValidator(IServiceProvider services, Template
             .Where(static payload => payload.Select(static selection => selection.Engine).Distinct().Skip(1).Any())
             .Select(static payload =>
                 $"{string.Join(" and ", payload.Select(static selection => selection.Registration))} select two template engines for the payload type {payload.Key.Name}. Give each registration of one payload type the same engine factory.");
+
+    private IEnumerable<string> TwoSamplesForOnePayloadType() =>
+        setup.Samples
+            .GroupBy(static sample => (sample.Type, sample.PayloadType))
+            .Where(static samples => samples.Skip(1).Any())
+            .Select(static samples =>
+                $"WithTemplateSample gives the payload type {samples.Key.PayloadType.Name} of the message type {samples.Key.Type.Name} two samples. Give each payload type of a message type one sample.");
 
     private IEnumerable<string> RegistrationsWithNoTemplateStore() =>
         setup.SharedStoreSelections.Count + setup.TenantStoreSelections.Count > 0
@@ -86,3 +100,6 @@ internal sealed record EngineSelection(
     MessageType Type,
     IReadOnlyList<TemplatePart> Parts,
     Func<IServiceProvider, TemplateLookup, string, CancellationToken, ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>>> Check);
+
+/// <summary>The sample payload of the template registrations of one payload type and one message type (D254).</summary>
+internal sealed record TemplateSample(MessageType Type, Type PayloadType, object Sample);

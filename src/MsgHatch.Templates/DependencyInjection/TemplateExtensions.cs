@@ -141,6 +141,25 @@ public static class TemplateExtensions
     }
 
     /// <summary>
+    /// Gives the template registrations of the payload type and the message type a sample payload, for the preview of a
+    /// template in an admin UI (D254, D256). For example
+    /// <c>.WithPayload&lt;PasswordResetEmail, PasswordResetEmailLoader&gt;(p =&gt; p.AsEmail("FEmail", LiquidTemplates.Engine).WithTemplateSample(new PasswordResetEmail("https://example.com/reset")))</c>.
+    /// A second sample of one payload type and one message type gives a setup error (D62).
+    /// </summary>
+    /// <typeparam name="TEvent">The type of the domain event.</typeparam>
+    /// <typeparam name="TPayload">The payload type.</typeparam>
+    /// <param name="payload">The builder of the payload type, which gives the message type.</param>
+    /// <param name="sample">The sample payload. Use no real data, because each operator of the admin UI sees it.</param>
+    /// <returns>The builder of the payload type.</returns>
+    public static PayloadBuilder<TEvent, TPayload> WithTemplateSample<TEvent, TPayload>(this PayloadBuilder<TEvent, TPayload> payload, TPayload sample)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        ArgumentNullException.ThrowIfNull(sample);
+        TemplateSetup.Of(payload.Services).Samples.Add(new TemplateSample(payload.Type, typeof(TPayload), sample));
+        return payload;
+    }
+
+    /// <summary>
     /// Selects the implementation of <see cref="ITemplateQueries"/>, for example an HTTP client, in place of the in-process
     /// default of the template setup methods, as a scoped tenant service with its logging wrapper (D126, D231, D244). The
     /// order of the calls does not matter. A second selection gives a setup error.

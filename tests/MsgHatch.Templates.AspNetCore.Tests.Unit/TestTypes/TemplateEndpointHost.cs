@@ -80,7 +80,7 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
         ])));
         manager.DeleteTemplateAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(null));
         manager.GetTemplatePartsAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue(
-            [new TemplatePartInfo(new MessageType("A"), new TemplatePart("subject", TemplatePartKind.PlainText), ["placeholder", "liquid"])])));
+            [new TemplatePartInfo(new MessageType("A"), new TemplatePart("subject", TemplatePartKind.PlainText), ["placeholder", "liquid"], HasSample: true)])));
         manager.CheckTemplateAsync(default, default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(
             [new TemplateIssue("An issue.", 2, 5), new TemplateIssue("Another issue.", Line: null, Column: null)])));
         return manager;

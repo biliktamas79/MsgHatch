@@ -187,7 +187,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetTemplateParts_Parts_Gives200WithEachPartAndItsEngines()
+    public async Task GetTemplateParts_Parts_Gives200WithEachPartItsEnginesAndItsSampleFlag()
     {
         // Act
         var response = await _host.Client.SendAsync(RequestOf("GET", "/templates/parts?messageType=A", null), Ct);
@@ -195,7 +195,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         // Assert
         await _host.Manager.Received(1).GetTemplatePartsAsync(new MessageType("A"), Arg.Any<CancellationToken>());
         Assert.Equal(
-            (HttpStatusCode.OK, """[{"messageType":"A","part":"subject","kind":"PlainText","engines":["placeholder","liquid"]}]"""),
+            (HttpStatusCode.OK, """[{"messageType":"A","part":"subject","kind":"PlainText","engines":["placeholder","liquid"],"hasSample":true}]"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
     }
 

@@ -20,7 +20,7 @@ public sealed class LiquidTemplateEditorExtensionsUnitTests : BunitContext
         var type = new MessageType("Requests");
         var queries = Substitute.For<ITemplateQueries>();
         queries.GetTemplatePartsAsync(type, Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult(
-            ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue([new TemplatePartInfo(type, new TemplatePart("body", TemplatePartKind.Html), ["liquid"])])));
+            ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue([new TemplatePartInfo(type, new TemplatePart("body", TemplatePartKind.Html), ["liquid"], HasSample: true)])));
         queries.GetTemplateAsync(default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(ValueTask.FromResult(
             ErrorOr<TemplateSource>.ForValue(new TemplateSource(new TemplateKey("id", 3), "<p>{{ Name }}</p>"))));
         JSInterop.Mode = JSRuntimeMode.Loose;

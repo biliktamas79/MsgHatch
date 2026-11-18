@@ -102,12 +102,13 @@ public sealed record TemplateIssueResponse(string Message, int? Line, int? Colum
             : new TemplateIssue(Message, Line, Column);
 }
 
-/// <summary>One declared part of a message type, with the names of the engines that read it (D240).</summary>
+/// <summary>One declared part of a message type, with the names of the engines that read it (D240), and whether it has a sample (D254).</summary>
 /// <param name="MessageType">The message type.</param>
 /// <param name="Part">The name of the part.</param>
 /// <param name="Kind">The kind of the part.</param>
 /// <param name="Engines">The names of the engines that read the part.</param>
-public sealed record TemplatePartResponse(string MessageType, string Part, TemplatePartKind Kind, IReadOnlyList<string> Engines)
+/// <param name="HasSample">True when a registration that reads the part has a sample payload.</param>
+public sealed record TemplatePartResponse(string MessageType, string Part, TemplatePartKind Kind, IReadOnlyList<string> Engines, bool HasSample)
 {
     /// <summary>Gives the body of a declared part (D228).</summary>
     /// <param name="info">The declared part.</param>
@@ -115,7 +116,7 @@ public sealed record TemplatePartResponse(string MessageType, string Part, Templ
     public static TemplatePartResponse From(TemplatePartInfo info)
     {
         ArgumentNullException.ThrowIfNull(info);
-        return new TemplatePartResponse(info.Type.Name, info.Part.Name, info.Part.Kind, info.Engines);
+        return new TemplatePartResponse(info.Type.Name, info.Part.Name, info.Part.Kind, info.Engines, info.HasSample);
     }
 
     /// <summary>Gives the declared part of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
@@ -125,7 +126,7 @@ public sealed record TemplatePartResponse(string MessageType, string Part, Templ
         var lookup = TemplateWireValues.LookupOf(MessageType, TemplateWireValues.NoLanguage, companyId: null, Part, Kind);
         return lookup.IsError ? lookup.Error
             : Engines is null || Engines.Any(string.IsNullOrWhiteSpace) ? TemplateWireValues.Invalid("A part has the names of its engines.")
-            : new TemplatePartInfo(lookup.Value.Type, new TemplatePart(Part, Kind), [.. Engines]);
+            : new TemplatePartInfo(lookup.Value.Type, new TemplatePart(Part, Kind), [.. Engines], HasSample);
     }
 }
 

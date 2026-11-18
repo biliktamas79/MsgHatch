@@ -196,6 +196,29 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
     }
 
     [Fact]
+    public async Task GetTemplatePartsAsync_RegistrationsWithAndWithNoSample_GivesHasSampleOfEachPart()
+    {
+        // Arrange
+        await using var host = await StartAsync(ManagerHost.Services(b => b
+            .AddMessage(_type.Name, 1, TestJsonContext.Default.TestEvent, m => m
+                .WithPayload<OrderEmail>(
+                    static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
+                    p => p.AddTemplateEngine(
+                        "Email:Orders", PlaceholderTemplates.EngineName, [new TemplatePart("subject", TemplatePartKind.PlainText)], PlaceholderTemplates.Engine<OrderEmail>))
+                .WithPayload<string>(
+                    static (_, _) => Substitute.For<IPayloadLoader<TestEvent, string>>(),
+                    p => p.AddTemplateEngine("Sms:Notes", "notes", [new TemplatePart("sms", TemplatePartKind.PlainText)], (_, _) => Substitute.For<ITemplateEngine<string>>())
+                        .WithTemplateSample("A note")))
+            .AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, "OtherType", samples: [TemplateEngineRegistrations.ASample()])));
+
+        // Act
+        var parts = await host.Service(TenantKey.None).GetTemplatePartsAsync(_type, Ct);
+
+        // Assert
+        Assert.Equal(["subject: False", "sms: True"], parts.Value.Select(static part => $"{part.Part.Name}: {part.HasSample}"));
+    }
+
+    [Fact]
     public async Task GetTemplatePartsAsync_NoMessageType_GivesThePartsOfEachMessageType()
     {
         // Arrange

@@ -102,17 +102,21 @@ public sealed class TemplateBodiesUnitTests
         Assert.Equal(Errors.SerializationFailed.Code, issue.Error?.Type.Code);
     }
 
-    [Fact]
-    public void ToPartInfo_ResponseOfADeclaredPart_GivesTheSameValues()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ToPartInfo_ResponseOfADeclaredPart_GivesTheSameValues(bool hasSample)
     {
         // Arrange
-        var info = new TemplatePartInfo(new MessageType("OrderShipped"), new TemplatePart("body", TemplatePartKind.Html), ["placeholder", "liquid"]);
+        var info = new TemplatePartInfo(new MessageType("OrderShipped"), new TemplatePart("body", TemplatePartKind.Html), ["placeholder", "liquid"], hasSample);
 
         // Act
         var roundTrip = TemplatePartResponse.From(info).ToPartInfo().Value;
 
         // Assert
-        Assert.Equal((info.Type, info.Part, "placeholder, liquid"), (roundTrip.Type, roundTrip.Part, string.Join(", ", roundTrip.Engines)));
+        Assert.Equal(
+            (info.Type, info.Part, "placeholder, liquid", hasSample),
+            (roundTrip.Type, roundTrip.Part, string.Join(", ", roundTrip.Engines), roundTrip.HasSample));
     }
 
     [Theory]
@@ -121,7 +125,7 @@ public sealed class TemplateBodiesUnitTests
     public void ToPartInfo_NameThatIsNotValid_GivesSerializationFailed(string messageType, string part)
     {
         // Act
-        var info = new TemplatePartResponse(messageType, part, TemplatePartKind.Html, ["liquid"]).ToPartInfo();
+        var info = new TemplatePartResponse(messageType, part, TemplatePartKind.Html, ["liquid"], HasSample: false).ToPartInfo();
 
         // Assert
         Assert.Equal(Errors.SerializationFailed.Code, info.Error?.Type.Code);

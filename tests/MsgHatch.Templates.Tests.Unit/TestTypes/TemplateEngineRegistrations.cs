@@ -21,8 +21,18 @@ public static class TemplateEngineRegistrations
 
     public static MsgHatchBuilder AddOrderEmailEngine(
         this MsgHatchBuilder builder, Func<IServiceProvider, TenantKey, ITemplateEngine<OrderEmail>> engine, string messageType = "TestEvent",
-        IReadOnlyList<TemplatePart>? parts = null, string engineName = PlaceholderTemplates.EngineName) =>
+        IReadOnlyList<TemplatePart>? parts = null, string engineName = PlaceholderTemplates.EngineName, params OrderEmail[] samples) =>
         builder.AddMessage(messageType, 1, TestJsonContext.Default.TestEvent, m => m.WithPayload<OrderEmail>(
             static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
-            p => p.AddTemplateEngine($"Email:{messageType}", engineName, parts ?? EmailParts, engine)));
+            p =>
+            {
+                p.AddTemplateEngine($"Email:{messageType}", engineName, parts ?? EmailParts, engine);
+                foreach (var sample in samples)
+                {
+                    p.WithTemplateSample(sample);
+                }
+            }));
+
+    /// <summary>A sample payload of <see cref="OrderEmail"/> (D254).</summary>
+    public static OrderEmail ASample(string name = "Sample client") => new(name, 2, 99.5m, new DateTime(2030, 1, 2, 15, 4, 5, DateTimeKind.Utc));
 }
