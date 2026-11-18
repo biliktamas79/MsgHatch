@@ -19,8 +19,6 @@ internal sealed class TemplateSetup
 
     public List<EngineSelection> EngineSelections { get; } = [];
 
-    public bool ManagerRegistered { get; set; }
-
     public static TemplateSetup Of(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(TemplateSetup))?.ImplementationInstance as TemplateSetup
         ?? Add(services);

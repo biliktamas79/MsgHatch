@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Templates.Management;
 
 namespace MsgHatch.Templates.DependencyInjection;
 
@@ -22,6 +23,12 @@ internal static class TemplateLoggers
         var reader = new TemplateStoreLoggingWrapper(store, key, logger, time);
         return store is ITemplateWriter writer ? new TemplateWriterLoggingWrapper(reader, writer, key, logger, time) : reader;
     }
+
+    public static ITemplateQueries Wrap(IServiceProvider services, TenantKey key, ITemplateQueries queries) =>
+        new TemplateQueriesLoggingWrapper(queries, key, For<TemplateQueriesLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
+
+    public static ITemplateCommands Wrap(IServiceProvider services, TenantKey key, ITemplateCommands commands) =>
+        new TemplateCommandsLoggingWrapper(commands, key, For<TemplateCommandsLoggingWrapper>(services), services.GetRequiredService<TimeProvider>());
 
     public static ITemplateEngine<TPayload> Wrap<TPayload>(IServiceProvider services, TenantKey key, ITemplateEngine<TPayload> engine) =>
         new TemplateEngineLoggingWrapper<TPayload>(

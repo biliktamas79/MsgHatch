@@ -19,7 +19,8 @@ public static class SubscriptionExtensions
     /// <see cref="ISubscriptionCommands"/>, and <see cref="IRoutingVerifier"/> as scoped tenant services, each with its logging
     /// wrapper (D53, D85, D231). A message type with the subscription router needs a scope function from
     /// <see cref="WithScope"/>. With the role <see cref="MsgHatchRoles.Consumer"/>, the host needs a subscription store and a
-    /// recipient directory.
+    /// recipient directory. These three services are the defaults, which <see cref="UseSubscriptionQueries"/>,
+    /// <see cref="UseSubscriptionCommands"/>, and <see cref="UseRoutingVerifier"/> replace, in each order of the calls.
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <returns>The builder.</returns>
@@ -30,18 +31,66 @@ public static class SubscriptionExtensions
         return builder
             .UseRouter(typeof(SubscriptionRouter<>))
             .AddTraceType("Subscription", 1, SubscriptionJson.Default.ResolutionTrace)
-            .AddTenantService<ISubscriptionQueries>(
+            .AddDefaultTenantService<ISubscriptionQueries>(
                 ServiceLifetime.Scoped,
                 static (tenantServices, _) => ActivatorUtilities.CreateInstance<SubscriptionManager>(tenantServices),
                 SubscriptionLoggers.Wrap)
-            .AddTenantService<ISubscriptionCommands>(
+            .AddDefaultTenantService<ISubscriptionCommands>(
                 ServiceLifetime.Scoped,
                 static (tenantServices, _) => ActivatorUtilities.CreateInstance<SubscriptionManager>(tenantServices),
                 SubscriptionLoggers.Wrap)
-            .AddTenantService<IRoutingVerifier>(
+            .AddDefaultTenantService<IRoutingVerifier>(
                 ServiceLifetime.Scoped,
                 static (tenantServices, _) => ActivatorUtilities.CreateInstance<RoutingVerifier>(tenantServices),
                 SubscriptionLoggers.Wrap);
+    }
+
+    /// <summary>
+    /// Selects the implementation of <see cref="ISubscriptionQueries"/>, for example an HTTP client, in place of the in-process
+    /// default of <see cref="UseSubscriptions"/>, as a scoped tenant service with its logging wrapper (D126, D231). The order of
+    /// the two calls does not matter. A second selection gives a setup error.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="factory">The factory of the queries of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseSubscriptionQueries(
+        this MsgHatchBuilder builder, Func<IServiceProvider, TenantKey, ISubscriptionQueries> factory, string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.UseTenantService(ServiceLifetime.Scoped, factory, SubscriptionLoggers.Wrap, setupMethod ?? nameof(UseSubscriptionQueries));
+    }
+
+    /// <summary>
+    /// Selects the implementation of <see cref="ISubscriptionCommands"/>, for example an HTTP client, in place of the in-process
+    /// default of <see cref="UseSubscriptions"/>, as a scoped tenant service with its logging wrapper (D126, D231). The order of
+    /// the two calls does not matter. A second selection gives a setup error.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="factory">The factory of the commands of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseSubscriptionCommands(
+        this MsgHatchBuilder builder, Func<IServiceProvider, TenantKey, ISubscriptionCommands> factory, string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.UseTenantService(ServiceLifetime.Scoped, factory, SubscriptionLoggers.Wrap, setupMethod ?? nameof(UseSubscriptionCommands));
+    }
+
+    /// <summary>
+    /// Selects the implementation of <see cref="IRoutingVerifier"/>, for example an HTTP client, in place of the in-process
+    /// default of <see cref="UseSubscriptions"/>, as a scoped tenant service with its logging wrapper (D126, D231, D232). The
+    /// order of the two calls does not matter. A second selection gives a setup error.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="factory">The factory of the verifier of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseRoutingVerifier(
+        this MsgHatchBuilder builder, Func<IServiceProvider, TenantKey, IRoutingVerifier> factory, string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.UseTenantService(ServiceLifetime.Scoped, factory, SubscriptionLoggers.Wrap, setupMethod ?? nameof(UseRoutingVerifier));
     }
 
     /// <summary>Registers the scope function of a message type, which the subscription router needs (D16).</summary>

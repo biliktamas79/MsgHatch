@@ -139,6 +139,38 @@ public static class TemplateExtensions
         return payload;
     }
 
+    /// <summary>
+    /// Selects the implementation of <see cref="ITemplateQueries"/>, for example an HTTP client, in place of the in-process
+    /// default of the template setup methods, as a scoped tenant service with its logging wrapper (D126, D231, D244). The
+    /// order of the calls does not matter. A second selection gives a setup error.
+    /// </summary>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="factory">The factory of the queries of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseTemplateQueries(
+        this MsgHatchBuilder builder, Func<IServiceProvider, TenantKey, ITemplateQueries> factory, string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.UseTenantService(ServiceLifetime.Scoped, factory, TemplateLoggers.Wrap, setupMethod ?? nameof(UseTemplateQueries));
+    }
+
+    /// <summary>
+    /// Selects the implementation of <see cref="ITemplateCommands"/>, for example an HTTP client, in place of the in-process
+    /// default of the template setup methods, as a scoped tenant service with its logging wrapper (D126, D231, D244). The
+    /// order of the calls does not matter. A second selection gives a setup error.
+    /// </summary>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="factory">The factory of the commands of one tenant key. Its service provider gives the tenant services of that key.</param>
+    /// <param name="setupMethod">The setup method of a package that calls this method, so that a second selection names it (D62).</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseTemplateCommands(
+        this MsgHatchBuilder builder, Func<IServiceProvider, TenantKey, ITemplateCommands> factory, string? setupMethod = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.UseTenantService(ServiceLifetime.Scoped, factory, TemplateLoggers.Wrap, setupMethod ?? nameof(UseTemplateCommands));
+    }
+
     private static void CheckParts(IReadOnlyList<TemplatePart> parts)
     {
         if (parts.Count == 0)
@@ -159,19 +191,10 @@ public static class TemplateExtensions
         IServiceProvider tenantServices, TemplateLookup lookup, string text, CancellationToken ct) =>
         tenantServices.GetRequiredService<ITemplateEngine<TPayload>>().CheckAsync(lookup, text, ct);
 
-    private static MsgHatchBuilder AddManager(MsgHatchBuilder builder)
-    {
-        var setup = TemplateSetup.Of(builder.Services);
-        if (!setup.ManagerRegistered)
-        {
-            setup.ManagerRegistered = true;
-            builder
-                .AddTenantService<ITemplateQueries>(ServiceLifetime.Scoped, TemplateManager.For)
-                .AddTenantService<ITemplateCommands>(ServiceLifetime.Scoped, TemplateManager.For);
-        }
-
-        return builder;
-    }
+    private static MsgHatchBuilder AddManager(MsgHatchBuilder builder) =>
+        builder
+            .AddDefaultTenantService<ITemplateQueries>(ServiceLifetime.Scoped, TemplateManager.For, TemplateLoggers.Wrap)
+            .AddDefaultTenantService<ITemplateCommands>(ServiceLifetime.Scoped, TemplateManager.For, TemplateLoggers.Wrap);
 
     private static MsgHatchBuilder AddSharedStore(MsgHatchBuilder builder, Func<IServiceProvider, ITemplateStore> factory, string setupMethod)
     {

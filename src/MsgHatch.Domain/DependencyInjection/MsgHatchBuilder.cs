@@ -99,6 +99,59 @@ public sealed class MsgHatchBuilder
     }
 
     /// <summary>
+    /// Registers the default implementation of a tenant service of a package, as <see cref="AddTenantService{TService}"/>
+    /// does, only when the service collection has no registration of <typeparamref name="TService"/> (D231). So a
+    /// selection of <see cref="UseTenantService{TService}"/> wins in each order of the setup calls, and a second default
+    /// adds nothing.
+    /// </summary>
+    /// <typeparam name="TService">The service type.</typeparam>
+    /// <param name="lifetime">The lifetime of each instance.</param>
+    /// <param name="factory">The factory of the service of one tenant key.</param>
+    /// <param name="wrapWithLogging">The logging wrapper, which the builder adds only with <see cref="MsgHatchOptions.EnableLogging"/>.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder AddDefaultTenantService<TService>(
+        ServiceLifetime lifetime,
+        Func<IServiceProvider, TenantKey, TService> factory,
+        Func<IServiceProvider, TenantKey, TService, TService>? wrapWithLogging = null)
+        where TService : class
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        if (!HasRegistrationOf(typeof(TService)))
+        {
+            TenantServices.Add(Services, Setup, lifetime, factory, wrapWithLogging);
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Selects the implementation of a tenant service of a package (D62, D231). It removes each registration of
+    /// <typeparamref name="TService"/>, for example a default of <see cref="AddDefaultTenantService{TService}"/>, and
+    /// registers the factory as <see cref="AddTenantService{TService}"/> does. The setup check gives an error for two
+    /// selections of one service type.
+    /// </summary>
+    /// <typeparam name="TService">The service type.</typeparam>
+    /// <param name="lifetime">The lifetime of each instance.</param>
+    /// <param name="factory">The factory of the service of one tenant key.</param>
+    /// <param name="wrapWithLogging">The logging wrapper, which the builder adds only with <see cref="MsgHatchOptions.EnableLogging"/>.</param>
+    /// <param name="setupMethod">The setup method that selects the implementation, so that a second selection names it.</param>
+    /// <returns>This builder.</returns>
+    public MsgHatchBuilder UseTenantService<TService>(
+        ServiceLifetime lifetime,
+        Func<IServiceProvider, TenantKey, TService> factory,
+        Func<IServiceProvider, TenantKey, TService, TService>? wrapWithLogging,
+        string setupMethod)
+        where TService : class
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(setupMethod);
+        Setup.Select(typeof(TService), setupMethod);
+        RemoveRegistrationsOf(typeof(TService));
+        TenantServices.Add(Services, Setup, lifetime, factory, wrapWithLogging);
+        return this;
+    }
+
+    /// <summary>
     /// Adds a classifier of the exceptions of the client <typeparamref name="TClient"/>, as a singleton (D141). A client
     /// can have many classifiers, for example one for each Wolverine transport of the host. It asks them in the order of
     /// their registration, before its built-in mapping, and the first result that is not null wins. A second call with
@@ -467,6 +520,19 @@ public sealed class MsgHatchBuilder
         Setup.SharedOptionsValues.Add(new ImplementationSelection(typeof(TOptions), setupMethod));
         Services.PostConfigure(configure);
         return this;
+    }
+
+    private bool HasRegistrationOf(Type service) => Services.Any(descriptor => descriptor.ServiceType == service);
+
+    private void RemoveRegistrationsOf(Type service)
+    {
+        for (var index = Services.Count - 1; index >= 0; index--)
+        {
+            if (Services[index].ServiceType == service)
+            {
+                Services.RemoveAt(index);
+            }
+        }
     }
 
     private void AddChannelOptions(ChannelId channel)
