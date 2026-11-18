@@ -320,6 +320,95 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
     }
 
     [Fact]
+    public async Task PreviewTemplateAsync_RegistrationsWithAndWithNoSample_GivesAPreviewOfEachRegistrationWithASampleAndStoresNothing()
+    {
+        // Arrange
+        var notes = Substitute.For<ITemplateEngine<string>>();
+        await using var host = await StartAsync(ManagerHost.Services(b => b
+            .UseFileTemplates(folder.Root)
+            .AddMessage(_type.Name, 1, TestJsonContext.Default.TestEvent, m => m
+                .WithPayload<OrderEmail>(
+                    static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
+                    p => p.AddTemplateEngine("Email:Orders", PlaceholderTemplates.EngineName, TemplateEngineRegistrations.EmailParts, PlaceholderTemplates.Engine<OrderEmail>)
+                        .AddTemplateEngine("Push:Orders", PlaceholderTemplates.EngineName, TemplateEngineRegistrations.EmailParts, PlaceholderTemplates.Engine<OrderEmail>)
+                        .WithTemplateSample(TemplateEngineRegistrations.ASample("Sample <client>")))
+                .WithPayload<string>(
+                    static (_, _) => Substitute.For<IPayloadLoader<TestEvent, string>>(),
+                    p => p.AddTemplateEngine("Sms:Notes", "notes", TemplateEngineRegistrations.EmailParts, (_, _) => notes)))));
+
+        // Act
+        var previews = await host.Service(TenantKey.None).PreviewTemplateAsync(ALookup(part: "body", kind: TemplatePartKind.Html), "<p>Order of {{Name}}</p>", Ct);
+
+        // Assert
+        Assert.Equal(
+            [new TemplatePreview("Email:Orders", "<p>Order of Sample &lt;client&gt;</p>"), new TemplatePreview("Push:Orders", "<p>Order of Sample &lt;client&gt;</p>")],
+            previews.Value);
+        Assert.Equal((0, 0), (notes.ReceivedCalls().Count(), Directory.EnumerateFiles(folder.Root, $"{_type.Name}.*").Count()));
+    }
+
+    [Fact]
+    public async Task PreviewTemplateAsync_PartWithNoSample_GivesAnEmptyList()
+    {
+        // Arrange
+        await using var host = await AHostAsync();
+
+        // Act
+        var previews = await host.Service(TenantKey.None).PreviewTemplateAsync(ALookup(), "Order of {{Name}}", Ct);
+
+        // Assert
+        Assert.Empty(previews.Value);
+    }
+
+    [Theory]
+    [InlineData("Order of {{Name")]
+    [InlineData("Order of {{Nmae}}")]
+    public async Task PreviewTemplateAsync_TextThatDoesNotRender_GivesTemplateInvalid(string text)
+    {
+        // Arrange
+        await using var host = await AHostAsync(TemplateEngineRegistrations.ASample());
+
+        // Act
+        var previews = await host.Service(TenantKey.None).PreviewTemplateAsync(ALookup(), text, Ct);
+
+        // Assert
+        Assert.Equal((text, 422), (text, previews.Error?.Type.Code));
+    }
+
+    [Theory]
+    [MemberData(nameof(TemplateManagementTestRows.InvalidLookupRows), MemberType = typeof(TemplateManagementTestRows))]
+    public async Task PreviewTemplateAsync_InvalidLookup_GivesValidationFailedAndCallsNoEngine(string row, string language, string? scope, string part)
+    {
+        // Arrange
+        var engine = Substitute.For<ITemplateEngine<OrderEmail>>();
+        await using var host = await StartAsync(ManagerHost.Services(b => b
+            .UseFileTemplates(folder.Root).AddOrderEmailEngine((_, _) => engine, _type.Name, samples: [TemplateEngineRegistrations.ASample()])));
+        var lookup = new TemplateLookup(_type, language, scope, part, TemplatePartKind.PlainText);
+
+        // Act
+        var previews = await host.Service(TenantKey.None).PreviewTemplateAsync(lookup, "Text", Ct);
+
+        // Assert
+        Assert.Equal((row, 400, 0), (row, previews.Error?.Type.Code, engine.ReceivedCalls().Count()));
+    }
+
+    [Theory]
+    [InlineData("Unregistered", "subject", 404)]
+    [InlineData(null, "footer", 400)]
+    public async Task PreviewTemplateAsync_MessageTypeOrPartWithNoRegistration_GivesTheErrorOfTheCheck(string? type, string part, int expectedCode)
+    {
+        // Arrange
+        await using var host = await AHostAsync(TemplateEngineRegistrations.ASample());
+        var lookup = ALookup(part: part) with { Type = type is null ? _type : new MessageType(type) };
+
+        // Act
+        var previews = await host.Service(TenantKey.None).PreviewTemplateAsync(lookup, "Text", Ct);
+        var issues = await host.Service(TenantKey.None).CheckTemplateAsync(lookup, "Text", Ct);
+
+        // Assert
+        Assert.Equal((expectedCode, issues.Error), (previews.Error?.Type.Code, previews.Error));
+    }
+
+    [Fact]
     public async Task GetAndCheckTemplateAsync_UnknownLanguageAndAPartThatIsNotAName_GiveTheErrorOfThePart()
     {
         // Arrange
@@ -344,9 +433,12 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
         // Act
         var list = await Record.ExceptionAsync(async () => await host.Service(TenantKey.None).GetTemplatesAsync(null!, Ct));
         var check = await Record.ExceptionAsync(async () => await host.Service(TenantKey.None).CheckTemplateAsync(ALookup(), null!, Ct));
+        var preview = await Record.ExceptionAsync(async () => await host.Service(TenantKey.None).PreviewTemplateAsync(ALookup(), null!, Ct));
 
         // Assert
-        Assert.Equal((typeof(ArgumentNullException), typeof(ArgumentNullException)), (list?.GetType(), check?.GetType()));
+        Assert.Equal(
+            (typeof(ArgumentNullException), typeof(ArgumentNullException), typeof(ArgumentNullException)),
+            (list?.GetType(), check?.GetType(), preview?.GetType()));
     }
 
     /// <summary>Starts a host of the implementation on the services of a test.</summary>
@@ -364,11 +456,11 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
     private static ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> Issues(params TemplateIssue[] issues) =>
         ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues));
 
-    private ValueTask<IManagementTestHost<T>> AHostAsync() =>
+    private ValueTask<IManagementTestHost<T>> AHostAsync(params OrderEmail[] samples) =>
         StartAsync(ManagerHost.Services(b => b
             .UseFileTemplates(folder.Root)
             .UseTenantTemplateStore((_, key) => new FileSystemTemplateStore(Path.Combine(folder.Parent, "tenants", key.Tenant!.Value.Value)))
-            .AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, _type.Name)));
+            .AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, _type.Name, samples: samples)));
 
     private TemplateLookup ALookup(
         string language = "en", string? scope = null, string part = "subject", TemplatePartKind kind = TemplatePartKind.PlainText) =>

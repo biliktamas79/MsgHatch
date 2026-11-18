@@ -130,6 +130,32 @@ public sealed record TemplatePartResponse(string MessageType, string Part, Templ
     }
 }
 
+/// <summary>The body of a preview of a draft: the text (D256).</summary>
+/// <param name="Text">The text of the draft.</param>
+public sealed record TemplatePreviewRequest(string Text);
+
+/// <summary>The preview of a draft for one template registration with a sample payload (D256).</summary>
+/// <param name="Registration">The name of the registration, for example <c>Email:OrderShipped</c>.</param>
+/// <param name="Text">The rendered text.</param>
+public sealed record TemplatePreviewResponse(string Registration, string Text)
+{
+    /// <summary>Gives the body of a preview (D228).</summary>
+    /// <param name="preview">The preview.</param>
+    /// <returns>The body.</returns>
+    public static TemplatePreviewResponse From(TemplatePreview preview)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+        return new TemplatePreviewResponse(preview.Registration, preview.Text);
+    }
+
+    /// <summary>Gives the preview of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
+    /// <returns>The preview, or an error.</returns>
+    public ErrorOr<TemplatePreview> ToPreview() =>
+        string.IsNullOrWhiteSpace(Registration) || Text is null
+            ? TemplateWireValues.Invalid("A preview has the name of its registration and a text.")
+            : new TemplatePreview(Registration, Text);
+}
+
 /// <summary>Checks each value of a template body from the wire. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
 internal static class TemplateWireValues
 {

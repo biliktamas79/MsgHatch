@@ -119,6 +119,31 @@ public sealed class TemplateBodiesUnitTests
             (roundTrip.Type, roundTrip.Part, string.Join(", ", roundTrip.Engines), roundTrip.HasSample));
     }
 
+    [Fact]
+    public void ToPreview_ResponseOfAPreview_GivesTheSameValues()
+    {
+        // Arrange
+        var preview = new TemplatePreview("Email:OrderShipped", "<p>Ödön</p>");
+
+        // Act
+        var roundTrip = TemplatePreviewResponse.From(preview).ToPreview().Value;
+
+        // Assert
+        Assert.Equal(preview, roundTrip);
+    }
+
+    [Theory]
+    [InlineData(" ", "Text")]
+    [InlineData("Email:OrderShipped", null)]
+    public void ToPreview_EmptyRegistrationOrNullText_GivesSerializationFailed(string registration, string? text)
+    {
+        // Act
+        var preview = new TemplatePreviewResponse(registration, text!).ToPreview();
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed.Code, preview.Error?.Type.Code);
+    }
+
     [Theory]
     [InlineData("1Order", "body")]
     [InlineData("OrderShipped", "bo dy")]

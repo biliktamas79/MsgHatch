@@ -75,7 +75,7 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
                     group.Key.Type,
                     group.Key.Part,
                     [.. group.Select(static declared => declared.EngineName).Distinct(StringComparer.Ordinal)],
-                    group.Any(declared => setup.HasSample(declared.Type, declared.PayloadType)))),
+                    group.Any(declared => setup.SampleOf(declared.Type, declared.PayloadType) is not null))),
         ];
         return ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue(parts));
     }
@@ -85,6 +85,41 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
         ArgumentNullException.ThrowIfNull(text);
         var invalid = TemplateLookupRules.Check(lookup) ?? TemplateLookupRules.CheckText(text) ?? LanguageError(lookup.Language);
         return invalid is not null ? invalid : await IssuesOfAsync(lookup, text, ct);
+    }
+
+    public async ValueTask<ErrorOr<IReadOnlyList<TemplatePreview>>> PreviewTemplateAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var invalid = TemplateLookupRules.Check(lookup) ?? TemplateLookupRules.CheckText(text) ?? LanguageError(lookup.Language);
+        if (invalid is not null)
+        {
+            return invalid;
+        }
+
+        var readers = RegistrationsThatRead(lookup);
+        if (readers.IsError)
+        {
+            return readers.Error;
+        }
+
+        List<TemplatePreview> previews = [];
+        foreach (var reader in readers.Value)
+        {
+            if (setup.SampleOf(reader.Type, reader.PayloadType) is not { } sample)
+            {
+                continue;
+            }
+
+            var rendered = await reader.Render(tenantServices, lookup, text, sample, ct);
+            if (rendered.IsError)
+            {
+                return rendered.Error;
+            }
+
+            previews.Add(new TemplatePreview(reader.Registration, rendered.Value));
+        }
+
+        return previews;
     }
 
     public async ValueTask<ErrorOr<TemplateEntry>> SaveTemplateAsync(TemplateLookup lookup, string text, long expectedVersion, CancellationToken ct)
@@ -122,14 +157,14 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
 
     private async ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> IssuesOfAsync(TemplateLookup lookup, string text, CancellationToken ct)
     {
-        var readers = ReadersOf(lookup);
+        var readers = RegistrationsThatRead(lookup);
         if (readers.IsError)
         {
             return readers.Error;
         }
 
         List<TemplateIssue> issues = [];
-        foreach (var reader in readers.Value)
+        foreach (var reader in readers.Value.DistinctBy(static selection => selection.PayloadType))
         {
             var checkedText = await reader.Check(tenantServices, lookup, text, ct);
             if (checkedText.IsError)
@@ -148,7 +183,7 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
         : store is ITemplateWriter writer ? ErrorOr<ITemplateWriter>.ForValue(writer)
         : Invalid("The template store of this tenant cannot write, for example an embedded template store.");
 
-    private ErrorOr<EngineSelection[]> ReadersOf(TemplateLookup lookup)
+    private ErrorOr<EngineSelection[]> RegistrationsThatRead(TemplateLookup lookup)
     {
         EngineSelection[] registrations = [.. setup.EngineSelections.Where(selection => selection.Type == lookup.Type)];
         if (registrations.Length == 0)
@@ -156,12 +191,7 @@ internal sealed class TemplateManager(ITemplateStore? store, TemplateSetup setup
             return new Error(Errors.NotFound, $"No registration renders the templates of the message type {lookup.Type.Name}.");
         }
 
-        EngineSelection[] readers =
-        [
-            .. registrations
-                .Where(selection => selection.Parts.Contains(new TemplatePart(lookup.Part, lookup.Kind)))
-                .DistinctBy(static selection => selection.PayloadType),
-        ];
+        EngineSelection[] readers = [.. registrations.Where(selection => selection.Parts.Contains(new TemplatePart(lookup.Part, lookup.Kind)))];
         return readers.Length > 0 ? readers : Invalid($"No registration of {lookup.Type.Name} reads the {lookup.Kind} part {lookup.Part}.");
     }
 

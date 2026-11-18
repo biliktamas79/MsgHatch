@@ -135,7 +135,9 @@ public static class TemplateExtensions
         ArgumentNullException.ThrowIfNull(engine);
         CheckParts(parts);
         TemplateSetup.Of(payload.Services).EngineSelections.Add(
-            new EngineSelection(typeof(TPayload), registration, engineName, engine, payload.Type, [.. parts], CheckWithTheEngineOfTheKey<TPayload>));
+            new EngineSelection(
+                typeof(TPayload), registration, engineName, engine, payload.Type, [.. parts], CheckWithTheEngineOfTheKey<TPayload>,
+                RenderWithTheEngineOfTheKey<TPayload>));
         AddManager(payload.Parent).AddTenantService(ServiceLifetime.Scoped, engine, TemplateLoggers.Wrap);
         return payload;
     }
@@ -210,6 +212,10 @@ public static class TemplateExtensions
     private static ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckWithTheEngineOfTheKey<TPayload>(
         IServiceProvider tenantServices, TemplateLookup lookup, string text, CancellationToken ct) =>
         tenantServices.GetRequiredService<ITemplateEngine<TPayload>>().CheckAsync(lookup, text, ct);
+
+    private static ValueTask<ErrorOr<string>> RenderWithTheEngineOfTheKey<TPayload>(
+        IServiceProvider tenantServices, TemplateLookup lookup, string text, object sample, CancellationToken ct) =>
+        tenantServices.GetRequiredService<ITemplateEngine<TPayload>>().RenderAsync(lookup, text, (TPayload)sample, ct);
 
     private static MsgHatchBuilder AddManager(MsgHatchBuilder builder) =>
         builder

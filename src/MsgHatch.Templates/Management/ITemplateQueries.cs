@@ -42,4 +42,18 @@ public interface ITemplateQueries
     /// <see cref="Errors.NotFound"/> for a message type with no registration, or the error of an engine.
     /// </returns>
     ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> CheckTemplateAsync(TemplateLookup lookup, string text, CancellationToken ct);
+
+    /// <summary>
+    /// Renders a draft of one template with the engine and the sample payload of each registration that reads the part and has
+    /// a sample, and saves nothing (D254, D256).
+    /// </summary>
+    /// <param name="lookup">The message type, the language, the template scope, the part, and its kind.</param>
+    /// <param name="text">The text of the draft.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>
+    /// One preview for each registration with a sample, an empty list for a part with no sample, <see cref="Errors.ValidationFailed"/>,
+    /// <see cref="Errors.NotFound"/> for a message type with no registration, <see cref="Errors.TemplateInvalid"/> for a text
+    /// that does not parse or render, or the error of an engine.
+    /// </returns>
+    ValueTask<ErrorOr<IReadOnlyList<TemplatePreview>>> PreviewTemplateAsync(TemplateLookup lookup, string text, CancellationToken ct);
 }

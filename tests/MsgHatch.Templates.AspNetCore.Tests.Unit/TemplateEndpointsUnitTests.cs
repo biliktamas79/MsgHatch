@@ -1,9 +1,11 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Templates.Api.Contracts;
 using MsgHatch.Templates.AspNetCore.Tests.Unit.TestTypes;
 using MsgHatch.Templates.Management;
 using NSubstitute;
@@ -32,6 +34,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         { "DELETE", _path, null, nameof(ITemplateCommands.DeleteTemplateAsync) },
         { "GET", "/templates/parts", null, nameof(ITemplateQueries.GetTemplatePartsAsync) },
         { "POST", $"{_path}/check", """{"text":"Rendelés"}""", nameof(ITemplateQueries.CheckTemplateAsync) },
+        { "POST", $"{_path}/preview", """{"text":"Rendelés"}""", nameof(ITemplateQueries.PreviewTemplateAsync) },
     };
 
     public static TheoryData<string, string, string> InvalidValueRows => new()
@@ -45,6 +48,8 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         { "a message type filter that is not a name", "GET", "/templates?messageType=Order-Shipped" },
         { "an empty tenant id of a list", "GET", "/templates?tenantId=" },
         { "an unknown kind of a check", "POST", "/templates/OrderShipped/hu/subject/Text/check" },
+        { "an unknown kind of a preview", "POST", "/templates/OrderShipped/hu/subject/Text/preview" },
+        { "an empty tenant id of a preview", "POST", $"{_path}/preview?tenantId=" },
         { "a message type filter of the parts that is not a name", "GET", "/templates/parts?messageType=1A" },
     };
 
@@ -215,6 +220,57 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PostPreview_PathQueryAndBody_Gives200WithThePreviewsOfTheLookupAndTheText()
+    {
+        // Act
+        var response = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/preview?companyId=42", """{"text":"Rendelés {{Name}}"}"""), Ct);
+
+        // Assert
+        await _host.Manager.Received(1).PreviewTemplateAsync(
+            new TemplateLookup(new MessageType("OrderShipped"), "hu", "42", "subject", TemplatePartKind.PlainText), "Rendelés {{Name}}",
+            Arg.Any<CancellationToken>());
+        var body = await response.Content.ReadFromJsonAsync(TemplateEndpointJson.Default.IReadOnlyListTemplatePreviewResponse, Ct);
+        Assert.Equal(
+            (HttpStatusCode.OK, "Email:A: Rendelés Minta, Sms:A: <p>Minta</p>"),
+            (response.StatusCode, string.Join(", ", body!.Select(static preview => $"{preview.Registration}: {preview.Text}"))));
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidPreviewBodyRows))]
+    public async Task PostPreview_InvalidBody_Gives400AndCallsNoManager(string row, string body)
+    {
+        // Act
+        var response = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/preview", body), Ct);
+
+        // Assert
+        Assert.Equal((row, HttpStatusCode.BadRequest, 0), (row, response.StatusCode, _host.Manager.ReceivedCalls().Count()));
+    }
+
+    public static TheoryData<string, string> InvalidPreviewBodyRows => new()
+    {
+        { "invalid JSON", "{" },
+        { "the JSON null", "null" },
+        { "no text", "{}" },
+        { "a null text", """{"text":null}""" },
+    };
+
+    [Fact]
+    public async Task PostPreview_BodyThatIsNotJson_Gives415AndCallsNoManager()
+    {
+        // Arrange
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_path}/preview")
+        {
+            Content = new StringContent("""{"text":"Rendelés"}""", Encoding.UTF8, "text/plain"),
+        };
+
+        // Act
+        var response = await _host.Client.SendAsync(request, Ct);
+
+        // Assert
+        Assert.Equal((HttpStatusCode.UnsupportedMediaType, 0), (response.StatusCode, _host.Manager.ReceivedCalls().Count()));
+    }
+
+    [Fact]
     public async Task PostCheck_BodyThatIsNotJson_Gives415AndCallsNoManager()
     {
         // Arrange
@@ -299,6 +355,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         _host.Manager.Configure().DeleteTemplateAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(error));
         _host.Manager.Configure().GetTemplatePartsAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForError(error)));
         _host.Manager.Configure().CheckTemplateAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForError(error)));
+        _host.Manager.Configure().PreviewTemplateAsync(default, default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePreview>>.ForError(error)));
 
         // Act
         var list = await _host.Client.SendAsync(RequestOf("GET", "/templates", null), Ct);
@@ -306,11 +363,12 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         var delete = await _host.Client.SendAsync(RequestOf("DELETE", _path, null), Ct);
         var parts = await _host.Client.SendAsync(RequestOf("GET", "/templates/parts", null), Ct);
         var check = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/check", """{"text":"Rendelés"}"""), Ct);
+        var preview = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/preview", """{"text":"Rendelés"}"""), Ct);
 
         // Assert
         Assert.Equal(
-            (expected, expected, expected, expected, expected),
-            (list.StatusCode, read.StatusCode, delete.StatusCode, parts.StatusCode, check.StatusCode));
+            (expected, expected, expected, expected, expected, expected),
+            (list.StatusCode, read.StatusCode, delete.StatusCode, parts.StatusCode, check.StatusCode, preview.StatusCode));
     }
 
     private static ErrorType ErrorTypeOf(int code) => Errors.Find(code)!;

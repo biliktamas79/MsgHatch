@@ -28,6 +28,12 @@ public sealed class TemplateApiClientParityUnitTests
         ["a check of a message type with no registration"] = static async (queries, _) =>
             (await queries.CheckTemplateAsync(ALookup() with { Type = new("Unregistered") }, "Text", Ct)).Error,
         ["a check of a part that no registration declares"] = static async (queries, _) => (await queries.CheckTemplateAsync(ALookup(part: "footer"), "Text", Ct)).Error,
+        ["a preview of a message type with no registration"] = static async (queries, _) =>
+            (await queries.PreviewTemplateAsync(ALookup() with { Type = new("Unregistered") }, "Text", Ct)).Error,
+        ["a preview of a part that no registration declares"] = static async (queries, _) => (await queries.PreviewTemplateAsync(ALookup(part: "footer"), "Text", Ct)).Error,
+        ["a preview with an unknown language"] = static async (queries, _) => (await queries.PreviewTemplateAsync(ALookup("xx"), "Text", Ct)).Error,
+        ["a preview of a text with an unknown placeholder"] = static async (queries, _) =>
+            (await queries.PreviewTemplateAsync(ALookup(), "Order of {{Nmae}}", Ct)).Error,
         ["a save of a text with an unknown placeholder"] = static async (_, commands) =>
             (await commands.SaveTemplateAsync(ALookup(), "Order of {{Nmae}}", 0, Ct)).Error,
         ["a save of a text that is too long"] = static async (_, commands) =>
@@ -65,7 +71,8 @@ public sealed class TemplateApiClientParityUnitTests
     }
 
     private static Action<IServiceCollection> ServicesOn(TemplateFolder folder) =>
-        ManagerHost.Services(b => b.UseFileTemplates(folder.Root).AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, _type.Name));
+        ManagerHost.Services(b => b.UseFileTemplates(folder.Root).AddOrderEmailEngine(
+            PlaceholderTemplates.Engine<OrderEmail>, _type.Name, samples: [TemplateEngineRegistrations.ASample()]));
 
     private static TemplateLookup ALookup(string language = "en", string? scope = null, string part = "subject") =>
         new(_type, language, scope, part, TemplatePartKind.PlainText);

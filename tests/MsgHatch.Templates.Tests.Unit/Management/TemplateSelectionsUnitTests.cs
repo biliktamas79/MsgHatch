@@ -42,6 +42,7 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         { "GetTemplate", 2019, LogLevelOf(LogLevel.Debug) },
         { "GetTemplateParts", 2021, LogLevelOf(LogLevel.Debug) },
         { "CheckTemplate", 2023, LogLevelOf(LogLevel.Debug) },
+        { "PreviewTemplate", 2029, LogLevelOf(LogLevel.Debug) },
         { "SaveTemplate", 2025, LogLevelOf(LogLevel.Debug) },
         { "DeleteTemplate", 2027, LogLevelOf(LogLevel.Debug) },
     };
@@ -52,6 +53,7 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         { "GetTemplate", 2020, LogLevelOf(LogLevel.Warning) },
         { "GetTemplateParts", 2022, LogLevelOf(LogLevel.Warning) },
         { "CheckTemplate", 2024, LogLevelOf(LogLevel.Warning) },
+        { "PreviewTemplate", 2030, LogLevelOf(LogLevel.Warning) },
         { "SaveTemplate", 2026, LogLevelOf(LogLevel.Warning) },
         { "DeleteTemplate", 2028, LogLevelOf(LogLevel.Warning) },
     };
@@ -171,6 +173,22 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
     }
 
     [Fact]
+    public async Task PreviewTemplateAsync_TemplateInvalid_LogsItsEventIdAtTheInformationLevel()
+    {
+        // Arrange
+        var error = new Error(Errors.TemplateInvalid, "The template has an unclosed placeholder.");
+        await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => FailingQueries(error)), false, true);
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        await CallAsync(scope.ServiceProvider, TenantKey.None, "PreviewTemplate");
+
+        // Assert
+        var record = Assert.Single(ManagementRecords(provider));
+        Assert.Equal((2030, LogLevel.Information), (record.Id.Id, record.Level));
+    }
+
+    [Fact]
     public async Task Operations_TemplateTextAndCompanyId_NoLogRecordContainsThem()
     {
         // Arrange
@@ -180,11 +198,12 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
 
         // Act
         await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().CheckTemplateAsync(lookup, "Secret text", Ct);
+        await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().PreviewTemplateAsync(lookup, "Secret text", Ct);
         await scope.ServiceProvider.GetRequiredService<ITemplateCommands>().SaveTemplateAsync(lookup, "Secret text", 0, Ct);
 
         // Assert
         Assert.Equal(
-            (2, false),
+            (3, false),
             (ManagementRecords(provider).Count, provider.LogRecords().Any(static record => record.ContainsText("Secret") || record.ContainsText("acme"))));
     }
 
@@ -196,7 +215,7 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
     }
 
     private static List<FakeLogRecord> ManagementRecords(IServiceProvider provider) =>
-        [.. provider.LogRecords().Where(static record => record.Id.Id is >= 2017 and <= 2028)];
+        [.. provider.LogRecords().Where(static record => record.Id.Id is >= 2017 and <= 2030)];
 
     private static ITemplateQueries SucceedingQueries()
     {
@@ -207,6 +226,8 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         queries.GetTemplatePartsAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForValue([])));
         queries.CheckTemplateAsync(default, default!, default).ReturnsForAnyArgs(
             ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue([new TemplateIssue("Secret issue", 1, 1)])));
+        queries.PreviewTemplateAsync(default, default!, default).ReturnsForAnyArgs(
+            ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePreview>>.ForValue([new TemplatePreview("Email:Secret", "Secret preview")])));
         return queries;
     }
 
@@ -226,6 +247,7 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         queries.GetTemplateAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<TemplateSource>.ForError(error)));
         queries.GetTemplatePartsAsync(default, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePartInfo>>.ForError(error)));
         queries.CheckTemplateAsync(default, default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForError(error)));
+        queries.PreviewTemplateAsync(default, default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePreview>>.ForError(error)));
         return queries;
     }
 
@@ -247,6 +269,7 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
             "GetTemplate" => (await queries.GetTemplateAsync(_lookup, Ct)).Error,
             "GetTemplateParts" => (await queries.GetTemplatePartsAsync(type: null, Ct)).Error,
             "CheckTemplate" => (await queries.CheckTemplateAsync(_lookup, "Text", Ct)).Error,
+            "PreviewTemplate" => (await queries.PreviewTemplateAsync(_lookup, "Text", Ct)).Error,
             "SaveTemplate" => (await commands.SaveTemplateAsync(_lookup, "Text", 0, Ct)).Error,
             _ => await commands.DeleteTemplateAsync(_lookup, Ct),
         };

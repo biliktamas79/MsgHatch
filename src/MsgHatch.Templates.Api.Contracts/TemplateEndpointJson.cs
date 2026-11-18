@@ -17,4 +17,6 @@ namespace MsgHatch.Templates.Api.Contracts;
 [JsonSerializable(typeof(TemplateCheckRequest))]
 [JsonSerializable(typeof(IReadOnlyList<TemplateIssueResponse>))]
 [JsonSerializable(typeof(IReadOnlyList<TemplatePartResponse>))]
+[JsonSerializable(typeof(TemplatePreviewRequest))]
+[JsonSerializable(typeof(IReadOnlyList<TemplatePreviewResponse>))]
 public sealed partial class TemplateEndpointJson : JsonSerializerContext;

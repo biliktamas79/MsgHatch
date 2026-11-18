@@ -41,4 +41,15 @@ internal sealed class HttpTemplateQueries(TemplateApi api, TenantKey key) : ITem
                     lookup.Type.Name, lookup.Language, lookup.Part, lookup.Kind, new TemplateCheckRequest(text), lookup.Scope, Tenant, ct),
                 static issue => issue.ToIssue());
     }
+
+    public async ValueTask<ErrorOr<IReadOnlyList<TemplatePreview>>> PreviewTemplateAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return (TemplateLookupRules.Check(lookup) ?? TemplateLookupRules.CheckText(text)) is { } invalid
+            ? invalid
+            : ApiResults.All(
+                await api.PreviewTemplateAsync(
+                    lookup.Type.Name, lookup.Language, lookup.Part, lookup.Kind, new TemplatePreviewRequest(text), lookup.Scope, Tenant, ct),
+                static preview => preview.ToPreview());
+    }
 }

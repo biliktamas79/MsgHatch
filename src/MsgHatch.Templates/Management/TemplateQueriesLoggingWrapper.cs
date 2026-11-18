@@ -96,4 +96,32 @@ internal sealed class TemplateQueriesLoggingWrapper(
 
         return result;
     }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<ErrorOr<IReadOnlyList<TemplatePreview>>> PreviewTemplateAsync(TemplateLookup lookup, string text, CancellationToken ct)
+    {
+        var started = time.GetTimestamp();
+        var result = await inner.PreviewTemplateAsync(lookup, text, ct);
+        var elapsedMs = time.GetElapsedTime(started).TotalMilliseconds;
+        if (result.IsError)
+        {
+            var level = PreviewLevelOf(result.Error);
+            logger.PreviewTemplateFailed(
+                level, lookup.Type.Name, lookup.Language, lookup.Part, Tenant, elapsedMs, result.Error.Type.Code,
+                result.Error.Type.Name, result.Error.Message);
+        }
+        else
+        {
+            logger.PreviewTemplateSucceeded(lookup.Type.Name, lookup.Language, lookup.Part, result.Value.Count, Tenant, elapsedMs);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// A draft that does not render is the input of an operator, who sees a new preview after each pause in typing, not a
+    /// fault of the system.
+    /// </summary>
+    private static LogLevel PreviewLevelOf(Error error) =>
+        error.Type == Errors.TemplateInvalid ? LogLevel.Information : ErrorLogLevels.For(error);
 }

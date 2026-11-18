@@ -10,4 +10,5 @@ internal static class TemplateApiRoutes
     public const string Parts = "/parts";
     public const string Template = "/{messageType}/{language}/{part}/{kind}";
     public const string Check = Template + "/check";
+    public const string Preview = Template + "/preview";
 }

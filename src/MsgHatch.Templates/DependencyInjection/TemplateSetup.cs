@@ -21,8 +21,8 @@ internal sealed class TemplateSetup
 
     public List<TemplateSample> Samples { get; } = [];
 
-    public bool HasSample(MessageType type, Type payloadType) =>
-        Samples.Exists(sample => sample.Type == type && sample.PayloadType == payloadType);
+    public object? SampleOf(MessageType type, Type payloadType) =>
+        Samples.Find(sample => sample.Type == type && sample.PayloadType == payloadType)?.Sample;
 
     public static TemplateSetup Of(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(TemplateSetup))?.ImplementationInstance as TemplateSetup
@@ -89,8 +89,8 @@ internal sealed class TemplateSetupValidator(IServiceProvider services, Template
 
 /// <summary>
 /// One registration of a template engine (D62, D220, D240): its payload type, its name, the name of its engine, its
-/// engine factory, its message type, the parts that it reads, and the check of a text with the engine of the payload type
-/// of a tenant key (D219, D241).
+/// engine factory, its message type, the parts that it reads, the check of a text with the engine of the payload type
+/// of a tenant key (D219, D241), and the render of a text with a sample payload of that type (D255, D256).
 /// </summary>
 internal sealed record EngineSelection(
     Type PayloadType,
@@ -99,7 +99,8 @@ internal sealed record EngineSelection(
     Delegate Engine,
     MessageType Type,
     IReadOnlyList<TemplatePart> Parts,
-    Func<IServiceProvider, TemplateLookup, string, CancellationToken, ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>>> Check);
+    Func<IServiceProvider, TemplateLookup, string, CancellationToken, ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>>> Check,
+    Func<IServiceProvider, TemplateLookup, string, object, CancellationToken, ValueTask<ErrorOr<string>>> Render);
 
 /// <summary>The sample payload of the template registrations of one payload type and one message type (D254).</summary>
 internal sealed record TemplateSample(MessageType Type, Type PayloadType, object Sample);

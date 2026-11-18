@@ -29,6 +29,9 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
         ["a check with a company id with a control character"] = static async (queries, _) =>
             (await queries.CheckTemplateAsync(ALookup(scope: "acme\u0001"), "Text", Ct)).Error,
         ["a check of a text that is too long"] = static async (queries, _) => (await queries.CheckTemplateAsync(ALookup(), new string('x', 1_000_001), Ct)).Error,
+        ["a preview with a part with a space"] = static async (queries, _) => (await queries.PreviewTemplateAsync(ALookup(part: "sub ject"), "Text", Ct)).Error,
+        ["a preview of a text that is too long"] = static async (queries, _) =>
+            (await queries.PreviewTemplateAsync(ALookup(), new string('x', 1_000_001), Ct)).Error,
         ["a save of a text that is too long"] = static async (_, commands) => (await commands.SaveTemplateAsync(ALookup(), new string('x', 1_000_001), 0, Ct)).Error,
         ["a save with a company id whose folder name has 256 characters"] = static async (_, commands) =>
             (await commands.SaveTemplateAsync(ALookup(scope: new string('A', 128)), "Text", 0, Ct)).Error,
@@ -88,6 +91,40 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
         Assert.Equal((row, Errors.SerializationFailed), (row, entries.Error?.Type));
     }
 
+    [Theory]
+    [InlineData("[null]", "a null item")]
+    [InlineData("""[{"registration":"","text":"Order"}]""", "an empty registration")]
+    [InlineData("""[{"registration":"Email:A","text":null}]""", "a null text")]
+    public async Task PreviewTemplateAsync_ResponseThatTheContractDoesNotAllow_GivesSerializationFailed(string json, string row)
+    {
+        // Arrange
+        await using var provider = ClientOn(new StubHandler(HttpStatusCode.OK, json));
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var previews = await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().PreviewTemplateAsync(ALookup(), "Text", Ct);
+
+        // Assert
+        Assert.Equal((row, Errors.SerializationFailed), (row, previews.Error?.Type));
+    }
+
+    [Fact]
+    public async Task PreviewTemplateAsync_LookupAndText_PostsTheTextToThePreviewRouteOfTheLookup()
+    {
+        // Arrange
+        var handler = new StubHandler(HttpStatusCode.OK, """[{"registration":"Email:Requests","text":"Order of Sample client"}]""");
+        await using var provider = ClientOn(handler);
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var previews = await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().PreviewTemplateAsync(ALookup(scope: "acme-1"), "Order of {{Name}}", Ct);
+
+        // Assert
+        Assert.Equal(
+            ("/templates/Requests/en/subject/PlainText/preview?companyId=acme-1", new TemplatePreview("Email:Requests", "Order of Sample client")),
+            (Assert.Single(handler.Uris).PathAndQuery, Assert.Single(previews.Value)));
+    }
+
     [Fact]
     public async Task Operation_PrefixThatTheHostDoesNotMap_GivesExceptionAndNotNotFound()
     {
@@ -119,6 +156,7 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
         await queries.GetTemplatesAsync(new TemplateQuery(_type, "acme-secret"), Ct);
         await queries.GetTemplateAsync(lookup, Ct);
         await queries.CheckTemplateAsync(lookup, "Secret {{Nmae}}", Ct);
+        await queries.PreviewTemplateAsync(lookup, "Secret {{Name}}", Ct);
         await commands.DeleteTemplateAsync(lookup, Ct);
 
         // Assert
@@ -126,7 +164,7 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
         Assert.Equal(
             (true, true, false),
             (records.Any(static record => record.Category?.StartsWith("System.Net.Http.HttpClient.MsgHatch.TemplateApi", StringComparison.Ordinal) == true),
-                records.Any(static record => record.Id.Id is >= 2017 and <= 2028),
+                records.Any(static record => record.Id.Id is >= 2017 and <= 2030),
                 records.Any(static record => record.ContainsText("acme-secret") || record.ContainsText("Secret"))));
     }
 
@@ -136,7 +174,8 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
             .Services.Build();
 
     private Action<IServiceCollection> ServerServices() =>
-        ManagerHost.Services(b => b.UseFileTemplates(folder.Root).AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>, _type.Name));
+        ManagerHost.Services(b => b.UseFileTemplates(folder.Root).AddOrderEmailEngine(
+            PlaceholderTemplates.Engine<OrderEmail>, _type.Name, samples: [TemplateEngineRegistrations.ASample("Secret sample")]));
 
     private static TemplateLookup ALookup(string language = "en", string? scope = null, string part = "subject") =>
         new(_type, language, scope, part, TemplatePartKind.PlainText);

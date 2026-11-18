@@ -56,6 +56,19 @@ internal static partial class Log
         string errorName, string? errorMessage);
 
     [LoggerMessage(
+        EventId = 2029, Level = LogLevel.Debug,
+        Message = "Template queries of tenant {Tenant} rendered {PreviewCount} previews of a {Language} {Part} draft of {MessageType} in {ElapsedMs} ms")]
+    public static partial void PreviewTemplateSucceeded(
+        this ILogger logger, string messageType, string language, string part, int previewCount, string? tenant, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 2030,
+        Message = "Template queries of tenant {Tenant} failed to preview a {Language} {Part} draft of {MessageType} after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void PreviewTemplateFailed(
+        this ILogger logger, LogLevel level, string messageType, string language, string part, string? tenant, double elapsedMs, int errorCode,
+        string errorName, string? errorMessage);
+
+    [LoggerMessage(
         EventId = 2025, Level = LogLevel.Debug,
         Message = "Template commands of tenant {Tenant} saved the {Language} {Part} template of {MessageType} as version {Version} in {ElapsedMs} ms")]
     public static partial void SaveTemplateSucceeded(

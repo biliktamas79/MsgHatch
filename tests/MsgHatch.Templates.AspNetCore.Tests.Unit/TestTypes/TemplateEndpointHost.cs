@@ -83,6 +83,8 @@ public sealed class TemplateEndpointHost : IAsyncDisposable
             [new TemplatePartInfo(new MessageType("A"), new TemplatePart("subject", TemplatePartKind.PlainText), ["placeholder", "liquid"], HasSample: true)])));
         manager.CheckTemplateAsync(default, default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(
             [new TemplateIssue("An issue.", 2, 5), new TemplateIssue("Another issue.", Line: null, Column: null)])));
+        manager.PreviewTemplateAsync(default, default!, default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplatePreview>>.ForValue(
+            [new TemplatePreview("Email:A", "Rendelés Minta"), new TemplatePreview("Sms:A", "<p>Minta</p>")])));
         return manager;
     }
 }

@@ -29,6 +29,7 @@ internal static class TemplateRoutes
         group.MapPut(TemplateApiRoutes.Template, SaveTemplateAsync);
         group.MapDelete(TemplateApiRoutes.Template, DeleteTemplateAsync);
         group.MapPost(TemplateApiRoutes.Check, CheckTemplateAsync);
+        group.MapPost(TemplateApiRoutes.Preview, PreviewTemplateAsync);
     }
 
     private static Task<IResult> GetTemplatesAsync(HttpContext context, string? messageType, string? companyId) =>
@@ -98,6 +99,25 @@ internal static class TemplateRoutes
                     await queries.CheckTemplateAsync(lookup.Value, body.Value.Text, context.RequestAborted),
                     static issues => [.. issues.Select(TemplateIssueResponse.From)],
                     _json.IReadOnlyListTemplateIssueResponse);
+            });
+
+    private static Task<IResult> PreviewTemplateAsync(
+        HttpContext context, string messageType, string language, string part, string kind, string? companyId) =>
+        !context.Request.HasJsonContentType()
+            ? Task.FromResult<IResult>(TypedResults.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType))
+            : RunAsync(context, async (ITemplateQueries queries) =>
+            {
+                var lookup = LookupOf(messageType, language, part, kind, companyId);
+                if (lookup.IsError)
+                {
+                    return Problem(lookup.Error);
+                }
+
+                var body = await ReadAsync(context, _json.TemplatePreviewRequest);
+                return body.IsError ? Problem(body.Error) : Json(
+                    await queries.PreviewTemplateAsync(lookup.Value, body.Value.Text, context.RequestAborted),
+                    static previews => [.. previews.Select(TemplatePreviewResponse.From)],
+                    _json.IReadOnlyListTemplatePreviewResponse);
             });
 
     private static Task<IResult> DeleteTemplateAsync(
