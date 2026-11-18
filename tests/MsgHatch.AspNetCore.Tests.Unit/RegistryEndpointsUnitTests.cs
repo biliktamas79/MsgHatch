@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using MsgHatch.Api.Contracts;
 using MsgHatch.AspNetCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
@@ -136,9 +137,18 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
     public static TheoryData<int, HttpStatusCode> ErrorRows => new()
     {
         { 400, HttpStatusCode.BadRequest },
+        { 403, HttpStatusCode.Forbidden },
         { 404, HttpStatusCode.NotFound },
         { 409, HttpStatusCode.Conflict },
-        { 503, HttpStatusCode.InternalServerError },
+        { 410, HttpStatusCode.Gone },
+        { 415, HttpStatusCode.InternalServerError },
+        { 422, HttpStatusCode.UnprocessableEntity },
+        { 426, HttpStatusCode.InternalServerError },
+        { 429, HttpStatusCode.TooManyRequests },
+        { 460, HttpStatusCode.InternalServerError },
+        { 499, HttpStatusCode.InternalServerError },
+        { 500, HttpStatusCode.InternalServerError },
+        { 503, HttpStatusCode.ServiceUnavailable },
     };
 
     [Theory]
@@ -154,6 +164,43 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal((expected, error.Type.Name), (response.StatusCode, await TitleOf(response)));
+    }
+
+    [Theory]
+    [MemberData(nameof(ErrorRows))]
+    public async Task Routes_WriterOrQueryError_GiveTheProblemBodyWithTheDetailAndTheErrorType(int errorCode, HttpStatusCode expected)
+    {
+        // Arrange
+        var error = new Error(ErrorTypeOf(errorCode), "The writer failed.");
+        _host.Writer.GetEntriesAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<RegistryEntries>.ForError(error)));
+        _host.Writer.Configure().SaveMessageTypeAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<MessageTypeEntry>.ForError(error)));
+        _host.Writer.ResetChannelAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(error));
+        (string, string?, string?, int?) problem = ($"{expected}", error.Type.Name, error.Message, error.Type.Code);
+
+        // Act
+        var channels = await ProblemOf(await _host.Client.SendAsync(RequestOf("GET", "/registry/channels", body: null), Ct));
+        var types = await ProblemOf(await _host.Client.SendAsync(RequestOf("GET", "/registry/message-types", body: null), Ct));
+        var save = await ProblemOf(await _host.Client.SendAsync(RequestOf("PUT", "/registry/message-types/TestEvent", """{"enabled":true,"revision":0}"""), Ct));
+        var reset = await ProblemOf(await _host.Client.SendAsync(RequestOf("DELETE", "/registry/channels/Test", body: null), Ct));
+
+        // Assert
+        Assert.Equal((problem, problem, problem, problem), (channels, types, save, reset));
+    }
+
+    [Theory]
+    [InlineData("PUT", "/registry/channels/not-a-name", """{"enabled":true,"revision":0}""")]
+    [InlineData("PUT", "/registry/channels/Test", "{ not json")]
+    [InlineData("PUT", "/registry/message-types/TestEvent", """{"enabled":true}""")]
+    [InlineData("DELETE", "/registry/message-types/not-a-name", null)]
+    public async Task Route_InvalidRequest_GivesTheErrorTypeValidationFailed(string method, string path, string? body)
+    {
+        // Act
+        var problem = await ProblemOf(await _host.Client.SendAsync(RequestOf(method, path, body), Ct));
+
+        // Assert
+        Assert.Equal(
+            ($"{HttpStatusCode.BadRequest}", (string?)Errors.ValidationFailed.Name, (int?)Errors.ValidationFailed.Code),
+            (problem.Status, problem.Title, problem.ErrorCode));
     }
 
     [Fact]
@@ -199,14 +246,14 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
         var response = await _host.Client.SendAsync(RequestOf("DELETE", path, body: null), Ct);
 
         // Assert
-        Assert.Equal((member, HttpStatusCode.InternalServerError), (member, response.StatusCode));
+        Assert.Equal((member, HttpStatusCode.ServiceUnavailable), (member, response.StatusCode));
     }
 
     public static TheoryData<string> GetRows => ["/registry/channels", "/registry/message-types"];
 
     [Theory]
     [MemberData(nameof(GetRows))]
-    public async Task Get_WriterError_Gives500(string path)
+    public async Task Get_WriterUnavailable_Gives503(string path)
     {
         // Arrange
         _host.Writer.GetEntriesAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<RegistryEntries>.ForError(new Error(Errors.Unavailable))));
@@ -215,7 +262,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
         var response = await _host.Client.GetAsync(new Uri(path, UriKind.Relative), Ct);
 
         // Assert
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
     public static TheoryData<string, string, string?> InvalidRequestRows => new()
@@ -261,18 +308,23 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
     private void WriterGives(RegistryEntries entries) =>
         _host.Writer.GetEntriesAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<RegistryEntries>.ForValue(entries)));
 
-    private static ErrorType ErrorTypeOf(int code) => code switch
-    {
-        400 => Errors.ValidationFailed,
-        404 => Errors.NotFound,
-        409 => Errors.Conflict,
-        _ => Errors.Unavailable,
-    };
+    private static ErrorType ErrorTypeOf(int code) => Errors.Find(code)!;
 
     private static async Task<string?> TitleOf(HttpResponseMessage response)
     {
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
         return problem.RootElement.GetProperty("title").GetString();
+    }
+
+    private static async Task<(string Status, string? Title, string? Detail, int? ErrorCode)> ProblemOf(HttpResponseMessage response)
+    {
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        var root = problem.RootElement;
+        return (
+            $"{response.StatusCode}",
+            root.GetProperty("title").GetString(),
+            root.TryGetProperty("detail", out var detail) ? detail.GetString() : null,
+            root.TryGetProperty("errorType", out var errorType) ? errorType.Deserialize(ApiErrorJson.Default.ErrorTypeBody)?.Code : null);
     }
 
     private static HttpRequestMessage RequestOf(string method, string path, string? body) =>

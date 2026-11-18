@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -15,7 +16,8 @@ namespace MsgHatch.AspNetCore;
 
 /// <summary>
 /// The routes of the registry administration (section 4.20). The GET routes call <see cref="IRegistryQueries"/> of
-/// <see cref="TenantKey.None"/>, because the registry belongs to the whole system (D269, D270).
+/// <see cref="TenantKey.None"/>, because the registry belongs to the whole system (D269, D270). Each route writes its
+/// errors as problem details with the status of <see cref="ErrorProblems"/> and the member <c>errorType</c> (D233).
 /// </summary>
 internal static class RegistryRoutes
 {
@@ -56,7 +58,7 @@ internal static class RegistryRoutes
                 await Writer(context).SaveChannelAsync(
                     new ChannelEntry(id.Value, body.DisplayName, body.Description, body.Enabled, body.Revision, default), context.RequestAborted),
                 ChannelEntryResponse.From, _json.ChannelEntryResponse);
-        });
+        }, Problem);
 
     private static Task<IResult> SaveMessageTypeAsync(HttpContext context, string type) =>
         DeliveryRoutes.WithBodyAsync(context, _json.MessageTypeEntryRequest, async body =>
@@ -69,7 +71,7 @@ internal static class RegistryRoutes
                     new MessageTypeEntry(id.Value, body.DisplayName, body.Description, body.Enabled, disabled.Value, body.Revision, default),
                     context.RequestAborted),
                 MessageTypeEntryResponse.From, _json.MessageTypeEntryResponse);
-        });
+        }, Problem);
 
     private static async Task<IResult> ResetChannelAsync(HttpContext context, string channel)
     {
@@ -110,11 +112,12 @@ internal static class RegistryRoutes
     private static IResult NoContent(Error? error) => error is null ? TypedResults.NoContent() : Problem(error);
 
     private static ProblemHttpResult Problem(Error error) =>
-        TypedResults.Problem(detail: error.Message, statusCode: StatusCodeOf(error.Type), title: error.Type.Name);
+        TypedResults.Problem(
+            detail: error.Message,
+            statusCode: ErrorProblems.StatusCodeOf(error.Type),
+            title: error.Type.Name,
+            extensions: new Dictionary<string, object?> { ["errorType"] = ErrorTypeJsonOf(error.Type) });
 
-    private static int StatusCodeOf(ErrorType type) =>
-        type == Errors.ValidationFailed ? StatusCodes.Status400BadRequest
-        : type == Errors.NotFound ? StatusCodes.Status404NotFound
-        : type == Errors.Conflict ? StatusCodes.Status409Conflict
-        : StatusCodes.Status500InternalServerError;
+    private static JsonElement ErrorTypeJsonOf(ErrorType type) =>
+        JsonSerializer.SerializeToElement(ErrorTypeBody.From(type), ApiErrorJson.Default.ErrorTypeBody);
 }
