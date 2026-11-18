@@ -4,11 +4,11 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 26 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, and the query and command interfaces of the management APIs with their contracts packages.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 27 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, the query and command interfaces of the management APIs with their contracts packages, and the HTTP clients of the management APIs with their source generator.
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D245), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D248), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -30,8 +30,9 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 | Dispatch signal | `MsgHatch.Dispatch.NamedPipes` |
 | API contracts | `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts` |
+| API clients | `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
 
-Phase 27 (the HTTP API clients) and phase 28 (the admin UIs) have a detailed plan. No phase after phase 28 has one yet. The section "Later phases" of the roadmap lists the next items.
+Phase 28 (the admin UIs) has a detailed plan. No phase after phase 28 has one yet. The section "Later phases" of the roadmap lists the next items.
 
 ## Commands
 
@@ -116,8 +117,8 @@ dotnet test tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration
 - Each implementation package has one `Use<Technology>` setup method for each layout. One call registers all parts of the package. It calls the generic domain `Use` methods, so that the wrappers and the validation are the same for each package.
 - The library stores, transports, template stores, and registries are thread-safe singletons. Only a received message gets a DI scope.
 - The core packages never reference `MsgHatch.Subscriptions`. The core knows only the router contract `IMessageRouter<TEvent>` and the composer contract `IEnvelopeComposer<TEvent, TEnvelope>`.
-- The packages of the API boundary set `IsAotCompatible` (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, the contracts packages, and the two management `.AspNetCore` packages. Each warning of the trim and AOT analyzers is an error. Use no `MakeGenericType`, `Activator.CreateInstance`, assembly scan, or dynamic proxy in them, and give each type parameter that reaches `ActivatorUtilities` the attribute `DynamicallyAccessedMembers(PublicConstructors)`.
-- The management APIs have a query interface and a command interface each (D231). An implementation runs the stateless rules first, `SubscriptionDraftRules` or `TemplateLookupRules` (D234). The HTTP bodies and their mappings are in the contracts packages, and the route paths and `ErrorProblems` are internal sources in `src/Shared` (D228, D233).
+- The packages of the API boundary set `IsAotCompatible` (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, the contracts packages, the client packages, and the two management `.AspNetCore` packages. Each warning of the trim and AOT analyzers is an error. Use no `MakeGenericType`, `Activator.CreateInstance`, assembly scan, or dynamic proxy in them, and give each type parameter that reaches `ActivatorUtilities` the attribute `DynamicallyAccessedMembers(PublicConstructors)`.
+- The management APIs have a query interface and a command interface each (D231). An implementation runs the stateless rules first, `SubscriptionDraftRules`, `RoutingVerificationRules`, or `TemplateLookupRules` (D234, D248). The HTTP bodies and their mappings are in the contracts packages, and the route paths and `ErrorProblems` are internal sources in `src/Shared` (D228, D233). A client package declares its routes in an internal interface with `[HttpApi]`, and the generator writes its HTTP calls (D236). Its adapters run the same rules first, so a client gives the error of a rule with no HTTP call.
 
 ## Testing
 
