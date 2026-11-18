@@ -28,7 +28,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         var rows = cut.FindAll("tr[data-row]");
         Assert.Equal(2, rows.Count);
         Assert.Equal(["Requests", "en", "All companies", "subject", "PlainText", "7"], rows[0].Children.SkipLast(1).Select(static cell => cell.TextContent));
-        Assert.Equal(["View", "Edit"], rows[0].Children.Last().Children.Select(static button => button.TextContent));
+        Assert.Equal(["View", "Edit"], rows[0].Children[^1].Children.Select(static button => button.TextContent));
         Assert.Equal(
             (TemplateAdminRoutes.View(company).TrimStart('/'), TemplateAdminRoutes.Edit(company).TrimStart('/')),
             (rows[1].QuerySelector("[data-action=view]")!.GetAttribute("href"), rows[1].QuerySelector("[data-action=edit]")!.GetAttribute("href")));

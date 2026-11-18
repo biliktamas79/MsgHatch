@@ -81,7 +81,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
     [Fact]
     public void Render_TemplateInvalid_ShowsItsMessageInPlaceOfThePreview()
     {
-        Queries.PreviewTemplateAsync(default, default!, default)
+        Queries.PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>())
             .ReturnsForAnyArgs(Fail<IReadOnlyList<TemplatePreview>>(Errors.TemplateInvalid, "The template has an unclosed placeholder."));
 
         var cut = RenderPane(Lookup(), "Hello {{Name");
@@ -93,7 +93,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
     [Fact]
     public void Render_Unavailable_ShowsTheTextOfUnavailable()
     {
-        Queries.PreviewTemplateAsync(default, default!, default).ReturnsForAnyArgs(Fail<IReadOnlyList<TemplatePreview>>(Errors.Unavailable));
+        Queries.PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Fail<IReadOnlyList<TemplatePreview>>(Errors.Unavailable));
 
         var cut = RenderPane(Lookup(), "Text");
 
@@ -138,7 +138,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
     }
 
     private void GivenPreviews(params TemplatePreview[] previews) =>
-        Queries.PreviewTemplateAsync(default, default!, default).ReturnsForAnyArgs(Ok<IReadOnlyList<TemplatePreview>>(previews));
+        Queries.PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok<IReadOnlyList<TemplatePreview>>(previews));
 
     private IRenderedComponent<TemplatePreviewPane> RenderPane(TemplateLookup lookup, string text, bool hasSample = true) =>
         Render<TemplatePreviewPane>(p => p.Add(x => x.Lookup, lookup).Add(x => x.Text, text).Add(x => x.HasSample, hasSample));
