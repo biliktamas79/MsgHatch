@@ -43,7 +43,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         var cut = Render<TemplateListPage>();
 
         Assert.Equal(
-            ("Templates", 1, 1, true),
+            ("Templates", 3, 2, true),
             (cut.Find("[data-list-header] h1").TextContent, cut.FindAll("[data-list-filters] select").Count, cut.FindAll("[data-list-filters] input").Count,
                 cut.Find("[data-list-body]").QuerySelector("[data-list-scroll] table") is not null));
     }
@@ -99,6 +99,36 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         var cut = Render<TemplateListPage>();
 
         Assert.Equal(["", "Requests"], cut.FindAll("#msghatch-template-type option").Select(static option => option.GetAttribute("value")));
+    }
+
+    [Fact]
+    public void Render_DeclaredParts_OffersEachPartOneTimeAndEachKindAsAFilter()
+    {
+        GivenTemplates();
+
+        var cut = Render<TemplateListPage>();
+
+        Assert.Equal(["", "subject", "body"], cut.FindAll("#msghatch-template-part-filter option").Select(static option => option.GetAttribute("value")));
+        Assert.Equal(["", "PlainText", "Html"], cut.FindAll("#msghatch-template-kind option").Select(static option => option.GetAttribute("value")));
+    }
+
+    [Fact]
+    public void ClickShow_LanguagePartAndKind_ShowsOnlyTheTemplatesThatMatchAllThree()
+    {
+        GivenTemplates(
+            new TemplateEntry(Lookup("en", null, "body", TemplatePartKind.Html), 1),
+            new TemplateEntry(Lookup("hu", null, "body", TemplatePartKind.Html), 2),
+            new TemplateEntry(Lookup("en", null, "subject", TemplatePartKind.PlainText), 3),
+            new TemplateEntry(Lookup("en", null, "body", TemplatePartKind.PlainText), 4));
+        var cut = Render<TemplateListPage>();
+
+        cut.Find("#msghatch-template-language-filter").Change(" EN ");
+        cut.Find("#msghatch-template-part-filter").Change("body");
+        cut.Find("#msghatch-template-kind").Change("Html");
+        cut.Find("[data-action=filter]").Click();
+
+        var row = Assert.Single(cut.FindAll("tr[data-row]"));
+        Assert.Equal(["Requests", "en", "All companies", "body", "Html", "1"], row.Children.SkipLast(1).Select(static cell => cell.TextContent));
     }
 
     [Fact]

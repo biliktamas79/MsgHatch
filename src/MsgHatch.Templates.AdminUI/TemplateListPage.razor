@@ -1,7 +1,7 @@
 @attribute [Route(TemplateAdminRoutes.List)]
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
-@* The template list, with filters for the message type and the company, and a dialog of a new template from the declared parts (D240, D260). *@
+@* The template list, with filters for the message type, the language, the company, the part, and the kind, and a dialog of a new template from the declared parts (D240, D260). *@
 
 <AdminListPage Title="Templates">
 <Actions>
@@ -19,8 +19,32 @@
         </select>
     </div>
     <div>
+        <label class="form-label small mb-1" for="msghatch-template-language-filter">Language</label>
+        <input id="msghatch-template-language-filter" class="form-control form-control-sm" @bind="_languageFilter" />
+    </div>
+    <div>
         <label class="form-label small mb-1" for="msghatch-template-company">Company id</label>
         <input id="msghatch-template-company" class="form-control form-control-sm" @bind="_companyFilter" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-template-part-filter">Part</label>
+        <select id="msghatch-template-part-filter" class="form-select form-select-sm" @bind="_partFilter">
+            <option value="">All</option>
+            @foreach (var part in PartNamesOf(_parts))
+            {
+                <option value="@part">@part</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-template-kind">Kind</label>
+        <select id="msghatch-template-kind" class="form-select form-select-sm" @bind="_kindFilter">
+            <option value="">All</option>
+            @foreach (var kind in Enum.GetValues<TemplatePartKind>())
+            {
+                <option value="@kind">@kind</option>
+            }
+        </select>
     </div>
     <div>
         <button type="button" class="btn btn-sm btn-secondary" data-action="filter" @onclick="LoadEntriesAsync">Show</button>
@@ -112,6 +136,9 @@
     private ErrorOr<IReadOnlyList<TemplateEntry>>? _entries;
     private string _typeFilter = string.Empty;
     private string _companyFilter = string.Empty;
+    private string _languageFilter = string.Empty;
+    private string _partFilter = string.Empty;
+    private string _kindFilter = string.Empty;
     private string _newPart = "0";
     private string _newLanguage = "en";
     private string _newCompany = string.Empty;
@@ -162,8 +189,14 @@
             type = parsed.Value;
         }
 
-        _entries = await Queries.GetTemplatesAsync(new TemplateQuery(type, OptionalOf(_companyFilter)), CancellationToken.None);
+        var found = await Queries.GetTemplatesAsync(new TemplateQuery(type, OptionalOf(_companyFilter)), CancellationToken.None);
+        _entries = found.IsError ? found : ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([.. found.Value.Where(MatchesTheListFilters)]);
     }
+
+    private bool MatchesTheListFilters(TemplateEntry entry) =>
+        (OptionalOf(_languageFilter) is not { } language || string.Equals(entry.Lookup.Language, language, StringComparison.OrdinalIgnoreCase))
+        && (_partFilter.Length == 0 || string.Equals(entry.Lookup.Part, _partFilter, StringComparison.Ordinal))
+        && (_kindFilter.Length == 0 || string.Equals(entry.Lookup.Kind.ToString(), _kindFilter, StringComparison.Ordinal));
 
     private void OpenNew()
     {
@@ -188,6 +221,9 @@
 
     private static IEnumerable<string> TypesOf(ErrorOr<IReadOnlyList<TemplatePartInfo>>? parts) =>
         parts is { IsSuccess: true } found ? found.Value.Select(static part => part.Type.Name).Distinct(StringComparer.Ordinal) : [];
+
+    private static IEnumerable<string> PartNamesOf(ErrorOr<IReadOnlyList<TemplatePartInfo>>? parts) =>
+        parts is { IsSuccess: true } found ? found.Value.Select(static part => part.Part.Name).Distinct(StringComparer.Ordinal) : [];
 
     private static string? OptionalOf(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
