@@ -1970,18 +1970,48 @@ Tests:
 - The example app: the preview of the password reset email gives the link of its sample.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-18), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| The placeholder engine and the Liquid engine render a draft with a payload through the code of their prepare and render, with no store: `TemplateParser.Parse` and `PlaceholderTemplate`, and `LiquidTemplateCache.Parse` and `LiquidTemplate`. A parse error of a draft has the message of the first issue of the check, because the check gives the message of the parse error as its issue. | The code of both engines, and `RenderAsync_DraftThatDoesNotParse_GivesTemplateInvalidWithTheMessageOfTheFirstIssue` |
+| In a Blazor Interactive Server app, an `iframe` with `sandbox=""` and `srcdoc` showed the HTML of each version of its text, also after an update of `srcdoc` through the renderer. The script in the HTML did not run: the text that it writes did not show, the title of the page stayed the same, and the page cannot read the document of the frame. bUnit renders `sandbox` with the empty value and `srcdoc` with the text. | A probe app of `dotnet new blazor --interactivity Server` in a scratch folder on `localhost`, in the browser pane, and `Render_HtmlPart_ShowsThePreviewInAnIframeWithAnEmptySandboxAndTheTextAsSrcdoc` |
+| The HTTP client implements `ITemplateQueries`, so a new member of the interface needs the client in the same commit, and the use cases of `TemplateQueriesTestsBase` run on the client against the endpoints. | The build of `MsgHatch.Templates.Api.Client` and `HttpTemplateQueriesUnitTests` |
+| `TemplateEndpointJson` escapes `é` and `<` in a response, for example `Rendelés`, so the test of the preview route reads the body with the JSON context. | `PostPreview_PathQueryAndBody_Gives200WithThePreviewsOfTheLookupAndTheText` |
+| The solution build with `--no-incremental` gave 3 warnings in the new tests of the template admin UI: xUnit1051 two times and CA1826 one time. Commit 8 removes them. | `dotnet build MsgHatch.slnx --no-incremental` at commit 7 |
+| The 34 unit test projects pass 4,614 tests and skip 1 test: the path limit test of the named pipe signal on Windows. At `1ee5060`, they passed 4,496 tests. `MsgHatch.Templates.Tests.Unit` passes 398 tests, `MsgHatch.Templates.Api.Client.Tests.Unit` 132, `MsgHatch.Templates.AdminUI.Tests.Unit` 104, `MsgHatch.Templates.Liquid.Tests.Unit` 98, `MsgHatch.Templates.AspNetCore.Tests.Unit` 79, `ExampleApp.Tests.Unit` 43, and `MsgHatch.Templates.Api.Contracts.Tests.Unit` 18. The line coverage of the production code is 98.8 %: `MsgHatch.Templates` 100 %, `MsgHatch.Templates.Liquid` 100 %, `MsgHatch.Templates.Liquid.AdminUI` 99.3 %, `MsgHatch.Templates.Api.Contracts` 97.2 %, `MsgHatch.Templates.AdminUI` 96.7 %, `MsgHatch.Templates.AspNetCore` 95.0 %, and `MsgHatch.Templates.Api.Client` 89.9 %. The solution build with `--no-incremental` has no errors and no warnings at commit 8. | `pwsh ./coverage.ps1` on the content of commit 9, and `dotnet build MsgHatch.slnx --no-incremental` |
+| Each new test failed with a break of the code that it covers: the render of a draft in both engines and its logging wrapper (20 tests), the sample and `HasSample` (7 tests, in two runs), the preview query, its wrapper, its route, its bodies, and its client (74 test rows, in three runs), the metadata line (1 test), the view page, its route builder, the buttons of the list, and `ReadOnly` (13 tests, in two runs), the preview pane and the pages with the preview (15 tests, in three runs), and the samples of the example app (2 tests). | The breaks, each one reverted after its run |
+
+Checks that the phase did not do:
+- A run of `AdminUiExample` against a live `ExampleApp`. The probe app checked the `iframe`, and the bUnit tests check the pages with substitutes.
+- A trimmed WebAssembly host of the template admin UI. `AddMsgHatchTemplatesAdminUI` keeps `TemplateViewPage` with `DynamicDependency`, as phase 28 checked for the other pages.
+
 Commits:
 1. "Render a draft text with a payload in the template engines"
 2. "Add the sample payload of a template registration"
-3. "Add the preview of a template draft to the template queries"
-4. "Add the preview to the template HTTP API and its client"
-5. "Show the metadata of a template on one line"
-6. "Add the read-only view page and the View and Edit buttons of the template list"
-7. "Show the live preview on the template view page and edit page"
-8. "Give the emails of the example app their samples"
+3. "Add the preview of a template draft to the queries, the HTTP API, and the client"
+4. "Show the metadata of a template on one line"
+5. "Add the read-only view page and the View and Edit buttons of the template list"
+6. "Show the live preview on the template view page and edit page"
+7. "Give the emails of the example app their samples"
+8. "Remove the analyzer warnings of the template admin UI tests"
 9. "Describe the template preview in the design"
 10. "Record the commits and the checked facts of phase 29 in the plan"
 11. "Record phase 29 as done in README and AGENTS.md"
+
+Commit 1 holds item 2 (`a09761d`), commit 2 item 3 (`6267027`), commit 3 the items 4 and 5 (`7f8c3f7`), commit 4 item 6 (`0383a21`), commit 5 item 7 (`271dd81`), commit 6 item 8 (`9a5c885`), commit 7 item 9 (`5a318a9`), commit 8 the fix of the warnings of the commits 5 and 6 (`aab863f`), and commit 9 item 10 (`0d6f603`). Item 1 is a check, and its results are in the checked facts. The unit test projects of the changed code passed at each commit. The phase adds no project and no package.
+
+The implementation changed the plan in these points:
+- The plan had the preview query and its HTTP API in two commits. The HTTP client implements `ITemplateQueries`, so the build needs the new member in the client in the same commit, and the shared use cases run on the client against the endpoints. So commit 3 holds both items, and each commit stays green. Commit 8 removes the analyzer warnings that the first solution build showed, so the phase still has 11 commits.
+- The preview query logs with the events 2029 and 2030, the next ids after D244, and the render of a draft in the engine wrapper with the events 2031 and 2032.
+- Both wrappers log `Errors.TemplateInvalid` of a draft at the Information level, because the edit page asks for a preview after each pause in typing (D258, Recommended).
+- `ITemplateEngine<TPayload>.RenderAsync` gives a `CultureNotFoundException` for a language that is not the name of a culture, as an argument error, because the template queries check the language before they call an engine.
+- A part with no sample gives an empty list with no parse of the text. The check of the editor shows the problems of such a text.
+- `TemplatePartInfo` and `TemplatePartResponse` get `HasSample` as a required positional field, so the JSON of a part has the required property `hasSample`.
+- The preview pane asks for the first text at once, and for each later text after the pause. So the view page calls one time, and the edit page shows the preview of the stored text with no wait.
+- The view page reads the parts of the message type for `HasSample`, so an error of the parts is an error of the page, as on the edit page. A missing template shows the text of `NotFound` and the link back to the list.
+- The view page shows the stored text in `HighlightedTextArea` with the new parameter `ReadOnly`, so the text has the same look and the same scroll as in the editor. A text part is one segment with no class. The internal `TextSegments` gives the segments to the plain editor and the view page.
+- `TemplateMetadata` and `TemplatePreviewPane` are public components of `MsgHatch.Templates.AdminUI`, as `HighlightedTextArea` is, so the view page and the edit page share them, and a host can use them on a page of its own.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
