@@ -1,7 +1,16 @@
 @inherits TemplateEditorBase
-@* The editor of a part with no registered editor, or with more than one engine (D240): a text area. *@
-<textarea class="form-control font-monospace @(Issues.Count > 0 ? "is-invalid" : null)" rows="16" spellcheck="false"
-          aria-label="Template text" data-editor="plain" value="@Text" disabled="@Disabled" @oninput="OnInputAsync"></textarea>
+@* The editor of a part with no registered editor, or with more than one engine (D240): the HTML highlight for an html part (D252), and a text area for a txt part. *@
+@if (Lookup.Kind == TemplatePartKind.Html)
+{
+    <div data-editor="plain">
+        <HighlightedTextArea Text="@Text" Segments="HtmlSegments()" TextChanged="TextChanged" Invalid="Issues.Count > 0" Disabled="Disabled" />
+    </div>
+}
+else
+{
+    <textarea class="form-control font-monospace @(Issues.Count > 0 ? "is-invalid" : null)" rows="16" spellcheck="false"
+              aria-label="Template text" data-editor="plain" value="@Text" disabled="@Disabled" @oninput="OnInputAsync"></textarea>
+}
 @foreach (var issue in Issues)
 {
     <div class="invalid-feedback d-block" data-issue>@TextOf(issue)</div>
@@ -9,4 +18,7 @@
 
 @code {
     private Task OnInputAsync(ChangeEventArgs args) => TextChanged.InvokeAsync(args.Value as string ?? string.Empty);
+
+    private List<TextSegment> HtmlSegments() =>
+        [.. HtmlTokenizer.Tokenize(Text).Select(static span => new TextSegment(span.Start, span.Length, HtmlTokenizer.CssClassOf(span.Kind)))];
 }

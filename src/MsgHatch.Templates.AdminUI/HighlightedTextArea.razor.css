@@ -1,0 +1,61 @@
+.highlighted-text-area {
+    position: relative;
+}
+
+.highlight-layer,
+.highlight-input {
+    font-family: var(--bs-font-monospace);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    min-height: 20rem;
+    margin: 0;
+}
+
+.highlight-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.highlight-input {
+    position: relative;
+    color: transparent;
+    background-color: transparent;
+    caret-color: var(--bs-body-color);
+    resize: vertical;
+}
+
+.html-markup {
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.html-tagname {
+    color: var(--bs-success-text-emphasis, #0a3622);
+    font-weight: 600;
+}
+
+.html-attribute {
+    color: var(--bs-info-text-emphasis, #055160);
+}
+
+.html-value {
+    color: var(--bs-danger-text-emphasis, #842029);
+}
+
+.html-comment {
+    color: var(--bs-secondary-color, #6c757d);
+    font-style: italic;
+}
+
+.html-entity {
+    color: var(--bs-warning-text-emphasis, #997404);
+}
+
+mark.template-issue {
+    padding: 0;
+    background-color: transparent;
+    text-decoration: underline wavy var(--bs-danger);
+}
