@@ -2414,14 +2414,39 @@ Tests:
 - The page, with bUnit: the button of each row, the four texts of the alert with their classes, the text of an error of the command, the second read of the channels, and the disabled button during a check.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-18), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| The health checks of the SES and Resend clients catch each exception and return an `Error`, and a cancelled token gives `Errors.OperationCancelled`. `TransportLoggingWrapper` logs each check with its error. The transports of `ExampleApp`, `LogEmailClient`, SignalR, and Wolverine, return no error from their check. The registry group of `ExampleApp` has `RequireAuthorization(RegistryAdmin)`, so the POST route needs the token of the registry pages. | `AmazonSimpleEmailServiceClient.cs`, `ResendEmailClient.cs`, `TransportLoggingWrapper.cs`, `LogEmailClient.cs`, and `ExampleApplication.cs` |
+| The web server of the HTTP client tests uses the system clock, so `RegistryCommandsTestsBase` adds the fake clock to the services of the server, as the query tests do. With no fake clock, two use cases failed on the HTTP client: the rows had the order of the real time, and the down row had the real time. | `HttpRegistryCommandsUnitTests` before and after the change |
+| A path with no route also gives 404, so the route row "Unknown gives 404" passed before the route existed. The use case `CheckChannelAsync_ChannelThatIsNotRegistered_GivesNotFound` of the HTTP client goes through the route, and failed with no route. | `RegistryEndpointsUnitTests.Commands.cs` and the run of the client tests with the selection of the commands removed |
+| The 35 unit test projects pass 4,987 tests and skip 1 test: the path limit test of the named pipe signal on Windows. The phase adds 47 tests and test rows. `MsgHatch.Domain.Tests.Unit` passes 1,542 tests, `MsgHatch.AspNetCore.Tests.Unit` 128, `MsgHatch.Api.Contracts.Tests.Unit` 91, `MsgHatch.AdminUI.Tests.Unit` 88, `MsgHatch.Api.Client.Tests.Unit` 49, and `AdminUiExample.Tests.Unit` 13. The line coverage of the production code is 98.7 %: `MsgHatch.AdminUI` 100 %, `MsgHatch.Api.Contracts` 100 %, `MsgHatch.Domain` 99.6 %, `MsgHatch.AspNetCore` 97.9 %, and `MsgHatch.Api.Client` 83.3 %, with the same shared sources with no caller as in phase 31. Each new class has 100 %. The run used the copy of `coverage.ps1` that builds with `--artifacts-path` in a scratch folder, because the example apps of the owner lock `examples/*/bin/Debug`. The solution build with `--no-incremental` had two warnings at commit 5, and has no errors and no warnings at commit 6. | The copy of `pwsh ./coverage.ps1` on the content of commit 5, and `dotnet build MsgHatch.slnx --no-incremental --artifacts-path` |
+| The new tests failed before the code of their commit existed, or with a break of the code that they cover. The breaks failed: the notify of the signal on each check, the guard of a cancelled check, the match of the transport, the reason of the up change, the check interval, and the change flag of the result and of the log record (commit 2), the route path, the change flag of the body, the check of the error pair, the error code of the mapping, the selection of the commands, and the check of the body in the client (commit 3), and the disabled buttons, their end, the second read, the class of an error, the texts of the new state, and the class of a failed check (commit 4). Two breaks did not build at first, so they ran again with a break that builds. | The breaks, each one reverted after its run |
+
+Checks that the phase did not do:
+- A browser check of the button Check on copies of the example apps. The bUnit tests check the button, the alert, and the second read.
+- A failed check in a live host. The transports of the example give no error, and the owner had no preference for a switch that makes one unhealthy.
+
 Commits:
 1. "Plan phase 33: the channel check"
 2. "Add the channel check command to the registry"
 3. "Add the channel check to the registry contracts, route, and client"
 4. "Add the Check button to the channel list"
 5. "Describe the channel check in the design"
-6. "Record the commits and the checked facts of phase 33 in the plan"
-7. "Record phase 33 as done in README and AGENTS.md"
+6. "Fix the warnings of the new channel check tests"
+7. "Record the commits and the checked facts of phase 33 in the plan"
+8. "Record phase 33 as done in README and AGENTS.md"
+
+Commit 1 holds the plan and the decision D283 (`27b35ee`), commit 2 item 2 (`8354fe5`), commit 3 item 3 (`85b3835`), commit 4 item 4 (`9a8a070`), commit 5 item 5 (`21ccf82`), and commit 6 the fix of two warnings of the new tests (`637a5f8`). Item 1 is a check, and its results are in the checked facts. The unit test projects of the changed code passed at each commit. The phase adds no project and no package.
+
+The implementation changed the plan in these points:
+- The session of the solution design had an uncommitted plan of the open allocations as phase 33 in the same files. The owner chose the channel check as phase 33, so commit 1 holds only the lines of this plan, and the other plan became phase 34 (`7351cdc`).
+- A cancelled check gives `Errors.OperationCancelled` and changes nothing, because a cancel is not an outage. The plan did not name this case.
+- `HttpRegistryCommandsUnitTests` runs the use cases on the client host of `HttpRegistryHost`, through a small host of the commands. `IRegistryQueriesTestHost<T>` is generic, so the commands use it too.
+- During a check, the Check buttons of all rows are disabled, so one page never runs two checks at the same time.
+- Commit 5 also changes the sections 4.2 and 4.7 of the design, which name the setup methods, and the README of the example app, which tells that a check there only ends a down state for errors.
+- Commit 6 is new. The solution build at commit 5 had two warnings `xUnit1051`: two checks of no call passed the default cancellation token. So the phase has 8 commits.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
