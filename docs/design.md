@@ -447,7 +447,8 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | Project | Target | References | Packages | Content |
 |---|---|---|---|---|
 | `src/MsgHatch.Domain` | `net10.0` | none | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Options.ConfigurationExtensions`, `Microsoft.Extensions.Diagnostics` | Failures, identities, the tenant key, the routing contract, the registry reader and writer, delivery types, persistence, the in-memory stores, pipeline, inbox, outbox, dispatch, telemetry, and the DI builder |
-| `src/MsgHatch.Api.Contracts` | `net10.0` | `MsgHatch.Domain` | none | The error metadata of the HTTP APIs: `ErrorTypeBody` and its JSON context `ApiErrorJson` (D227, D233) |
+| `src/MsgHatch.Api.Contracts` | `net10.0` | `MsgHatch.Domain` | none | The error metadata of the HTTP APIs: `ErrorTypeBody` and its JSON context `ApiErrorJson` (D227, D233), and the bodies of the registry API with their JSON context `RegistryEndpointJson` (D270) |
+| `src/MsgHatch.Api.Client` | `net10.0` | `MsgHatch.Api.Contracts`, and `MsgHatch.SourceGeneration` as an analyzer | `Microsoft.Extensions.Http` | The HTTP client of the core APIs: `IRegistryQueries` over HTTP, and `UseRegistryApiClient` (D271, section 4.23) |
 | `src/MsgHatch.Subscriptions.Api.Contracts` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Api.Contracts` | none | The bodies of the subscription HTTP API, their JSON context, `SettingsJson`, and `JsonChannelSettings`, with no HTTP concern (D227, D228, D229) |
 | `src/MsgHatch.Templates.Api.Contracts` | `net10.0` | `MsgHatch.Templates`, `MsgHatch.Api.Contracts` | none | The bodies of the template HTTP API and their JSON context, with no HTTP concern (D227, D228) |
 | `src/MsgHatch.SourceGeneration` | `netstandard2.0` | none | `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Analyzers` | The generator of placeholder writers (D18), and the generator of the HTTP API clients (D236, section 4.23) |
@@ -466,7 +467,7 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Data.EFCore` | `net10.0` | `MsgHatch.Domain` | `Microsoft.EntityFrameworkCore.Relational` | The EF Core stores, with SQL Server as the first provider (D120) |
 | `src/MsgHatch.Data.MongoDb` | `net10.0` | `MsgHatch.Domain` | `MongoDB.Driver` | The MongoDB stores (D121) |
 | `src/MsgHatch.Dispatch.NamedPipes` | `net10.0` | `MsgHatch.Domain` | none | The dispatch signal between the processes of one OS user on one machine, with named pipes (D188, D189) |
-| `src/MsgHatch.AspNetCore` | `net10.0` | `MsgHatch.Domain` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the delivery management API (D107) and of the registry administration (D117) |
+| `src/MsgHatch.AspNetCore` | `net10.0` | `MsgHatch.Domain`, `MsgHatch.Api.Contracts` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the delivery management API (D107) and of the registry administration (D117, D270) |
 | `src/MsgHatch.Subscriptions` | `net10.0` | `MsgHatch.Domain` | none | The subscription router, the subscription model, the resolution, the management API, the subscription cache wrapper, and the routing verifier (D97) |
 | `src/MsgHatch.Subscriptions.Data.FileSystem` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Data.FileSystem` | none | The JSON file subscription store |
 | `src/MsgHatch.Subscriptions.Data.Sqlite` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Data.Sqlite` | none | The SQLite subscription store |
@@ -476,7 +477,7 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | `src/MsgHatch.Subscriptions.Caching.FusionCache` | `net10.0` | `MsgHatch.Subscriptions` | `ZiggyCreatures.FusionCache` | The FusionCache backend of the subscription cache (D39) |
 | `src/MsgHatch.Subscriptions.AspNetCore` | `net10.0` | `MsgHatch.Subscriptions.Api.Contracts` | `<FrameworkReference Include="Microsoft.AspNetCore.App" />` | The HTTP endpoints of the subscription management API (D54) |
 | `src/MsgHatch.Subscriptions.Api.Client` | `net10.0` | `MsgHatch.Subscriptions.Api.Contracts`, and `MsgHatch.SourceGeneration` as an analyzer | `Microsoft.Extensions.Http` | The HTTP client of the subscription management API: `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier` over HTTP, and `UseSubscriptionApiClient` (D227, D236, section 4.23) |
-| `src/MsgHatch.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Api.Contracts` | `Microsoft.AspNetCore.Components.Web` | The parts that both admin UIs use: the list layout, the pager, the delete dialog, and the text of each error type (D239, section 4.24) |
+| `src/MsgHatch.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Api.Contracts` | `Microsoft.AspNetCore.Components.Web` | The parts that both admin UIs use: the list layout, the pager, the delete dialog, and the text of each error type (D239, section 4.24), and the read-only pages of the channels and the message types (D272, D273) |
 | `src/MsgHatch.Templates.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Templates.Api.Contracts`, `MsgHatch.AdminUI` | none | The template list and edit pages, and the editor extension point (D239, D240, section 4.24) |
 | `src/MsgHatch.Templates.Liquid.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Templates.AdminUI` | none | The Liquid editor of the template admin UI (D242, section 4.24) |
 | `src/MsgHatch.Subscriptions.AdminUI` | `net10.0`, `Microsoft.NET.Sdk.Razor` | `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.AdminUI` | none | The pages of the subscription management API and of the routing verification (D239, section 4.24) |
@@ -1662,7 +1663,7 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 
 | Method | Effect |
 |---|---|
-| `AddMsgHatch(Action<MsgHatchOptions>?)` | Registers the core services: the in-memory `IMessageRegistry` from the registrations (D117), `InProcessDispatchSignal` as the `IDispatchSignal`, the named `RetryOptions` `Inbox`, the named `DispatchOptions` `Inbox` and `Outbox`, `IInboxProcessor` and `IOutboxDispatcher` with their logging wrappers, `IDeliveryManager` as a tenant service with its logging wrapper, and `TimeProvider.System` with `TryAddSingleton`. Returns `MsgHatchBuilder`. |
+| `AddMsgHatch(Action<MsgHatchOptions>?)` | Registers the core services: the in-memory `IMessageRegistry` from the registrations (D117), `InProcessDispatchSignal` as the `IDispatchSignal`, the named `RetryOptions` `Inbox`, the named `DispatchOptions` `Inbox` and `Outbox`, `IInboxProcessor` and `IOutboxDispatcher` with their logging wrappers, `IDeliveryManager` as a tenant service with its logging wrapper, the in-process `IRegistryQueries` as the default tenant service with its logging wrapper (D268, D269), and `TimeProvider.System` with `TryAddSingleton`. Returns `MsgHatchBuilder`. |
 | `AddChannelType<TSettings>(ChannelDescriptor<TSettings>, int settingsVersion, JsonTypeInfo<TSettings> settingsJson, IChannelSettingsValidator)` | Registers a channel: its descriptor, the content type `Settings:{Channel}` of its settings type with the version, and the settings validator. A second call for the same channel id changes nothing. The first `As<Channel>` registration of a channel package calls it (D77). |
 | `AddTenantService<TService>(ServiceLifetime, Func<IServiceProvider, TenantKey, TService> factory, wrapWithLogging?)` | Registers a tenant service of a package (D126): one instance for each `TenantKey`, and an unkeyed registration that gives the instance of `TenantKey.None`. The service provider of the factory gives the key and each tenant service of the same key. The logging wrapper is added only with `EnableLogging`. The channel and router packages call it, for example the email package for the engine of a payload type. |
 | `AddDefaultTenantService<TService>(ServiceLifetime, factory, wrapWithLogging?)` | Registers the default implementation of a tenant service of a package, as `AddTenantService` does, only when the service collection has no registration of the service type (D231). So a selection wins in each order of the setup calls, and a second default adds nothing. |
@@ -1673,6 +1674,8 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 | `UseInMemoryStores()` | Selects `InMemoryInboxStore` and `InMemoryOutboxStore`, with their two parts and their logging wrappers, for a host with no database (D119). From phase 16, it also registers `InMemoryRegistrySettingsStore`. |
 | `UseStorageForEachTenant<TTenantSource>(Func<IServiceProvider, TenantKey, IInboxStore> inbox, Func<IServiceProvider, TenantKey, IInboxDispatchStore> inboxDispatch, Func<IServiceProvider, TenantKey, IOutboxStore> outbox, Func<IServiceProvider, TenantKey, IOutboxDispatchStore> outboxDispatch, string? setupMethod)` | Registers the consumer's tenant source as a singleton with its logging wrapper. An overload takes a factory of the tenant source, `Func<IServiceProvider, ITenantSource>`, for example for a test substitute. Registers the tenant stores of each key from the functions, each with its logging wrapper and an internal wrapper that clears the next due time of its tenant in the dispatch composite after a successful `AddAsync` or `RetryAsync`. Registers `TenantInboxDispatchStore` and `TenantOutboxDispatchStore`, with their logging wrappers, as the dispatch stores (D125). The storage packages call it. |
 | `UseStoredRegistry()` | Selects `StoredRegistry` as `IMessageRegistry` and `IRegistryWriter`, on the registered `IRegistrySettingsStore` (D118, section 4.20). |
+| `UseRegistryQueries(factory, setupMethod?)` | Selects the implementation of `IRegistryQueries`, for example an HTTP client, with `UseTenantService`, as a scoped tenant service with its logging wrapper (D231, D269). It replaces the in-process default of `AddMsgHatch` in each order of the calls. |
+| `UseRegistryApiClient(Action<RegistryApiClientOptions>?, Action<IHttpClientBuilder>?)`, `UseRegistryApiClient(Uri, Action<IHttpClientBuilder>?)` | In `MsgHatch.Api.Client`: `RegistryApiClientOptions`, a named HTTP client, and the HTTP client of `IRegistryQueries` through `UseRegistryQueries` (D271, section 4.23). |
 | `UseRegistrySettingsStore<TStore>()` | Registers a registry settings store with its logging wrapper. The storage packages call it. |
 | `UseInboxStore<TStore>()`, `UseOutboxStore<TStore>()` | Register a tenant store as a tenant service, with its logging wrapper. |
 | `UseInboxDispatchStore<TStore>()`, `UseOutboxDispatchStore<TStore>()` | Register a dispatch store as a singleton, with its logging wrapper. The storage packages call these methods and the tenant store methods, with the factory overloads. Each factory overload takes an optional `setupMethod`, and a storage package gives the name of its own setup method, so that the message of D62 names it, for example `UseFileStores`. A host calls them for its own store, or to use two different technologies for the inbox and the outbox. |
@@ -2553,7 +2556,30 @@ Registry settings stores:
 - The EF Core and MongoDB packages add their settings stores in their phases.
 - Each store passes `RegistrySettingsStoreTestsBase` (section 5.5).
 
-HTTP endpoints. `MapMsgHatchRegistry(this IEndpointRouteBuilder routes, string prefix = "/registry")` in `MsgHatch.AspNetCore` maps these endpoints, and returns the `RouteGroupBuilder`. The host adds the authorization.
+Registry queries (D268, D269). `IRegistryQueries` of `MsgHatch.Domain.Management` gives the registry to a management client, for example the pages of section 4.24:
+
+```csharp
+public interface IRegistryQueries
+{
+    ValueTask<ErrorOr<IReadOnlyList<RegistryChannel>>> GetChannelsAsync(CancellationToken ct);
+    ValueTask<ErrorOr<IReadOnlyList<RegistryMessageType>>> GetMessageTypesAsync(CancellationToken ct);
+}
+
+public sealed record RegistryChannel(ChannelId Id, string Name, string? Description, ChannelFeatures Features, bool Enabled, int Revision);
+
+public sealed record RegistryMessageType(
+    MessageType Type, string? DisplayName, string? Description, IReadOnlyList<ChannelId> Channels, bool Enabled,
+    IReadOnlyList<ChannelId> DisabledChannels, int Revision);
+```
+
+- The types hold the values of `IMessageRegistry` and the revision of the stored entry. They have no settings type and no event type, so they can go over HTTP.
+- The internal `RegistryManager` joins `IMessageRegistry` with `IRegistryWriter.GetEntriesAsync`. With no writer, for example with the in-memory reader of a setup in code, each revision is 0. An error of the writer is the error of the query.
+- `AddMsgHatch` registers `RegistryManager` as the default tenant service of `AddDefaultTenantService`, with its logging wrapper. `UseRegistryQueries` selects another implementation, for example the HTTP client of section 4.23, and a second selection gives the setup error of D62.
+- The registry belongs to the whole system (D114), so each tenant key gives the same values. It is still a tenant service, so the pages keep the rule of D249, and the client uses the selection method of D231.
+- The logging wrapper logs each call with the tenant of its key, the count or the error, and the duration, with the events 2909 to 2912 (D244). It never logs a display name or a description.
+- The phase adds no command interface, because the pages are read-only. The PUT and DELETE routes call `IRegistryWriter`.
+
+HTTP endpoints. `MapMsgHatchRegistry(this IEndpointRouteBuilder routes, string prefix = "/registry")` in `MsgHatch.AspNetCore` maps these endpoints, and returns the `RouteGroupBuilder`. The host adds the authorization. The six bodies and their JSON context `RegistryEndpointJson` are in `MsgHatch.Api.Contracts`, so the bodies of one API are in one package (D228, D270). `RegistryChannelResponse` and `RegistryMessageTypeResponse` have `From` and the mappings back to `RegistryChannel` and `RegistryMessageType`, and a name that is not valid gives `Errors.SerializationFailed`. The internal source `src/Shared/RegistryApiRoutes.cs` holds the route paths, and `MsgHatch.AspNetCore` and `MsgHatch.Api.Client` compile it.
 
 | Method | Path | Body | Success |
 |---|---|---|---|
@@ -2564,8 +2590,8 @@ HTTP endpoints. `MapMsgHatchRegistry(this IEndpointRouteBuilder routes, string p
 | PUT | `{prefix}/message-types/{type}` | `displayName`, `description`, `enabled`, `disabledChannels`, and `revision` | 200 with the saved entry |
 | DELETE | `{prefix}/message-types/{type}` | none | 204 |
 
-- The GET routes join `IMessageRegistry` with `IRegistryWriter.GetEntriesAsync`, so they show the revision of each entry, or 0 for no entry.
-- `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, `Errors.Conflict` gives 409, and each other error gives 500. The body is a `ProblemDetails` with the error name and message.
+- The GET routes call `IRegistryQueries` of `TenantKey.None`, so they show the revision of each entry, or 0 for no entry. A host that selects another implementation of `IRegistryQueries` changes what the GET routes give.
+- Each route writes its errors as problem details with `ErrorProblems` (D233): `title` is the name of the error type, `detail` is the message, and the member `errorType` holds the code, the name, and the transient flag. `Errors.ValidationFailed` gives 400, `Errors.NotFound` 404, and `Errors.Conflict` 409. Each other type gets the status of `ErrorProblems.StatusCodeOf`, for example 503 for `Errors.Unavailable`, and 500 for a type with no status of its own. A body that is not valid JSON also gives a problem with `errorType`.
 - A PUT body needs a JSON content type, else 415 (D156). `enabled` and `revision` are required, and a missing `disabledChannels` means no disabled channel. An invalid channel or message type name in the path or in the body gives 400, and calls no writer.
 - With the in-memory reader, `MapMsgHatchRegistry` maps only the GET routes, because a setup in code has no writer. Each revision is then 0.
 
@@ -2698,7 +2724,7 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 
 ### 4.23 HTTP API clients
 
-**Confirmed rule (D227, D231, D236):** a host calls the subscription and template management APIs of another host through the query and command interfaces of D231. `MsgHatch.Subscriptions.Api.Client` and `MsgHatch.Templates.Api.Client` implement these interfaces over HTTP. A consumer cannot see which implementation it uses: the same input gives the same result and the same error (D233, D234). A host can read over HTTP and write in process, or the reverse, or use one implementation for both.
+**Confirmed rule (D227, D231, D236):** a host calls the subscription and template management APIs of another host through the query and command interfaces of D231. `MsgHatch.Subscriptions.Api.Client` and `MsgHatch.Templates.Api.Client` implement these interfaces over HTTP. `MsgHatch.Api.Client`, the client of the core APIs, implements the registry queries of section 4.20 in the same way (D271). A consumer cannot see which implementation it uses: the same input gives the same result and the same error (D233, D234). A host can read over HTTP and write in process, or the reverse, or use one implementation for both.
 
 Generator (D236). `HttpApiClientGenerator` of `MsgHatch.SourceGeneration` is the second incremental generator of the package:
 - It adds the internal attributes `HttpApi`, `HttpCall`, and `HttpBody` of the namespace `MsgHatch.Http` with `RegisterPostInitializationOutput`. They have `Microsoft.CodeAnalysis.EmbeddedAttribute`, so each compilation with the generator has its own copy, and no other assembly sees them, also with `InternalsVisibleTo`.
@@ -2730,12 +2756,14 @@ Client packages (D227). Each package has only the package `Microsoft.Extensions.
 |---|---|---|---|---|
 | `MsgHatch.Templates.Api.Client` | `ITemplateQueries`, `ITemplateCommands` | `UseTemplateApiClient`, `UseTemplateQueriesApiClient`, `UseTemplateCommandsApiClient` | `MsgHatch:TemplateApiClient` | `/templates` |
 | `MsgHatch.Subscriptions.Api.Client` | `ISubscriptionQueries`, `IRoutingVerifier`, `ISubscriptionCommands` | `UseSubscriptionApiClient`, `UseSubscriptionQueriesApiClient` (the queries and the verifier, D232), `UseSubscriptionCommandsApiClient` | `MsgHatch:SubscriptionApiClient` | `/subscriptions` |
+| `MsgHatch.Api.Client` | `IRegistryQueries` | `UseRegistryApiClient` | `MsgHatch:RegistryApiClient` | `/registry` |
 
-- The options are `BaseAddress`, a required absolute URI with no default, `Prefix`, with the default prefix of `MapMsgHatchTemplates` or `MapMsgHatchSubscriptions`, and `Timeout`, from 1 second to 10 minutes, with the default 30 seconds. A value from code wins over the configuration, and an options error stops the start of the host.
+- The options are `BaseAddress`, a required absolute URI with no default, `Prefix`, with the default prefix of `MapMsgHatchTemplates`, `MapMsgHatchSubscriptions`, or `MapMsgHatchRegistry`, and `Timeout`, from 1 second to 10 minutes, with the default 30 seconds. A value from code wins over the configuration, and an options error stops the start of the host.
 - Each setup method takes `Action<TOptions>? configure = null` and `Action<IHttpClientBuilder>? configureHttp = null`, and has an overload with `Uri baseAddress`. Each interface has its own named HTTP client, whose name stays internal. The host adds its handlers with `configureHttp`, for example a handler that adds a token.
 - Each setup method calls the selection methods of D231 with its own name, so a second selection of one interface gives the setup error "… select an implementation of …". The selection adds the logging wrapper of the interface (D244), which logs each call. A host with `MsgHatchRoles.None` that only calls the clients starts (D230).
 - The internal adapters, for example `HttpTemplateQueries`, run the rules of D234 first: `TemplateLookupRules`, `SubscriptionDraftRules`, and `RoutingVerificationRules` (D248). So an input that breaks a rule gives the error of the rule with no HTTP call. Then an adapter maps the domain values to the bodies (D228), sends `tenantId` for the key of a tenant and no `tenantId` for `TenantKey.None`, calls the generated class, and maps the response back. A list with a null item, or a value that is not valid, gives `Errors.SerializationFailed`.
 - `HttpTemplateQueries.PreviewTemplateAsync` runs `TemplateLookupRules.Check` and `CheckText` first, and then posts the text to the route `/preview` of the lookup (D256). The server renders the preview with its engines and its samples, so a client host needs no engine and no payload type. A preview with an empty registration or a null text gives `Errors.SerializationFailed`.
+- `HttpRegistryQueries` runs no rule, because a query has no input (D271). The registry routes have no `tenantId`, so the adapter sends none, and each tenant key gets the same values (D269). The registry routes write their errors with `ErrorProblems` (section 4.20), so the client gives the error type of the server, for example `Errors.Unavailable` for an error of the registry writer.
 - The template API has no template id (D224), so `TemplateSource.Key.Id` of a read is a stable id of the lookup. A caller reads it as opaque, and sends back only the version.
 - The subscription client calls the routes with no `/me`, because a `/me` route narrows each query to the signed-in user, and a browser calls it (D154). It reads the settings of a channel with the entry `Settings:{channel}` of the registry of its host, or gives `JsonChannelSettings` (D229), and a request names the settings type of typed settings (D247). A row of a verification report has its trace only when the host registers the trace type `Trace:Subscription`.
 - A create is not idempotent. So a host does not retry a `POST`, for example with a retry handler of `configureHttp`.
@@ -2747,24 +2775,25 @@ Setup of a Blazor admin UI (D235). The admin UI uses the clients for all reads a
 builder.Services.AddTransient<TokenHandler>();
 builder.Services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
     .UseSubscriptionApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>())
-    .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
+    .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>())
+    .UseRegistryApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
 ```
 
-The base addresses come from the sections `MsgHatch:SubscriptionApiClient` and `MsgHatch:TemplateApiClient`. In Interactive Server mode, `IHttpClientFactory` makes the handlers in a DI scope of its own, and not in the scope of the circuit. So `TokenHandler` reads the token of the signed-in user through a circuit services accessor: a `CircuitHandler` stores the services of the circuit in an `AsyncLocal` for each inbound activity, and the handler reads them there, as the ASP.NET Core documentation "Access server-side Blazor services from a different DI scope" shows. In WebAssembly, the handler of the authentication library of the host adds the token. Section 4.24 describes the admin UIs.
+The base addresses come from the sections `MsgHatch:SubscriptionApiClient`, `MsgHatch:TemplateApiClient`, and `MsgHatch:RegistryApiClient`. In Interactive Server mode, `IHttpClientFactory` makes the handlers in a DI scope of its own, and not in the scope of the circuit. So `TokenHandler` reads the token of the signed-in user through a circuit services accessor: a `CircuitHandler` stores the services of the circuit in an `AsyncLocal` for each inbound activity, and the handler reads them there, as the ASP.NET Core documentation "Access server-side Blazor services from a different DI scope" shows. In WebAssembly, the handler of the authentication library of the host adds the token. Section 4.24 describes the admin UIs.
 
 ### 4.24 Admin UIs
 
-**Confirmed rule (D235, D239 to D242, D252, D257, D259 to D267):** MsgHatch ships the list, view, and edit pages of the subscriptions and the templates as Razor class libraries. A host adds them in its setup, selects the HTTP clients or the in-process implementations of D231, and adds its own authorization. The text of a template has the editor of its engine, and the Liquid editor is a package of its own.
+**Confirmed rule (D235, D239 to D242, D252, D257, D259 to D267, D272, D273):** MsgHatch ships the list, view, and edit pages of the subscriptions and the templates, and the read-only pages of the registry, as Razor class libraries. A host adds them in its setup, selects the HTTP clients or the in-process implementations of D231, and adds its own authorization. The text of a template has the editor of its engine, and the Liquid editor is a package of its own.
 
 | Package | References | Content |
 |---|---|---|
-| `MsgHatch.AdminUI` | `MsgHatch.Api.Contracts`, `Microsoft.AspNetCore.Components.Web` | The parts that both admin UIs use: `AdminListPage`, `AdminEditPage`, `AdminList<TItem>` with the states loading, error, and empty, `AdminPager`, `AdminActions`, `AdminDialog`, `DeleteDialog`, `ErrorAlert`, and `AdminErrors.TextOf` |
+| `MsgHatch.AdminUI` | `MsgHatch.Api.Contracts`, `Microsoft.AspNetCore.Components.Web` | The parts that both admin UIs use: `AdminListPage`, `AdminEditPage`, `AdminList<TItem>` with the states loading, error, and empty, `AdminPager`, `AdminActions`, `AdminDialog`, `DeleteDialog`, `ErrorAlert`, and `AdminErrors.TextOf`. The registry pages `ChannelListPage`, `ChannelViewPage`, and `MessageTypeListPage`, `RegistryAdminRoutes`, and `AddMsgHatchAdminUI` (D272, D273) |
 | `MsgHatch.Templates.AdminUI` | `MsgHatch.Templates.Api.Contracts`, `MsgHatch.AdminUI` | `TemplateListPage`, `TemplateViewPage`, `TemplateEditPage`, the metadata line `TemplateMetadata`, the preview `TemplatePreviewPane`, the editor extension point `TemplateEditorBase` with `AddTemplateEditor<TEditor>`, `PlainTemplateEditor`, the HTML highlight `HtmlTokenizer` with `HighlightedTextArea` and its JavaScript module `highlightedTextArea.js`, `TemplateAdminRoutes`, and `AddMsgHatchTemplatesAdminUI` |
 | `MsgHatch.Templates.Liquid.AdminUI` | `MsgHatch.Templates.AdminUI` | `LiquidTemplateEditor`, `LiquidTokenizer`, and `AddLiquidTemplateEditor` |
 | `MsgHatch.Subscriptions.AdminUI` | `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.AdminUI` | `SubscriptionListPage`, `SubscriptionEditPage`, `SubscriptionEditor`, `MessageTypesPage`, `RoutingVerificationPage`, `SubscriptionAdminRoutes`, and `AddMsgHatchSubscriptionsAdminUI` |
 
 Rules of the pages:
-- A page resolves `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, `ITemplateQueries`, or `ITemplateCommands` of `TenantKey.None` through the `IServiceProvider` of its DI scope (D249). It uses no other service of MsgHatch, except `IContentTypeRegistry` for the settings of a subscription. So the host selects the HTTP clients or the in-process implementations in its setup (D235).
+- A page resolves `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, `ITemplateQueries`, `ITemplateCommands`, or `IRegistryQueries` of `TenantKey.None` through the `IServiceProvider` of its DI scope (D249, D269). It uses no other service of MsgHatch, except `IContentTypeRegistry` for the settings of a subscription. So the host selects the HTTP clients or the in-process implementations in its setup (D235).
 - A page sets no render mode, so the host selects Interactive Server or WebAssembly. A page uses the CSS classes of Bootstrap 5, which the host loads, and no component library.
 - A page handles each failure as an `ErrorOr` value. `AdminErrors.TextOf` gives a fixed text for `Rejected` (the signed-in user has no permission), `Unavailable` (the API is not available), and `Conflict` (the page shows the stored version now), and the message of each other error, or the name of its type when it has no message. A list shows its error in place of its rows. An edit page shows its error next to the form, and `Conflict` loads the stored version again.
 - An edit page keeps a draft of its edit, shows the pending changes, and asks with `DeleteDialog` before a delete. The delete runs only after the user confirms it. The question shows the details of the stored item, what changes after the delete, and that the delete cannot be undone (D262).
@@ -2786,11 +2815,14 @@ The pages and their route builders:
 | `/msghatch/subscriptions` | `SubscriptionListPage` | `SubscriptionAdminRoutes.List` |
 | `/msghatch/subscriptions?new=true` | `SubscriptionListPage` with the dialog of a new subscription | `SubscriptionAdminRoutes.New` |
 | `/msghatch/subscriptions/{id}` | `SubscriptionEditPage` | `SubscriptionAdminRoutes.Edit(Guid)` |
-| `/msghatch/subscriptions/message-types` | `MessageTypesPage` | `SubscriptionAdminRoutes.MessageTypes` |
+| `/msghatch/subscriptions/message-types` | `MessageTypesPage`, with the title "Applied subscriptions" (D273) | `SubscriptionAdminRoutes.MessageTypes` |
 | `/msghatch/subscriptions/verification` | `RoutingVerificationPage` | `SubscriptionAdminRoutes.Verification` |
+| `/msghatch/channels` | `ChannelListPage` | `RegistryAdminRoutes.Channels` |
+| `/msghatch/channels/{channel}` | `ChannelViewPage` | `RegistryAdminRoutes.Channel(ChannelId)` |
+| `/msghatch/message-types` | `MessageTypeListPage` | `RegistryAdminRoutes.MessageTypes` |
 
 Template pages:
-- The list has filters for the message type and the company. The message types of the filter come from `GetTemplatePartsAsync`. Each row has the buttons View and Edit (D257). The button "+ New template" opens a dialog with a declared part of `GetTemplatePartsAsync` (D220, D240), a language, and an optional company (D260). "Open the editor" checks the lookup with `TemplateLookupRules`, and opens the edit page, with the editor and the live preview. An error of the parts, or no declared part, shows in the dialog.
+- The list has filters for the message type and the company, which go into `TemplateQuery`. The message types of the filter come from `GetTemplatePartsAsync`. The filters for the language, the part, and the kind apply to the loaded list in the page, because the lists have no filters and no paging on the server. The part filter offers the declared parts, the kind filter offers each `TemplatePartKind`, and the language filter ignores the case. Each row has the buttons View and Edit (D257). The button "+ New template" opens a dialog with a declared part of `GetTemplatePartsAsync` (D220, D240), a language, and an optional company (D260). "Open the editor" checks the lookup with `TemplateLookupRules`, and opens the edit page, with the editor and the live preview. An error of the parts, or no declared part, shows in the dialog.
 - The view page reads the parts of the message type and the template with no fallback. It shows the metadata line, the stored text in `HighlightedTextArea` with `ReadOnly`, so a user can select and copy it, and the preview of the stored text. An html part has the HTML highlight of D252. The page has the buttons Edit and Back. An error, also `NotFound`, shows its text and the link back to the list.
 - The edit page reads the parts of the message type and the template with no fallback. `NotFound` gives a new template with the version 0. The page shows the metadata line, the editor of the part under the title "Editor", the preview of the draft under the title "Live preview", and the save, with the expected version of the last read or save. `TemplateInvalid` shows its message as an issue under the text, and `Conflict` loads the stored version again. A stored template has the delete.
 - `TemplateMetadata` shows the message type, the language, the company, the part with its kind, and the version on one line of small labels and values (D257).
@@ -2822,8 +2854,15 @@ Liquid editor (D242):
 - The editor shows the text in `HighlightedTextArea` (D252). It marks the character at the line and the column of each issue with `mark`, and shows each message under the text. An issue with no position, for example an unknown filter, shows only its message. For an `html` part, the characters of each Liquid `Text` span get their HTML span kinds. The styles are scoped CSS, so the host loads its bundle `{assembly of the host}.styles.css`.
 
 Subscription pages:
-- The list has filters for the owner level and the message type, which go into `SubscriptionQuery`, and for the channel, which the page applies to the result, because `SubscriptionQuery` has no channel.
-- The message types page shows the channels and the number of the applied subscriptions of each message type, for the scope of an optional company and an optional user.
+- The list has filters for the owner level and the message type, which go into `SubscriptionQuery`. The filters for the channel, the kind, and the mandatory flag apply to the loaded list in the page, because `SubscriptionQuery` has no such filter, and the lists have no filters and no paging on the server.
+- The page "Applied subscriptions" (`MessageTypesPage`) shows the channels and the number of the applied subscriptions of each message type, for the scope of an optional company and an optional user. Its title and its links say "Applied subscriptions", so that it does not look like the message types page of the registry (D273).
+
+Registry pages (D272, D273):
+- The pages are read-only. They call `IRegistryQueries` of `TenantKey.None`, and a page that needs the channels and the message types calls both queries. An error of either query is the error of the page.
+- The channel list shows the id, the name, the features as Bootstrap badges, the enabled flag as "Yes" or "No", and the number of message types of each channel, with the button View.
+- The channel view page shows the id, the name, the description, the features, the enabled flag, and the revision of the stored entry. It lists the message types that register the channel, each with its display name and its state on the channel: "Enabled", "Message type disabled", or "Disabled on this channel". A disabled message type sends on no channel, so its state is "Message type disabled" also when the channel is in its `DisabledChannels`. The page has Back and no main action. An unknown channel shows the text of `NotFound` and the link back.
+- The message types page shows each message type with its display name, its description, its enabled flag, and its channels. Each channel links to its view page, and a channel in `DisabledChannels` has the mark "disabled".
+- `AddMsgHatchAdminUI` keeps the three pages in a trimmed host with `DynamicDependency` (D250). A host adds the assembly of `RegistryAdminRoutes` to its router.
 - The edit page has the owner level with its company id or user id, the message type, the kind, the channel, the settings, the recipients with the named users, one user id on each line, and the mandatory flag. It checks each id with `Create` before a call. An update sends the expected revision. The public component `SubscriptionEditor` holds the form, the save, and the delete, so the edit page and the dialog of a new subscription share them (D260). In the dialog, a create closes the dialog and loads the list again, and the left button is Cancel. On the edit page, the left button is Back. The query `new=true` of the list opens the dialog, and Cancel then gives the list address with no query.
 - The page edits the settings of a channel as JSON text (D229). For a channel whose `ChannelDescriptor.SettingsType` is a settings type of the host, `SettingsJson.Read` reads the text with the entry `Settings:{channel}` of the content type registry. For a channel with the settings type `ChannelSettings`, the page sends the text as `JsonChannelSettings`, with no change. Text that is not JSON gives `Errors.ValidationFailed` with no call. The page shows a stored subscription with `SettingsJson.Write`, indented.
 - The verification page sends the test users, one user id on each line, the languages, one on each line, and an optional message type to `IRoutingVerifier` (D163), and shows the totals and a row for each check.
@@ -2834,21 +2873,22 @@ Setup of a host:
 builder.Services.AddTransient<TokenHandler>();
 builder.Services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
     .UseSubscriptionApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>())
-    .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
-builder.Services.AddMsgHatchSubscriptionsAdminUI().AddMsgHatchTemplatesAdminUI().AddLiquidTemplateEditor();
+    .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>())
+    .UseRegistryApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
+builder.Services.AddMsgHatchAdminUI().AddMsgHatchSubscriptionsAdminUI().AddMsgHatchTemplatesAdminUI().AddLiquidTemplateEditor();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var app = builder.Build();
 app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode()
-    .AddAdditionalAssemblies(typeof(SubscriptionAdminRoutes).Assembly, typeof(TemplateAdminRoutes).Assembly)
+    .AddAdditionalAssemblies(typeof(SubscriptionAdminRoutes).Assembly, typeof(TemplateAdminRoutes).Assembly, typeof(RegistryAdminRoutes).Assembly)
     .RequireAuthorization("MsgHatchAdmin");
 ```
 
-The `Router` of the host gets the same two assemblies in `AdditionalAssemblies`. The host loads Bootstrap 5 and its styles bundle in `App.razor`. So that a list page scrolls only its list (D259), the layout of the host is one column with the height of the window, for example `<div class="d-flex flex-column vh-100">`, and its main area fills the rest with `class="d-flex flex-column flex-grow-1"` and `style="min-height: 0; overflow-y: auto"`. In a layout with no fixed height, the page scrolls as a whole. The admin parts use only the color variables of Bootstrap, so the host selects the light or the dark mode with `data-bs-theme` (D266). A host that uses the in-process implementations calls `UseSubscriptions` and a template setup method in place of the clients, and needs no token handler.
+The `Router` of the host gets the same three assemblies in `AdditionalAssemblies`. The pages of `MsgHatch.AdminUI` and its shared parts with no route are in one assembly, and the router finds only the pages. The host loads Bootstrap 5 and its styles bundle in `App.razor`. So that a list page scrolls only its list (D259), the layout of the host is one column with the height of the window, for example `<div class="d-flex flex-column vh-100">`, and its main area fills the rest with `class="d-flex flex-column flex-grow-1"` and `style="min-height: 0; overflow-y: auto"`. In a layout with no fixed height, the page scrolls as a whole. The admin parts use only the color variables of Bootstrap, so the host selects the light or the dark mode with `data-bs-theme` (D266). A host that uses the in-process implementations calls `UseSubscriptions` and a template setup method in place of the clients, and needs no token handler.
 
-Example (`examples/AdminUiExample`). An Interactive Server host of both admin UIs and the Liquid editor, with no message type and no store. It calls the APIs of `ExampleApp` at `http://localhost:5080/` with the prefixes `/api/subscriptions` and `/api/templates` of its `appsettings.json`. `ApiTokenHandler` adds the token of the option `AdminUiExample:ApiToken`, which is required, to each request. The token comes from the user secrets of the project, which git ignores, for example a token of `dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin`, which also passes the policy of the subscription routes. The host has no sign-in, listens only on `http://localhost:5090`, and loads Bootstrap 5.3.3 from a pinned CDN address with its integrity hash, so the repository holds no copy. Its layout has the height of the window (D259), and its script `theme.js` sets the light or the dark mode before the first paint, from the stored choice or the system setting, with the button "Light or dark" in the navigation bar (D266).
+Example (`examples/AdminUiExample`). An Interactive Server host of both admin UIs, the registry pages, and the Liquid editor, with no message type and no store. It calls the APIs of `ExampleApp` at `http://localhost:5080/` with the prefixes `/api/subscriptions`, `/api/templates`, and `/api/registry` of its `appsettings.json`. `ApiTokenHandler` adds the token of the option `AdminUiExample:ApiToken`, which is required, to each request. The token comes from the user secrets of the project, which git ignores, for example a token of `dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin --role RegistryAdmin`, which also passes the policy of the subscription routes. A token with no role `RegistryAdmin` gives 403 on the registry pages (D170). The menu has the links Subscriptions, Applied subscriptions, Verification, Templates, Channels, and Message types, and marks the link of the open page, also "Channels" on the view page of a channel. The host has no sign-in, listens only on `http://localhost:5090`, and loads Bootstrap 5.3.3 from a pinned CDN address with its integrity hash, so the repository holds no copy. Its layout has the height of the window (D259), and its script `theme.js` sets the light or the dark mode before the first paint, from the stored choice or the system setting, with the button "Light or dark" in the navigation bar (D266).
 
 ## 5. Repository and conventions
 
@@ -2881,6 +2921,7 @@ Example (`examples/AdminUiExample`). An Interactive Server host of both admin UI
 │   │   ├── FileNames.cs                                (after phase 25)
 │   │   ├── ApiResults.cs                               (phase 27, D236)
 │   │   ├── ErrorProblems.cs                            (phase 26, D233)
+│   │   ├── RegistryApiRoutes.cs                        (phase 31, D270)
 │   │   ├── SubscriptionApiRoutes.cs                    (phase 26, D228)
 │   │   └── TemplateApiRoutes.cs                        (phase 26, D228)
 │   ├── MsgHatch.Domain/                                (phase 1)
@@ -2913,6 +2954,7 @@ Example (`examples/AdminUiExample`). An Interactive Server host of both admin UI
 │   ├── MsgHatch.Templates.Api.Contracts/               (phase 26)
 │   ├── MsgHatch.Templates.Api.Client/                  (phase 27)
 │   ├── MsgHatch.Subscriptions.Api.Client/              (phase 27)
+│   ├── MsgHatch.Api.Client/                            (phase 31, D271)
 │   ├── MsgHatch.AdminUI/                               (phase 28)
 │   ├── MsgHatch.Templates.AdminUI/                     (phase 28)
 │   ├── MsgHatch.Templates.Liquid.AdminUI/              (phase 28)
@@ -2957,6 +2999,7 @@ Example (`examples/AdminUiExample`). An Interactive Server host of both admin UI
 │   ├── MsgHatch.Templates.Api.Contracts.Tests.Unit/                         (phase 26)
 │   ├── MsgHatch.Templates.Api.Client.Tests.Unit/                            (phase 27)
 │   ├── MsgHatch.Subscriptions.Api.Client.Tests.Unit/                        (phase 27)
+│   ├── MsgHatch.Api.Client.Tests.Unit/                                      (phase 31)
 │   ├── MsgHatch.AdminUI.Tests.Unit/                                         (phase 28)
 │   ├── MsgHatch.Templates.AdminUI.Tests.Unit/                               (phase 28)
 │   ├── MsgHatch.Templates.Liquid.AdminUI.Tests.Unit/                        (phase 28)
@@ -2995,7 +3038,7 @@ Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `
   - `TreatWarningsAsErrors` `true` (D51).
   - `GenerateDocumentationFile` `true`.
   - `EnableConfigurationBindingGenerator` `true` (D65).
-- The packages of the API boundary set `IsAotCompatible` `true` in their own project files (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts`, `MsgHatch.Subscriptions.AspNetCore`, `MsgHatch.Templates.AspNetCore`, the two client packages, and the four admin UI packages. So the trim, AOT, and single-file analyzers run in each build, and `TreatWarningsAsErrors` turns each warning into an error. The two `.AspNetCore` packages also set `EnableRequestDelegateGenerator` `true`, so each minimal API endpoint needs no code generation at run time.
+- The packages of the API boundary set `IsAotCompatible` `true` in their own project files (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts`, `MsgHatch.Subscriptions.AspNetCore`, `MsgHatch.Templates.AspNetCore`, the three client packages, and the four admin UI packages. So the trim, AOT, and single-file analyzers run in each build, and `TreatWarningsAsErrors` turns each warning into an error. The two `.AspNetCore` packages also set `EnableRequestDelegateGenerator` `true`, so each minimal API endpoint needs no code generation at run time.
   - A compile link to `src/GeneratedCodeSuppressions.cs` (D32).
   - `IsPackable` `true`.
   - The package metadata: `Authors` `Tamás Bilik`, `RepositoryUrl` `https://github.com/biliktamas79/MsgHatch`, and `PackageLicenseExpression` `Apache-2.0`.
