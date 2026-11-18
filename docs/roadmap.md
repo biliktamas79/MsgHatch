@@ -38,6 +38,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 28 Admin UIs | 27 |
 | 29 Template preview | 28 |
 | 30 Layout of the admin pages | 29 |
+| 31 Registry queries and pages | 16, 30 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2111,6 +2112,90 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
+### Phase 31: registry queries and pages
+
+Goal: an operator sees the channels of a host with the message types of each channel, and the list of the message types, in the admin UI (D268 to D273). The registry gets a query interface, contracts, and an HTTP client, in the same way as the subscriptions and the templates in phases 26 to 28.
+
+Starting point: after the tag `phase-30`, the commits `094e690` to `79c69d5` (tag `phase-30.1`) added these changes:
+- A border on the list area of the admin pages.
+- The mark of the open page in the menu of the example host.
+- More list filters: the language, the part, and the kind of a template, and the kind and the mandatory flag of a subscription. The filters apply to the loaded list in the page.
+
+The owner decided that the lists need no filters and no paging on the server, because each filter works in the page.
+
+1. Check first, before the code:
+   - `MsgHatch.AspNetCore` references only `MsgHatch.Domain`. A reference to `MsgHatch.Api.Contracts` gives no cycle, and the generator of D236 finds the list properties of `RegistryEndpointJson` in the contracts assembly. If it does not, the plan changes before the code.
+   - The router of a host finds the pages of `MsgHatch.AdminUI` when the host adds its assembly to `AdditionalAssemblies`, and the shared parts with no route do not change.
+2. Add the registry query interface (D268, D269):
+   - `IRegistryQueries`, `RegistryChannel`, and `RegistryMessageType` in `MsgHatch.Domain.Management`.
+   - `RegistryManager` joins `IMessageRegistry` with the revisions of `IRegistryWriter.GetEntriesAsync`. With no writer, each revision is 0. An error of the writer is the error of the query.
+   - The setup registers it with `AddDefaultTenantService` and a selection method of D231.
+   - The logging wrapper logs each call with its count or its error and its duration, as the other query wrappers do (D244). It uses the events 2909 to 2912, the next ids after 2908.
+3. Move the registry bodies and route paths to the shared contracts (D270):
+   - The six registry bodies and `RegistryEndpointJson` move to `MsgHatch.Api.Contracts`, with public `From` methods. The two GET bodies get their mappings back to the domain types.
+   - `RegistryApiRoutes` in `src/Shared` holds `/channels`, `/channels/{channel}`, `/message-types`, and `/message-types/{type}`. `MsgHatch.AspNetCore` compiles it.
+   - The GET routes call `IRegistryQueries` of `TenantKey.None`. The paths and the bodies do not change.
+4. Write the errors of the registry routes with `ErrorProblems` (D233):
+   - The problem body gets `errorType` and `detail`.
+   - `ValidationFailed`, `NotFound`, and `Conflict` keep their status codes. The other error types get the status of `ErrorProblems.StatusCodeOf` in place of 500, for example 503 for `Unavailable`.
+5. Add the client package `MsgHatch.Api.Client` (D271):
+   - `IRegistryApi` with `[HttpApi(typeof(RegistryEndpointJson))]`, the adapter `HttpRegistryQueries`, `RegistryApiClientOptions` with its validator, and `UseRegistryApiClient`.
+   - The package has only the package `Microsoft.Extensions.Http`, and sets `IsAotCompatible` (D237).
+   - The solution gets the package and `tests/MsgHatch.Api.Client.Tests.Unit`.
+6. Add the channel pages to `MsgHatch.AdminUI` (D272):
+   - `RegistryAdminRoutes`, `ChannelListPage` with `AdminListPage`, and `ChannelViewPage` with `AdminEditPage`.
+   - The features show as Bootstrap badges, and the enabled flag as "Yes" or "No".
+   - `AddMsgHatchAdminUI` keeps both pages in a trimmed host with `DynamicDependency` (D250).
+7. Add the message types page to `MsgHatch.AdminUI` (D273):
+   - `MessageTypeListPage` at `/msghatch/message-types`, with the route builder `RegistryAdminRoutes.MessageTypes`, uses `AdminListPage`.
+   - Each row shows the message type, its display name, its description, its enabled flag, and its channels. Each channel links to its view page, and a channel in `DisabledChannels` has the mark "disabled".
+   - `AddMsgHatchAdminUI` keeps the page with `DynamicDependency` (D250).
+8. Rename the subscription page "Message types" to "Applied subscriptions" (D273): its title, the link on the subscription list, and the links of the example host. The address, the class `MessageTypesPage`, and `SubscriptionAdminRoutes.MessageTypes` stay.
+9. Show the registry pages in the example admin host:
+   - `UseRegistryApiClient` with the token handler, and the section `MsgHatch:RegistryApiClient` with `http://localhost:5080/` and the prefix `/api/registry`.
+   - `AddMsgHatchAdminUI`, and the assembly of `MsgHatch.AdminUI` in `AdminAssemblies`.
+   - The menu and the home page get the links "Channels" and "Message types" after "Templates". The menu marks "Channels" on the list and on the view page.
+   - The registry routes of `ExampleApp` need the role `RegistryAdmin` (D170). So the token command in the README of the example app gets `--role RegistryAdmin`, and its table of problems names the 403 of a token with no such role. AGENTS.md says the same.
+10. Describe the phase in the design: the sections 4.20, 4.23, and 4.24, and the filters of `phase-30.1` in section 4.24.
+
+Tests:
+- `RegistryQueriesTestsBase<T>` in `MsgHatch.Domain.Tests.Unit`:
+  - The channels and the message types of the code, each with the revision 0.
+  - The stored display name, description, and enabled flag, with their revisions.
+  - The disabled channels of a message type.
+  - The error of the writer.
+  - `RegistryManager` gets the base with one subclass, and the HTTP client against the registry routes gets it with another one.
+- The logging wrapper: one event for each call, with the count or the error type.
+- The contracts: each GET body maps to its domain type and back, and a name that is not valid gives `SerializationFailed`.
+- The registry routes: the problem body of D233 for each error type, and the GET routes through `IRegistryQueries`. The existing tests of the paths and the status codes stay green.
+- The client: the options and their validation, the setup error of a second selection, `Unavailable` for a network error, and `Rejected` for 401 and 403.
+- The pages, with bUnit:
+  - The rows of the list, with the address of View, the empty state, and the texts of `Unavailable` and `Rejected`.
+  - The fields and the badges of the view page, and the three states of a message type on the channel.
+  - `NotFound` with the link back, and the addresses of `RegistryAdminRoutes`.
+  - The rows of the message types page, the links of the channels, and the mark of a disabled channel.
+  - The title "Applied subscriptions" of the subscription page, and its link on the subscription list.
+- The example host: the registry client sends its calls with the token, and the menu marks each new page and "Applied subscriptions".
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phase 31: the registry queries and pages"
+2. "Add the registry query interface"
+3. "Move the registry bodies and route paths to the shared contracts"
+4. "Write the errors of the registry endpoints with ErrorProblems"
+5. "Add the HTTP client of the registry queries"
+6. "Add the channel list and view pages to the core admin UI"
+7. "Add the message types page to the core admin UI"
+8. "Rename the subscription message types page to Applied subscriptions"
+9. "Show the registry pages in the example admin host"
+10. "Describe the registry queries and pages in the design"
+11. "Record the commits and the checked facts of phase 31 in the plan"
+12. "Record phase 31 as done in README and AGENTS.md"
+
+Commit 1 holds the plan and the decisions. The commits 2 to 10 hold the items 2 to 10, and item 1 is a check whose results go into the checked facts.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -2136,5 +2221,6 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
 - More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
 - The open allocations of section 4.11 (D159): an allocation profile, for example an EventPipe trace with `GcVerbose`, attributes the bytes that phase 13 did not attribute, and the phase removes the avoidable ones: the three copies of the routes and the set of the targets in the pipeline, about 150 B for each send, and the owner part strings and the empty list of a subscription cache hit. It also gives the resolution a budget line, because it allocates about 1.7 KB for each user.
-- The delivery and registry endpoints of `MsgHatch.AspNetCore` write their errors with `ErrorProblems` (D233), and get contracts packages, generated HTTP clients, and admin pages in the same way as phases 26 to 28.
+- The delivery endpoints of `MsgHatch.AspNetCore` write their errors with `ErrorProblems` (D233), and get contracts, a generated HTTP client in `MsgHatch.Api.Client` (D271), and admin pages in the same way as phases 26 to 28.
+- The registry gets its command interface `IRegistryCommands` for the PUT and DELETE routes, with its HTTP client and the edit pages of a channel and a message type. Phase 31 adds only the queries and the read-only pages of the channels and the message types (D268, D273).
 - AOT for the other packages (D237): each package outside the API boundary sets `IsAotCompatible` when its dependencies allow it, or the design records why not.
