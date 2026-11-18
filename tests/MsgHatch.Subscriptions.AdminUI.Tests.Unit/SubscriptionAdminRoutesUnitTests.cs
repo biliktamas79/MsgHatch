@@ -1,5 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.AspNetCore.Components;
+using MsgHatch.Subscriptions.AdminUI.DependencyInjection;
 using MsgHatch.Subscriptions.AdminUI.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Subscriptions.AdminUI.Tests.Unit;
@@ -16,7 +18,6 @@ public sealed class SubscriptionAdminRoutesUnitTests
     public void Pages_RouteTemplates_AreTheAddressesOfTheRouteBuilders()
     {
         Assert.Equal([SubscriptionAdminRoutes.List], TemplatesOf<SubscriptionListPage>());
-        Assert.Equal([SubscriptionAdminRoutes.MessageTypes], TemplatesOf<MessageTypesPage>());
         Assert.Equal([SubscriptionAdminRoutes.Verification], TemplatesOf<RoutingVerificationPage>());
         Assert.Equal([SubscriptionAdminRoutes.List + "/{Id:guid}"], TemplatesOf<SubscriptionEditPage>());
     }
@@ -42,6 +43,19 @@ public sealed class SubscriptionAdminRoutesUnitTests
             .Where(static type => typeof(IComponent).IsAssignableFrom(type) && type.GetCustomAttribute<RenderModeAttribute>(inherit: true) is not null);
 
         Assert.Empty(withRenderMode);
+    }
+
+    [Fact]
+    public void AddMsgHatchSubscriptionsAdminUI_DynamicDependencies_KeepEachPageOfTheLibrary()
+    {
+        var pages = typeof(SubscriptionAdminRoutes).Assembly.GetTypes()
+            .Where(static type => type.GetCustomAttributes<RouteAttribute>().Any())
+            .Select(static type => type.Name);
+        var kept = typeof(SubscriptionsAdminUIExtensions).GetMethod(nameof(SubscriptionsAdminUIExtensions.AddMsgHatchSubscriptionsAdminUI))!
+            .GetCustomAttributes<DynamicDependencyAttribute>()
+            .Select(static dependency => dependency.Type!.Name);
+
+        Assert.Equal(pages.Order(StringComparer.Ordinal), kept.Order(StringComparer.Ordinal));
     }
 
     private static string[] TemplatesOf<TPage>() => [.. typeof(TPage).GetCustomAttributes<RouteAttribute>().Select(static route => route.Template).Order(StringComparer.Ordinal)];

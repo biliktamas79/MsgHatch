@@ -26,26 +26,26 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
-    public void Render_Page_HasTheListLayoutWithTheFiltersTheNewButtonAndTheLinks()
+    public void Render_Page_HasTheListLayoutWithTheFiltersTheNewButtonAndTheLink()
     {
         GivenSubscriptions(Subscription());
 
         var cut = Render<SubscriptionListPage>();
 
         Assert.Equal(
-            ("Subscriptions", 5, "+ New subscription", 2, true),
+            ("Subscriptions", 5, "+ New subscription", 1, true),
             (cut.Find("[data-list-header] h1").TextContent, cut.FindAll("[data-list-filters] select").Count,
                 cut.Find("[data-list-actions] [data-action=new]").TextContent, cut.FindAll("[data-list-header] a.btn-link").Count,
                 cut.Find("[data-list-body]").QuerySelector("[data-list-scroll] table") is not null));
     }
 
     [Fact]
-    public void Render_Page_LinksToTheAppliedSubscriptions()
+    public void Render_Page_LinksOnlyToTheRoutingVerification()
     {
         var cut = Render<SubscriptionListPage>();
 
-        var link = cut.FindAll("[data-list-header] a.btn-link")[0];
-        Assert.Equal(("Applied subscriptions", SubscriptionAdminRoutes.MessageTypes.TrimStart('/')), (link.TextContent, link.GetAttribute("href")));
+        var link = Assert.Single(cut.FindAll("[data-list-header] a.btn-link"));
+        Assert.Equal(("Routing verification", SubscriptionAdminRoutes.Verification.TrimStart('/')), (link.TextContent, link.GetAttribute("href")));
     }
 
     [Fact]

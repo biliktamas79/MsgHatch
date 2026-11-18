@@ -98,7 +98,6 @@ public sealed class AdminUiApplicationUnitTests
     [Theory]
     [InlineData("/msghatch/subscriptions", "Subscriptions")]
     [InlineData("/msghatch/subscriptions/00000000-0000-0000-0000-000000000001", "Subscriptions")]
-    [InlineData("/msghatch/subscriptions/message-types", "Applied subscriptions")]
     [InlineData("/msghatch/subscriptions/verification", "Verification")]
     [InlineData("/msghatch/templates", "Templates")]
     [InlineData("/msghatch/channels", "Channels")]

@@ -9,9 +9,6 @@ public static class SubscriptionAdminRoutes
     /// <summary>The address of the subscription list.</summary>
     public const string List = "/msghatch/subscriptions";
 
-    /// <summary>The address of the applied subscriptions of each message type, with the title "Applied subscriptions" (D273).</summary>
-    public const string MessageTypes = List + "/message-types";
-
     /// <summary>The address of the subscription list with the dialog of a new subscription open (D260).</summary>
     public const string New = List + "?new=true";
 

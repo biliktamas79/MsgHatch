@@ -18,7 +18,6 @@ public static class SubscriptionsAdminUIExtensions
     /// <returns>The same services.</returns>
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(SubscriptionListPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(SubscriptionEditPage))]
-    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(MessageTypesPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(RoutingVerificationPage))]
     public static IServiceCollection AddMsgHatchSubscriptionsAdminUI(this IServiceCollection services)
     {
