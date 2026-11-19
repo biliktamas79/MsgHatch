@@ -502,7 +502,7 @@ An analyzer reference is `<ProjectReference Include="..." OutputItemType="Analyz
 The pipeline is generic in `TEvent`. The dispatchers, the stores, and the transports are not generic. Two closed generic classes connect them to the typed components. The DI registration creates each class one time, so no reflection runs for each message:
 
 - `MessageRegistration<TEvent> : IMessageHandler` holds the channel registrations of `TEvent`. The inbox processor uses it to run the pipeline for a claimed `ReceivedMessage<TEvent>`. The pipeline gets `IMessageRouter<TEvent>` from the DI scope of the event, with the tenant key of the event (D126).
-- `ChannelRegistration<TEvent, TEnvelope> : IChannelRegistration<TEvent>` gets the composer of the channel with the same tenant key, calls it, and builds the outgoing messages.
+- `ChannelRegistration<TEvent, TEnvelope> : IChannelRegistration<TEvent>` gets the composer of the channel with the same tenant key, calls it, and writes each outgoing message into the result array of the event at the position of its route (D280).
 
 The outbox dispatcher needs no generic class. It gives the claimed `OutgoingMessage` to the `ITransport` of its channel, and the transport reads the envelope from `OutgoingMessage.Content` (D129).
 
@@ -1815,7 +1815,7 @@ Processing of one domain event:
    - A route for a channel that the message type has not registered gives `Errors.NotFound`.
    - A route with settings of another type than the settings type of the channel gives `Errors.ValidationFailed`.
    - A second route for the same target and channel gives `Errors.Conflict`, because its outgoing message id is the id of the first route (step 5).
-4. **Compose.** `RouteGrouping.ByChannel` splits the routes by channel. For each channel registration of `TEvent`, the pipeline calls `IEnvelopeComposer<TEvent, TEnvelope>.ComposeAsync` one time, with all routes of that channel (D96). The library composers do these steps:
+4. **Compose.** The pipeline splits the routes by channel, in the order of the router (D280). For each channel registration of `TEvent`, the pipeline calls `IEnvelopeComposer<TEvent, TEnvelope>.ComposeAsync` one time, with all routes of that channel (D96). When all routes are on one channel, no route failed, and the router gave an array, the composer gets that array with no copy. The library composers do these steps:
    - Each library composer first calls `IPayloadLoader<TEvent, TPayload>.LoadAsync` one time, with all routes of its channel. A loader error is the outer error of the composer.
    - The email composer groups the routes by language and template scope with `RouteGrouping.ByLanguageAndScope`. It calls `ITemplateEngine.PrepareAsync` one time for each group and part (`subject`, the html `body`, and the text `body`), and `ITemplate.RenderAsync` for each part of each route, with the culture of the language (D215). It takes `To` from the address, and fails a route with no address with `Errors.ValidationFailed`. The format `PlainText` sends only the text part.
    - The SignalR composer puts the payload into a `SignalREnvelope<TPayload>`. The transport takes the target from the outgoing message, and the method name is the message type name.
@@ -1826,7 +1826,7 @@ Processing of one domain event:
    - `MaxTryCount` and `ExpiresAtUtc` come from the retry options of the channel registration, which have the content type as their name (D87). `ExpiresAtUtc` is the `CreatedAtUtc` of the received message plus `Expiry`, or null when `Expiry` is null (D94, D142).
    - `ContentType` and `ContentVersion` come from the registration. `SchemaVersion` is 1.
    - `Trace` is the trace of the route (D98).
-6. **Store.** The pipeline calls `AddAsync` of the outbox tenant store of the tenant key one time for the event. Then it notifies the topic of each channel of the stored messages through the dispatch signal (section 4.9). Each outgoing message has the flags of the received message.
+6. **Store.** The pipeline calls `AddAsync` of the outbox tenant store of the tenant key one time for the event. Then it notifies the topic of each channel of the stored messages through the dispatch signal (section 4.9), one time for each channel, in the order of the first stored message of the channel (D280). Each outgoing message has the flags of the received message.
 
 A failure in step 3, an inner error in step 4, and a failure in step 5 fail only the affected messages. A failure in step 2 or 6, and an outer error in step 4, fail the event, and the inbox or the broker retries it.
 
@@ -1916,7 +1916,7 @@ Hosting (D101, D102). The same registration code serves each of these layouts:
 - A stopped publisher stops only its channel. The messages of the channel wait in the outbox. They are sent after the restart, or they get an `Expired` try.
 - Each process must reach the same stores. SQLite works only for processes on one machine, and the file stores need a folder with atomic rename (section 6).
 
-`DispatchPendingAsync` claims one batch of at most `batchSize` messages for each published channel, and `ProcessPendingAsync` claims one batch for the inbox. Each one processes its batches with `Parallel.ForEachAsync` and `MaxDegreeOfParallelism`, and returns one `DispatchSummary`. They use the same function for each message as `RunAsync`. Before each claim, `DispatchPendingAsync` reads the down states of the channels from the store, and runs a due check of a down channel first.
+`DispatchPendingAsync` claims one batch of at most `batchSize` messages for each published channel, and `ProcessPendingAsync` claims one batch for the inbox. Each one processes its batches with `Parallel.ForAsync` over the positions of the batch and `MaxDegreeOfParallelism` (D281), and returns one `DispatchSummary`. They use the same function for each message as `RunAsync`. Before each claim, `DispatchPendingAsync` reads the down states of the channels from the store, and runs a due check of a down channel first.
 
 Shutdown: when the token is cancelled, each claim loop stops and completes the writer of its work queue. Each worker finishes or cancels its current send, and then stops. A cancelled send records no try. The messages that are still in a work queue are not sent. They become due again when their lease ends.
 
@@ -2021,50 +2021,52 @@ The target is zero allocation in the MsgHatch hot path. Some allocations stay, b
 
 | Scope | Allocates | Does not allocate |
 |---|---|---|
-| Each event | The received message, the route list, the payload lists, the composer results, the outgoing message list | Registry lookups, ids, `ErrorOr` results |
+| Each event | The received message, the route list, one result array, the payload lists, the composer results, and the outgoing message list. At most one copy of the routes with their positions, when the routes are on more than one channel, a route failed, or the router gave no array. A set of the targets, when the event has more than one route. A list of the channels after the first, when the routes are on more than one channel (D280). | Registry lookups, ids, `ErrorOr` results, closures, the boxes of the tenant keys, and the dispatch topics |
 | Each message | The payload (from the consumer's loader), the rendered email strings, the channel envelope, the outgoing message | Template parsing on a cache hit, writing a value-type property, HTML encoding, `DeterministicId` |
-| Each send | The publish try, the objects that the store deserializes, and the request objects of the AWS SDK or the broker library | The dispatcher loop |
-| Each dispatch loop | One enumerator for each worker, and one timeout for each wait of the claim loop | Each wait for the next message. The reader of the work queue uses pooled value-task sources. |
+| Each send | The publish try, the objects that the store deserializes, and the request objects of the AWS SDK or the broker library | The dispatcher loop, the tags of the outcome (D281), and the next position of a batch of `DispatchPendingAsync` (D281) |
+| Each dispatch loop | One enumerator for each worker, one timeout for each wait of the claim loop, and one read operation of about 80 B for each wait of a worker on an empty work queue, because the stop token can be cancelled (D281) | A message that a worker reads from a work queue that is not empty |
 | Each wrapper call | A log entry, only when its level is enabled | The call itself. The wrappers use `PoolingAsyncValueTaskMethodBuilder`, and the source-generated log methods do not box. |
-| Each cached subscription lookup | The string cache key, and the work of the cache backend | The store call that a cache hit replaces |
+| Each cached subscription lookup | The string cache key, the result list, and the work of the cache backend. The list of the missing owners, only on a miss. | The store call that a cache hit replaces, an owner part string, and an enumerator of the owners (D282) |
+| Each resolution of subscriptions | For each target and channel: the route with its trace or the opt-out decision, the skipped subscriptions, and the scratch of the pair and its index entry. For each run: the indexes of the channels, the users, and the companies, and the subscriptions in level order (D282). | An enumerator, a list of the matching subscriptions, and a list for a pair with one candidate |
 | Each span and measurement | The activity and its tags, only when a listener samples the span | A span with no listener, and a metric measurement with up to 8 tags in a `TagList` (section 4.21) |
 
 The library does not serialize in the pipeline. Each store serializes one time, with its own serializer.
 
-Unit tests prove the "does not allocate" claims for code with no dependencies with `GC.GetAllocatedBytesForCurrentThread()`. This covers `ErrorOr`, the generated writers, and `DeterministicId`. NSubstitute allocates when it records a call, so code with a substitute in its path cannot get an allocation test. In the Debug configuration of the unit tests, the compiler makes each async state machine a class, so an async method cannot get an allocation test either. Phase 13 measures the template cache, rendering, the dispatcher loop, and the full budget with BenchmarkDotNet.
+Unit tests prove the "does not allocate" claims for code with no dependencies with `GC.GetAllocatedBytesForCurrentThread()`. This covers `ErrorOr`, the generated writers, `DeterministicId`, and the bytes of each further user of a resolution of subscriptions (D282). NSubstitute allocates when it records a call, so code with a substitute in its path cannot get an allocation test. In the Debug configuration of the unit tests, the compiler makes each async state machine a class, so an async method cannot get an allocation test either. The benchmarks measure the template cache, rendering, the dispatcher loop, and the full budget with BenchmarkDotNet.
 
-Measured budget (phase 13). The three projects `tests/*.Tests.Performance` ran on 2026-11-12, after the fixes of D159:
+Measured budget (phase 34). The three projects `tests/*.Tests.Performance` ran at the last commit of phase 33 (`adf32d1`, column "Phase 33") and after the changes of phase 34 (`e43e7ec`, column "Phase 34"), on 2026-11-18 and 2026-11-19:
 - BenchmarkDotNet 0.15.8 with `MemoryDiagnoser`, the default job, and for the email engine a fixed job of 1,024 invocations, 5 warmups, and 20 iterations. The fixed job bounds the template versions of the run with no cache hit, because the cache keeps each version. Its times have a larger error.
 - .NET 10.0.15 (SDK 10.0.404), Release, X64 RyuJIT x86-64-v4, on an AMD Ryzen AI 7 350 with 8 physical and 16 logical cores, Windows 11 build 26300.
-- `Allocated` counts the bytes of all threads, because BenchmarkDotNet 0.15.8 reads `GC.GetTotalAllocatedBytes`. So the result of `RunAsync` includes its send workers.
+- `Allocated` counts the bytes of all threads, because BenchmarkDotNet 0.15.8 reads `GC.GetTotalAllocatedBytes`. So the result of `RunAsync` includes its send workers. The bytes come from the total bytes and the operations of each run, so they are exact to 1 B.
 - Each router, composer, loader, store, transport, and cache backend of the benchmarks gives a result that it made before the measurement, so it allocates nothing.
+- The bytes "for each further route" and "for each further user" are the difference between the runs with 100 and with 1 route or user, divided by 99.
+- The email benchmarks use the contract of D214: a template is one part, so `RenderAsync` renders one part, and the composer prepares three parts for each group of routes. Their numbers replace those of phase 13, which are from before D214.
 
-| Benchmark | Allocated | Mean | Budget line | Result |
-|---|---|---|---|---|
-| Placeholder engine, `PrepareAsync` with a hit of the template cache | 0 B | 395 ns | Template parsing on a cache hit | Holds (328 B before D159) |
-| Placeholder engine, `PrepareAsync` with no cache hit (one parse) | 1,544 B | 1.50 µs | None: a parse allocates its template | Measured |
-| Placeholder engine, `RenderAsync` of one email | 368 B | 660 ns | The rendered email strings | Holds |
-| `EmailComposer.ComposeAsync` of one email | 1,448 B | 2.45 µs | Each event and each message | Holds (1,776 B before D159) |
-| `EmbeddedResourceTemplateStore.FindAsync` with a hit of its source cache | 0 B | 21.5 ns | A template store lookup with a cache hit | Holds |
-| `DeterministicId.Create` | 0 B | 265 ns | `DeterministicId` does not allocate | Holds |
-| `ProcessAsync`, 1 route, in-memory stores | 3.28 KB | 1.61 µs | Each event and each message | Open (see below) |
-| `ProcessAsync`, 100 routes | 78.24 KB | 37.3 µs | Each event and each message | Open: about 770 B for each route |
-| `ProcessAsync`, 10,000 routes | 7,592 KB | 8.33 ms | Each event and each message | Open: about 770 B for each route |
-| `DispatchPendingAsync`, batch of 100 messages | 255 B for each message | 645 ns for each message | Each send: the publish try | Open (295 B before D159) |
-| `RunAsync`, batch of 100 messages that a signal wakes | 243 B for each message | 840 ns for each message | Each send: the publish try. Each wait does not allocate. | Open (307 B before D159) |
-| A call through a logging wrapper with Debug off | 0 B | 71 ns (0.7 ns with no wrapper) | The call itself does not allocate | Holds |
-| `SubscriptionResolver.Resolve`, 1 user | 3.08 KB | 419 ns | None | Measured |
-| `SubscriptionResolver.Resolve`, 100 users | 171.17 KB | 19.6 µs | None | Measured: about 1.7 KB for each user |
-| `SubscriptionResolver.Resolve`, 10,000 users | 17,606 KB | 18.8 ms | None | Measured: about 1.76 KB for each user |
-| Subscription lookup with a cache hit for the defaults, one company, and one user | 448 B | 196 ns (1.6 ns with no cache) | The string cache keys and the work of the backend | Open (see below) |
+| Benchmark | Phase 33 | Phase 34 | Mean, phase 34 (phase 33) | Budget line | Result |
+|---|---|---|---|---|---|
+| `ProcessAsync`, 1 route, in-memory stores | 3,472 B | 688 B | 1.08 µs (1.53 µs) | Each event and each message | Holds. Target: at most 1,000 B |
+| `ProcessAsync`, 100 routes | 80,234 B | 30,793 B | 27.7 µs (35.1 µs) | Each event and each message | Holds: about 304 B for each further route (775 B). Target: at most 330 B |
+| `ProcessAsync`, 10,000 routes | 7,779,007 B | 3,004,730 B | 4.84 ms (8.01 ms) | Each event and each message | Holds: about 300 B for each further route (778 B) |
+| `DispatchPendingAsync`, batch of 100 messages | 254 B for each message | 108 B for each message | 165 ns (613 ns) for each message | Each send: the publish try | Holds. Target: at most 110 B |
+| `RunAsync`, batch of 100 messages that a signal wakes | 261 B for each message | 212 B for each message | 840 ns (867 ns) for each message | Each send, and each wait of a worker (D281) | Does not hold. Target: at most 190 B (see the open items) |
+| A call through a logging wrapper with Debug off | 0 B | 0 B | 48 ns (48 ns), 0.03 ns with no wrapper | The call itself does not allocate | Holds |
+| `DeterministicId.Create` | 0 B | 0 B | 259 ns (257 ns) | `DeterministicId` does not allocate | Holds |
+| Placeholder engine, `PrepareAsync` with a hit of the template cache | 0 B | 0 B | 623 ns (618 ns) | Template parsing on a cache hit | Holds |
+| Placeholder engine, `PrepareAsync` with no cache hit (one parse) | 648 B | 648 B | 1.52 µs (1.53 µs) | None: a parse allocates its template | Measured |
+| Placeholder engine, `RenderAsync` of one part | 144 B | 144 B | 280 ns (286 ns) | The rendered email strings | Holds |
+| `EmailComposer.ComposeAsync` of one email | 1,544 B | 1,360 B | 5.32 µs (5.54 µs) | Each event and each message | Holds. `RouteGrouping` makes no closure and no iterator now (D280) |
+| `EmbeddedResourceTemplateStore.FindAsync` with a hit of its source cache | 0 B | 0 B | 34.7 ns (22.5 ns) | A template store lookup with a cache hit | Holds |
+| `SubscriptionResolver.Resolve`, 1 user | 3,152 B | 2,040 B | 292 ns (415 ns) | Each resolution of subscriptions | Measured |
+| `SubscriptionResolver.Resolve`, 100 users | 175,280 B | 41,728 B | 9.49 µs (19.2 µs) | Each resolution of subscriptions | Holds: about 401 B for each further user (1,739 B). Target: at most 500 B |
+| `SubscriptionResolver.Resolve`, 10,000 users | 18,028,122 B | 3,971,168 B | 4.71 ms (18.9 ms) | Each resolution of subscriptions | Holds: about 397 B for each further user (1,803 B) |
+| Subscription lookup with a cache hit for the defaults, one company, and one user | 448 B | 288 B | 179 ns (204 ns), 1.2 ns with no cache | The string cache keys, the result list, and the work of the backend | Holds. Target: at most 300 B |
 
-Phase 24 makes a template one part (D214), so the email composer prepares three parts for each group of routes and renders up to three parts for each email. The numbers of the placeholder engine and of the composer above are from phase 13, when one template held all parts. The benchmarks build with the new contract, and a later run measures them again.
-
-The open items, which a follow-up item of the roadmap attributes and reduces (D159):
-- The pipeline allocates about 770 B for each route: the outgoing message (about 250 B), two result arrays, a list and a copy of the routes, a set of the targets, and the groups by channel. Each one is a list of the event or the message, so the budget lines hold. But three copies of the routes and the set are avoidable, and about 150 B for each route are not attributed.
-- A send allocates the publish try (about 104 B) and about 150 B that are not attributed.
-- A cache hit for 3 owners builds 3 keys, each with an owner part string first, and also allocates the result list and an empty list of the missing owners. The keys are in the budget line. The owner part strings and the empty list are avoidable.
-- The resolution allocates about 1.7 KB for each user, for the routes and the resolution traces. No budget line covers it yet.
+The open items of phase 13 after phase 34 (D159, D280 to D282):
+- The pipeline: closed. An event with one route allocates 688 B, and each further route about 300 B: the outgoing message (about 230 B), its place in the result array and in the array of the stored messages, and its entry in the set of the targets. The closure of the registry lookup and the topic string were the 150 B for each route that phase 13 did not attribute.
+- `DispatchPendingAsync`: closed. A send allocates 108 B: the publish try and the share of the batch. The `SemaphoreSlim` waiter of `Parallel.ForEachAsync` and the two boxed outcome tags were the 150 B for each send that phase 13 did not attribute.
+- `RunAsync`: open with its measured cause. The target of at most 190 B for each message does not hold: the benchmark measured 212 B (261 B before). The two boxed outcome tags are gone. A probe in the process, with the event `AllocationSampled`, measured 184 B for each message: the publish try 89 B, the read operation of the work queue 81 B, because each worker waits one time for each message with an instant transport (D281), and about 15 B for the state machines and the waits of each batch, which the 100 messages of a batch share. The benchmark counts about 28 B more for each message than the probe, as at the start of the phase (261 B against the 237 B of the probe of the plan). Both count the bytes of all threads. The cause of the difference is not confirmed.
+- The cache hit: closed. A hit for 3 owners allocates 288 B: the 3 keys and the result list. The owner part strings, the two boxed enumerators, and the empty list of the missing owners are gone (D282).
+- The resolution: closed with its own budget line (D282). Each further user of an opt-out allocates about 400 B: the opt-out decision with its skipped array, which is the result, and the scratch of the pair: the pair, its index entry, and the entries of the lists of the users. A unit test keeps it at most 500 B.
 
 Measured cost of the Liquid engine (phase 23, D206). A Liquid render is outside the zero allocation target, because Fluid allocates a context and the output of each part. A probe outside the repository measured about 700 B and about 3 µs for the render of a short html template with `Fluid.Core` 2.41.1, with `GC.GetTotalAllocatedBytes` (roadmap, checked facts of phase 23). A host that needs the budget of this section uses the placeholder engine.
 
