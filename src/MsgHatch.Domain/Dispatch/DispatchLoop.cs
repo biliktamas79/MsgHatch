@@ -51,8 +51,8 @@ internal sealed class DispatchLoop<T>(IDispatchWork<T> work, DispatchOptions opt
         work.AfterClaim(claimed.Value);
         var messages = claimed.Value.Messages;
         var outcomes = new ItemOutcome[messages.Count];
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, messages.Count),
+        await Parallel.ForAsync(
+            0, messages.Count,
             new ParallelOptions { MaxDegreeOfParallelism = options.MaxDegreeOfParallelism, CancellationToken = ct },
             async (position, token) => outcomes[position] = (await work.ProcessAsync(messages[position], token)).Outcome);
         ct.ThrowIfCancellationRequested();

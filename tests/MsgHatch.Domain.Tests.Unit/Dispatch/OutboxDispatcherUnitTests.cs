@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -31,6 +32,28 @@ public sealed partial class OutboxDispatcherUnitTests
         { 8, 5, "2030-01-01T00:12:16.6015441Z" }, // 640 seconds and the factor 1.151, at most MaxDelay multiplied by 1.2
         { 1, 1, "2030-01-01T00:00:01.0235674Z" },
     };
+
+    [Fact]
+    public async Task DispatchPendingAsync_TwentyMessagesWithFourWorkers_SendsEachMessageOneTimeWithAtMostFourSendsAtTheSameTime()
+    {
+        // Arrange
+        OutgoingMessage[] claimed = [.. Enumerable.Range(0, 20).Select(static _ => AMessage(id: Guid.NewGuid()))];
+        _doubles.ClaimsGive(TestChannel.Id, Claim(claimed));
+        var sends = new SendCounter();
+        var transport = Substitute.For<ITransport>();
+        transport.Channel.Returns(TestChannel.Id);
+        transport.SendAsync(default!, default, Ct)
+            .ReturnsForAnyArgs(call => new ValueTask<ErrorOr<PublishReceipt>>(sends.SendAsync(call.ArgAt<OutgoingMessage>(0))));
+        await using var provider = _doubles.Build(static o => o.MaxDegreeOfParallelism = 4, transports: transport);
+
+        // Act
+        await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(20, Ct);
+
+        // Assert
+        Assert.Equal(
+            (string.Join(",", claimed.Select(static m => m.Delivery.Id).Order()), true),
+            (string.Join(",", sends.Sent.Order()), sends.MostAtTheSameTime <= 4));
+    }
 
     [Fact]
     public async Task DispatchPendingAsync_SendsTransientTransientAndSuccess_RecordsTriesOneTwoAndThreeWithTheClaimedMessages()
@@ -368,4 +391,33 @@ public sealed partial class OutboxDispatcherUnitTests
         [.. store.ReceivedCalls()
             .Where(static call => call.GetMethodInfo().Name == nameof(IOutboxDispatchStore.RecordTryAsync))
             .Select(static call => (PublishTry)call.GetArguments()[1]!)];
+
+    /// <summary>A transport send that takes 20 ms, and counts the sends that run at the same time.</summary>
+    private sealed class SendCounter
+    {
+        private readonly Lock _lock = new();
+        private int _running;
+
+        public ConcurrentQueue<Guid> Sent { get; } = new();
+
+        public int MostAtTheSameTime { get; private set; }
+
+        public async Task<ErrorOr<PublishReceipt>> SendAsync(OutgoingMessage message)
+        {
+            lock (_lock)
+            {
+                _running++;
+                MostAtTheSameTime = Math.Max(MostAtTheSameTime, _running);
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System);
+            lock (_lock)
+            {
+                _running--;
+            }
+
+            Sent.Enqueue(message.Delivery.Id);
+            return new PublishReceipt("provider-1");
+        }
+    }
 }
