@@ -15,7 +15,8 @@ namespace MsgHatch.Domain.Management;
 /// <see cref="IRegistryWriter.GetEntriesAsync"/> (D286) and with the state rows of <see cref="IOutboxDispatchStore"/> (D278).
 /// With no writer, for example with the in-memory reader of a setup in code, each revision is 0 and each entry is null. An error of the writer or of the
 /// store is the error of the query. The channel check runs the health check of the transport of the host, and records a
-/// new state with the store methods of D277, as the outbox loop does (D283).
+/// new state with the store methods of D277, as the outbox loop does (D283). A save runs <see cref="RegistryEntryRules"/>
+/// first, and then calls the writer. With no writer, each save and each reset gives <see cref="Errors.NotFound"/> (D284).
 /// </summary>
 internal sealed class RegistryManager(
     IMessageRegistry registry, IRegistryWriter? writer, IOutboxDispatchStore outbox, IEnumerable<ITransport> transports,
@@ -101,6 +102,26 @@ internal sealed class RegistryManager(
         var changed = health is null ? await MarkUpAsync(channel, ct) : await MarkDownAsync(channel, health, ct);
         return changed.IsError ? changed.Error : new ChannelCheck(channel, health?.Type.Code, health?.Type.Name, changed.Value);
     }
+
+    public async ValueTask<ErrorOr<ChannelEntry>> SaveChannelAsync(ChannelEntry entry, CancellationToken ct) =>
+        RegistryEntryRules.Check(entry) is { } invalid ? invalid
+        : writer is null ? NoWriter()
+        : await writer.SaveChannelAsync(entry, ct);
+
+    public async ValueTask<ErrorOr<MessageTypeEntry>> SaveMessageTypeAsync(MessageTypeEntry entry, CancellationToken ct) =>
+        RegistryEntryRules.Check(entry) is { } invalid ? invalid
+        : writer is null ? NoWriter()
+        : await writer.SaveMessageTypeAsync(entry, ct);
+
+    public async ValueTask<Error?> ResetChannelAsync(ChannelId channel, CancellationToken ct) =>
+        writer is null ? NoWriter() : await writer.ResetChannelAsync(channel, ct);
+
+    public async ValueTask<Error?> ResetMessageTypeAsync(MessageType type, CancellationToken ct) =>
+        writer is null ? NoWriter() : await writer.ResetMessageTypeAsync(type, ct);
+
+    /// <summary>The error of a save or a reset in a host with no registry writer, for example a setup in code (D284).</summary>
+    private static Error NoWriter() =>
+        new(Errors.NotFound, "The host has no registry writer. A setup in code cannot change the registry settings.");
 
     /// <summary>Ends a down state for errors, and wakes the outbox loop of the channel when the store added the up row.</summary>
     private async ValueTask<ErrorOr<bool>> MarkUpAsync(ChannelId channel, CancellationToken ct)

@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MsgHatch.Domain.Management;
 
-/// <summary>The log events of the registry queries and commands, with the event ids 2909 to 2916 of the registry area (section 4.16).</summary>
+/// <summary>The log events of the registry queries and commands, with the event ids 2909 to 2918 of the registry area (section 4.16).</summary>
 internal static partial class Log
 {
     [LoggerMessage(
@@ -51,4 +51,17 @@ internal static partial class Log
     public static partial void CheckChannelFailed(
         this ILogger logger, LogLevel level, string channel, string? tenant, double elapsedMs, int errorCode, string errorName,
         string? errorMessage);
+
+    [LoggerMessage(
+        EventId = 2917, Level = LogLevel.Information,
+        Message = "Registry commands of tenant {Tenant} completed {Operation} of {Entry} with the revision {Revision} in {ElapsedMs} ms")]
+    public static partial void ChangeEntrySucceeded(
+        this ILogger logger, string operation, string entry, int? revision, string? tenant, double elapsedMs);
+
+    [LoggerMessage(
+        EventId = 2918,
+        Message = "Registry commands of tenant {Tenant} failed {Operation} of {Entry} with the expected revision {Revision} after {ElapsedMs} ms: {ErrorCode} {ErrorName} {ErrorMessage}")]
+    public static partial void ChangeEntryFailed(
+        this ILogger logger, LogLevel level, string operation, string entry, int? revision, string? tenant, double elapsedMs, int errorCode,
+        string errorName, string? errorMessage);
 }

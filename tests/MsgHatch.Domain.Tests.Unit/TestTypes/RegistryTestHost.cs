@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
 using NSubstitute;
@@ -88,6 +89,27 @@ public static class RegistryTestHost
         MessageType? type = null, IReadOnlyList<ChannelId>? disabledChannels = null, string? displayName = "Shop event",
         string? description = "Stored description", bool enabled = true, int revision = 0) =>
         new(type ?? TestEventType, displayName, description, enabled, disabledChannels ?? [], revision, default);
+
+    /// <summary>The names of the save and reset commands of <see cref="IRegistryCommands"/> (D284), for a theory with one row for each command.</summary>
+    public static TheoryData<string> EntryCommandRows =>
+    [
+        nameof(IRegistryCommands.SaveChannelAsync), nameof(IRegistryCommands.SaveMessageTypeAsync),
+        nameof(IRegistryCommands.ResetChannelAsync), nameof(IRegistryCommands.ResetMessageTypeAsync),
+    ];
+
+    /// <summary>
+    /// Runs one save or reset command by its name: a save of <see cref="AChannelEntry"/> or <see cref="AMessageTypeEntry"/>,
+    /// or a reset of the channel Test or of the message type <c>TestEvent</c>.
+    /// </summary>
+    /// <returns>The error of the command, or null.</returns>
+    public static async Task<Error?> RunEntryCommandAsync(IRegistryCommands commands, string command, CancellationToken ct) => command switch
+    {
+        nameof(IRegistryCommands.SaveChannelAsync) => (await commands.SaveChannelAsync(AChannelEntry(), ct)).Error,
+        nameof(IRegistryCommands.SaveMessageTypeAsync) => (await commands.SaveMessageTypeAsync(AMessageTypeEntry(), ct)).Error,
+        nameof(IRegistryCommands.ResetChannelAsync) => await commands.ResetChannelAsync(TestChannel.Id, ct),
+        nameof(IRegistryCommands.ResetMessageTypeAsync) => await commands.ResetMessageTypeAsync(TestEventType, ct),
+        _ => throw new ArgumentOutOfRangeException(nameof(command), command, "No command of the registry has this name."),
+    };
 
     private static Func<IServiceProvider, TenantKey, IEnvelopeComposer<TEvent, TEnvelope>> AnyComposer<TEvent, TEnvelope>() =>
         static (_, _) => Substitute.For<IEnvelopeComposer<TEvent, TEnvelope>>();

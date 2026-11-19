@@ -33,6 +33,9 @@ public sealed class RegistryHost : IAsyncDisposable
 
     public HttpClient Client { get; }
 
+    /// <summary>The services of the web application.</summary>
+    public IServiceProvider Services => _app.Services;
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public static async Task<RegistryHost> StartAsync(bool withWriter = true, Action<MsgHatchBuilder>? configure = null)

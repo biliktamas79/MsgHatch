@@ -18,25 +18,23 @@ namespace MsgHatch.AspNetCore;
 /// The routes of the registry administration (section 4.20). The GET routes call <see cref="IRegistryQueries"/> of
 /// <see cref="TenantKey.None"/>, because the registry belongs to the whole system (D269, D270). Each route writes its
 /// errors as problem details with the status of <see cref="ErrorProblems"/> and the member <c>errorType</c> (D233). The
-/// POST route of the channel check calls <see cref="IRegistryCommands"/> of <see cref="TenantKey.None"/> (D283).
+/// POST route of the channel check (D283), and the PUT and DELETE routes of the settings (D284), call
+/// <see cref="IRegistryCommands"/> of <see cref="TenantKey.None"/>.
 /// </summary>
 internal static class RegistryRoutes
 {
     private static readonly RegistryEndpointJson _json = RegistryEndpointJson.Default;
 
-    public static void MapTo(RouteGroupBuilder group, bool writable)
+    public static void MapTo(RouteGroupBuilder group)
     {
         group.MapGet(RegistryApiRoutes.Channels, (Delegate)GetChannelsAsync);
         group.MapGet(RegistryApiRoutes.ChannelHistory, GetChannelHistoryAsync);
         group.MapPost(RegistryApiRoutes.ChannelCheck, CheckChannelAsync);
         group.MapGet(RegistryApiRoutes.MessageTypes, (Delegate)GetMessageTypesAsync);
-        if (writable)
-        {
-            group.MapPut(RegistryApiRoutes.Channel, SaveChannelAsync);
-            group.MapDelete(RegistryApiRoutes.Channel, ResetChannelAsync);
-            group.MapPut(RegistryApiRoutes.MessageType, SaveMessageTypeAsync);
-            group.MapDelete(RegistryApiRoutes.MessageType, ResetMessageTypeAsync);
-        }
+        group.MapPut(RegistryApiRoutes.Channel, SaveChannelAsync);
+        group.MapDelete(RegistryApiRoutes.Channel, ResetChannelAsync);
+        group.MapPut(RegistryApiRoutes.MessageType, SaveMessageTypeAsync);
+        group.MapDelete(RegistryApiRoutes.MessageType, ResetMessageTypeAsync);
     }
 
     private static async Task<IResult> GetChannelsAsync(HttpContext context)
@@ -78,7 +76,7 @@ internal static class RegistryRoutes
         {
             var id = ChannelOf(channel);
             return id.IsError ? Problem(id.Error!) : Json(
-                await Writer(context).SaveChannelAsync(
+                await Commands(context).SaveChannelAsync(
                     new ChannelEntry(id.Value, body.DisplayName, body.Description, body.Enabled, body.Revision, default), context.RequestAborted),
                 ChannelEntryResponse.From, _json.ChannelEntryResponse);
         }, Problem);
@@ -90,7 +88,7 @@ internal static class RegistryRoutes
             var disabled = ChannelsOf(body.DisabledChannels ?? []);
             var invalid = id.Error ?? disabled.Error;
             return invalid is not null ? Problem(invalid) : Json(
-                await Writer(context).SaveMessageTypeAsync(
+                await Commands(context).SaveMessageTypeAsync(
                     new MessageTypeEntry(id.Value, body.DisplayName, body.Description, body.Enabled, disabled.Value, body.Revision, default),
                     context.RequestAborted),
                 MessageTypeEntryResponse.From, _json.MessageTypeEntryResponse);
@@ -99,16 +97,14 @@ internal static class RegistryRoutes
     private static async Task<IResult> ResetChannelAsync(HttpContext context, string channel)
     {
         var id = ChannelOf(channel);
-        return id.IsError ? Problem(id.Error!) : NoContent(await Writer(context).ResetChannelAsync(id.Value, context.RequestAborted));
+        return id.IsError ? Problem(id.Error!) : NoContent(await Commands(context).ResetChannelAsync(id.Value, context.RequestAborted));
     }
 
     private static async Task<IResult> ResetMessageTypeAsync(HttpContext context, string type)
     {
         var id = MessageTypeOf(type);
-        return id.IsError ? Problem(id.Error!) : NoContent(await Writer(context).ResetMessageTypeAsync(id.Value, context.RequestAborted));
+        return id.IsError ? Problem(id.Error!) : NoContent(await Commands(context).ResetMessageTypeAsync(id.Value, context.RequestAborted));
     }
-
-    private static IRegistryWriter Writer(HttpContext context) => context.RequestServices.GetRequiredService<IRegistryWriter>();
 
     private static IRegistryQueries Queries(HttpContext context) => context.RequestServices.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
 

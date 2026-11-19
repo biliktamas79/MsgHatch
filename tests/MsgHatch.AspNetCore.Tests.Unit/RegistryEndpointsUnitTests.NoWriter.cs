@@ -1,6 +1,10 @@
 using System.Net;
-using System.Text;
+using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.AspNetCore.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
+using MsgHatch.Domain.Tests.Unit.TestTypes;
 
 namespace MsgHatch.AspNetCore.Tests.Unit;
 
@@ -38,29 +42,29 @@ public sealed partial class RegistryEndpointsUnitTests
             json);
     }
 
-    public static TheoryData<string, string> NoWriterChangeRows => new()
+    public static TheoryData<string, string, string?> NoWriterChangeRows => new()
     {
-        { "PUT", "/registry/channels/Test" },
-        { "DELETE", "/registry/channels/Test" },
-        { "PUT", "/registry/message-types/TestEvent" },
-        { "DELETE", "/registry/message-types/TestEvent" },
+        { "PUT", "/registry/channels/Test", """{"enabled":true,"revision":0}""" },
+        { "DELETE", "/registry/channels/Test", null },
+        { "PUT", "/registry/message-types/TestEvent", """{"enabled":true,"revision":0}""" },
+        { "DELETE", "/registry/message-types/TestEvent", null },
     };
 
     [Theory]
     [MemberData(nameof(NoWriterChangeRows))]
-    public async Task Change_NoWriter_HasNoRoute(string method, string path)
+    public async Task Change_NoWriter_Gives404WithTheErrorTypeAndTheMessageOfTheCommand(string method, string path, string? body)
     {
         // Arrange
         await using var host = await RegistryHost.StartAsync(withWriter: false);
-        using var request = new HttpRequestMessage(new HttpMethod(method), path)
-        {
-            Content = new StringContent("""{"enabled":true,"revision":0}""", Encoding.UTF8, "application/json"),
-        };
+        await using var scope = host.Services.CreateAsyncScope();
+        var command = await scope.ServiceProvider.GetRequiredKeyedService<IRegistryCommands>(TenantKey.None).ResetChannelAsync(TestChannel.Id, Ct);
 
         // Act
-        var response = await host.Client.SendAsync(request, Ct);
+        var problem = await ProblemOf(await host.Client.SendAsync(RequestOf(method, path, body), Ct));
 
         // Assert
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(
+            ($"{HttpStatusCode.NotFound}", (string?)Errors.NotFound.Name, command?.Message, (int?)Errors.NotFound.Code),
+            (problem.Status, problem.Title, problem.Detail, problem.ErrorCode));
     }
 }

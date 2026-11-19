@@ -5,7 +5,7 @@ using MsgHatch.Http;
 namespace MsgHatch.Api.Client;
 
 /// <summary>
-/// The GET routes and the channel check of the registry API (section 4.20, D271, D283). The generator writes <c>RegistryApi</c>, which sends each call
+/// The routes of the registry API (section 4.20, D271, D283, D284). The generator writes <c>RegistryApi</c>, which sends each call
 /// and gives each failure as an <see cref="Error"/> (D233, D236). The registry belongs to the whole system, so a route takes
 /// no <c>tenantId</c> (D269).
 /// </summary>
@@ -23,4 +23,16 @@ internal interface IRegistryApi
 
     [HttpCall("GET", RegistryApiRoutes.MessageTypes)]
     Task<ErrorOr<IReadOnlyList<RegistryMessageTypeResponse>>> GetMessageTypesAsync(CancellationToken ct);
+
+    [HttpCall("PUT", RegistryApiRoutes.Channel)]
+    Task<ErrorOr<ChannelEntryResponse>> SaveChannelAsync(string channel, [HttpBody] ChannelEntryRequest body, CancellationToken ct);
+
+    [HttpCall("DELETE", RegistryApiRoutes.Channel)]
+    Task<Error?> ResetChannelAsync(string channel, CancellationToken ct);
+
+    [HttpCall("PUT", RegistryApiRoutes.MessageType)]
+    Task<ErrorOr<MessageTypeEntryResponse>> SaveMessageTypeAsync(string type, [HttpBody] MessageTypeEntryRequest body, CancellationToken ct);
+
+    [HttpCall("DELETE", RegistryApiRoutes.MessageType)]
+    Task<Error?> ResetMessageTypeAsync(string type, CancellationToken ct);
 }
