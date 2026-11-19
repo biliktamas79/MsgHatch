@@ -52,7 +52,7 @@
                 }
                 <div class="col-md-4">
                     <label class="form-label" for="msghatch-edit-type">Message type</label>
-                    <select id="msghatch-edit-type" class="form-select" @bind="form.MessageType">
+                    <select id="msghatch-edit-type" class="form-select" @bind="form.MessageType" @bind:after="() => KeepARegisteredChannel(form)">
                         @foreach (var type in TypeOptions(form))
                         {
                             <option value="@type">@type</option>
@@ -72,7 +72,7 @@
                     <label class="form-label" for="msghatch-edit-channel">Channel</label>
                     <select id="msghatch-edit-channel" class="form-select" @bind="form.Channel">
                         <option value="">None</option>
-                        @foreach (var channel in _channels)
+                        @foreach (var channel in ChannelOptions(form))
                         {
                             <option value="@channel.Id.Name">@channel.Name</option>
                         }
@@ -161,6 +161,7 @@
     private int _revision;
     private IReadOnlyList<ChannelDescriptor> _channels = [];
     private IReadOnlyList<string> _types = [];
+    private Dictionary<string, IReadOnlyList<ChannelId>> _typeChannels = [];
     private Error? _loadError;
     private Error? _formError;
     private bool _busy;
@@ -204,6 +205,7 @@
 
         _channels = channels.Value;
         _types = [.. types.Value.Select(static state => state.Type.Name)];
+        _typeChannels = types.Value.ToDictionary(static state => state.Type.Name, static state => state.Channels);
         _loadError = Id is { } id ? await LoadAsync(id) : null;
         _form ??= NewForm();
     }
@@ -228,11 +230,12 @@
         _revision = subscription.Revision;
     }
 
-    private SubscriptionForm NewForm() => new()
+    private SubscriptionForm NewForm()
     {
-        MessageType = _types.FirstOrDefault() ?? string.Empty,
-        Channel = _channels.FirstOrDefault()?.Id.Name ?? string.Empty,
-    };
+        var type = _types.FirstOrDefault() ?? string.Empty;
+        var channel = FirstChannelOf(type);
+        return new() { MessageType = type, Channel = channel, Settings = channel.Length > 0 ? "{}" : string.Empty };
+    }
 
     private async Task SaveAsync()
     {
@@ -311,6 +314,21 @@
 
     private IEnumerable<string> TypeOptions(SubscriptionForm form) =>
         form.MessageType.Length == 0 || _types.Contains(form.MessageType) ? _types : [form.MessageType, .. _types];
+
+    private IEnumerable<ChannelDescriptor> ChannelOptions(SubscriptionForm form) =>
+        _channels.Where(channel => channel.Id.Name == form.Channel || IsRegistered(form.MessageType, channel.Id));
+
+    private bool IsRegistered(string type, ChannelId channel) => _typeChannels.TryGetValue(type, out var channels) && channels.Contains(channel);
+
+    private string FirstChannelOf(string type) => _channels.FirstOrDefault(channel => IsRegistered(type, channel.Id))?.Id.Name ?? string.Empty;
+
+    private void KeepARegisteredChannel(SubscriptionForm form)
+    {
+        if (form.Channel.Length > 0 && !_channels.Any(channel => channel.Id.Name == form.Channel && IsRegistered(form.MessageType, channel.Id)))
+        {
+            form.Channel = FirstChannelOf(form.MessageType);
+        }
+    }
 
     private string SettingsTypeText(SubscriptionForm form) =>
         _channels.FirstOrDefault(channel => channel.Id.Name == form.Channel) is not { } channel ? "A subscription with no channel has no settings."

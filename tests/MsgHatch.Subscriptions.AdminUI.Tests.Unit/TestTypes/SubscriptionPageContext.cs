@@ -18,7 +18,7 @@ public abstract class SubscriptionPageContext : BunitContext
         Registry.Entries.Returns([FaxSettingsEntry]);
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok(Channels));
         Queries.GetMessageTypesAsync(new MessageTypeQuery(), Arg.Any<CancellationToken>())
-            .Returns(Ok<IReadOnlyList<MessageTypeState>>([new MessageTypeState(Requests, [Fax], []), new MessageTypeState(Notices, [], [])]));
+            .Returns(Ok<IReadOnlyList<MessageTypeState>>([new MessageTypeState(Requests, [Fax, Pager], []), new MessageTypeState(Notices, [Pager], [])]));
         Services.AddKeyedSingleton(TenantKey.None, Queries);
         Services.AddKeyedSingleton(TenantKey.None, Commands);
         Services.AddKeyedSingleton(TenantKey.None, Verifier);

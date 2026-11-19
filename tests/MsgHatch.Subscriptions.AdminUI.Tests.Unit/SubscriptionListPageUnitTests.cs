@@ -211,6 +211,32 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void ClickNew_List_FillsTheSettingsWithAnEmptyObject()
+    {
+        GivenSubscriptions();
+        var cut = Render<SubscriptionListPage>();
+
+        cut.Find("[data-action=new]").Click();
+
+        Assert.Equal("{}", cut.Find("#msghatch-edit-settings").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void ChangeMessageType_NewSubscription_OffersOnlyItsChannelsAndSelectsTheFirst()
+    {
+        GivenSubscriptions();
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("[data-action=new]").Click();
+
+        cut.Find("#msghatch-edit-type").Change("Notices");
+
+        Assert.Equal(
+            (",Pager", "Pager"),
+            (string.Join(',', cut.FindAll("#msghatch-edit-channel option").Select(static option => option.GetAttribute("value"))),
+                cut.Find("#msghatch-edit-channel").GetAttribute("value")));
+    }
+
+    [Fact]
     public void ClickCreate_NamedUsersInTheDialog_CreatesTheDraftClosesTheDialogAndLoadsTheListAgain()
     {
         GivenSubscriptions();

@@ -33,6 +33,19 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
         Assert.Equal("This host reads the settings as FaxSettings.", cut.Find("[data-field=settings-type]").TextContent);
     }
 
+    [Fact]
+    public void Render_StoredChannelThatTheTypeDoesNotRegister_KeepsItInTheChannels()
+    {
+        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Ok(Subscription(type: Notices)));
+
+        var cut = RenderEdit();
+
+        Assert.Equal(
+            (",Fax,Pager", "Fax"),
+            (string.Join(',', cut.FindAll("#msghatch-edit-channel option").Select(static option => option.GetAttribute("value"))),
+                cut.Find("#msghatch-edit-channel").GetAttribute("value")));
+    }
+
     [Theory]
     [InlineData(RecipientKind.ScopeUsers, "Each user that the owner covers gets the message")]
     [InlineData(RecipientKind.Company, "One message goes to the address of the company")]
