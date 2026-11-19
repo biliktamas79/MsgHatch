@@ -33,9 +33,9 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
 
     public IReadOnlyDictionary<int, Func<object, TEnvelope>> Upgrades { get; } = upgrades;
 
-    public async ValueTask<ErrorOr<IReadOnlyList<ErrorOr<OutgoingMessage>>>> ComposeAsync(
+    public async ValueTask<Error?> ComposeAsync(
         IServiceProvider services, TenantKey key, ReceivedMessage<TEvent> received, ReadOnlyMemory<MessageRoute> routes,
-        OutgoingDefaults defaults, CancellationToken ct)
+        ReadOnlyMemory<int> positions, ErrorOr<OutgoingMessage>[] outcomes, OutgoingDefaults defaults, CancellationToken ct)
     {
         var composer = services.GetRequiredKeyedService<IEnvelopeComposer<TEvent, TEnvelope>>(key);
         var envelopes = await composer.ComposeAsync(received, routes, ct);
@@ -51,13 +51,13 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
         }
 
         var retry = defaults.RetryOptions.Get(ContentType);
-        var messages = new ErrorOr<OutgoingMessage>[routes.Length];
-        for (var index = 0; index < messages.Length; index++)
+        for (var index = 0; index < routes.Length; index++)
         {
-            messages[index] = ToMessage(received, routes.Span[index], envelopes.Value[index], retry, defaults);
+            outcomes[positions.IsEmpty ? index : positions.Span[index]] =
+                ToMessage(received, routes.Span[index], envelopes.Value[index], retry, defaults);
         }
 
-        return ErrorOr<IReadOnlyList<ErrorOr<OutgoingMessage>>>.ForValue(messages);
+        return null;
     }
 
     public ErrorOr<OutgoingMessage> Upgrade(OutgoingMessage message) => message.ContentVersion switch

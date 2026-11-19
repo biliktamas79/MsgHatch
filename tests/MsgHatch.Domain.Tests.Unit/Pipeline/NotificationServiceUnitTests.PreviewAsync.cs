@@ -126,6 +126,70 @@ public sealed partial class NotificationServiceUnitTests
         Assert.Equal(Errors.NotFound, results.Error?.Type);
     }
 
+    public static TheoryData<string> PositionRows => new() { "OneChannelAsAnArray", "OneChannelAsAList", "TwoChannelsInTurns", "FailedRouteInTheMiddle" };
+
+    [Theory]
+    [MemberData(nameof(PositionRows))]
+    public async Task PreviewAsync_Routes_EachOutcomeKeepsThePositionOfItsRouteAndEachComposerGetsTheRoutesOfItsChannelInOrder(string row)
+    {
+        // Arrange
+        var routes = PositionRoutes(row);
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var results = await PreviewAsync(provider, AContext(), routes);
+
+        // Assert
+        Assert.Equal(
+            routes.Select(static route => (route, route.Channel == TestChannel.ThirdId ? null : route.Target.Id)),
+            results.Value.Select(static result => (result.Route, result.Message?.Target.Id)));
+        Assert.Equal(ExpectedComposerCalls(routes, TestChannel.Id), ComposerCalls(_doubles.Composer(TenantKey.None)));
+        Assert.Equal(ExpectedComposerCalls(routes, TestChannel.SecondId), ComposerCalls(_doubles.SecondComposer(TenantKey.None)));
+    }
+
+    [Fact]
+    public async Task PreviewAsync_SecondRouteForTheSameTargetAmongThreeRoutes_GivesConflictAtItsPosition()
+    {
+        // Arrange
+        MessageRoute[] routes = [ARoute("u1"), ARoute("u2"), ARoute("u1", address: "second@example.com")];
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var results = await PreviewAsync(provider, AContext(), routes);
+
+        // Assert
+        Assert.Equal([null, null, 409], results.Value.Select(static result => result.Error?.Type.Code));
+    }
+
+    [Fact]
+    public async Task PreviewAsync_OneRoute_GivesNoConflict()
+    {
+        // Arrange
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        var results = await PreviewAsync(provider, AContext(), [ARoute("u1")]);
+
+        // Assert
+        Assert.Null(Assert.Single(results.Value).Error);
+    }
+
+    private static IReadOnlyList<MessageRoute> PositionRoutes(string row) => row switch
+    {
+        "OneChannelAsAnArray" => (MessageRoute[])[ARoute("u1"), ARoute("u2"), ARoute("u3")],
+        "OneChannelAsAList" => (List<MessageRoute>)[ARoute("u1"), ARoute("u2"), ARoute("u3")],
+        "TwoChannelsInTurns" => (MessageRoute[])[ARoute("u1"), SecondChannelRoute("u2"), ARoute("u3"), SecondChannelRoute("u4")],
+        _ => (MessageRoute[])[ARoute("u1"), SecondChannelRoute("u2"), ARoute("u3", channel: TestChannel.ThirdId), ARoute("u4"), SecondChannelRoute("u5")],
+    };
+
+    private static MessageRoute SecondChannelRoute(string userId) => ARoute(userId, channel: TestChannel.SecondId, settings: new OtherTestChannelSettings());
+
+    private static string[] ExpectedComposerCalls(IReadOnlyList<MessageRoute> routes, ChannelId channel) =>
+        routes.Any(route => route.Channel == channel) ? [string.Join(",", routes.Where(route => route.Channel == channel).Select(static route => route.Target.Id))] : [];
+
+    private static string[] ComposerCalls(object composer) =>
+        [.. composer.ReceivedCalls().Select(static call => string.Join(",", ((ReadOnlyMemory<MessageRoute>)call.GetArguments()[1]!).ToArray().Select(static route => route.Target.Id)))];
+
     private static async Task<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync(
         IServiceProvider provider, MessageContext context, IReadOnlyList<MessageRoute>? routes)
     {

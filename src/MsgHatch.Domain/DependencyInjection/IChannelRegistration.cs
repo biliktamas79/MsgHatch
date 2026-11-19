@@ -20,7 +20,13 @@ internal interface IChannelRegistration<TEvent> : IEnvelopeUpgrade
 
     int Version { get; }
 
-    ValueTask<ErrorOr<IReadOnlyList<ErrorOr<OutgoingMessage>>>> ComposeAsync(
+    /// <summary>
+    /// Composes the routes of this channel, and writes the outgoing message or the error of each route into
+    /// <paramref name="outcomes"/> at the position of the route (D280). <paramref name="positions"/> holds the position of
+    /// each route, or is empty when the position of each route is its index. It gives the error of the composer for all
+    /// routes, or null.
+    /// </summary>
+    ValueTask<Error?> ComposeAsync(
         IServiceProvider services, TenantKey key, ReceivedMessage<TEvent> received, ReadOnlyMemory<MessageRoute> routes,
-        OutgoingDefaults defaults, CancellationToken ct);
+        ReadOnlyMemory<int> positions, ErrorOr<OutgoingMessage>[] outcomes, OutgoingDefaults defaults, CancellationToken ct);
 }
