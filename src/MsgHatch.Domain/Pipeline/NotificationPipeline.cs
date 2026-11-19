@@ -172,9 +172,10 @@ internal sealed class NotificationPipeline(
     {
         for (var position = 0; position < outcomes.Length; position++)
         {
-            if (outcomes[position].IsError)
+            var outcome = outcomes[position];
+            if (outcome.IsError)
             {
-                metrics.RecordRouteFailed(type, routes[position].Channel, outcomes[position].Error!);
+                metrics.RecordRouteFailed(type, routes[position].Channel, outcome.Error!);
             }
         }
     }
@@ -233,8 +234,11 @@ internal sealed class NotificationPipeline(
     private static MessageContext AsTestMessage(MessageContext context) => context with { Flags = context.Flags | MessageFlags.Test };
 
     private static RouteResult[] ToRouteResults(IReadOnlyList<MessageRoute> routes, ErrorOr<OutgoingMessage>[] outcomes) =>
-        [.. routes.Select((route, position) => new RouteResult(
-            route, outcomes[position].IsSuccess ? outcomes[position].Value : null, outcomes[position].Error))];
+        [.. routes.Select((route, position) =>
+        {
+            var outcome = outcomes[position];
+            return new RouteResult(route, outcome.IsSuccess ? outcome.Value : null, outcome.Error);
+        })];
 
     private ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync<TEvent>(
         MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, TenantKey key, CancellationToken ct)
