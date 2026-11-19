@@ -2568,8 +2568,10 @@ Commits:
 11. "Test the lines that the coverage report of phase 34 showed with no test"
 12. "Record the commits and the checked facts of phase 34 in the plan"
 13. "Record phase 34 as done in README and AGENTS.md"
+14. "Read each list item one time in the loops of phase 34"
+15. "Read each outcome one time in the older loops of the pipeline"
 
-Commit 1 holds the plan and the decisions D280 to D282 (`7351cdc`), commit 2 item 2 (`35cec23`), commit 3 item 3 (`1c7ccfc`), commit 4 item 4 (`d2a80b7`), commit 5 item 5 (`a68c925`), commit 6 item 6 (`b20e87d`), commit 7 item 7 (`86b10b2`), commit 8 item 8 (`d2a08c8`), commit 9 item 9 (`e43e7ec`), commit 10 items 1 and 10 (`86e0dab`), and commit 11 the tests of two behaviors that the first coverage report showed with no test (`fca40ed`). The commit `47f0384` of the session of phase 32 is on `main` between the commits 3 and 4, and changes one line of the record of phase 32. The unit test projects of the changed code passed at each commit. The phase adds no project and no package.
+Commit 1 holds the plan and the decisions D280 to D282 (`7351cdc`), commit 2 item 2 (`35cec23`), commit 3 item 3 (`1c7ccfc`), commit 4 item 4 (`d2a80b7`), commit 5 item 5 (`a68c925`), commit 6 item 6 (`b20e87d`), commit 7 item 7 (`86b10b2`), commit 8 item 8 (`d2a08c8`), commit 9 item 9 (`e43e7ec`), commit 10 items 1 and 10 (`86e0dab`), commit 11 the tests of two behaviors that the first coverage report showed with no test (`fca40ed`), commit 12 the record of the phase (`713f996`), commit 13 README and AGENTS.md (`02820dc`), commit 14 the item reads of the loops of the phase (`6521f76`), and commit 15 the outcome reads of two older loops of the pipeline (`f7e7955`). The tag `phase-34` is on commit 15, and the record of the commits 14 and 15 is a commit after the tag. The commit `47f0384` of the session of phase 32 is on `main` between the commits 3 and 4, and changes one line of the record of phase 32. The unit test projects of the changed code passed at each commit. The phase adds no project and no package.
 
 The implementation changed the plan in these points:
 - Item 2: `Boundary.RunAsync` with a delegate stays for the dispatch loops, the inbox work, and the stored registry, and calls the new overload with a state argument.
@@ -2579,7 +2581,8 @@ The implementation changed the plan in these points:
 - Item 8: the tests of the keys of a company with `:` in its id and of a user, and of a hit with no store call, existed. A new test checks the owner tag of the default, which no test asserted before.
 - Item 9: the capacity of a company scope is the number of the loaded users, because the users of the company are not known before the run. When the second pass of the overridable part finds fewer subscriptions than the first pass, it gives an array of the found subscriptions. Only a duplicate instance in the subscriptions of a call can cause this. `Merge` gives arrays, so the subscription router gives the pipeline an array of routes, and the pipeline composes them with no copy.
 - Item 10: the design also changes the sections 4.3, 4.8, and 4.9, which described the grouping with `RouteGrouping.ByChannel`, the notify of each channel, and `Parallel.ForEachAsync`. The target of `RunAsync` does not hold, so section 4.11 records the measured value and its cause (D159).
-- Commit 11 is new. The first coverage report showed two behaviors with no test: an event with routes on three channels, and a merged pair whose overridable candidate also skipped a subscription. So the phase has 13 commits.
+- Commit 11 is new. The first coverage report showed two behaviors with no test: an event with routes on three channels, and a merged pair whose overridable candidate also skipped a subscription. So the plan of 12 commits became 13.
+- Commits 14 and 15 are new. After the review of the owner, each loop of the phase and two older loops of the pipeline read each item one time, in place of two or three reads with the indexer. The behavior and the bytes do not change, so these commits add no test. The unit tests of Domain (1,559), Subscriptions (421), and Email (92) passed. So the phase has 15 commits.
 
 Item 1 is a measurement, and its results go into commit 10.
 
