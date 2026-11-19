@@ -39,7 +39,7 @@ public static class SubscriptionResolver
         ArgumentNullException.ThrowIfNull(users);
         ArgumentNullException.ThrowIfNull(companies);
         ArgumentNullException.ThrowIfNull(defaultLanguage);
-        return new ResolutionRun(channels, subscriptions, users, companies, defaultLanguage).Run(scope);
+        return new ResolutionRun(channels, subscriptions, users, companies, defaultLanguage, ResolutionRun.ScopeCapacityOf(scope, users)).Run(scope);
     }
 
     /// <summary>

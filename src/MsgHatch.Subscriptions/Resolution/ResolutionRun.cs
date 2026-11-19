@@ -18,36 +18,46 @@ internal sealed class ResolutionRun
     private readonly Dictionary<UserId, UserProfile> _users;
     private readonly Dictionary<CompanyId, CompanyProfile> _companies;
     private readonly string _defaultLanguage;
-    private readonly Dictionary<(DeliveryTarget, ChannelId), int> _pairIndexes = [];
-    private readonly List<Pair> _pairs = [];
+    private readonly Dictionary<(DeliveryTarget, ChannelId), int> _pairIndexes;
+    private readonly List<Pair> _pairs;
 
+    /// <summary>
+    /// Makes a run. <paramref name="scopeCapacity"/> is the number of users of the scope, as the first capacity of the pairs
+    /// (D282), or zero when the run resolves no scope.
+    /// </summary>
     public ResolutionRun(
         IReadOnlyList<ChannelDescriptor> channels, IReadOnlyList<Subscription> subscriptions, IReadOnlyList<UserProfile> users,
-        IReadOnlyList<CompanyProfile> companies, string defaultLanguage)
+        IReadOnlyList<CompanyProfile> companies, string defaultLanguage, int scopeCapacity = 0)
     {
         _channels = channels;
         _channelsById = new Dictionary<ChannelId, ChannelDescriptor>(channels.Count);
-        foreach (var channel in channels)
+        for (var index = 0; index < channels.Count; index++)
         {
-            _channelsById.TryAdd(channel.Id, channel);
+            _channelsById.TryAdd(channels[index].Id, channels[index]);
         }
 
         _subscriptions = InLevelOrder(OfRegisteredChannels(subscriptions));
         _userList = users;
         _users = new Dictionary<UserId, UserProfile>(users.Count);
-        foreach (var user in users)
+        for (var index = 0; index < users.Count; index++)
         {
-            _users.TryAdd(user.Id, user);
+            _users.TryAdd(users[index].Id, users[index]);
         }
 
         _companies = new Dictionary<CompanyId, CompanyProfile>(companies.Count);
-        foreach (var company in companies)
+        for (var index = 0; index < companies.Count; index++)
         {
-            _companies.TryAdd(company.Id, company);
+            _companies.TryAdd(companies[index].Id, companies[index]);
         }
 
         _defaultLanguage = defaultLanguage;
+        _pairIndexes = new Dictionary<(DeliveryTarget, ChannelId), int>(scopeCapacity);
+        _pairs = new List<Pair>(scopeCapacity);
     }
+
+    /// <summary>The number of users of <paramref name="scope"/>, or of all loaded users for a company scope.</summary>
+    public static int ScopeCapacityOf(NotificationScope scope, IReadOnlyList<UserProfile> users) =>
+        scope.Company is null ? scope.Users.Length : users.Count;
 
     public SubscriptionResolution Run(NotificationScope scope)
     {
@@ -74,9 +84,9 @@ internal sealed class ResolutionRun
     public List<Subscription> AppliedToCompany(CompanyId company)
     {
         var applied = new List<Subscription>();
-        foreach (var channel in _channels)
+        for (var index = 0; index < _channels.Count; index++)
         {
-            var (subscription, _) = ResolveOverridable(company, user: null, channel.Id);
+            var (subscription, _) = ResolveOverridable(company, user: null, _channels[index].Id);
             if (subscription is not null && !applied.Contains(subscription))
             {
                 applied.Add(subscription);
@@ -104,21 +114,21 @@ internal sealed class ResolutionRun
 
     private List<UserProfile> ScopeUsersOf(NotificationScope scope)
     {
-        var scopeUsers = new List<UserProfile>();
+        var scopeUsers = new List<UserProfile>(ScopeCapacityOf(scope, _userList));
         if (scope.Company is { } company)
         {
-            foreach (var user in _userList)
+            for (var index = 0; index < _userList.Count; index++)
             {
-                if (user.Company == company)
+                if (_userList[index].Company == company)
                 {
-                    scopeUsers.Add(user);
+                    scopeUsers.Add(_userList[index]);
                 }
             }
 
             return scopeUsers;
         }
 
-        var seen = new HashSet<UserId>();
+        var seen = new HashSet<UserId>(scope.Users.Length);
         foreach (var id in scope.Users.Span)
         {
             if (seen.Add(id) && _users.TryGetValue(id, out var user))
@@ -151,8 +161,9 @@ internal sealed class ResolutionRun
 
     private void AddOverridablePart(UserProfile user, bool groupChannelsGoToTheCompany)
     {
-        foreach (var channel in _channels)
+        for (var index = 0; index < _channels.Count; index++)
         {
+            var channel = _channels[index];
             if (groupChannelsGoToTheCompany && HasGroupDelivery(channel))
             {
                 continue;
@@ -168,8 +179,9 @@ internal sealed class ResolutionRun
 
     private void AddCompanyGroupPart(CompanyId company)
     {
-        foreach (var channel in _channels)
+        for (var index = 0; index < _channels.Count; index++)
         {
+            var channel = _channels[index];
             if (!HasGroupDelivery(channel))
             {
                 continue;
@@ -217,19 +229,20 @@ internal sealed class ResolutionRun
 
     private void AddNamedUsers(Subscription subscription, ChannelDescriptor channel, CompanyId? companyOfTheUsers)
     {
-        foreach (var id in subscription.Recipients.Users)
+        var users = subscription.Recipients.Users;
+        for (var index = 0; index < users.Count; index++)
         {
-            if (_users.TryGetValue(id, out var user) && (companyOfTheUsers is null || user.Company == companyOfTheUsers))
+            if (_users.TryGetValue(users[index], out var user) && (companyOfTheUsers is null || user.Company == companyOfTheUsers))
             {
-                Add(UserTarget(id), channel, user, company: null, new Candidate(subscription, TargetSource.NamedUser, Skipped: null));
+                Add(UserTarget(users[index]), channel, user, company: null, new Candidate(subscription, TargetSource.NamedUser, Skipped: null));
             }
         }
     }
 
-    private (Subscription? Applied, List<SkippedSubscription>? Skipped) ResolveOverridable(
+    private (Subscription? Applied, SkippedSubscription[]? Skipped) ResolveOverridable(
         CompanyId? company, UserId? user, ChannelId channel)
     {
-        List<Subscription>? matching = null;
+        var matching = 0;
         Subscription? mandatoryDefault = null, mandatoryCompany = null, ofDefault = null, ofCompany = null, ofUser = null;
         foreach (var subscription in _subscriptions)
         {
@@ -238,7 +251,7 @@ internal sealed class ResolutionRun
                 continue;
             }
 
-            (matching ??= []).Add(subscription);
+            matching++;
             switch (subscription.Owner.Level)
             {
                 case SubscriptionLevel.Default:
@@ -255,22 +268,32 @@ internal sealed class ResolutionRun
             }
         }
 
-        if (matching is null)
+        if (matching == 0)
         {
             return (null, null);
         }
 
         var applied = mandatoryDefault ?? mandatoryCompany ?? ofUser ?? ofCompany ?? ofDefault!;
-        List<SkippedSubscription>? skipped = null;
-        foreach (var subscription in matching)
+        return (applied, matching == 1 ? null : SkippedOfOverridable(company, user, channel, applied, matching - 1));
+    }
+
+    /// <summary>
+    /// The second pass over the subscriptions: each matching subscription other than <paramref name="applied"/>, in level
+    /// order, in an array of the exact size (D282).
+    /// </summary>
+    private SkippedSubscription[] SkippedOfOverridable(CompanyId? company, UserId? user, ChannelId channel, Subscription applied, int count)
+    {
+        var skipped = new SkippedSubscription[count];
+        var next = 0;
+        foreach (var subscription in _subscriptions)
         {
-            if (!ReferenceEquals(subscription, applied))
+            if (IsForTheScopeUsers(subscription, company, user, channel) && !ReferenceEquals(subscription, applied))
             {
-                (skipped ??= []).Add(new SkippedSubscription(SourceOf(subscription), ReasonOfOverridable(subscription, applied)));
+                skipped[next++] = new SkippedSubscription(SourceOf(subscription), ReasonOfOverridable(subscription, applied));
             }
         }
 
-        return (applied, skipped);
+        return next == skipped.Length ? skipped : skipped[..next];
     }
 
     private static SkipReason ReasonOfOverridable(Subscription skipped, Subscription applied) =>
@@ -294,45 +317,58 @@ internal sealed class ResolutionRun
 
     private void Add(DeliveryTarget target, ChannelDescriptor channel, UserProfile? user, CompanyId? company, Candidate candidate)
     {
-        if (!_pairIndexes.TryGetValue((target, channel.Id), out var index))
+        if (_pairIndexes.TryGetValue((target, channel.Id), out var index))
         {
-            index = _pairs.Count;
-            _pairIndexes.Add((target, channel.Id), index);
-            _pairs.Add(new Pair(target, channel, user, company));
+            _pairs[index].Add(candidate);
+            return;
         }
 
-        _pairs[index].Candidates.Add(candidate);
+        _pairIndexes.Add((target, channel.Id), _pairs.Count);
+        _pairs.Add(new Pair(target, channel, user, company, candidate));
     }
 
+    /// <summary>Keeps one candidate for each pair. It counts the opt-outs first, so the routes and the opt-out decisions are arrays of their exact size (D282).</summary>
     private SubscriptionResolution Merge()
     {
-        var deliveries = new List<MessageRoute>(_pairs.Count);
-        List<OptOutDecision>? optOuts = null;
+        var optOutCount = 0;
         foreach (var pair in _pairs)
         {
-            var winner = WinnerOf(pair.Candidates);
-            var skipped = SkippedOf(pair.Candidates, winner);
+            optOutCount += WinnerOf(pair).Subscription.Kind == SubscriptionKind.OptOut ? 1 : 0;
+        }
+
+        MessageRoute[] deliveries = optOutCount == _pairs.Count ? [] : new MessageRoute[_pairs.Count - optOutCount];
+        OptOutDecision[] optOuts = optOutCount == 0 ? [] : new OptOutDecision[optOutCount];
+        var (nextDelivery, nextOptOut) = (0, 0);
+        foreach (var pair in _pairs)
+        {
+            var winner = WinnerOf(pair);
+            var skipped = SkippedOf(pair, winner);
             if (winner.Subscription.Kind == SubscriptionKind.OptOut)
             {
-                (optOuts ??= []).Add(new OptOutDecision(pair.Target, pair.Channel.Id, SourceOf(winner.Subscription), skipped));
+                optOuts[nextOptOut++] = new OptOutDecision(pair.Target, pair.Channel.Id, SourceOf(winner.Subscription), skipped);
             }
             else
             {
-                deliveries.Add(RouteOf(pair, winner, skipped));
+                deliveries[nextDelivery++] = RouteOf(pair, winner, skipped);
             }
         }
 
-        return new SubscriptionResolution(deliveries, optOuts is null ? [] : optOuts);
+        return new SubscriptionResolution(deliveries, optOuts);
     }
 
-    private static Candidate WinnerOf(List<Candidate> candidates)
+    private static Candidate WinnerOf(Pair pair)
     {
-        var winner = candidates[0];
-        for (var index = 1; index < candidates.Count; index++)
+        var winner = pair.First;
+        if (pair.Others is not { } others)
         {
-            if (MergeRank(candidates[index].Subscription) < MergeRank(winner.Subscription))
+            return winner;
+        }
+
+        foreach (var candidate in others)
+        {
+            if (MergeRank(candidate.Subscription) < MergeRank(winner.Subscription))
             {
-                winner = candidates[index];
+                winner = candidate;
             }
         }
 
@@ -344,41 +380,59 @@ internal sealed class ResolutionRun
         + ((int)subscription.Owner.Level * 10)
         + (subscription.Recipients.Kind == RecipientKind.ScopeUsers ? 1 : 0);
 
-    private static SkippedSubscription[] SkippedOf(List<Candidate> candidates, Candidate winner)
+    /// <summary>
+    /// The skipped subscriptions of a pair, in level order (D282). A pair with one candidate keeps the skipped array of
+    /// that candidate, because it is already in level order. A pair with more candidates makes one array of the exact size.
+    /// </summary>
+    private static SkippedSubscription[] SkippedOf(Pair pair, Candidate winner)
     {
-        List<SkippedSubscription>? skipped = null;
-        foreach (var candidate in candidates)
+        if (pair.Others is not { } others)
         {
-            if (candidate.Skipped is not null)
-            {
-                (skipped ??= []).AddRange(candidate.Skipped);
-            }
-
-            if (!ReferenceEquals(candidate.Subscription, winner.Subscription))
-            {
-                (skipped ??= []).Add(new SkippedSubscription(SourceOf(candidate.Subscription), SkipReason.Merged));
-            }
+            return pair.First.Skipped ?? [];
         }
 
-        return skipped is null ? [] : InLevelOrder(skipped);
-    }
+        var count = SkippedCountOf(pair.First, winner);
+        foreach (var candidate in others)
+        {
+            count += SkippedCountOf(candidate, winner);
+        }
 
-    private static SkippedSubscription[] InLevelOrder(List<SkippedSubscription> skipped)
-    {
-        var ordered = new SkippedSubscription[skipped.Count];
+        var skipped = new SkippedSubscription[count];
         var next = 0;
         foreach (var level in _levelOrder)
         {
-            foreach (var subscription in skipped)
+            next = AddSkippedOfLevel(pair.First, winner, level, skipped, next);
+            foreach (var candidate in others)
             {
-                if (subscription.Subscription.Owner.Level == level)
-                {
-                    ordered[next++] = subscription;
-                }
+                next = AddSkippedOfLevel(candidate, winner, level, skipped, next);
             }
         }
 
-        return ordered;
+        return skipped;
+    }
+
+    private static int SkippedCountOf(Candidate candidate, Candidate winner) =>
+        (candidate.Skipped?.Length ?? 0) + (IsMergedAway(candidate, winner) ? 1 : 0);
+
+    private static bool IsMergedAway(Candidate candidate, Candidate winner) => !ReferenceEquals(candidate.Subscription, winner.Subscription);
+
+    /// <summary>Writes the skipped subscriptions of one candidate on <paramref name="level"/>, and then the candidate itself when the merge removed it.</summary>
+    private static int AddSkippedOfLevel(Candidate candidate, Candidate winner, SubscriptionLevel level, SkippedSubscription[] skipped, int next)
+    {
+        foreach (var subscription in candidate.Skipped ?? [])
+        {
+            if (subscription.Subscription.Owner.Level == level)
+            {
+                skipped[next++] = subscription;
+            }
+        }
+
+        if (candidate.Subscription.Owner.Level == level && IsMergedAway(candidate, winner))
+        {
+            skipped[next++] = new SkippedSubscription(SourceOf(candidate.Subscription), SkipReason.Merged);
+        }
+
+        return next;
     }
 
     private MessageRoute RouteOf(Pair pair, Candidate winner, IReadOnlyList<SkippedSubscription> skipped)
@@ -430,11 +484,11 @@ internal sealed class ResolutionRun
     private List<Subscription> OfRegisteredChannels(IReadOnlyList<Subscription> subscriptions)
     {
         var registered = new List<Subscription>(subscriptions.Count);
-        foreach (var subscription in subscriptions)
+        for (var index = 0; index < subscriptions.Count; index++)
         {
-            if (IsForARegisteredChannel(subscription))
+            if (IsForARegisteredChannel(subscriptions[index]))
             {
-                registered.Add(subscription);
+                registered.Add(subscriptions[index]);
             }
         }
 
@@ -476,9 +530,10 @@ internal sealed class ResolutionRun
     private static SubscriptionSource SourceOf(Subscription subscription) =>
         new(subscription.Id, subscription.Owner, subscription.Recipients.Kind, subscription.Mandatory);
 
-    private readonly record struct Candidate(Subscription Subscription, TargetSource Source, List<SkippedSubscription>? Skipped);
+    private readonly record struct Candidate(Subscription Subscription, TargetSource Source, SkippedSubscription[]? Skipped);
 
-    private sealed class Pair(DeliveryTarget target, ChannelDescriptor channel, UserProfile? user, CompanyId? company)
+    /// <summary>One delivery target and channel with its candidates. It keeps the first candidate in a field, and makes a list only for a second candidate (D282).</summary>
+    private sealed class Pair(DeliveryTarget target, ChannelDescriptor channel, UserProfile? user, CompanyId? company, Candidate first)
     {
         public DeliveryTarget Target { get; } = target;
 
@@ -488,6 +543,10 @@ internal sealed class ResolutionRun
 
         public CompanyId? Company { get; } = company;
 
-        public List<Candidate> Candidates { get; } = [];
+        public Candidate First { get; } = first;
+
+        public List<Candidate>? Others { get; private set; }
+
+        public void Add(Candidate candidate) => (Others ??= []).Add(candidate);
     }
 }
