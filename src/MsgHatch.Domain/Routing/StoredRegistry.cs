@@ -85,7 +85,7 @@ internal sealed class StoredRegistry : IMessageRegistry, IRegistryWriter, IDispo
             return new Error(Errors.NotFound, $"The message type {entry.Type.Name} is not registered.");
         }
 
-        if (RegistryEntryRules.Check(entry, registered) is { } invalid)
+        if ((RegistryEntryRules.Check(entry) ?? CheckChannelsOf(registered, entry.DisabledChannels)) is { } invalid)
         {
             return invalid;
         }
@@ -174,6 +174,12 @@ internal sealed class StoredRegistry : IMessageRegistry, IRegistryWriter, IDispo
         _entries = entries;
         _snapshot = Merge(_code, entries);
     }
+
+    /// <summary>The rule of an entry that needs the registry: each disabled channel is a channel of the message type (D285).</summary>
+    private static Error? CheckChannelsOf(MessageTypeDescriptor registered, IReadOnlyList<ChannelId> disabledChannels) =>
+        disabledChannels.Any(channel => !registered.Channels.Contains(channel))
+            ? new Error(Errors.ValidationFailed, $"DisabledChannels has only the channels of the message type {registered.Type.Name}.")
+            : null;
 
     private static IEnumerable<ChannelEntry> WithoutChannel(RegistryEntries entries, ChannelId channel) =>
         entries.Channels.Where(entry => entry.Channel != channel);
