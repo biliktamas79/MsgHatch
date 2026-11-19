@@ -91,6 +91,7 @@
                             <option value="@recipients">@recipients</option>
                         }
                     </select>
+                    <div class="form-text" data-field="recipients-help">@RecipientsText(form.Recipients)</div>
                 </div>
                 @if (form.Recipients == RecipientKind.NamedUsers)
                 {
@@ -315,4 +316,18 @@
         _channels.FirstOrDefault(channel => channel.Id.Name == form.Channel) is not { } channel ? "A subscription with no channel has no settings."
         : channel.SettingsType == typeof(ChannelSettings) ? "This host has no settings type for the channel, so it sends the JSON with no change."
         : $"This host reads the settings as {channel.SettingsType.Name}.";
+
+    private static string RecipientsText(RecipientKind recipients) => recipients switch
+    {
+        RecipientKind.Company =>
+            "One message goes to the address of the company that the event concerns, for example a shared mailbox. "
+            + "The recipient directory gives this address. The users of the company get no message. No lower level overrides it.",
+        RecipientKind.NamedUsers =>
+            "Each named user gets the message. A company subscription sends only to the named users of that company. "
+            + "No lower level overrides it.",
+        _ =>
+            "Each user that the owner covers gets the message: all users of the event for the default level, the users "
+            + "of the company for the company level, or the user. For an event of a company, a channel with group delivery, "
+            + "for example SignalR, sends one message to the group of the company.",
+    };
 }

@@ -33,6 +33,19 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
         Assert.Equal("This host reads the settings as FaxSettings.", cut.Find("[data-field=settings-type]").TextContent);
     }
 
+    [Theory]
+    [InlineData(RecipientKind.ScopeUsers, "Each user that the owner covers gets the message")]
+    [InlineData(RecipientKind.Company, "One message goes to the address of the company")]
+    [InlineData(RecipientKind.NamedUsers, "Each named user gets the message")]
+    public void Render_RecipientKind_ShowsTheHelpOfTheKind(RecipientKind recipients, string start)
+    {
+        var cut = RenderEdit();
+
+        cut.Find("#msghatch-edit-recipients").Change(recipients.ToString());
+
+        Assert.StartsWith(start, cut.Find("[data-field=recipients-help]").TextContent, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Render_StoredSubscription_PutsTheTitleInTheHeaderAndTheActionsUnderTheScrollingBody()
     {
