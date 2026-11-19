@@ -2540,6 +2540,19 @@ Checked facts of the plan (2026-11-18), on Windows 11 build 26300 with the .NET 
 Checks that the phase does not do:
 - The integration tests of the stores, because no store changes.
 - An allocation test of an async path in the unit tests, because the Debug build makes each async state machine a class (section 4.11). The benchmarks measure these paths.
+- A check of each commit in its own worktree. The unit test projects of the changed code passed at each commit in the working tree, and each commit holds only its own files.
+- A probe of the 28 B for each message that the benchmark of `RunAsync` counts more than the probe in the process. Section 4.11 says that its cause is not confirmed.
+
+Checked facts of the build (2026-11-19), on Windows 11 build 26300 with the .NET SDK 10.0.404 and .NET 10.0.15:
+
+| Fact | Source |
+|---|---|
+| Item 1 ran the three benchmark projects at `adf32d1`, the last commit of phase 33, in a detached worktree of that commit, so the edits of the phase did not change the measured code. Each log has build paths only in that worktree. The first try started in a folder with no `global.json`, so `dotnet` took the SDK 11.0.100, and the build of the generated project failed with `MSB4216`. The second try started in the root of the worktree. The computer slept during the Domain runs of item 1 and of item 10. The deviations of the times are small, and the bytes do not depend on the time. | The logs of the runs, and `git worktree add --detach` |
+| The bytes of each benchmark come from the line `// GC:` of its log: the total bytes divided by the operations. They match the column `Allocated`, which BenchmarkDotNet rounds to 0.01 KB above 1 KB. Item 1 matched the probe of the plan: 3,472 B for one route, 775 B for each further route, 254 B for each message of `DispatchPendingAsync`, 1,739 B for each further user, and 448 B for a cache hit. `RunAsync` gave 261 B, and the probe of the plan 237 B. | The logs of item 1 and of item 10 |
+| Each target holds except `RunAsync`: one route 688 B (at most 1,000 B), each further route about 304 B (at most 330 B), each message of `DispatchPendingAsync` 108 B (at most 110 B), a cache hit 288 B (at most 300 B), and each further user about 401 B (at most 500 B). `RunAsync` gave 212 B (at most 190 B). A probe in the process with the event `AllocationSampled`, 30,000 batches after 20,000 batches to warm up, gave 184 B for each message: `PublishTry` 89 B, `WaitingReadAsyncOperation` 81 B, and about 15 B of state machines and waits of each batch. | The runs of item 10, and the probe `probe` in a scratch folder with a project reference to `MsgHatch.Domain.Tests.Performance` |
+| `default(ErrorOr<T>)` has `IsError` true, and its `Error` gives a new `Uninitialized` error at each read. So the grouping of item 4 cannot find the routes that passed the check from the result array. A checked route holds one shared `Uninitialized` error until its composer writes its outcome. | `ErrorOr.cs` |
+| The 35 unit test projects pass 5,007 tests and skip 1 test: the path limit test of the named pipe signal on Windows. The phase adds 20 tests and test rows. `MsgHatch.Domain.Tests.Unit` passes 1,559 tests, and `MsgHatch.Subscriptions.Tests.Unit` 421. The line coverage of the production code is 98.7 %: `MsgHatch.Domain` 99.6 %, `MsgHatch.Subscriptions` 100 %, and `MsgHatch.Email` 100 %. Three lines of the changed classes have no test: the read of a box that another thread added first in `TenantKeyBoxes`, and the names of `Cancelled` and of an unknown value in `MsgHatchMetrics`, which no send records. The solution build with `--no-incremental` has no errors and no warnings at the commits 9 and 11. | The copy of `pwsh ./coverage.ps1` that builds with `--artifacts-path` in a scratch folder, because the example apps of the owner lock `examples/*/bin/Debug`, and `dotnet build MsgHatch.slnx --no-incremental --artifacts-path` at the commits 9 and 11 |
+| The new tests failed before the code of their commit existed, or with a break of the code that they cover. The allocation test of the resolution failed on the code before commit 9. The breaks failed: a notify of each channel of the registration (commit 3), the position of an outcome, a missing set for one route, the reverse order of a group, and a conflict check that passes each route (commit 4), the box of another tenant on a hit, and the box of no tenant after the limit (commit 5), two swapped outcome names (commit 6), no limit in the parallel options (commit 7), the owner tag of the default, a company id with no encoding, and an empty list of the missing owners on a hit (commit 8), the reverse order of the skipped subscriptions of one candidate and of a merged pair (commit 9), and a count that does not grow for a repeated channel after the first, and a merged pair that drops the skipped subscriptions of its candidates (commit 11). | The breaks, each one reverted after its run |
 
 Commits:
 1. "Plan phase 34: the open allocations of the hot path"
@@ -2552,8 +2565,21 @@ Commits:
 8. "Build the subscription cache keys with no owner part strings"
 9. "Reduce the scratch allocations of the subscription resolution"
 10. "Record the measured allocation budget of phase 34 in the design"
-11. "Record the commits and the checked facts of phase 34 in the plan"
-12. "Record phase 34 as done in README and AGENTS.md"
+11. "Test the lines that the coverage report of phase 34 showed with no test"
+12. "Record the commits and the checked facts of phase 34 in the plan"
+13. "Record phase 34 as done in README and AGENTS.md"
+
+Commit 1 holds the plan and the decisions D280 to D282 (`7351cdc`), commit 2 item 2 (`35cec23`), commit 3 item 3 (`1c7ccfc`), commit 4 item 4 (`d2a80b7`), commit 5 item 5 (`a68c925`), commit 6 item 6 (`b20e87d`), commit 7 item 7 (`86b10b2`), commit 8 item 8 (`d2a08c8`), commit 9 item 9 (`e43e7ec`), commit 10 items 1 and 10 (`86e0dab`), and commit 11 the tests of two behaviors that the first coverage report showed with no test (`fca40ed`). The commit `47f0384` of the session of phase 32 is on `main` between the commits 3 and 4, and changes one line of the record of phase 32. The unit test projects of the changed code passed at each commit. The phase adds no project and no package.
+
+The implementation changed the plan in these points:
+- Item 2: `Boundary.RunAsync` with a delegate stays for the dispatch loops, the inbox work, and the stored registry, and calls the new overload with a state argument.
+- Item 4: the channels of an event are in `EventChannels`, a struct that keeps the first channel in fields and makes a list only for a second channel, so an event on one channel allocates nothing for them. A checked route holds one shared `Uninitialized` error until its composer writes its outcome (see the checked facts).
+- Item 5: a second new test checks that a tenant after the limit of 1,024 boxes gets its own services. The boxes are static, so the test of two tenants uses tenant ids that no other test uses.
+- Item 6: the theory has the five outcomes that a send records. `Cancelled` is not a row, because only `CancelAsync` of a store records it.
+- Item 8: the tests of the keys of a company with `:` in its id and of a user, and of a hit with no store call, existed. A new test checks the owner tag of the default, which no test asserted before.
+- Item 9: the capacity of a company scope is the number of the loaded users, because the users of the company are not known before the run. When the second pass of the overridable part finds fewer subscriptions than the first pass, it gives an array of the found subscriptions. Only a duplicate instance in the subscriptions of a call can cause this. `Merge` gives arrays, so the subscription router gives the pipeline an array of routes, and the pipeline composes them with no copy.
+- Item 10: the design also changes the sections 4.3, 4.8, and 4.9, which described the grouping with `RouteGrouping.ByChannel`, the notify of each channel, and `Parallel.ForEachAsync`. The target of `RunAsync` does not hold, so section 4.11 records the measured value and its cause (D159).
+- Commit 11 is new. The first coverage report showed two behaviors with no test: an event with routes on three channels, and a merged pair whose overridable candidate also skipped a subscription. So the phase has 13 commits.
 
 Item 1 is a measurement, and its results go into commit 10.
 
