@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
@@ -145,6 +146,36 @@ public sealed partial class NotificationServiceUnitTests
             results.Value.Select(static result => (result.Route, result.Message?.Target.Id)));
         Assert.Equal(ExpectedComposerCalls(routes, TestChannel.Id), ComposerCalls(_doubles.Composer(TenantKey.None)));
         Assert.Equal(ExpectedComposerCalls(routes, TestChannel.SecondId), ComposerCalls(_doubles.SecondComposer(TenantKey.None)));
+    }
+
+    [Fact]
+    public async Task PreviewAsync_RoutesOnThreeChannelsInTurns_EachOutcomeKeepsThePositionOfItsRouteAndEachComposerGetsItsRoutesInOrder()
+    {
+        // Arrange
+        var third = PipelineDoubles.EchoComposer<TestEvent, BaseTestEnvelope>(static route => new BaseTestEnvelope(route.Target.Id));
+        var services = TestHost.CreateServices(_time);
+        services.AddMsgHatch().AddTestChannel().AddSecondTestChannel().AddThirdTestChannel().UseInMemoryStores()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
+                .WithRouter((_, key) => _doubles.Router(key))
+                .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, (_, key) => _doubles.Composer(key))
+                .AsChannel(TestChannel.SecondId, "OtherEnvelope", 1, TestJsonContext.Default.OtherTestEnvelope, (_, key) => _doubles.SecondComposer(key))
+                .AsChannel(TestChannel.ThirdId, "BaseEnvelope", 1, TestJsonContext.Default.BaseTestEnvelope, (_, _) => third));
+        await using var provider = services.Build();
+        MessageRoute[] routes =
+        [
+            ARoute("u1"), SecondChannelRoute("u2"), ARoute("u3", channel: TestChannel.ThirdId), ARoute("u4"),
+            ARoute("u5", channel: TestChannel.ThirdId), SecondChannelRoute("u6"),
+        ];
+
+        // Act
+        var results = await PreviewAsync(provider, AContext(), routes);
+
+        // Assert
+        Assert.Equal(
+            ("u1:u1 u2:u2 u3:u3 u4:u4 u5:u5 u6:u6", "u1,u4", "u2,u6", "u3,u5"),
+            (string.Join(" ", results.Value.Select(static result => $"{result.Route.Target.Id}:{result.Message?.Target.Id}")),
+                string.Join(" ", ComposerCalls(_doubles.Composer(TenantKey.None))), string.Join(" ", ComposerCalls(_doubles.SecondComposer(TenantKey.None))),
+                string.Join(" ", ComposerCalls(third))));
     }
 
     [Fact]

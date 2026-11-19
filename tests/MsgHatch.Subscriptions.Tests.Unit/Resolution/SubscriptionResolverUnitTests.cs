@@ -181,6 +181,20 @@ public sealed partial class SubscriptionResolverUnitTests
     }
 
     [Fact]
+    public void Resolve_FixedSubscriptionAndAUserSubscriptionThatOverridesADefault_KeepsTheSkippedSubscriptionsOfBothInLevelOrder()
+    {
+        // Arrange
+        var defaultForTheScopeUsers = Scenario.S12 with { Id = Scenario.LabelId(32), Owner = SubscriptionOwner.Default };
+
+        // Act
+        var resolution = Resolve("D", "users 2", [defaultForTheScopeUsers, Scenario.S11, Scenario.S12]);
+
+        // Assert
+        var trace = (ResolutionTrace)Assert.Single(resolution.Deliveries).Trace!;
+        Assert.Equal(("#11", "#32 Overridden, #12 Merged"), (Scenario.Label(trace.Applied.Id), string.Join(", ", trace.Skipped.Select(static s => $"{Scenario.Label(s.Subscription.Id)} {s.Reason}"))));
+    }
+
+    [Fact]
     public void Resolve_NamedUsersAndMandatoryOnOneLevel_TheNamedUsersApply()
     {
         // Arrange
