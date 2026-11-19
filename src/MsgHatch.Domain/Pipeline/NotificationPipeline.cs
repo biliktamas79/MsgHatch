@@ -64,12 +64,9 @@ internal sealed class NotificationPipeline(
         var started = time.GetTimestamp();
         using var span = ProcessSpan.Start(registration.Type, context);
         metrics.RecordReceived(registration.Type, context.Flags);
-        return await MeasureAsync(registration.Type, context.Flags, started, span, () =>
-        {
-            var nowUtc = time.GetUtcNowDateTime();
-            var received = registration.Receive(domainEvent, context, nowUtc, _oneProcessingInMemory, span.CallerTraceParent);
-            return ProcessInSpanAsync(registration, received, nowUtc, span.TraceParent, ct);
-        }, ct);
+        var nowUtc = time.GetUtcNowDateTime();
+        var received = registration.Receive(domainEvent, context, nowUtc, _oneProcessingInMemory, span.CallerTraceParent);
+        return await MeasureAsync(registration, received, nowUtc, started, span, ct);
     }
 
     /// <summary>
@@ -81,19 +78,17 @@ internal sealed class NotificationPipeline(
     {
         var started = time.GetTimestamp();
         using var span = ProcessSpan.StartForReceived(received);
-        return await MeasureAsync(
-            registration.Type, received.Flags, started, span,
-            () => ProcessInSpanAsync(registration, received, time.GetUtcNowDateTime(), span.TraceParent, ct), ct);
+        return await MeasureAsync(registration, received, time.GetUtcNowDateTime(), started, span, ct);
     }
 
-    private async ValueTask<ErrorOr<NotificationResult>> MeasureAsync(
-        MessageType type, MessageFlags flags, long started, ProcessSpan span, Func<ValueTask<ErrorOr<NotificationResult>>> process,
+    private async ValueTask<ErrorOr<NotificationResult>> MeasureAsync<TEvent>(
+        MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, DateTime nowUtc, long started, ProcessSpan span,
         CancellationToken ct)
     {
         ErrorOr<NotificationResult> result = default;
         try
         {
-            result = await process();
+            result = await ProcessInSpanAsync(registration, received, nowUtc, span.TraceParent, ct);
             return result;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -109,7 +104,7 @@ internal sealed class NotificationPipeline(
         finally
         {
             span.Finish(result);
-            metrics.RecordProcessed(type, flags, result.Error, time.GetElapsedTime(started));
+            metrics.RecordProcessed(registration.Type, received.Flags, result.Error, time.GetElapsedTime(started));
         }
     }
 
@@ -131,7 +126,7 @@ internal sealed class NotificationPipeline(
         }
 
         var composed = await RouteAndComposeAsync(
-            registration, received, nowUtc, givenRoutes: null, outgoingTraceParent, routes => EnabledRoutes(descriptor, received, routes), ct);
+            registration, received, nowUtc, givenRoutes: null, outgoingTraceParent, skipDisabledChannels: true, descriptor, ct);
         if (composed.IsError)
         {
             return composed.Error;
@@ -200,7 +195,8 @@ internal sealed class NotificationPipeline(
 
         var nowUtc = time.GetUtcNowDateTime();
         var received = found.Value.Receive(domainEvent, AsTestMessage(context), nowUtc, _oneProcessingInMemory, traceParent: null);
-        var composed = await RouteAndComposeAsync(found.Value, received, nowUtc, routes, outgoingTraceParent: null, select: null, ct);
+        var composed = await RouteAndComposeAsync(
+            found.Value, received, nowUtc, routes, outgoingTraceParent: null, skipDisabledChannels: false, descriptor: null, ct);
         return composed.IsError
             ? composed.Error
             : ErrorOr<IReadOnlyList<RouteResult>>.ForValue(ToRouteResults(composed.Value.Routes, composed.Value.Outcomes));
@@ -213,8 +209,8 @@ internal sealed class NotificationPipeline(
 
     private async ValueTask<ErrorOr<ComposedEvent>> RouteAndComposeAsync<TEvent>(
         MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, DateTime nowUtc,
-        IReadOnlyList<MessageRoute>? givenRoutes, string? outgoingTraceParent,
-        Func<IReadOnlyList<MessageRoute>, IReadOnlyList<MessageRoute>>? select, CancellationToken ct)
+        IReadOnlyList<MessageRoute>? givenRoutes, string? outgoingTraceParent, bool skipDisabledChannels, MessageTypeDescriptor? descriptor,
+        CancellationToken ct)
     {
         var key = TenantKey.For(received.Tenant);
         var routes = givenRoutes is null
@@ -225,7 +221,7 @@ internal sealed class NotificationPipeline(
             return routes.Error;
         }
 
-        var selected = select is null ? routes.Value : select(routes.Value);
+        var selected = skipDisabledChannels ? EnabledRoutes(descriptor, received, routes.Value) : routes.Value;
         var outcomes = await ComposeAsync(
             registration, received, selected, key, new OutgoingDefaults(nowUtc, outgoingTraceParent, retryOptions), ct);
         return outcomes.IsError ? outcomes.Error : new ComposedEvent(key, selected, outcomes.Value, routes.Value.Count - selected.Count);

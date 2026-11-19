@@ -43,7 +43,13 @@ public static class RouteGrouping
             positions.Add(position);
         }
 
-        return [.. keys.Select(key => ToGroup(key, positionsByKey[key], routes))];
+        var groups = new RouteGroup<TKey>[keys.Count];
+        for (var index = 0; index < groups.Length; index++)
+        {
+            groups[index] = ToGroup(keys[index], positionsByKey[keys[index]], routes);
+        }
+
+        return groups;
     }
 
     private static RouteGroup<TKey> ToGroup<TKey>(TKey key, List<int> positions, ReadOnlyMemory<MessageRoute> routes)

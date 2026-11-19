@@ -6,11 +6,15 @@ namespace MsgHatch.Domain.Failures;
 /// </summary>
 internal static class Boundary
 {
-    public static async ValueTask<ErrorOr<T>> RunAsync<T>(Func<ValueTask<ErrorOr<T>>> run, CancellationToken ct)
+    public static ValueTask<ErrorOr<T>> RunAsync<T>(Func<ValueTask<ErrorOr<T>>> run, CancellationToken ct) =>
+        RunAsync(static run => run(), run, ct);
+
+    /// <summary>Runs <paramref name="run"/> with <paramref name="state"/>, so that a caller with a static lambda allocates no closure.</summary>
+    public static async ValueTask<ErrorOr<T>> RunAsync<T, TState>(Func<TState, ValueTask<ErrorOr<T>>> run, TState state, CancellationToken ct)
     {
         try
         {
-            return await run();
+            return await run(state);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

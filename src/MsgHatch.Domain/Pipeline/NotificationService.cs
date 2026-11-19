@@ -12,12 +12,18 @@ internal sealed class NotificationService(NotificationPipeline pipeline) : INoti
 {
     public ValueTask<ErrorOr<NotificationResult>> ProcessAsync<TEvent>(
         TEvent domainEvent, MessageContext context, CancellationToken ct) =>
-        Boundary.RunAsync(() => pipeline.ProcessAsync(domainEvent, context, ct), ct);
+        Boundary.RunAsync(
+            static state => state.Pipeline.ProcessAsync(state.Event, state.Context, state.Ct),
+            (Pipeline: pipeline, Event: domainEvent, Context: context, Ct: ct), ct);
 
     public ValueTask<ErrorOr<Guid>> AcceptAsync<TEvent>(TEvent domainEvent, MessageContext context, CancellationToken ct) =>
-        Boundary.RunAsync(() => pipeline.AcceptAsync(domainEvent, context, ct), ct);
+        Boundary.RunAsync(
+            static state => state.Pipeline.AcceptAsync(state.Event, state.Context, state.Ct),
+            (Pipeline: pipeline, Event: domainEvent, Context: context, Ct: ct), ct);
 
     public ValueTask<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync<TEvent>(
         TEvent domainEvent, MessageContext context, IReadOnlyList<MessageRoute>? routes, CancellationToken ct) =>
-        Boundary.RunAsync(() => pipeline.PreviewAsync(domainEvent, context, routes, ct), ct);
+        Boundary.RunAsync(
+            static state => state.Pipeline.PreviewAsync(state.Event, state.Context, state.Routes, state.Ct),
+            (Pipeline: pipeline, Event: domainEvent, Context: context, Routes: routes, Ct: ct), ct);
 }

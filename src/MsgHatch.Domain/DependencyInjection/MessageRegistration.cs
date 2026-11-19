@@ -74,8 +74,18 @@ internal sealed class MessageRegistration<TEvent>(MessageType type, int version)
         var version => new Error(Errors.UnsupportedVersion, $"The message type {Type.Name} has no upgrade from version {version}."),
     };
 
-    public IChannelRegistration<TEvent>? FindChannel(ChannelId channel) =>
-        _channels.Find(registration => registration.Channel == channel);
+    public IChannelRegistration<TEvent>? FindChannel(ChannelId channel)
+    {
+        foreach (var registration in _channels)
+        {
+            if (registration.Channel == channel)
+            {
+                return registration;
+            }
+        }
+
+        return null;
+    }
 
     public ReceivedMessage<TEvent> Receive(
         TEvent domainEvent, MessageContext context, DateTime nowUtc, int maxTryCount, string? traceParent) =>
