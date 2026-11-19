@@ -21,15 +21,19 @@ internal sealed class SubscriptionCacheKeys
     public static SubscriptionCacheKeys For(IServiceProvider services, TenantKey key) =>
         new(services.GetRequiredService<IOptions<SubscriptionCacheOptions>>().Value.KeyPrefix, key);
 
-    public string Key(MessageType type, SubscriptionOwner owner) => $"{TenantTag}:{type.Name}:{OwnerPart(owner)}";
-
-    public string OwnerTag(SubscriptionOwner owner) => $"{TenantTag}:{OwnerPart(owner)}";
-
-    private static string OwnerPart(SubscriptionOwner owner) => owner.Level switch
+    /// <summary>The key of the subscriptions of one owner, with the owner part written in the same interpolation (D282).</summary>
+    public string Key(MessageType type, SubscriptionOwner owner) => owner.Level switch
     {
-        SubscriptionLevel.Default => "d",
-        SubscriptionLevel.Company => $"c:{Encode(owner.Company!.Value.Value)}",
-        _ => $"u:{Encode(owner.User!.Value.Value)}",
+        SubscriptionLevel.Default => $"{TenantTag}:{type.Name}:d",
+        SubscriptionLevel.Company => $"{TenantTag}:{type.Name}:c:{Encode(owner.Company!.Value.Value)}",
+        _ => $"{TenantTag}:{type.Name}:u:{Encode(owner.User!.Value.Value)}",
+    };
+
+    public string OwnerTag(SubscriptionOwner owner) => owner.Level switch
+    {
+        SubscriptionLevel.Default => $"{TenantTag}:d",
+        SubscriptionLevel.Company => $"{TenantTag}:c:{Encode(owner.Company!.Value.Value)}",
+        _ => $"{TenantTag}:u:{Encode(owner.User!.Value.Value)}",
     };
 
     private static string Encode(string id) => Uri.EscapeDataString(id);

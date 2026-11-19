@@ -26,20 +26,20 @@ internal sealed class SubscriptionStoreCachingWrapper(
         ArgumentNullException.ThrowIfNull(companies);
         ArgumentNullException.ThrowIfNull(users);
         var found = new List<Subscription>();
-        var missing = new List<SubscriptionOwner>();
-        await ReadAsync(type, SubscriptionOwner.Default, found, missing, ct);
-        foreach (var company in companies)
+        var missing = await ReadAsync(type, SubscriptionOwner.Default, found, missing: null, ct);
+        for (var index = 0; index < companies.Count; index++)
         {
-            await ReadAsync(type, SubscriptionOwner.ForCompany(company), found, missing, ct);
+            missing = await ReadAsync(type, SubscriptionOwner.ForCompany(companies[index]), found, missing, ct);
         }
 
-        foreach (var user in users)
+        for (var index = 0; index < users.Count; index++)
         {
-            await ReadAsync(type, SubscriptionOwner.ForUser(user), found, missing, ct);
+            missing = await ReadAsync(type, SubscriptionOwner.ForUser(users[index]), found, missing, ct);
         }
 
-        logger.FindForDeliveryCached(1 + companies.Count + users.Count - missing.Count, missing.Count, type.Name, key.Tenant?.Value);
-        return missing.Count == 0 ? found : await ReadMissingOwnersAsync(type, missing, found, ct);
+        var missingCount = missing?.Count ?? 0;
+        logger.FindForDeliveryCached(1 + companies.Count + users.Count - missingCount, missingCount, type.Name, key.Tenant?.Value);
+        return missing is null ? found : await ReadMissingOwnersAsync(type, missing, found, ct);
     }
 
     public ValueTask<ErrorOr<IReadOnlyList<Subscription>>> QueryAsync(SubscriptionQuery query, CancellationToken ct) => inner.QueryAsync(query, ct);
@@ -88,8 +88,12 @@ internal sealed class SubscriptionStoreCachingWrapper(
         return error;
     }
 
-    private async ValueTask ReadAsync(
-        MessageType type, SubscriptionOwner owner, List<Subscription> found, List<SubscriptionOwner> missing, CancellationToken ct)
+    /// <summary>
+    /// Adds the cached subscriptions of the owner to <paramref name="found"/>. On a miss, it gives
+    /// <paramref name="missing"/> with the owner, and makes that list at the first miss (D282).
+    /// </summary>
+    private async ValueTask<List<SubscriptionOwner>?> ReadAsync(
+        MessageType type, SubscriptionOwner owner, List<Subscription> found, List<SubscriptionOwner>? missing, CancellationToken ct)
     {
         var cached = await backend.TryGetAsync(keys.Key(type, owner), ct);
         if (cached.IsError)
@@ -99,12 +103,14 @@ internal sealed class SubscriptionStoreCachingWrapper(
 
         if (cached.IsError || cached.Value is null)
         {
-            missing.Add(owner);
+            (missing ??= []).Add(owner);
         }
         else
         {
             found.AddRange(cached.Value);
         }
+
+        return missing;
     }
 
     private async ValueTask<ErrorOr<IReadOnlyList<Subscription>>> ReadMissingOwnersAsync(

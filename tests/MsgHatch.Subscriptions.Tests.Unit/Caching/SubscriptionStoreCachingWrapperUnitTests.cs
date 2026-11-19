@@ -172,6 +172,22 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     }
 
     [Fact]
+    public async Task FindForDeliveryAsync_MissForADefaultACompanyWithAColonAndAUser_SetsTheKeyAndTheTagsOfEachOwnerWithTheirText()
+    {
+        // Arrange
+        var backend = ABackend();
+        await using var provider = BuildWith(AStore(), backend);
+
+        // Act
+        await StoreOf(provider).FindForDeliveryAsync(_a, [new CompanyId("a:1")], [new UserId("1")], Ct);
+
+        // Assert
+        Assert.Equal(
+            [($"{_t1}:A:d", $"{_t1}, {_t1}:d"), ($"{_t1}:A:c:a%3A1", $"{_t1}, {_t1}:c:a%3A1"), ($"{_t1}:A:u:1", $"{_t1}, {_t1}:u:1")],
+            SetCalls(backend).Select(static call => (call.Key, string.Join(", ", call.Tags))));
+    }
+
+    [Fact]
     public async Task FindForDeliveryAsync_IdsWithColons_PercentEncodesThemInEachKeyAndTag()
     {
         // Arrange
