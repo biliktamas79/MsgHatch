@@ -40,9 +40,10 @@ internal struct EventChannels<TEvent>
         _others ??= [];
         for (var index = 0; index < _others.Count; index++)
         {
-            if (ReferenceEquals(_others[index].Channel, channel))
+            var (other, count) = _others[index];
+            if (ReferenceEquals(other, channel))
             {
-                _others[index] = (channel, _others[index].Count + 1);
+                _others[index] = (channel, count + 1);
                 return;
             }
         }

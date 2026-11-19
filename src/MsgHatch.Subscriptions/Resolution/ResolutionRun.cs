@@ -33,7 +33,8 @@ internal sealed class ResolutionRun
         _channelsById = new Dictionary<ChannelId, ChannelDescriptor>(channels.Count);
         for (var index = 0; index < channels.Count; index++)
         {
-            _channelsById.TryAdd(channels[index].Id, channels[index]);
+            var channel = channels[index];
+            _channelsById.TryAdd(channel.Id, channel);
         }
 
         _subscriptions = InLevelOrder(OfRegisteredChannels(subscriptions));
@@ -41,13 +42,15 @@ internal sealed class ResolutionRun
         _users = new Dictionary<UserId, UserProfile>(users.Count);
         for (var index = 0; index < users.Count; index++)
         {
-            _users.TryAdd(users[index].Id, users[index]);
+            var user = users[index];
+            _users.TryAdd(user.Id, user);
         }
 
         _companies = new Dictionary<CompanyId, CompanyProfile>(companies.Count);
         for (var index = 0; index < companies.Count; index++)
         {
-            _companies.TryAdd(companies[index].Id, companies[index]);
+            var company = companies[index];
+            _companies.TryAdd(company.Id, company);
         }
 
         _defaultLanguage = defaultLanguage;
@@ -119,9 +122,10 @@ internal sealed class ResolutionRun
         {
             for (var index = 0; index < _userList.Count; index++)
             {
-                if (_userList[index].Company == company)
+                var user = _userList[index];
+                if (user.Company == company)
                 {
-                    scopeUsers.Add(_userList[index]);
+                    scopeUsers.Add(user);
                 }
             }
 
@@ -232,9 +236,10 @@ internal sealed class ResolutionRun
         var users = subscription.Recipients.Users;
         for (var index = 0; index < users.Count; index++)
         {
-            if (_users.TryGetValue(users[index], out var user) && (companyOfTheUsers is null || user.Company == companyOfTheUsers))
+            var id = users[index];
+            if (_users.TryGetValue(id, out var user) && (companyOfTheUsers is null || user.Company == companyOfTheUsers))
             {
-                Add(UserTarget(users[index]), channel, user, company: null, new Candidate(subscription, TargetSource.NamedUser, Skipped: null));
+                Add(UserTarget(id), channel, user, company: null, new Candidate(subscription, TargetSource.NamedUser, Skipped: null));
             }
         }
     }
@@ -486,9 +491,10 @@ internal sealed class ResolutionRun
         var registered = new List<Subscription>(subscriptions.Count);
         for (var index = 0; index < subscriptions.Count; index++)
         {
-            if (IsForARegisteredChannel(subscriptions[index]))
+            var subscription = subscriptions[index];
+            if (IsForARegisteredChannel(subscription))
             {
-                registered.Add(subscriptions[index]);
+                registered.Add(subscription);
             }
         }
 

@@ -46,7 +46,8 @@ public static class RouteGrouping
         var groups = new RouteGroup<TKey>[keys.Count];
         for (var index = 0; index < groups.Length; index++)
         {
-            groups[index] = ToGroup(keys[index], positionsByKey[keys[index]], routes);
+            var key = keys[index];
+            groups[index] = ToGroup(key, positionsByKey[key], routes);
         }
 
         return groups;

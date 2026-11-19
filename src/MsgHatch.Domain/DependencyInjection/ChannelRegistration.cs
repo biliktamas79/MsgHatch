@@ -51,10 +51,12 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
         }
 
         var retry = defaults.RetryOptions.Get(ContentType);
-        for (var index = 0; index < routes.Length; index++)
+        var routeSpan = routes.Span;
+        var positionSpan = positions.Span;
+        for (var index = 0; index < routeSpan.Length; index++)
         {
-            outcomes[positions.IsEmpty ? index : positions.Span[index]] =
-                ToMessage(received, routes.Span[index], envelopes.Value[index], retry, defaults);
+            outcomes[positionSpan.IsEmpty ? index : positionSpan[index]] =
+                ToMessage(received, routeSpan[index], envelopes.Value[index], retry, defaults);
         }
 
         return null;

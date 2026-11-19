@@ -323,9 +323,10 @@ internal sealed class NotificationPipeline(
             var channel = channels[index].Channel.Channel;
             for (var position = 0; position < routes.Count; position++)
             {
-                if (routes[position].Channel == channel && PassedTheCheck(outcomes[position]))
+                var route = routes[position];
+                if (route.Channel == channel && PassedTheCheck(outcomes[position]))
                 {
-                    grouped[next] = routes[position];
+                    grouped[next] = route;
                     positions[next++] = position;
                 }
             }
