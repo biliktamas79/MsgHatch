@@ -186,6 +186,44 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Equal((2d, (object?)"Test", (object?)"Succeeded"), (measurement.Value, measurement.Tags["msghatch.channel"], measurement.Tags["msghatch.outcome"]));
     }
 
+    public static TheoryData<PublishOutcome> SendOutcomeRows => new()
+    {
+        PublishOutcome.Succeeded, PublishOutcome.TransientError, PublishOutcome.PermanentError, PublishOutcome.Expired, PublishOutcome.Suppressed,
+    };
+
+    [Theory]
+    [MemberData(nameof(SendOutcomeRows))]
+    public async Task DispatchPendingAsync_EachOutcomeOfASend_TagsTheTryAndTheSendDurationWithTheNameOfTheOutcome(PublishOutcome outcome)
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, Claim(outcome switch
+        {
+            PublishOutcome.Expired => AMessage(expiresAtUtc: _doubles.Now.AddMinutes(-1)),
+            PublishOutcome.Suppressed => AMessage(flags: MessageFlags.Test), // the default test delivery is Suppress
+            _ => AMessage(),
+        }));
+        var transport = outcome switch
+        {
+            PublishOutcome.TransientError => TestTransports.For(TestChannel.Id, new Error(Errors.RateLimited)),
+            PublishOutcome.PermanentError => TestTransports.For(TestChannel.Id, new Error(Errors.Rejected)),
+            _ => TestTransports.For(TestChannel.Id),
+        };
+        await using var provider = _doubles.Build(transports: transport);
+        var meters = provider.GetRequiredService<IMeterFactory>();
+        using var tries = new MetricCollector<long>(meters, MsgHatchTelemetry.MeterName, "msghatch.publish.tries");
+        using var duration = new MetricCollector<double>(meters, MsgHatchTelemetry.MeterName, "msghatch.send.duration");
+
+        // Act
+        await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        var sent = outcome is PublishOutcome.Expired or PublishOutcome.Suppressed ? "" : outcome.ToString(); // no transport call, so no send duration
+        Assert.Equal(
+            (outcome.ToString(), sent),
+            (string.Join(",", tries.GetMeasurementSnapshot().Select(static m => (string?)m.Tags["msghatch.outcome"])),
+                string.Join(",", duration.GetMeasurementSnapshot().Select(static m => (string?)m.Tags["msghatch.outcome"]))));
+    }
+
     [Fact]
     public async Task RunAsync_AllWorkersBusy_QueueLengthGivesTheMessagesInTheWorkQueue()
     {

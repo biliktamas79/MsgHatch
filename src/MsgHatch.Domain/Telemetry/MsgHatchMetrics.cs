@@ -61,7 +61,7 @@ internal sealed class MsgHatchMetrics
         _publishTries.Add(1, new TagList
         {
             { TelemetryNames.MessageType, message.Type.Name }, { TelemetryNames.Channel, message.Channel.Name },
-            { TelemetryNames.Outcome, outcome.ToString() }, { TelemetryNames.Test, IsTest(message.Flags) },
+            { TelemetryNames.Outcome, NameOf(outcome) }, { TelemetryNames.Test, IsTest(message.Flags) },
         });
 
     public void RecordFailed(OutgoingMessage message, string? errorName) =>
@@ -74,8 +74,20 @@ internal sealed class MsgHatchMetrics
     public void RecordSendDuration(ChannelId channel, PublishOutcome outcome, TimeSpan elapsed) =>
         _sendDuration.Record(elapsed.TotalSeconds, new TagList
         {
-            { TelemetryNames.Channel, channel.Name }, { TelemetryNames.Outcome, outcome.ToString() },
+            { TelemetryNames.Channel, channel.Name }, { TelemetryNames.Outcome, NameOf(outcome) },
         });
+
+    /// <summary>The name of the outcome as a literal, so a tag boxes no <see cref="PublishOutcome"/> (D281).</summary>
+    private static string NameOf(PublishOutcome outcome) => outcome switch
+    {
+        PublishOutcome.Succeeded => nameof(PublishOutcome.Succeeded),
+        PublishOutcome.TransientError => nameof(PublishOutcome.TransientError),
+        PublishOutcome.PermanentError => nameof(PublishOutcome.PermanentError),
+        PublishOutcome.Expired => nameof(PublishOutcome.Expired),
+        PublishOutcome.Suppressed => nameof(PublishOutcome.Suppressed),
+        PublishOutcome.Cancelled => nameof(PublishOutcome.Cancelled),
+        _ => outcome.ToString(),
+    };
 
     public void RecordDeliveryDelay(OutgoingMessage message, TimeSpan delay) =>
         _deliveryDelay.Record(delay.TotalSeconds, new TagList
