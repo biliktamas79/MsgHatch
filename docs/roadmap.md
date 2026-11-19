@@ -42,6 +42,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 32 Channel state and page order | 31 |
 | 33 Channel check | 32 |
 | 34 Open allocations | 13, 33 |
+| 35 Registry commands | 33 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2588,6 +2589,104 @@ Item 1 is a measurement, and its results go into commit 10.
 
 Done when: the build has no errors and no warnings, all unit tests pass, the three benchmark projects run, section 4.11 has the measured table of the phase, and `pwsh ./coverage.ps1` passes.
 
+### Phase 35: registry commands
+
+Goal: an operator changes the stored settings of a channel and of a message type in the admin UI (D118, D284 to D287). The settings are the display name, the description, the enabled flag, and the disabled channels of a message type. A change needs no deploy, so an operator can stop a message type or a channel from the admin pages. The code still defines each channel and each message type (D117). The example app also gets a past history of the channel states, so that the History dialog of phase 32 has data to show (D288).
+
+Starting point: the tag `phase-34` (`f7e7955`) and the record of its loop commits (`bc4dd2b`). The owner asked: "What are registry commands for? Won't channels and message types be registered always from code using DI setup extensions?" After the answer, the owner chose "Registry commands" as phase 35, and then asked: "Include some code for seeding test data simulating channel down events to be able to test the history feature on the UI". The registry routes `PUT` and `DELETE` exist since phase 16, and call `IRegistryWriter`. `IRegistryCommands` has only the channel check of phase 33. So today a person changes a setting only with a raw HTTP call, and the registry pages are read-only.
+
+1. Check first, before the code:
+   - The generator of D236 writes a `PUT` call with a body and a `DELETE` call that gives `Task<Error?>` on `IRegistryApi`, as it does for the template and subscription clients.
+   - `NavLink` of the menu of `AdminUiExample` matches by prefix. So "Channels" marks `/msghatch/channels/{channel}/edit`, and "Message types" marks `/msghatch/message-types/{type}/edit`.
+   - `RegistryManager` reads the entries of the writer in `GetChannelsAsync` and `GetMessageTypesAsync`, so it gives each entry with no second store read.
+   - The SQLite dispatch store of `ExampleApp` accepts state changes with times in the past. For a row 40 days old, `GetChannelHistoryAsync` gives the row that was current at the start of the 30-day window.
+2. Make the stateless rules of a registry entry public (D285):
+   - `RegistryEntryRules` in `MsgHatch.Domain.Routing` becomes public, with `Check(ChannelEntry entry)` and `Check(MessageTypeEntry entry)`. They check the display name, the description, and the revision. They also check that `DisabledChannels` is not null and has each channel one time.
+   - The check that each disabled channel is a channel of the message type needs the registry. So it stays in `StoredRegistry`, after the rules.
+3. Add the stored entry to the registry queries (D286):
+   - `RegistryChannel` gets `ChannelEntry? Entry`, and `RegistryMessageType` gets `MessageTypeEntry? Entry`: the stored entry, or null for no entry. `RegistryManager` takes each entry from the entries that it reads for the revisions. With no writer, each entry is null.
+   - `RegistryChannelResponse` gets `entry` as a `ChannelEntryResponse`, and `RegistryMessageTypeResponse` gets `entry` as a `MessageTypeEntryResponse`.
+   - Both entry bodies get their mappings back, `ToEntry`. A name that is not valid gives `Errors.SerializationFailed`.
+4. Add the save and reset commands to the registry (D284):
+   - `IRegistryCommands` gets `SaveChannelAsync`, `SaveMessageTypeAsync`, `ResetChannelAsync`, and `ResetMessageTypeAsync`, with the parameters and the results of `IRegistryWriter`. The revision of an entry is the expected revision, and a save ignores `LastModifiedAtUtc`, as the writer does.
+   - `RegistryManager` runs `RegistryEntryRules` first, and then calls the writer. With no writer, each of the four commands gives `Errors.NotFound` with the message "The host has no registry writer. A setup in code cannot change the registry settings."
+   - The `PUT` and `DELETE` routes call `IRegistryCommands` of `TenantKey.None`, as the GET routes call the queries (D270). `MapMsgHatchRegistry` maps them in each host. So a host with no writer gives 404 with the problem body and the message of the command. The test `Change_NoWriter_HasNoRoute` becomes a test of that body.
+   - The logging wrapper of the commands logs each save and each reset with the events from 2917 on: the channel or the message type, the tenant of its key, and the new revision or the error type. It never logs a display name or a description.
+5. Add the save and reset calls to the registry client (D284, D285):
+   - `IRegistryApi` gets `PUT` and `DELETE` of `RegistryApiRoutes.Channel` and of `RegistryApiRoutes.MessageType`.
+   - `ChannelEntryRequest.From(ChannelEntry)` and `MessageTypeEntryRequest.From(MessageTypeEntry)` give the bodies.
+   - `HttpRegistryCommands` runs `RegistryEntryRules` first, and gives the error of a rule with no HTTP call.
+6. Add the channel edit page (D287):
+   - `ChannelEditPage` at `/msghatch/channels/{channel}/edit`, with the route builder `RegistryAdminRoutes.ChannelEdit(ChannelId)`, uses `AdminEditPage`.
+   - The fields are the display name, the description, and the enabled flag. An empty text field saves null, which is the value of the code. With no stored value, the field is empty, and its placeholder shows the value of the code. With a stored value, the placeholder tells that an empty field gives the value of the code.
+   - A help text under the enabled flag tells three facts. A change applies to the next events. The outbox still sends the messages that it holds. Another process applies the change within its refresh interval.
+   - The actions are Back on the left, and Reset and Save on the right, with Save last (D261). Reset shows only for a stored entry, and asks with `DeleteDialog`.
+   - `DeleteDialog` gets the parameter `Action`, with the default "Delete". It is the title, the text of the button, and the noun of the warning, for example "The reset cannot be undone." The details of a reset name the stored values, and tell that a disabled channel is enabled after the reset.
+   - A save shows "Saved." and the saved values. A `Conflict` reads the channel again and shows `AdminErrors.ConflictText`. A reset reads the channel again, and shows the values of the code.
+   - The view page gets Edit as its main action on the right, after History. Each row of the channel list gets Edit after View.
+   - `AddMsgHatchAdminUI` keeps the page with `DynamicDependency` (D250).
+7. Add the message type edit page (D287):
+   - `MessageTypeEditPage` at `/msghatch/message-types/{type}/edit`, with the route builder `RegistryAdminRoutes.MessageTypeEdit(MessageType)`, uses `AdminEditPage`. It has the fields, the help text, the actions, and the results of the channel edit page.
+   - It also shows one check box "Send on {channel}" for each channel of the message type. A cleared box puts the channel into `DisabledChannels`.
+   - Each row of the message type list gets Edit.
+   - `AddMsgHatchAdminUI` keeps the page with `DynamicDependency` (D250).
+8. Seed an example history of the channel states in the example app (D288):
+   - `ExampleStartup.SeedChannelHistoryAsync` writes past state rows through `SetChannelDownAsync` and `SetChannelUpAsync` of the outbox dispatch store. The times come before the current time of `TimeProvider`.
+   - `Program.cs` calls it at startup in the `Development` environment only, after `RunAsync`, next to the routing verification.
+   - It writes rows only for a channel with no state row, that is, a channel whose `Current` in `IRegistryQueries` is null. So a second start adds no row, and a real history stays as it is.
+   - Email gets a down state for errors 40 days ago that ends 2 hours later, so the dialog shows the row that was current at the start of the window. Then Email gets a down state for errors 12 days ago for 45 minutes, a pause 5 days ago for 3 hours with the note "Example maintenance", and a down state for errors 26 hours ago for 7 minutes.
+   - SignalR gets one down state for errors 20 days ago for 6 hours. Broker gets no row, so the list shows "No down state recorded".
+   - Each down state for errors has the error `Unavailable`. Each down state ends with an `Up` row, so each channel is up after the seed, and the example sends as before.
+   - The README of the example app tells that a new database file gets this history in `Development`, and that a channel with a state row gets no seed.
+9. Describe the phase in the design: the sections 4.20, 4.23, and 4.24, and the edit pages in the README of the example app.
+
+Tests:
+- `RegistryEntryRules`: one row for each rule of a channel entry and of a message type entry with `ValidationFailed`, and a valid entry with no error.
+- `RegistryCommandsTestsBase<T>`, with `RegistryManager` and with the HTTP client:
+  - A save of a new channel entry gives the revision 1. The queries then give the stored values and the entry.
+  - A save with an expected revision that is not the stored revision gives `Conflict`.
+  - A save of a channel or a message type that is not registered gives `NotFound`.
+  - A save of a message type with a disabled channel that is not its channel gives `ValidationFailed`.
+  - A reset deletes the entry. The queries then give the values of the code, the revision 0, and no entry.
+  - A host with no writer gives `NotFound` with the message of the command for each of the four commands.
+  - An error of the writer is the error of the command.
+- `RegistryManager`: an entry that breaks a rule calls no writer.
+- The client: an entry that breaks a rule gives `ValidationFailed` and sends no request.
+- The logging wrapper: one event for each save and each reset, with the error type for an error, and no display name or description in a record.
+- The queries: the entry of a channel and of a message type, and null with no entry or with no writer.
+- The contracts: each entry body maps to its entry and back, and a name that is not valid gives `SerializationFailed`. The query bodies carry the entry.
+- The routes: `PUT` and `DELETE` call the commands of `TenantKey.None`, and a host with no writer gives 404 with `errorType` and the message of the command.
+- The pages, with bUnit:
+  - The fields with the stored values, the placeholders of the values of the code, and an empty field that saves null.
+  - The check box of each channel of a message type, and a cleared box that puts its channel into `DisabledChannels`.
+  - The text "Saved.", the text of `Conflict` with the second read, and the text of an error of the save.
+  - Reset only for a stored entry, the question with its details, and the second read after a reset.
+  - The Edit buttons of the view page, of the channel rows, and of the message type rows, and the addresses of `RegistryAdminRoutes`.
+  - `DeleteDialog` with the action "Reset": its title, its button, and its warning.
+- The example host: the menu marks "Channels" on the channel edit page, and "Message types" on the message type edit page.
+- The example app, on a SQLite file with the fake clock:
+  - The seed writes the rows of Email and SignalR with their times, and no row of Broker.
+  - After the seed, each channel is up, and the history of Email has the row before the window.
+  - A second seed adds no row, and a channel with a state row gets no seed row.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phase 35: the registry commands"
+2. "Make the stateless rules of a registry entry public"
+3. "Add the stored entry to the registry queries"
+4. "Add the save and reset commands to the registry"
+5. "Add the save and reset calls to the registry client"
+6. "Add the channel edit page"
+7. "Add the message type edit page"
+8. "Seed an example channel history in the example app"
+9. "Describe the registry commands and the example history in the design"
+10. "Record the commits and the checked facts of phase 35 in the plan"
+11. "Record phase 35 as done in README and AGENTS.md"
+
+Commit 1 holds the plan and the decisions D284 to D288. Item 1 is a check, and its results go into the checked facts.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -2613,5 +2712,4 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
 - More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
 - The delivery endpoints of `MsgHatch.AspNetCore` write their errors with `ErrorProblems` (D233), and get contracts, a generated HTTP client in `MsgHatch.Api.Client` (D271), and admin pages in the same way as phases 26 to 28.
-- The registry gets its command interface `IRegistryCommands` for the PUT and DELETE routes, with its HTTP client and the edit pages of a channel and a message type. Phase 31 adds only the queries and the read-only pages of the channels and the message types (D268, D273).
 - AOT for the other packages (D237): each package outside the API boundary sets `IsAotCompatible` when its dependencies allow it, or the design records why not.
