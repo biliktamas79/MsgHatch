@@ -1,4 +1,5 @@
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
@@ -11,6 +12,9 @@ namespace MsgHatch.Domain.DependencyInjection;
 internal interface IChannelRegistration<TEvent> : IEnvelopeUpgrade
 {
     ChannelId Channel { get; }
+
+    /// <summary>The dispatch topic of the channel, made one time (D280).</summary>
+    DispatchTopic Topic { get; }
 
     Type EnvelopeType { get; }
 

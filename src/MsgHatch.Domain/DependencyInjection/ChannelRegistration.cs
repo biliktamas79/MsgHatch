@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
@@ -21,6 +22,8 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
     private const int _schemaVersion = 1;
 
     public ChannelId Channel { get; } = channel;
+
+    public DispatchTopic Topic { get; } = DispatchTopic.ForChannel(channel);
 
     public Type EnvelopeType => typeof(TEnvelope);
 

@@ -27,6 +27,42 @@ public sealed partial class NotificationServiceUnitTests
     }
 
     [Fact]
+    public async Task ProcessAsync_FirstRouteOfAChannelFails_NotifiesEachChannelOneTimeInTheOrderOfItsFirstStoredMessage()
+    {
+        // Arrange
+        _doubles.Routes =
+        [
+            ARoute("u1", settings: new OtherTestChannelSettings()), // fails the check, so the second channel stores first
+            ARoute("u2", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings()),
+            ARoute("u3"),
+            ARoute("u4", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings()),
+        ];
+        var signal = Substitute.For<IDispatchSignal>();
+        await using var provider = _doubles.Build(_time, more: b => b.UseDispatchSignal(_ => signal));
+
+        // Act
+        await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal([DispatchTopic.ForChannel(TestChannel.SecondId), DispatchTopic.ForChannel(TestChannel.Id)], NotifiedTopics(signal));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AllRoutesOfAChannelFail_NotifiesOnlyTheOtherChannel()
+    {
+        // Arrange
+        _doubles.Routes = [ARoute("u1", channel: TestChannel.SecondId), ARoute("u2")]; // the second channel needs other settings
+        var signal = Substitute.For<IDispatchSignal>();
+        await using var provider = _doubles.Build(_time, more: b => b.UseDispatchSignal(_ => signal));
+
+        // Act
+        await ProcessAsync(provider, AContext());
+
+        // Assert
+        Assert.Equal([DispatchTopic.ForChannel(TestChannel.Id)], NotifiedTopics(signal));
+    }
+
+    [Fact]
     public async Task ProcessAsync_NoStoredMessage_NotifiesNoTopic()
     {
         // Arrange

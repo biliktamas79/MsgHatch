@@ -47,7 +47,7 @@ internal sealed class NotificationPipeline(
             return error;
         }
 
-        await NotifyAsync([DispatchTopic.Inbox], ct);
+        await NotifyAsync(DispatchTopic.Inbox, ct);
         return context.MessageId;
     }
 
@@ -133,7 +133,7 @@ internal sealed class NotificationPipeline(
         }
 
         RecordFailedRoutes(registration.Type, composed.Value.Routes, composed.Value.Outcomes);
-        return await StoreAsync(composed.Value.Key, composed.Value.Outcomes, composed.Value.Skipped, ct);
+        return await StoreAsync(registration, composed.Value.Key, composed.Value.Outcomes, composed.Value.Skipped, ct);
     }
 
     /// <summary>Waits for the first read of the stored registry, so that its settings apply after a restart too (D168).</summary>
@@ -176,7 +176,7 @@ internal sealed class NotificationPipeline(
         }
     }
 
-    private void RecordStored(IReadOnlyList<OutgoingMessage> messages)
+    private void RecordStored(OutgoingMessage[] messages)
     {
         foreach (var message in messages)
         {
@@ -308,11 +308,10 @@ internal sealed class NotificationPipeline(
             : new Error(Errors.Conflict, $"A second route for the same target on the channel {route.Channel.Name}.");
     }
 
-    private async ValueTask<ErrorOr<NotificationResult>> StoreAsync(
-        TenantKey key, ErrorOr<OutgoingMessage>[] outcomes, int skipped, CancellationToken ct)
+    private async ValueTask<ErrorOr<NotificationResult>> StoreAsync<TEvent>(
+        MessageRegistration<TEvent> registration, TenantKey key, ErrorOr<OutgoingMessage>[] outcomes, int skipped, CancellationToken ct)
     {
-        OutgoingMessage[] messages = [.. outcomes.Where(static outcome => outcome.IsSuccess).Select(static outcome => outcome.Value)];
-        Error[] errors = [.. outcomes.Where(static outcome => outcome.IsError).Select(static outcome => outcome.Error!)];
+        var (messages, errors) = SplitByOutcome(outcomes);
         if (messages.Length > 0)
         {
             var error = await services.GetRequiredKeyedService<IOutboxStore>(key).AddAsync(messages, ct);
@@ -322,21 +321,64 @@ internal sealed class NotificationPipeline(
             }
 
             RecordStored(messages);
-            await NotifyAsync(messages.Select(static message => DispatchTopic.ForChannel(message.Channel)).Distinct(), ct);
+            await NotifyEachChannelOneTimeAsync(registration, messages, ct);
         }
 
         return new NotificationResult(messages.Length, errors.Length, errors, skipped);
     }
 
-    private async ValueTask NotifyAsync(IEnumerable<DispatchTopic> topics, CancellationToken ct)
+    /// <summary>Gives the outgoing messages and the errors of the outcomes, in the order of the routes, each in an array of its exact size.</summary>
+    private static (OutgoingMessage[] Messages, Error[] Errors) SplitByOutcome(ErrorOr<OutgoingMessage>[] outcomes)
     {
-        foreach (var topic in topics)
+        var failed = 0;
+        foreach (var outcome in outcomes)
         {
-            var error = await signal.NotifyAsync(topic, ct);
-            if (error is not null)
+            failed += outcome.IsError ? 1 : 0;
+        }
+
+        OutgoingMessage[] messages = failed == outcomes.Length ? [] : new OutgoingMessage[outcomes.Length - failed];
+        Error[] errors = failed == 0 ? [] : new Error[failed];
+        var (nextMessage, nextError) = (0, 0);
+        foreach (var outcome in outcomes)
+        {
+            if (outcome.IsError)
             {
-                Loggers.For<NotificationPipeline>(services).NotifyFailed(topic.Name, error.Type.Code, error.Type.Name, error.Message);
+                errors[nextError++] = outcome.Error!;
             }
+            else
+            {
+                messages[nextMessage++] = outcome.Value;
+            }
+        }
+
+        return (messages, errors);
+    }
+
+    /// <summary>Notifies the topic of each channel with a stored message one time, in the order of the first stored message of the channel.</summary>
+    private async ValueTask NotifyEachChannelOneTimeAsync<TEvent>(
+        MessageRegistration<TEvent> registration, OutgoingMessage[] messages, CancellationToken ct)
+    {
+        var first = messages[0].Channel;
+        List<ChannelId>? others = null;
+        await NotifyAsync(registration.FindChannel(first)!.Topic, ct);
+        foreach (var message in messages)
+        {
+            if (message.Channel == first || others?.Contains(message.Channel) == true)
+            {
+                continue;
+            }
+
+            (others ??= []).Add(message.Channel);
+            await NotifyAsync(registration.FindChannel(message.Channel)!.Topic, ct);
+        }
+    }
+
+    private async ValueTask NotifyAsync(DispatchTopic topic, CancellationToken ct)
+    {
+        var error = await signal.NotifyAsync(topic, ct);
+        if (error is not null)
+        {
+            Loggers.For<NotificationPipeline>(services).NotifyFailed(topic.Name, error.Type.Code, error.Type.Name, error.Message);
         }
     }
 
