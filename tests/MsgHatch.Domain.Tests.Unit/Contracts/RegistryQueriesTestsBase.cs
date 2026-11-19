@@ -113,6 +113,55 @@ public abstract class RegistryQueriesTestsBase<T>
     }
 
     [Fact]
+    public async Task GetChannelsAsync_StoredEntry_GivesTheEntryOfItsChannelAndNoEntryForTheOtherChannels()
+    {
+        // Arrange
+        await using var host = await StartAsync(static services => RegistryTestHost.AddRegistry(services).UseStoredRegistry());
+        var saved = await host.Server.GetRequiredService<IRegistryWriter>().SaveChannelAsync(
+            RegistryTestHost.AChannelEntry(channel: TestChannel.SecondId, description: null, enabled: false), Ct);
+
+        // Act
+        var channels = await host.Service(TenantKey.None).GetChannelsAsync(Ct);
+
+        // Assert
+        ChannelEntry?[] expected = [null, saved.Value, null, null];
+        Assert.Equal(expected, channels.Value.Select(static channel => channel.Entry));
+    }
+
+    [Fact]
+    public async Task GetMessageTypesAsync_StoredEntry_GivesTheEntryOfItsMessageTypeAndNoEntryForTheOtherMessageType()
+    {
+        // Arrange
+        await using var host = await StartAsync(static services => RegistryTestHost.AddRegistry(services).UseStoredRegistry());
+        var saved = await host.Server.GetRequiredService<IRegistryWriter>().SaveMessageTypeAsync(
+            RegistryTestHost.AMessageTypeEntry(disabledChannels: [TestChannel.ThirdId], description: null), Ct);
+
+        // Act
+        var types = await host.Service(TenantKey.None).GetMessageTypesAsync(Ct);
+
+        // Assert
+        Assert.Equal(
+            [EntryTextOf(saved.Value), "no entry"],
+            types.Value.Select(static type => type.Entry is { } entry ? EntryTextOf(entry) : "no entry"));
+    }
+
+    [Fact]
+    public async Task Queries_NoWriter_GiveNoEntry()
+    {
+        // Arrange
+        await using var host = await StartAsync(static services => RegistryTestHost.AddRegistry(services));
+
+        // Act
+        var channels = await host.Service(TenantKey.None).GetChannelsAsync(Ct);
+        var types = await host.Service(TenantKey.None).GetMessageTypesAsync(Ct);
+
+        // Assert
+        Assert.Equal(
+            (4, 2),
+            (channels.Value.Count(static channel => channel.Entry is null), types.Value.Count(static type => type.Entry is null)));
+    }
+
+    [Fact]
     public async Task Queries_KeyOfATenant_GiveTheValuesOfTenantKeyNone()
     {
         // Arrange
@@ -299,6 +348,11 @@ public abstract class RegistryQueriesTestsBase<T>
         reason == ChannelDownReason.Errors
             ? new ChannelDown(channel ?? TestChannel.Id, reason, Now(clock), Now(clock).AddSeconds(30), 503, "Unavailable", Note: null)
             : new ChannelDown(channel ?? TestChannel.Id, reason, Now(clock), NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance");
+
+    private static string EntryTextOf(MessageTypeEntry entry) =>
+        $"{entry.Type.Name} name={entry.DisplayName} description={entry.Description} enabled={entry.Enabled} "
+        + $"disabled={string.Join(',', entry.DisabledChannels.Select(static channel => channel.Name))} revision={entry.Revision} "
+        + $"modified={entry.LastModifiedAtUtc:O}";
 
     private static string TextOf(RegistryMessageType type) =>
         $"{type.Type.Name} channels={string.Join(',', type.Channels.Select(static channel => channel.Name))} name={type.DisplayName} "

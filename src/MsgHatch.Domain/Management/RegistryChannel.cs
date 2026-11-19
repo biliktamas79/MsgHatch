@@ -19,5 +19,10 @@ namespace MsgHatch.Domain.Management;
 /// The latest state row of the channel in the outbox dispatch store (D277), with its kind, its start, and the kind and the
 /// duration of the previous state, or null for a channel with no row, which was never down.
 /// </param>
+/// <param name="Entry">
+/// The stored entry of the channel, or null for no entry and in a host with no registry writer (D286). A null value of the
+/// entry is the value of the code.
+/// </param>
 public sealed record RegistryChannel(
-    ChannelId Id, string Name, string? Description, ChannelFeatures Features, bool Enabled, int Revision, ChannelState? Current = null);
+    ChannelId Id, string Name, string? Description, ChannelFeatures Features, bool Enabled, int Revision, ChannelState? Current = null,
+    ChannelEntry? Entry = null);

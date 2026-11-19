@@ -33,7 +33,7 @@ public sealed partial class RegistryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            ("""[{"id":"Sms","name":"Text messages","description":"Short texts","features":"Languages","enabled":false,"revision":7,"current":null}]""", 1, 0),
+            ("""[{"id":"Sms","name":"Text messages","description":"Short texts","features":"Languages","enabled":false,"revision":7,"current":null,"entry":null}]""", 1, 0),
             (json, keys.Count(static key => key == TenantKey.None), host.Writer.ReceivedCalls().Count()));
     }
 
@@ -56,7 +56,7 @@ public sealed partial class RegistryEndpointsUnitTests
         Assert.Equal(
             """[{"id":"Sms","name":"Text messages","description":null,"features":"None","enabled":true,"revision":0,"current":{"channel":"Sms","version":3,"ki"""
             + """nd":"Down","sinceUtc":"2026-11-18T13:32:00Z","previousKind":"Up","previousDurationMs":240000,"reason":"Errors","nextCheck"""
-            + """AtUtc":"2026-11-18T13:32:30Z","errorCode":503,"errorName":"Unavailable","note":null}}]""",
+            + """AtUtc":"2026-11-18T13:32:30Z","errorCode":503,"errorName":"Unavailable","note":null},"entry":null}]""",
             json);
     }
 
@@ -118,7 +118,7 @@ public sealed partial class RegistryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            ("""[{"name":"Invoices","displayName":"Invoices","description":null,"channels":["Sms"],"enabled":true,"disabledChannels":["Sms"],"revision":2}]""", 1, 0),
+            ("""[{"name":"Invoices","displayName":"Invoices","description":null,"channels":["Sms"],"enabled":true,"disabledChannels":["Sms"],"revision":2,"entry":null}]""", 1, 0),
             (json, keys.Count(static key => key == TenantKey.None), host.Writer.ReceivedCalls().Count()));
     }
 }

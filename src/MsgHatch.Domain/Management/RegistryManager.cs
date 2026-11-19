@@ -11,9 +11,9 @@ using MsgHatch.Domain.Time;
 namespace MsgHatch.Domain.Management;
 
 /// <summary>
-/// The in-process registry queries (D268): the values of <see cref="IMessageRegistry"/>, joined with the revisions of
-/// <see cref="IRegistryWriter.GetEntriesAsync"/> and with the state rows of <see cref="IOutboxDispatchStore"/> (D278). With
-/// no writer, for example with the in-memory reader of a setup in code, each revision is 0. An error of the writer or of the
+/// The in-process registry queries (D268): the values of <see cref="IMessageRegistry"/>, joined with the entries of
+/// <see cref="IRegistryWriter.GetEntriesAsync"/> (D286) and with the state rows of <see cref="IOutboxDispatchStore"/> (D278).
+/// With no writer, for example with the in-memory reader of a setup in code, each revision is 0 and each entry is null. An error of the writer or of the
 /// store is the error of the query. The channel check runs the health check of the transport of the host, and records a
 /// new state with the store methods of D277, as the outbox loop does (D283).
 /// </summary>
@@ -31,10 +31,10 @@ internal sealed class RegistryManager(
 
     public async ValueTask<ErrorOr<IReadOnlyList<RegistryChannel>>> GetChannelsAsync(CancellationToken ct)
     {
-        var revisions = await RevisionsAsync(ct);
-        if (revisions.IsError)
+        var entries = await EntriesAsync(ct);
+        if (entries.IsError)
         {
-            return revisions.Error;
+            return entries.Error;
         }
 
         var rows = await RowsOfTheWindowAsync(ct);
@@ -44,19 +44,27 @@ internal sealed class RegistryManager(
         }
 
         var latest = rows.Value.GroupBy(static row => row.Channel).ToDictionary(static group => group.Key, static group => group.MaxBy(static row => row.Version)!);
-        return ErrorOr<IReadOnlyList<RegistryChannel>>.ForValue([.. registry.Channels.Select(channel => new RegistryChannel(
-            channel.Id, channel.Name, channel.Description, channel.Features, channel.Enabled, revisions.Value.Channels.GetValueOrDefault(channel.Id),
-            latest.GetValueOrDefault(channel.Id)))]);
+        return ErrorOr<IReadOnlyList<RegistryChannel>>.ForValue([.. registry.Channels.Select(channel =>
+        {
+            var entry = entries.Value.Channels.GetValueOrDefault(channel.Id);
+            return new RegistryChannel(
+                channel.Id, channel.Name, channel.Description, channel.Features, channel.Enabled, entry?.Revision ?? 0,
+                latest.GetValueOrDefault(channel.Id), entry);
+        })]);
     }
 
     public async ValueTask<ErrorOr<IReadOnlyList<RegistryMessageType>>> GetMessageTypesAsync(CancellationToken ct)
     {
-        var revisions = await RevisionsAsync(ct);
-        return revisions.IsError
-            ? revisions.Error
-            : ErrorOr<IReadOnlyList<RegistryMessageType>>.ForValue([.. registry.MessageTypes.Select(type => new RegistryMessageType(
-                type.Type, type.DisplayName, type.Description, type.Channels, type.Enabled, type.DisabledChannels ?? [],
-                revisions.Value.MessageTypes.GetValueOrDefault(type.Type)))]);
+        var entries = await EntriesAsync(ct);
+        return entries.IsError
+            ? entries.Error
+            : ErrorOr<IReadOnlyList<RegistryMessageType>>.ForValue([.. registry.MessageTypes.Select(type =>
+            {
+                var entry = entries.Value.MessageTypes.GetValueOrDefault(type.Type);
+                return new RegistryMessageType(
+                    type.Type, type.DisplayName, type.Description, type.Channels, type.Enabled, type.DisabledChannels ?? [], entry?.Revision ?? 0,
+                    entry);
+            })]);
     }
 
     public async ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> GetChannelHistoryAsync(ChannelId channel, CancellationToken ct)
@@ -115,22 +123,23 @@ internal sealed class RegistryManager(
         return outbox.SetChannelDownAsync(down, ct);
     }
 
-    private async ValueTask<ErrorOr<Revisions>> RevisionsAsync(CancellationToken ct)
+    /// <summary>The stored entries of the writer by channel and by message type, or no entry for a host with no writer (D286).</summary>
+    private async ValueTask<ErrorOr<Entries>> EntriesAsync(CancellationToken ct)
     {
         if (writer is null)
         {
-            return new Revisions([], []);
+            return new Entries([], []);
         }
 
         var entries = await writer.GetEntriesAsync(ct);
-        return entries.IsError ? entries.Error : new Revisions(
-            entries.Value.Channels.DistinctBy(static entry => entry.Channel).ToDictionary(static entry => entry.Channel, static entry => entry.Revision),
-            entries.Value.MessageTypes.DistinctBy(static entry => entry.Type).ToDictionary(static entry => entry.Type, static entry => entry.Revision));
+        return entries.IsError ? entries.Error : new Entries(
+            entries.Value.Channels.DistinctBy(static entry => entry.Channel).ToDictionary(static entry => entry.Channel),
+            entries.Value.MessageTypes.DistinctBy(static entry => entry.Type).ToDictionary(static entry => entry.Type));
     }
 
     /// <summary>The state rows of the window of <see cref="ChannelState.HistoryWindow"/>, with the row of each channel that was current at its start.</summary>
     private ValueTask<ErrorOr<IReadOnlyList<ChannelState>>> RowsOfTheWindowAsync(CancellationToken ct) =>
         outbox.GetChannelStatesAsync(time.GetUtcNowDateTime() - ChannelState.HistoryWindow, ct);
 
-    private sealed record Revisions(Dictionary<ChannelId, int> Channels, Dictionary<MessageType, int> MessageTypes);
+    private sealed record Entries(Dictionary<ChannelId, ChannelEntry> Channels, Dictionary<MessageType, MessageTypeEntry> MessageTypes);
 }

@@ -17,8 +17,10 @@ namespace MsgHatch.Api.Contracts;
 /// The latest state row of the channel, or null for a channel with no row, which was never down. A body with no value is a
 /// channel with no row.
 /// </param>
+/// <param name="Entry">The stored entry of the channel, or null for no entry (D286).</param>
 public sealed record RegistryChannelResponse(
-    string Id, string Name, string? Description, ChannelFeatures Features, bool Enabled, int Revision, ChannelStateResponse? Current = null)
+    string Id, string Name, string? Description, ChannelFeatures Features, bool Enabled, int Revision, ChannelStateResponse? Current = null,
+    ChannelEntryResponse? Entry = null)
 {
     /// <summary>Gives the body of a channel of the registry queries (D228).</summary>
     /// <param name="channel">The channel.</param>
@@ -29,7 +31,8 @@ public sealed record RegistryChannelResponse(
         ArgumentNullException.ThrowIfNull(channel);
         return new RegistryChannelResponse(
             channel.Id.Name, channel.Name, channel.Description, channel.Features, channel.Enabled, channel.Revision,
-            channel.Current is { } current ? ChannelStateResponse.From(current) : null);
+            channel.Current is { } current ? ChannelStateResponse.From(current) : null,
+            channel.Entry is { } entry ? ChannelEntryResponse.From(entry) : null);
     }
 
     /// <summary>Gives the channel of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
@@ -38,10 +41,12 @@ public sealed record RegistryChannelResponse(
     {
         var id = RegistryWireValues.ChannelOf(Id);
         var current = Current?.ToState();
+        var entry = Entry?.ToEntry();
         return id.IsError ? id.Error
             : Name is null ? RegistryWireValues.Invalid("A channel has a name.")
             : current is { IsError: true } ? current.Value.Error
-            : new RegistryChannel(id.Value, Name, Description, Features, Enabled, Revision, current?.Value);
+            : entry is { IsError: true } ? entry.Value.Error
+            : new RegistryChannel(id.Value, Name, Description, Features, Enabled, Revision, current?.Value, entry?.Value);
     }
 }
 
@@ -156,9 +161,10 @@ public sealed record ChannelCheckResponse(string Channel, int? ErrorCode, string
 /// <param name="Enabled">False when the pipeline stores nothing for the message type (D118).</param>
 /// <param name="DisabledChannels">The names of the channels on which the pipeline skips its routes.</param>
 /// <param name="Revision">The revision of the stored entry, or 0 for no entry.</param>
+/// <param name="Entry">The stored entry of the message type, or null for no entry (D286).</param>
 public sealed record RegistryMessageTypeResponse(
     string Name, string? DisplayName, string? Description, IReadOnlyList<string> Channels, bool Enabled,
-    IReadOnlyList<string> DisabledChannels, int Revision)
+    IReadOnlyList<string> DisabledChannels, int Revision, MessageTypeEntryResponse? Entry = null)
 {
     /// <summary>Gives the body of a message type of the registry queries (D228).</summary>
     /// <param name="type">The message type.</param>
@@ -169,7 +175,8 @@ public sealed record RegistryMessageTypeResponse(
         ArgumentNullException.ThrowIfNull(type);
         return new RegistryMessageTypeResponse(
             type.Type.Name, type.DisplayName, type.Description, [.. type.Channels.Select(static channel => channel.Name)], type.Enabled,
-            [.. type.DisabledChannels.Select(static channel => channel.Name)], type.Revision);
+            [.. type.DisabledChannels.Select(static channel => channel.Name)], type.Revision,
+            type.Entry is { } entry ? MessageTypeEntryResponse.From(entry) : null);
     }
 
     /// <summary>Gives the message type of the body. A value that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
@@ -179,18 +186,22 @@ public sealed record RegistryMessageTypeResponse(
         var type = RegistryWireValues.MessageTypeOf(Name);
         var channels = RegistryWireValues.ChannelsOf(Channels);
         var disabled = RegistryWireValues.ChannelsOf(DisabledChannels);
-        return (type.Error ?? channels.Error ?? disabled.Error) is { } invalid
+        var entry = Entry?.ToEntry();
+        return (type.Error ?? channels.Error ?? disabled.Error ?? entry?.Error) is { } invalid
             ? invalid
-            : new RegistryMessageType(type.Value, DisplayName, Description, channels.Value, Enabled, disabled.Value, Revision);
+            : new RegistryMessageType(type.Value, DisplayName, Description, channels.Value, Enabled, disabled.Value, Revision, entry?.Value);
     }
 }
 
-/// <summary>The saved entry of a channel in the body of the response of <c>PUT {prefix}/channels/{channel}</c>.</summary>
+/// <summary>
+/// The stored entry of a channel: the body of the response of <c>PUT {prefix}/channels/{channel}</c>, and the entry of a
+/// channel in the body of <c>GET {prefix}/channels</c> (D286).
+/// </summary>
 /// <param name="Channel">The id of the channel.</param>
 /// <param name="DisplayName">The display name, or null for the name of the code.</param>
 /// <param name="Description">The description, or null for the description of the code.</param>
 /// <param name="Enabled">False when the pipeline skips each route on the channel.</param>
-/// <param name="Revision">The new revision of the entry.</param>
+/// <param name="Revision">The revision of the entry.</param>
 /// <param name="LastModifiedAtUtc">The time of the save.</param>
 public sealed record ChannelEntryResponse(
     string Channel, string? DisplayName, string? Description, bool Enabled, int Revision, DateTime LastModifiedAtUtc)
@@ -204,15 +215,26 @@ public sealed record ChannelEntryResponse(
         ArgumentNullException.ThrowIfNull(entry);
         return new ChannelEntryResponse(entry.Channel.Name, entry.DisplayName, entry.Description, entry.Enabled, entry.Revision, entry.LastModifiedAtUtc);
     }
+
+    /// <summary>Gives the entry of the body. A channel name that is not valid gives <see cref="Errors.SerializationFailed"/> (D228).</summary>
+    /// <returns>The entry, or an error.</returns>
+    public ErrorOr<ChannelEntry> ToEntry()
+    {
+        var channel = RegistryWireValues.ChannelOf(Channel);
+        return channel.IsError ? channel.Error : new ChannelEntry(channel.Value, DisplayName, Description, Enabled, Revision, LastModifiedAtUtc);
+    }
 }
 
-/// <summary>The saved entry of a message type in the body of the response of <c>PUT {prefix}/message-types/{type}</c>.</summary>
+/// <summary>
+/// The stored entry of a message type: the body of the response of <c>PUT {prefix}/message-types/{type}</c>, and the entry of
+/// a message type in the body of <c>GET {prefix}/message-types</c> (D286).
+/// </summary>
 /// <param name="Type">The message type name.</param>
 /// <param name="DisplayName">The display name, or null for the display name of the code.</param>
 /// <param name="Description">The description, or null for the description of the code.</param>
 /// <param name="Enabled">False when the pipeline stores nothing for the message type.</param>
 /// <param name="DisabledChannels">The names of the channels on which the pipeline skips its routes.</param>
-/// <param name="Revision">The new revision of the entry.</param>
+/// <param name="Revision">The revision of the entry.</param>
 /// <param name="LastModifiedAtUtc">The time of the save.</param>
 public sealed record MessageTypeEntryResponse(
     string Type, string? DisplayName, string? Description, bool Enabled, IReadOnlyList<string> DisabledChannels, int Revision,
@@ -228,6 +250,20 @@ public sealed record MessageTypeEntryResponse(
         return new MessageTypeEntryResponse(
             entry.Type.Name, entry.DisplayName, entry.Description, entry.Enabled,
             [.. entry.DisabledChannels.Select(static channel => channel.Name)], entry.Revision, entry.LastModifiedAtUtc);
+    }
+
+    /// <summary>
+    /// Gives the entry of the body. A message type name or a channel name that is not valid, or no list of disabled channels,
+    /// gives <see cref="Errors.SerializationFailed"/> (D228).
+    /// </summary>
+    /// <returns>The entry, or an error.</returns>
+    public ErrorOr<MessageTypeEntry> ToEntry()
+    {
+        var type = RegistryWireValues.MessageTypeOf(Type);
+        var disabled = RegistryWireValues.ChannelsOf(DisabledChannels);
+        return (type.Error ?? disabled.Error) is { } invalid
+            ? invalid
+            : new MessageTypeEntry(type.Value, DisplayName, Description, Enabled, disabled.Value, Revision, LastModifiedAtUtc);
     }
 }
 

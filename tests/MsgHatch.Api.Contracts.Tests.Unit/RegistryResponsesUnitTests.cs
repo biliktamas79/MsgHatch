@@ -204,6 +204,119 @@ public sealed class RegistryResponsesUnitTests
         Assert.Equal(Errors.SerializationFailed.Code, mapped.Error?.Type.Code);
     }
 
+    [Fact]
+    public void ToEntry_BodyOfAChannelEntry_GivesTheEntry()
+    {
+        // Arrange
+        var entry = new ChannelEntry(_email, "Értesítő", "Stored description", Enabled: false, Revision: 4, _sinceUtc);
+
+        // Act
+        var mapped = ChannelEntryResponse.From(entry).ToEntry();
+
+        // Assert
+        Assert.Equal(entry, mapped.Value);
+    }
+
+    [Fact]
+    public void ToEntry_BodyOfAMessageTypeEntry_GivesTheEntry()
+    {
+        // Arrange
+        var entry = new MessageTypeEntry(new MessageType("Invoices"), null, "Stored description", Enabled: true, [_email, _sms], Revision: 2, _sinceUtc);
+
+        // Act
+        var mapped = MessageTypeEntryResponse.From(entry).ToEntry();
+
+        // Assert
+        Assert.Equal(TextOf(entry), TextOf(mapped.Value));
+    }
+
+    public static TheoryData<string, ChannelEntryResponse> InvalidChannelEntryRows => new()
+    {
+        { "a channel that is not a name", AChannelEntryResponse() with { Channel = "not a name" } },
+        { "no channel", AChannelEntryResponse() with { Channel = null! } },
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidChannelEntryRows))]
+    public void ToEntry_ChannelEntryValueThatIsNotValid_GivesSerializationFailed(string row, ChannelEntryResponse body)
+    {
+        // Act
+        var mapped = body.ToEntry();
+
+        // Assert
+        Assert.Equal((row, Errors.SerializationFailed.Code), (row, mapped.Error?.Type.Code));
+    }
+
+    public static TheoryData<string, MessageTypeEntryResponse> InvalidMessageTypeEntryRows => new()
+    {
+        { "a type that is not a name", AMessageTypeEntryResponse() with { Type = "not-a-name" } },
+        { "no type", AMessageTypeEntryResponse() with { Type = null! } },
+        { "a disabled channel that is not a name", AMessageTypeEntryResponse() with { DisabledChannels = ["not a name"] } },
+        { "no disabled channels", AMessageTypeEntryResponse() with { DisabledChannels = null! } },
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidMessageTypeEntryRows))]
+    public void ToEntry_MessageTypeEntryValueThatIsNotValid_GivesSerializationFailed(string row, MessageTypeEntryResponse body)
+    {
+        // Act
+        var mapped = body.ToEntry();
+
+        // Assert
+        Assert.Equal((row, Errors.SerializationFailed.Code), (row, mapped.Error?.Type.Code));
+    }
+
+    [Fact]
+    public void ToChannel_BodyOfAChannelWithAnEntry_GivesTheChannelWithItsEntry()
+    {
+        // Arrange
+        var entry = new ChannelEntry(_email, "Shop email", null, Enabled: true, Revision: 2, _sinceUtc);
+        var channel = new RegistryChannel(_email, "Shop email", null, ChannelFeatures.None, Enabled: true, Revision: 2, Entry: entry);
+
+        // Act
+        var mapped = RegistryChannelResponse.From(channel).ToChannel();
+
+        // Assert
+        Assert.Equal(channel, mapped.Value);
+    }
+
+    [Fact]
+    public void ToMessageType_BodyOfAMessageTypeWithAnEntry_GivesTheMessageTypeWithItsEntry()
+    {
+        // Arrange
+        var entry = new MessageTypeEntry(new MessageType("Invoices"), "Invoices", null, Enabled: false, [_sms], Revision: 5, _sinceUtc);
+        var type = new RegistryMessageType(entry.Type, "Invoices", null, [_email, _sms], Enabled: false, [_sms], Revision: 5, entry);
+
+        // Act
+        var mapped = RegistryMessageTypeResponse.From(type).ToMessageType();
+
+        // Assert
+        Assert.Equal(TextOf(entry), TextOf(mapped.Value.Entry!));
+    }
+
+    [Fact]
+    public void ToChannelAndToMessageType_EntryThatIsNotValid_GiveSerializationFailed()
+    {
+        // Arrange
+        var channel = AChannelResponse() with { Entry = AChannelEntryResponse() with { Channel = "not a name" } };
+        var type = AMessageTypeResponse() with { Entry = AMessageTypeEntryResponse() with { DisabledChannels = ["not a name"] } };
+
+        // Act
+        var mappedChannel = channel.ToChannel();
+        var mappedType = type.ToMessageType();
+
+        // Assert
+        Assert.Equal((Errors.SerializationFailed.Code, Errors.SerializationFailed.Code), (mappedChannel.Error?.Type.Code, mappedType.Error?.Type.Code));
+    }
+
+    private static string TextOf(MessageTypeEntry entry) =>
+        $"{entry.Type.Name} {entry.DisplayName} {entry.Description} {entry.Enabled} "
+        + $"{string.Join(',', entry.DisabledChannels.Select(static channel => channel.Name))} {entry.Revision} {entry.LastModifiedAtUtc:O}";
+
+    private static ChannelEntryResponse AChannelEntryResponse() => new("Email", null, null, Enabled: true, Revision: 1, _sinceUtc);
+
+    private static MessageTypeEntryResponse AMessageTypeEntryResponse() => new("Invoices", null, null, Enabled: true, ["Email"], Revision: 1, _sinceUtc);
+
     private static RegistryChannelResponse AChannelResponse() => new("Email", "Email", null, ChannelFeatures.None, Enabled: true, Revision: 0);
 
     private static RegistryMessageTypeResponse AMessageTypeResponse() => new("Invoices", null, null, ["Email"], Enabled: true, [], Revision: 0);

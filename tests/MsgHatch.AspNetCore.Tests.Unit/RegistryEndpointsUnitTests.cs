@@ -104,7 +104,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetChannels_StoredEntryOfOneChannel_GivesEachChannelWithTheRevisionOfItsEntryOr0()
+    public async Task GetChannels_StoredEntryOfOneChannel_GivesEachChannelWithItsEntryAndItsRevisionOrNoEntryAndTheRevision0()
     {
         // Arrange
         WriterGives(new RegistryEntries([new ChannelEntry(TestChannel.SecondId, null, null, true, 4, TestHost.Start.UtcDateTime)], []));
@@ -114,13 +114,14 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(
-            """[{"id":"Test","name":"Test channel","description":null,"features":"None","enabled":true,"revision":0,"current":null},"""
-            + """{"id":"Second","name":"Second test channel","description":null,"features":"GroupDelivery","enabled":true,"revision":4,"current":null}]""",
+            """[{"id":"Test","name":"Test channel","description":null,"features":"None","enabled":true,"revision":0,"current":null,"entry":null},"""
+            + """{"id":"Second","name":"Second test channel","description":null,"features":"GroupDelivery","enabled":true,"revision":4,"current":null,"entry":"""
+            + """{"channel":"Second","displayName":null,"description":null,"enabled":true,"revision":4,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}}]""",
             json);
     }
 
     [Fact]
-    public async Task GetMessageTypes_StoredEntry_GivesEachMessageTypeWithItsChannelsAndTheRevisionOfItsEntry()
+    public async Task GetMessageTypes_StoredEntry_GivesEachMessageTypeWithItsChannelsItsEntryAndTheRevisionOfItsEntry()
     {
         // Arrange
         WriterGives(new RegistryEntries([], [new MessageTypeEntry(new MessageType("TestEvent"), null, null, true, [], 2, TestHost.Start.UtcDateTime)]));
@@ -130,7 +131,8 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(
-            """[{"name":"TestEvent","displayName":null,"description":null,"channels":["Test","Second"],"enabled":true,"disabledChannels":[],"revision":2}]""",
+            """[{"name":"TestEvent","displayName":null,"description":null,"channels":["Test","Second"],"enabled":true,"disabledChannels":[],"revision":2,"entry":"""
+            + """{"type":"TestEvent","displayName":null,"description":null,"enabled":true,"disabledChannels":[],"revision":2,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}}]""",
             json);
     }
 

@@ -18,8 +18,8 @@ public sealed partial class RegistryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            """[{"id":"Test","name":"Test channel","description":null,"features":"None","enabled":true,"revision":0,"current":null},"""
-            + """{"id":"Second","name":"Second test channel","description":null,"features":"GroupDelivery","enabled":true,"revision":0,"current":null}]""",
+            """[{"id":"Test","name":"Test channel","description":null,"features":"None","enabled":true,"revision":0,"current":null,"entry":null},"""
+            + """{"id":"Second","name":"Second test channel","description":null,"features":"GroupDelivery","enabled":true,"revision":0,"current":null,"entry":null}]""",
             json);
     }
 
@@ -34,7 +34,7 @@ public sealed partial class RegistryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            """[{"name":"TestEvent","displayName":null,"description":null,"channels":["Test","Second"],"enabled":true,"disabledChannels":[],"revision":0}]""",
+            """[{"name":"TestEvent","displayName":null,"description":null,"channels":["Test","Second"],"enabled":true,"disabledChannels":[],"revision":0,"entry":null}]""",
             json);
     }
 
