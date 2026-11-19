@@ -159,6 +159,25 @@ public sealed class RegistryApiClientRequestsUnitTests
         Assert.Equal(Errors.SerializationFailed, check.Error?.Type);
     }
 
+    [Fact]
+    public async Task Save_EntryThatBreaksARule_GivesValidationFailedAndSendsNoRequest()
+    {
+        // Arrange
+        var handler = new StubHandler(HttpStatusCode.OK, "{}");
+        await using var provider = AProvider(handler);
+        await using var scope = provider.CreateAsyncScope();
+        var commands = scope.ServiceProvider.GetRequiredService<IRegistryCommands>();
+
+        // Act
+        var channel = await commands.SaveChannelAsync(RegistryTestHost.AChannelEntry(description: new string('d', 2001)), Ct);
+        var type = await commands.SaveMessageTypeAsync(RegistryTestHost.AMessageTypeEntry(revision: -1), Ct);
+
+        // Assert
+        Assert.Equal(
+            (Errors.ValidationFailed.Code, Errors.ValidationFailed.Code, 0),
+            (channel.Error?.Type.Code, type.Error?.Type.Code, handler.Uris.Count));
+    }
+
     private static ServiceProvider AProvider(StubHandler handler) =>
         TestHost.CreateServices().AddMsgHatch(static o => o.Roles = MsgHatchRoles.None)
             .UseRegistryApiClient(HttpRegistryHost.BaseAddress, http => http.ConfigurePrimaryHttpMessageHandler(() => handler)).Services.Build();
