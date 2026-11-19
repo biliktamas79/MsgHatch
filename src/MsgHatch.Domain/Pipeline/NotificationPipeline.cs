@@ -35,7 +35,7 @@ internal sealed class NotificationPipeline(
             return found.Error;
         }
 
-        var inbox = services.GetKeyedService<IInboxStore>(TenantKey.For(context.Tenant));
+        var inbox = services.GetKeyedService<IInboxStore>(TenantKeyBoxes.Of(TenantKey.For(context.Tenant)));
         if (inbox is null)
         {
             return new Error(Errors.NotFound, "No setup method selects an IInboxStore, for example UseInMemoryStores.");
@@ -239,7 +239,7 @@ internal sealed class NotificationPipeline(
     private ValueTask<ErrorOr<IReadOnlyList<MessageRoute>>> RouteAsync<TEvent>(
         MessageRegistration<TEvent> registration, ReceivedMessage<TEvent> received, TenantKey key, CancellationToken ct)
     {
-        var router = services.GetKeyedService<IMessageRouter<TEvent>>(key);
+        var router = services.GetKeyedService<IMessageRouter<TEvent>>(TenantKeyBoxes.Of(key));
         return router is null
             ? ValueTask.FromResult<ErrorOr<IReadOnlyList<MessageRoute>>>(
                 new Error(Errors.NotFound, $"The message type {registration.Type.Name} has no router."))
@@ -362,7 +362,7 @@ internal sealed class NotificationPipeline(
         var (messages, errors) = SplitByOutcome(outcomes);
         if (messages.Length > 0)
         {
-            var error = await services.GetRequiredKeyedService<IOutboxStore>(key).AddAsync(messages, ct);
+            var error = await services.GetRequiredKeyedService<IOutboxStore>(TenantKeyBoxes.Of(key)).AddAsync(messages, ct);
             if (error is not null)
             {
                 return error;

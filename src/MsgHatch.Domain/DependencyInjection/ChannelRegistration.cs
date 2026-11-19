@@ -37,7 +37,7 @@ internal sealed class ChannelRegistration<TEvent, TEnvelope>(
         IServiceProvider services, TenantKey key, ReceivedMessage<TEvent> received, ReadOnlyMemory<MessageRoute> routes,
         ReadOnlyMemory<int> positions, ErrorOr<OutgoingMessage>[] outcomes, OutgoingDefaults defaults, CancellationToken ct)
     {
-        var composer = services.GetRequiredKeyedService<IEnvelopeComposer<TEvent, TEnvelope>>(key);
+        var composer = services.GetRequiredKeyedService<IEnvelopeComposer<TEvent, TEnvelope>>(TenantKeyBoxes.Of(key));
         var envelopes = await composer.ComposeAsync(received, routes, ct);
         if (envelopes.IsError)
         {

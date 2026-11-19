@@ -100,6 +100,49 @@ public sealed partial class NotificationServiceUnitTests
     }
 
     [Fact]
+    public async Task ProcessAsync_TwoTenantsAndNoTenantTwoTimes_UsesTheServicesOfTheKeyOfEachEventAtEachCall()
+    {
+        // Arrange
+        TenantId?[] tenants = [new TenantId("boxes-a"), new TenantId("boxes-b"), null]; // no other test uses these tenants, so the first call makes their boxes
+        _doubles.Routes = [ARoute("u1")];
+        await using var provider = _doubles.Build(_time);
+
+        // Act
+        foreach (var tenant in tenants.Concat(tenants))
+        {
+            await ProcessAsync(provider, AContext(tenant));
+        }
+
+        // Assert
+        Assert.Equal(
+            [(2, 2, 2), (2, 2, 2), (2, 2, 2)],
+            tenants.Select(TenantKey.For).Select(key => (
+                _doubles.Router(key).ReceivedCalls().Count(), _doubles.Composer(key).ReceivedCalls().Count(), _doubles.Store(key).ReceivedCalls().Count())));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_MoreTenantsThanTheLimitOfTheKeyBoxes_UsesTheServicesOfTheKeyOfTheLastTenantAtEachCall()
+    {
+        // Arrange
+        TenantId[] tenants = [.. Enumerable.Range(0, 1_100).Select(static index => new TenantId($"limit-{index}"))]; // more than the 1,024 boxes that are kept
+        _doubles.Routes = [ARoute("u1")];
+        await using var provider = _doubles.Build(_time, enableLogging: false);
+        foreach (var tenant in tenants)
+        {
+            await ProcessAsync(provider, AContext(tenant));
+        }
+
+        // Act
+        await ProcessAsync(provider, AContext(tenants[^1]));
+
+        // Assert
+        var last = TenantKey.For(tenants[^1]);
+        Assert.Equal(
+            (2, 2, 2),
+            (_doubles.Router(last).ReceivedCalls().Count(), _doubles.Composer(last).ReceivedCalls().Count(), _doubles.Store(last).ReceivedCalls().Count()));
+    }
+
+    [Fact]
     public async Task ProcessAsync_ContextWithNoTenant_UsesTheRouterComposerAndOutboxStoreOfTenantKeyNone()
     {
         // Arrange
