@@ -70,10 +70,11 @@ public static class ExampleSetup
         ArgumentNullException.ThrowIfNull(builder);
         var json = ExampleJson.Default;
         return builder
-            .AddMessage("A", 1, json.EventA, static m => m
+            .AddMessage("A", 1, json.EventA, m => m
                 .WithScope(ScopeOf)
                 .WithTestEvent("basic", static user => new EventA(TestUserOf(user), null, "A test of the routing."))
-                .WithPayload<NoticeEmail, NoticeEmailLoader<EventA>>(static p => p.AsEmail("AEmail").WithTemplateSample(_noticeSample)))
+                .WithPayload<NoticeEmail, NoticeEmailLoader<EventA>>(static p => p.AsEmail("AEmail").WithTemplateSample(_noticeSample))
+                .WithPayload<Notice, NoticeLoader<EventA>>(p => p.AsSignalR("AUpdate", 1, json.SignalREnvelopeNotice)))
             .AddMessage("B", 1, json.EventB, static m => m
                 .WithScope(ScopeOf)
                 .WithTestEvent("basic", static user => new EventB(TestUserOf(user), null, "A test of the routing."))

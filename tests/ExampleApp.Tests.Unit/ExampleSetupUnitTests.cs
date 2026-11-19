@@ -16,6 +16,7 @@ using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Email.DependencyInjection;
+using MsgHatch.SignalR;
 using MsgHatch.Subscriptions;
 using MsgHatch.Subscriptions.Data.Sqlite.DependencyInjection;
 using MsgHatch.Subscriptions.DependencyInjection;
@@ -91,6 +92,26 @@ public sealed class ExampleSetupUnitTests : IDisposable
 
         // Assert
         Assert.Equal((1, 0), (before.Value.Stored, after.Value.Stored));
+    }
+
+    [Fact]
+    public async Task AddExampleMessages_SignalRSubscriptionOfAcmeForA_SendsOneUiNotificationToTheGroupOfAcme()
+    {
+        // Arrange
+        await using var provider = BuildConsumer();
+        await provider.SeedScenarioAsync(TenantKey.None);
+        await using var scope = provider.CreateAsyncScope();
+        var subscription = new SubscriptionDraft(SubscriptionOwner.ForCompany(CompanyId.From(ExampleScenario.Acme)), new MessageType("A"),
+            SubscriptionKind.Channel, SignalRChannel.Id, new SignalRChannelSettings());
+        Assert.False((await ExampleProcess.CommandsOf(scope.ServiceProvider, TenantKey.None).CreateAsync(subscription, Ct)).IsError);
+
+        // Act
+        await provider.ProcessAsync(new EventA(null, ExampleScenario.Acme, "a"));
+
+        // Assert
+        Assert.Equal(
+            ["- SignalR c:100 CompanyDefaultLanguage A"],
+            (await provider.StoredAsync(_time.UtcNow)).Where(static line => line.StartsWith("- SignalR", StringComparison.Ordinal)));
     }
 
     [Fact]

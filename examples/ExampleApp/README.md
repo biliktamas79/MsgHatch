@@ -48,6 +48,7 @@ dotnet run --project examples/ExampleApp
 The app listens on `http://localhost:5080`.
 
 - **The first start** writes the scenario "Acme and Globex" of `docs/subscription-domain.md`: the companies, the users, and the 12 subscriptions. The data goes into `msghatch-example.db` in `examples/ExampleApp`, and git ignores this file.
+- **The message type A** registers the channels Email and SignalR. The scenario registers only Email for A, so its example M10 is not true in this app. With SignalR on A, the admin UI can make a UI notification of A for a company, for example Acme.
 - **To start again from the scenario,** stop the app. Then delete the files `msghatch-example.db*` in `examples/ExampleApp`.
 - **The email templates** are in the folder `Templates` of the build output (D221). A write through the template endpoints changes only the build output, never the files of the repository. A build does not replace a changed template, because it copies only the newer files. To get back the templates of the repository, stop the app. Then delete the folder `examples/ExampleApp/bin/Debug/net10.0/Templates`. The next build or run copies the templates again.
 
