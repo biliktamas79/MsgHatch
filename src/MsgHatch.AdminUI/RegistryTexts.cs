@@ -9,6 +9,10 @@ namespace MsgHatch.AdminUI;
 /// <summary>The texts of the registry pages (D272, D273, D279, D283, D287).</summary>
 internal static class RegistryTexts
 {
+    /// <summary>Gives an up time in percent, cut down to two decimals, so "100 %" shows only with no down time, for example "99.98 %".</summary>
+    public static string UpTimeOf(decimal percent) =>
+        string.Create(CultureInfo.InvariantCulture, $"{decimal.Floor(percent * 100) / 100:0.##} %");
+
     /// <summary>The help text under the enabled flag of an edit page (D287).</summary>
     public const string ChangeHelp =
         "A change applies to the next events. The outbox still sends the messages that it holds. "

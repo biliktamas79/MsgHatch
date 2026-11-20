@@ -1,18 +1,19 @@
 @attribute [Route(RegistryAdminRoutes.Channels)]
 @inject IServiceProvider Services
 @inject TimeProvider Time
-@* The channels of the registry, with their features, their enabled flag, the number of their message types (D272), their state with its history (D279), the channel check (D283), the edit page (D287), and the pending messages with Pause and Resume (D297). *@
+@* The channels of the registry, with their features, their enabled flag, the number of their message types (D272), their state with its history (D279), the channel check (D283), the edit page (D287), the pending messages with Pause and Resume (D297), and the up time of 1 day, 1 week, and 30 days from the state rows. *@
 
 <AdminListPage Title="Channels">
 <div data-delivery-error><ErrorAlert Error="_deliveryError" /></div>
 <div data-action-error><ErrorAlert Error="_actionError" /></div>
+<div data-history-error><ErrorAlert Error="_historyError" /></div>
 @if (_check is { } check)
 {
     <div class="alert @(check.IsError ? "alert-danger" : RegistryTexts.CheckClassOf(check.Value)) py-2" role="status" data-check-result>@(check.IsError ? AdminErrors.TextOf(check.Error) : RegistryTexts.CheckTextOf(check.Value))</div>
 }
 <AdminList TItem="RegistryChannel" Items="_channels" EmptyText="There are no channels.">
     <Head>
-        <tr><th>Channel</th><th>Name</th><th>Features</th><th>Enabled</th><th>Message types</th><th>State</th><th>Since</th><th>Pending</th><th>Pending test</th><th>Oldest due</th><th></th></tr>
+        <tr><th>Channel</th><th>Name</th><th>Features</th><th>Enabled</th><th>Message types</th><th>State</th><th>Since</th><th>Up time</th><th>Pending</th><th>Pending test</th><th>Oldest due</th><th></th></tr>
     </Head>
     <Row Context="channel">
         <tr data-row>
@@ -28,23 +29,35 @@
             <td>@_messageTypeCounts.GetValueOrDefault(channel.Id)</td>
             <td data-cell="state"><ChannelStateBadge Channel="channel" /></td>
             <td data-cell="since">@RegistryTexts.SinceOf(channel, _nowUtc)</td>
+            <td class="text-nowrap" data-cell="up-time">
+                @if (_histories.GetValueOrDefault(channel.Id) is { } history)
+                {
+                    @foreach (var (key, label, window) in _upTimeWindows)
+                    {
+                        <div data-up-time="@key">@label: @RegistryTexts.UpTimeOf(ChannelTimeline.UpPercentOf(history, _nowUtc, window))</div>
+                    }
+                }
+            </td>
             <td data-cell="pending">@_statuses.GetValueOrDefault(channel.Id)?.Pending</td>
             <td data-cell="pending-test">@_statuses.GetValueOrDefault(channel.Id)?.PendingTest</td>
             <td class="text-nowrap" data-cell="oldest-due">@DeliveryTexts.TimeOf(_statuses.GetValueOrDefault(channel.Id)?.OldestDueAtUtc)</td>
-            <td class="text-end text-nowrap">
-                @if (channel.Current?.ToDown() is null)
-                {
-                    <button type="button" class="btn btn-sm btn-outline-danger" data-action="pause" @onclick="() => _pauseChannel = channel">Pause</button>
-                }
-                else
-                {
-                    <button type="button" class="btn btn-sm btn-outline-success" data-action="resume" disabled="@_resuming" @onclick="() => ResumeAsync(channel.Id)">Resume</button>
-                }
-                @(" ")
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="history" @onclick="() => _historyChannel = channel">History</button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-action="check" disabled="@_checking" @onclick="() => CheckAsync(channel.Id)">Check</button>
-                <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@RegistryAdminRoutes.Channel(channel.Id).TrimStart('/')">View</a>
-                <a class="btn btn-sm btn-outline-secondary" data-action="edit" href="@RegistryAdminRoutes.ChannelEdit(channel.Id).TrimStart('/')">Edit</a>
+            <td data-cell="actions">
+                <div class="d-flex justify-content-end gap-1 mb-1" data-action-row>
+                    @if (channel.Current?.ToDown() is null)
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-action="pause" @onclick="() => _pauseChannel = channel">Pause</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-sm btn-outline-success" data-action="resume" disabled="@_resuming" @onclick="() => ResumeAsync(channel.Id)">Resume</button>
+                    }
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="history" @onclick="() => _historyChannel = channel">History</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="check" disabled="@_checking" @onclick="() => CheckAsync(channel.Id)">Check</button>
+                </div>
+                <div class="d-flex justify-content-end gap-1" data-action-row>
+                    <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@RegistryAdminRoutes.Channel(channel.Id).TrimStart('/')">View</a>
+                    <a class="btn btn-sm btn-outline-secondary" data-action="edit" href="@RegistryAdminRoutes.ChannelEdit(channel.Id).TrimStart('/')">Edit</a>
+                </div>
             </td>
         </tr>
     </Row>
@@ -57,7 +70,12 @@
 @code {
     private ErrorOr<IReadOnlyList<RegistryChannel>>? _channels;
     private Dictionary<ChannelId, int> _messageTypeCounts = [];
+    private static readonly (string Key, string Label, TimeSpan Window)[] _upTimeWindows =
+        [("day", "1 day", TimeSpan.FromDays(1)), ("week", "1 week", TimeSpan.FromDays(7)), ("month", "30 days", ChannelState.HistoryWindow)];
+
     private Dictionary<ChannelId, ChannelStatus> _statuses = [];
+    private Dictionary<ChannelId, IReadOnlyList<ChannelState>> _histories = [];
+    private Error? _historyError;
     private Error? _deliveryError;
     private Error? _actionError;
     private RegistryChannel? _pauseChannel;
@@ -103,6 +121,26 @@
         await ReadChannelsAsync();
     }
 
+    /// <summary>Reads the state rows of each channel for its up time. An error shows above the list, and the up time of that channel stays empty.</summary>
+    private async Task ReadHistoriesAsync(IReadOnlyList<RegistryChannel> channels)
+    {
+        var histories = new Dictionary<ChannelId, IReadOnlyList<ChannelState>>();
+        Error? error = null;
+        foreach (var channel in channels.DistinctBy(static channel => channel.Id))
+        {
+            var history = await Queries.GetChannelHistoryAsync(channel.Id, CancellationToken.None);
+            if (history.IsError)
+            {
+                error ??= history.Error;
+                continue;
+            }
+
+            histories[channel.Id] = history.Value;
+        }
+
+        (_histories, _historyError) = (histories, error);
+    }
+
     private async Task ReadChannelsAsync()
     {
         _nowUtc = Time.GetUtcNow().UtcDateTime;
@@ -119,6 +157,7 @@
 
         _messageTypeCounts = channels.Value.DistinctBy(static channel => channel.Id)
             .ToDictionary(static channel => channel.Id, channel => types.Value.Count(type => type.Channels.Contains(channel.Id)));
+        await ReadHistoriesAsync(channels.Value);
         _channels = channels;
     }
 }
