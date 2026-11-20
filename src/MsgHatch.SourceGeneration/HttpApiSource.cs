@@ -153,7 +153,14 @@ internal static class HttpApiSource
         for (var index = 0; index < queryValues.Count; index++)
         {
             var parameter = queryValues[index];
-            if (HttpValues.CanBeNull(parameter.Type))
+            if (HttpValues.ItemTypeOf(parameter.Type) is { } itemType)
+            {
+                var item = "__item" + index;
+                source
+                    .Append("        if (@").Append(parameter.Name).Append(" is { } __list").Append(index).Append(") { foreach (var ").Append(item)
+                    .Append(" in __list").Append(index).Append(") { ").Append(QueryAppendOf(parameter.Name, HttpValues.TextOf(itemType, item))).AppendLine(" } }");
+            }
+            else if (HttpValues.CanBeNull(parameter.Type))
             {
                 var value = "__value" + index;
                 source

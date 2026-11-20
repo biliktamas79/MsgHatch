@@ -19,4 +19,7 @@ internal interface IShapesApi
 
     [HttpCall("DELETE", "")]
     Task<Error?> DeleteAsync(string? tenantId);
+
+    [HttpCall("GET", "/lists")]
+    Task<Error?> ListAsync(IReadOnlyList<Guid>? ids, IReadOnlyList<string> names, DateTime? from, CancellationToken ct);
 }

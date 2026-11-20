@@ -43,6 +43,9 @@ public sealed partial class HttpApiClientGeneratorUnitTests
             "MSGHATCH007"
         },
         { "a query value of a list", Api("""[HttpCall("GET", "")] Task<Error?> GetAsync(List<string> names, CancellationToken ct);"""), "MSGHATCH008" },
+        { "a read-only list of an unsupported type", Api("""[HttpCall("GET", "")] Task<Error?> GetAsync(IReadOnlyList<Uri> uris, CancellationToken ct);"""), "MSGHATCH008" },
+        { "a read-only list of nullable values", Api("""[HttpCall("GET", "")] Task<Error?> GetAsync(IReadOnlyList<Guid?> ids, CancellationToken ct);"""), "MSGHATCH008" },
+        { "a read-only list as a route value", Api("""[HttpCall("GET", "/{ids}")] Task<Error?> GetAsync(IReadOnlyList<Guid> ids, CancellationToken ct);"""), "MSGHATCH008" },
         { "a nullable route value", Api("""[HttpCall("GET", "/{id}")] Task<Error?> GetAsync(Guid? id, CancellationToken ct);"""), "MSGHATCH008" },
         { "a token that is not the last parameter", Api("""[HttpCall("GET", "")] Task<Error?> GetAsync(CancellationToken ct, string name);"""), "MSGHATCH008" },
         { "a task of a string", Api("""[HttpCall("GET", "")] Task<string> GetAsync(CancellationToken ct);"""), "MSGHATCH009" },
@@ -92,6 +95,11 @@ public sealed partial class HttpApiClientGeneratorUnitTests
 
                 [HttpCall("DELETE", "/{type}/{type}")]
                 Task<Error?> DeleteAsync(string type, CancellationToken ct);
+
+                [HttpCall("GET", "/times/{at}")]
+                Task<Error?> TimesAsync(
+                    DateTime at, DateTime? from, IReadOnlyList<Guid>? ids, IReadOnlyList<TemplatePartKind> kinds, IReadOnlyList<DateTime>? times,
+                    IReadOnlyList<string> names, CancellationToken ct);
             }
 
             [HttpApi(typeof(TemplateEndpointJson))]

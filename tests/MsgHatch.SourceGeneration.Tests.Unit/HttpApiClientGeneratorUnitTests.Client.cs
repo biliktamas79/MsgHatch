@@ -14,6 +14,8 @@ public sealed partial class HttpApiClientGeneratorUnitTests
 
     private static readonly Guid _id = new("0b9d3a4e-1c2f-4e5a-9b8c-7d6e5f4a3b2c");
 
+    private static readonly Guid _otherId = new("5f1e2d3c-4b5a-4c6d-8e7f-9a0b1c2d3e4f");
+
     private static readonly ErrorType _consumerType = new(470, "Custom", IsTransient: true);
 
     public static TheoryData<string, HttpStatusCode, string?, Error> ErrorRows => new()
@@ -90,6 +92,44 @@ public sealed partial class HttpApiClientGeneratorUnitTests
 
         // Assert
         Assert.Equal((null, HttpMethod.Delete, expected), (error, handler.Requests[0].Request.Method, handler.Requests[0].Request.RequestUri!.AbsoluteUri));
+    }
+
+    public static TheoryData<string, Guid[]?, string> ListRows => new()
+    {
+        { "two items", [_id, _otherId], $"?ids={_id}&ids={_otherId}" },
+        { "one item", [_id], $"?ids={_id}" },
+        { "an empty list", [], "" },
+        { "null", null, "" },
+    };
+
+    [Theory]
+    [MemberData(nameof(ListRows))]
+    public async Task ListAsync_ListQueryValue_WritesOnePairForEachItem(string row, Guid[]? ids, string expected)
+    {
+        // Arrange
+        var (api, handler) = AnApi(static _ => new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        // Act
+        await api.ListAsync(ids, [], from: null, Ct);
+
+        // Assert
+        Assert.Equal((row, "http://host/api/shapes/lists" + expected), (row, Assert.Single(handler.Requests).Request.RequestUri!.AbsoluteUri));
+    }
+
+    [Fact]
+    public async Task ListAsync_StringsAndATime_WritesEachStringEscapedAndTheTimeInTheFormatO()
+    {
+        // Arrange
+        var (api, handler) = AnApi(static _ => new HttpResponseMessage(HttpStatusCode.NoContent));
+        var from = new DateTime(2030, 1, 1, 10, 0, 0, DateTimeKind.Utc).AddTicks(1234567);
+
+        // Act
+        await api.ListAsync(ids: null, ["a b", "c&d"], from, Ct);
+
+        // Assert
+        Assert.Equal(
+            "http://host/api/shapes/lists?names=a%20b&names=c%26d&from=2030-01-01T10%3A00%3A00.1234567Z",
+            Assert.Single(handler.Requests).Request.RequestUri!.AbsoluteUri);
     }
 
     [Theory]

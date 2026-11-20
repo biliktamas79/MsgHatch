@@ -36,7 +36,7 @@ internal static class HttpApiModel
 
     public static readonly DiagnosticDescriptor UnsupportedValue = Error(
         "MSGHATCH008", "A route or query value has a type that the generator cannot write",
-        "The parameter '{0}' of '{1}' has the type '{2}', which is not a string, a Guid, a number, a bool, or an enum, or a route value is nullable");
+        "The parameter '{0}' of '{1}' has the type '{2}', which is not a string, a Guid, a number, a bool, an enum, or a DateTime, or for a query value an IReadOnlyList of these, or a route value is nullable");
 
     public static readonly DiagnosticDescriptor UnsupportedReturn = Error(
         "MSGHATCH009", "A method does not return Task<ErrorOr<TResponse>> or Task<Error?>",
@@ -146,7 +146,7 @@ internal static class HttpApiModel
 
                 JsonPropertyOf(json, parameter.Type, parameter.Locations[0], call.Method.Name, diagnostics);
             }
-            else if (!call.IsCancellation(parameter) && !HttpValues.CanWrite(parameter.Type, nullable: !call.IsRouteValue(parameter)))
+            else if (!call.IsCancellation(parameter) && !HttpValues.CanWrite(parameter.Type, isQueryValue: !call.IsRouteValue(parameter)))
             {
                 diagnostics.Add(Diagnostic.Create(UnsupportedValue, parameter.Locations[0], parameter.Name, call.Method.Name, parameter.Type.ToDisplayString()));
             }
