@@ -1,6 +1,6 @@
 @attribute [Route(RegistryAdminRoutes.MessageTypes)]
 @inject IServiceProvider Services
-@* The message types of the registry with their channels. Each channel links to its view page, and a disabled channel of the message type has a mark (D273). The columns of other admin UI packages follow, with their items as badges (D275). *@
+@* The message types of the registry with their channels. Each channel links to its view page, and a disabled channel of the message type has a mark (D273). The columns of other admin UI packages follow, with their items as badges (D275). Each row ends with Edit (D287). *@
 
 <AdminListPage Title="Message types">
 @foreach (var (column, error) in _columnErrors)
@@ -15,6 +15,7 @@
             {
                 <th data-column="@column.Header">@column.Header</th>
             }
+            <th></th>
         </tr>
     </Head>
     <Row Context="type">
@@ -51,6 +52,9 @@
                     }
                 </td>
             }
+            <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary" data-action="edit" href="@RegistryAdminRoutes.MessageTypeEdit(type.Type).TrimStart('/')">Edit</a>
+            </td>
         </tr>
     </Row>
 </AdminList>

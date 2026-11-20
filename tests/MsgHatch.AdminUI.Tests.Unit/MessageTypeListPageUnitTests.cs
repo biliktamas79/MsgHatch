@@ -20,8 +20,8 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
         var cut = Render<MessageTypeListPage>();
 
         var rows = cut.FindAll("tr[data-row]");
-        Assert.Equal(["Requests", "Requests of a client", "Sent when a client asks", "Yes", "Email Sms"], rows[0].Children.Select(TextOf));
-        Assert.Equal(["Notices", "", "", "No", "Email"], rows[1].Children.Select(TextOf));
+        Assert.Equal(["Requests", "Requests of a client", "Sent when a client asks", "Yes", "Email Sms", "Edit"], rows[0].Children.Select(TextOf));
+        Assert.Equal(["Notices", "", "", "No", "Email", "Edit"], rows[1].Children.Select(TextOf));
         Assert.Equal("Message types", cut.Find("[data-list-header] h1").TextContent);
     }
 
@@ -33,6 +33,16 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
         Assert.Equal(
             [RegistryAdminRoutes.Channel(Email).TrimStart('/'), RegistryAdminRoutes.Channel(Sms).TrimStart('/')],
             cut.FindAll("tr[data-row]")[0].QuerySelectorAll("[data-channel] a").Select(static link => link.GetAttribute("href")));
+    }
+
+    [Fact]
+    public void Render_MessageTypes_EndEachRowWithTheAddressOfItsEditPage()
+    {
+        var cut = Render<MessageTypeListPage>();
+
+        Assert.Equal(
+            MessageTypes.Select(static type => RegistryAdminRoutes.MessageTypeEdit(type.Type).TrimStart('/')),
+            cut.FindAll("tr[data-row]").Select(static row => row.Children[^1].QuerySelector("[data-action=edit]")?.GetAttribute("href")));
     }
 
     [Fact]
@@ -73,7 +83,7 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
         var cut = Render<MessageTypeListPage>();
 
         Assert.Equal(
-            ["Message type", "Display name", "Description", "Enabled", "Channels", "First", "Second"],
+            ["Message type", "Display name", "Description", "Enabled", "Channels", "First", "Second", ""],
             cut.FindAll("thead th").Select(static header => header.TextContent.Trim()));
     }
 

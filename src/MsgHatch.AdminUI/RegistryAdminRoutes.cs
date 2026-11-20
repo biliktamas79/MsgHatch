@@ -15,6 +15,8 @@ public static class RegistryAdminRoutes
 
     internal const string ChannelEditTemplate = ChannelTemplate + "/edit";
 
+    internal const string MessageTypeEditTemplate = MessageTypes + "/{TypeName}/edit";
+
     /// <summary>Gives the address of the view page of one channel.</summary>
     /// <param name="channel">The id of the channel.</param>
     /// <returns>For example <c>/msghatch/channels/Email</c>.</returns>
@@ -24,4 +26,9 @@ public static class RegistryAdminRoutes
     /// <param name="channel">The id of the channel.</param>
     /// <returns>For example <c>/msghatch/channels/Email/edit</c>.</returns>
     public static string ChannelEdit(ChannelId channel) => $"{Channel(channel)}/edit";
+
+    /// <summary>Gives the address of the edit page of the stored settings of one message type (D287).</summary>
+    /// <param name="type">The message type.</param>
+    /// <returns>For example <c>/msghatch/message-types/Invoices/edit</c>.</returns>
+    public static string MessageTypeEdit(MessageType type) => $"{MessageTypes}/{Uri.EscapeDataString(type.Name)}/edit";
 }

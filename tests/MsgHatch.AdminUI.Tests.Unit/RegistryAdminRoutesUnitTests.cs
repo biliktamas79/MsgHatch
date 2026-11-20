@@ -23,12 +23,19 @@ public sealed class RegistryAdminRoutesUnitTests
     }
 
     [Fact]
+    public void MessageTypeEdit_Type_GivesTheAddressOfTheEditPage()
+    {
+        Assert.Equal("/msghatch/message-types/Invoices/edit", RegistryAdminRoutes.MessageTypeEdit(new MessageType("Invoices")));
+    }
+
+    [Fact]
     public void Pages_RouteTemplates_AreTheAddressesOfTheRouteBuilders()
     {
         Assert.Equal([RegistryAdminRoutes.Channels], TemplatesOf<ChannelListPage>());
         Assert.Equal([RegistryAdminRoutes.Channels + "/{ChannelName}"], TemplatesOf<ChannelViewPage>());
         Assert.Equal([RegistryAdminRoutes.Channels + "/{ChannelName}/edit"], TemplatesOf<ChannelEditPage>());
         Assert.Equal(["/msghatch/message-types"], TemplatesOf<MessageTypeListPage>());
+        Assert.Equal([RegistryAdminRoutes.MessageTypes + "/{TypeName}/edit"], TemplatesOf<MessageTypeEditPage>());
     }
 
     [Fact]

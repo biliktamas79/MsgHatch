@@ -1,0 +1,208 @@
+@attribute [Route(RegistryAdminRoutes.MessageTypeEditTemplate)]
+@inject IServiceProvider Services
+@* The edit page of the stored settings of one message type (D284, D287): the display name, the description, the enabled flag, and a check box "Send on {channel}" for each channel of the message type. A cleared box puts its channel into DisabledChannels. Reset deletes the stored entry after a question. *@
+
+<AdminEditPage>
+    <Header>
+        <h1 class="h3">Edit message type</h1>
+        @if (_type is { } shown)
+        {
+            <p class="text-secondary mb-2"><span data-field="type">@shown.Type.Name</span>, revision <span data-field="revision">@shown.Revision</span></p>
+        }
+    </Header>
+    <ChildContent>
+        @if (_loadError is not null)
+        {
+            <ErrorAlert Error="_loadError" />
+        }
+        else if (_type is not { } type)
+        {
+            <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+        }
+        else
+        {
+            <RegistryEntryFields @bind-DisplayName="_displayName" @bind-Description="_description" @bind-Enabled="_enabled" Disabled="_busy"
+                                 DisplayNamePlaceholder="@RegistryTexts.PlaceholderOf(type.Entry?.DisplayName, type.DisplayName)"
+                                 DescriptionPlaceholder="@RegistryTexts.PlaceholderOf(type.Entry?.Description, type.Description)">
+                <div class="col-12" data-field="channels">
+                    @foreach (var channel in type.Channels)
+                    {
+                        <div class="form-check">
+                            <input id="msghatch-entry-send-@channel.Name" class="form-check-input" type="checkbox" data-send-on="@channel.Name" disabled="@_busy"
+                                   checked="@(!_disabled.Contains(channel))" @onchange="change => SetSendOn(channel, change.Value is true)" />
+                            <label class="form-check-label" for="msghatch-entry-send-@channel.Name">Send on @channel.Name</label>
+                        </div>
+                    }
+                </div>
+            </RegistryEntryFields>
+
+            @if (PendingChanges(type) is { Count: > 0 } changes)
+            {
+                <p class="text-warning mt-3" data-state="pending">Changes that are not saved: @string.Join(", ", changes).</p>
+            }
+            @if (_saved)
+            {
+                <div class="alert alert-success mt-3" role="status" data-state="saved">@RegistryTexts.SavedText</div>
+            }
+            <div class="mt-3"><ErrorAlert Error="_formError" /></div>
+        }
+    </ChildContent>
+    <Actions>
+        <AdminActions>
+            <Start><a class="btn btn-outline-secondary" data-action="back" href="@RegistryAdminRoutes.MessageTypes.TrimStart('/')">Back to the message types</a></Start>
+            <End>
+                @if (_type is { } type)
+                {
+                    if (type.Entry is not null)
+                    {
+                        <button type="button" class="btn btn-outline-danger" data-action="reset" disabled="@_busy" @onclick="() => _confirmReset = true">Reset</button>
+                    }
+                    <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
+                }
+            </End>
+        </AdminActions>
+    </Actions>
+</AdminEditPage>
+
+@if (_type is { Entry: { } stored } asked)
+{
+    <DeleteDialog Open="_confirmReset" Action="Reset" Question="@($"Do you want to reset the message type {asked.Type.Name}?")" Confirmed="ResetAsync" Cancelled="() => _confirmReset = false">
+        <Details>
+            <dl class="row small mb-2">
+                <dt class="col-4">Display name</dt><dd class="col-8" data-detail="display-name">@RegistryTexts.StoredTextOf(stored.DisplayName)</dd>
+                <dt class="col-4">Description</dt><dd class="col-8" data-detail="description">@RegistryTexts.StoredTextOf(stored.Description)</dd>
+                <dt class="col-4">Enabled</dt><dd class="col-8" data-detail="enabled">@RegistryTexts.YesOrNo(stored.Enabled)</dd>
+                <dt class="col-4">Disabled channels</dt><dd class="col-8" data-detail="disabled-channels">@(stored.DisabledChannels.Count == 0 ? "None" : string.Join(", ", stored.DisabledChannels.Select(static channel => channel.Name)))</dd>
+                <dt class="col-4">Revision</dt><dd class="col-8 mb-0" data-detail="revision">@stored.Revision</dd>
+            </dl>
+            <p class="small text-secondary mb-0" data-reset-effect>
+                After the reset, the message type has the display name and the description of the code, and it sends on each of its channels.@(stored.Enabled ? null : " The message type is disabled now, and it is enabled after the reset.")
+            </p>
+        </Details>
+    </DeleteDialog>
+}
+
+@code {
+    private RegistryMessageType? _type;
+    private string _displayName = string.Empty;
+    private string _description = string.Empty;
+    private bool _enabled;
+    private HashSet<ChannelId> _disabled = [];
+    private bool _busy;
+    private bool _saved;
+    private bool _confirmReset;
+    private Error? _loadError;
+    private Error? _formError;
+
+    /// <summary>The name of the message type, from the address.</summary>
+    [Parameter]
+    public string TypeName { get; set; } = string.Empty;
+
+    private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
+
+    private IRegistryCommands Commands => Services.GetRequiredKeyedService<IRegistryCommands>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        (_saved, _formError, _confirmReset) = (false, null, false);
+        await ReadAsync();
+    }
+
+    /// <summary>Reads the message type, and fills the fields with its stored values, so an empty field is a value of the code.</summary>
+    private async Task ReadAsync()
+    {
+        _loadError = null;
+        var types = await Queries.GetMessageTypesAsync(CancellationToken.None);
+        if (types.IsError)
+        {
+            (_type, _loadError) = (null, types.Error);
+            return;
+        }
+
+        _type = types.Value.FirstOrDefault(type => string.Equals(type.Type.Name, TypeName, StringComparison.Ordinal));
+        if (_type is null)
+        {
+            _loadError = new Error(Errors.NotFound, $"The message type {TypeName} is not registered.");
+            return;
+        }
+
+        (_displayName, _description, _enabled, _disabled) =
+            (_type.Entry?.DisplayName ?? string.Empty, _type.Entry?.Description ?? string.Empty, _type.Enabled, [.. _type.DisabledChannels]);
+    }
+
+    private void SetSendOn(ChannelId channel, bool send)
+    {
+        if (send)
+        {
+            _disabled.Remove(channel);
+        }
+        else
+        {
+            _disabled.Add(channel);
+        }
+    }
+
+    /// <summary>Saves the fields with the revision of the last read. A conflict reads the stored values again.</summary>
+    private async Task SaveAsync()
+    {
+        if (_type is not { } type)
+        {
+            return;
+        }
+
+        (_busy, _saved, _formError) = (true, false, null);
+        var entry = new MessageTypeEntry(
+            type.Type, RegistryTexts.StoredValueOf(_displayName), RegistryTexts.StoredValueOf(_description), _enabled,
+            [.. type.Channels.Where(_disabled.Contains)], type.Revision, default);
+        var saved = await Commands.SaveMessageTypeAsync(entry, CancellationToken.None);
+        _formError = saved.Error;
+        if (saved.IsSuccess || saved.Error?.Type == Errors.Conflict)
+        {
+            await ReadAsync();
+        }
+
+        (_saved, _busy) = (saved.IsSuccess, false);
+    }
+
+    /// <summary>Deletes the stored entry, and reads the message type again, so the page shows the values of the code.</summary>
+    private async Task ResetAsync()
+    {
+        _confirmReset = false;
+        if (_type is not { } type)
+        {
+            return;
+        }
+
+        (_busy, _saved) = (true, false);
+        _formError = await Commands.ResetMessageTypeAsync(type.Type, CancellationToken.None);
+        if (_formError is null)
+        {
+            await ReadAsync();
+        }
+
+        _busy = false;
+    }
+
+    private List<string> PendingChanges(RegistryMessageType type)
+    {
+        List<string> changes = [];
+        if (RegistryTexts.StoredValueOf(_displayName) != type.Entry?.DisplayName)
+        {
+            changes.Add("Display name");
+        }
+
+        if (RegistryTexts.StoredValueOf(_description) != type.Entry?.Description)
+        {
+            changes.Add("Description");
+        }
+
+        if (_enabled != type.Enabled)
+        {
+            changes.Add("Enabled");
+        }
+
+        changes.AddRange(type.Channels.Where(channel => _disabled.Contains(channel) != type.DisabledChannels.Contains(channel)).Select(static channel => $"Send on {channel.Name}"));
+        return changes;
+    }
+}

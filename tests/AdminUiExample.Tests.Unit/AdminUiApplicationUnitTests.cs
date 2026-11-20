@@ -116,6 +116,7 @@ public sealed class AdminUiApplicationUnitTests
     [InlineData("/msghatch/channels/Email", "Channels")]
     [InlineData("/msghatch/channels/Email/edit", "Channels")]
     [InlineData("/msghatch/message-types", "Message types")]
+    [InlineData("/msghatch/message-types/A/edit", "Message types")]
     public async Task Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive(string path, string link)
     {
         await using var app = Build(new RecordingHandler(available: false));
