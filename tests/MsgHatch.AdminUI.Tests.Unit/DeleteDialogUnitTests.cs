@@ -50,6 +50,24 @@ public sealed class DeleteDialogUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_ActionReset_ShowsResetInTheTitleTheButtonAndTheWarning()
+    {
+        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true).Add(x => x.Action, "Reset"));
+
+        Assert.Equal(
+            ("Reset", "Reset", "The reset cannot be undone."),
+            (cut.Find(".modal-title").TextContent, cut.Find("[data-action=confirm-delete]").TextContent, cut.Find("[data-delete-warning]").TextContent));
+    }
+
+    [Fact]
+    public void Render_NoAction_ShowsDeleteInTheTitle()
+    {
+        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true));
+
+        Assert.Equal("Delete", cut.Find(".modal-title").TextContent);
+    }
+
+    [Fact]
     public void ClickDelete_Open_RunsConfirmedOnly()
     {
         var confirmed = 0;

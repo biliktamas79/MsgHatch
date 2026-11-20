@@ -1,0 +1,180 @@
+@attribute [Route(RegistryAdminRoutes.ChannelEditTemplate)]
+@inject IServiceProvider Services
+@* The edit page of the stored settings of one channel (D284, D287): the display name, the description, and the enabled flag. An empty text field saves null, which is the value of the code. Reset deletes the stored entry after a question. *@
+
+<AdminEditPage>
+    <Header>
+        <h1 class="h3">Edit channel</h1>
+        @if (_channel is { } shown)
+        {
+            <p class="text-secondary mb-2"><span data-field="id">@shown.Id.Name</span>, revision <span data-field="revision">@shown.Revision</span></p>
+        }
+    </Header>
+    <ChildContent>
+        @if (_loadError is not null)
+        {
+            <ErrorAlert Error="_loadError" />
+        }
+        else if (_channel is not { } channel)
+        {
+            <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+        }
+        else
+        {
+            <RegistryEntryFields @bind-DisplayName="_displayName" @bind-Description="_description" @bind-Enabled="_enabled" Disabled="_busy"
+                                 DisplayNamePlaceholder="@RegistryTexts.PlaceholderOf(channel.Entry?.DisplayName, channel.Name)"
+                                 DescriptionPlaceholder="@RegistryTexts.PlaceholderOf(channel.Entry?.Description, channel.Description)" />
+
+            @if (PendingChanges(channel) is { Count: > 0 } changes)
+            {
+                <p class="text-warning mt-3" data-state="pending">Changes that are not saved: @string.Join(", ", changes).</p>
+            }
+            @if (_saved)
+            {
+                <div class="alert alert-success mt-3" role="status" data-state="saved">@RegistryTexts.SavedText</div>
+            }
+            <div class="mt-3"><ErrorAlert Error="_formError" /></div>
+        }
+    </ChildContent>
+    <Actions>
+        <AdminActions>
+            <Start><a class="btn btn-outline-secondary" data-action="back" href="@RegistryAdminRoutes.Channels.TrimStart('/')">Back to the channels</a></Start>
+            <End>
+                @if (_channel is { } channel)
+                {
+                    if (channel.Entry is not null)
+                    {
+                        <button type="button" class="btn btn-outline-danger" data-action="reset" disabled="@_busy" @onclick="() => _confirmReset = true">Reset</button>
+                    }
+                    <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
+                }
+            </End>
+        </AdminActions>
+    </Actions>
+</AdminEditPage>
+
+@if (_channel is { Entry: { } stored } asked)
+{
+    <DeleteDialog Open="_confirmReset" Action="Reset" Question="@($"Do you want to reset the channel {asked.Id.Name}?")" Confirmed="ResetAsync" Cancelled="() => _confirmReset = false">
+        <Details>
+            <dl class="row small mb-2">
+                <dt class="col-4">Display name</dt><dd class="col-8" data-detail="display-name">@RegistryTexts.StoredTextOf(stored.DisplayName)</dd>
+                <dt class="col-4">Description</dt><dd class="col-8" data-detail="description">@RegistryTexts.StoredTextOf(stored.Description)</dd>
+                <dt class="col-4">Enabled</dt><dd class="col-8" data-detail="enabled">@RegistryTexts.YesOrNo(stored.Enabled)</dd>
+                <dt class="col-4">Revision</dt><dd class="col-8 mb-0" data-detail="revision">@stored.Revision</dd>
+            </dl>
+            <p class="small text-secondary mb-0" data-reset-effect>
+                After the reset, the channel has the name and the description of the code.@(stored.Enabled ? null : " The channel is disabled now, and it is enabled after the reset.")
+            </p>
+        </Details>
+    </DeleteDialog>
+}
+
+@code {
+    private RegistryChannel? _channel;
+    private string _displayName = string.Empty;
+    private string _description = string.Empty;
+    private bool _enabled;
+    private bool _busy;
+    private bool _saved;
+    private bool _confirmReset;
+    private Error? _loadError;
+    private Error? _formError;
+
+    /// <summary>The id of the channel, from the address.</summary>
+    [Parameter]
+    public string ChannelName { get; set; } = string.Empty;
+
+    private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
+
+    private IRegistryCommands Commands => Services.GetRequiredKeyedService<IRegistryCommands>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        (_saved, _formError, _confirmReset) = (false, null, false);
+        await ReadAsync();
+    }
+
+    /// <summary>Reads the channel, and fills the fields with its stored values, so an empty field is a value of the code.</summary>
+    private async Task ReadAsync()
+    {
+        _loadError = null;
+        var channels = await Queries.GetChannelsAsync(CancellationToken.None);
+        if (channels.IsError)
+        {
+            (_channel, _loadError) = (null, channels.Error);
+            return;
+        }
+
+        _channel = channels.Value.FirstOrDefault(channel => string.Equals(channel.Id.Name, ChannelName, StringComparison.Ordinal));
+        if (_channel is null)
+        {
+            _loadError = new Error(Errors.NotFound, $"The channel {ChannelName} is not registered.");
+            return;
+        }
+
+        (_displayName, _description, _enabled) = (_channel.Entry?.DisplayName ?? string.Empty, _channel.Entry?.Description ?? string.Empty, _channel.Enabled);
+    }
+
+    /// <summary>Saves the fields with the revision of the last read. A conflict reads the stored values again.</summary>
+    private async Task SaveAsync()
+    {
+        if (_channel is not { } channel)
+        {
+            return;
+        }
+
+        (_busy, _saved, _formError) = (true, false, null);
+        var entry = new ChannelEntry(
+            channel.Id, RegistryTexts.StoredValueOf(_displayName), RegistryTexts.StoredValueOf(_description), _enabled, channel.Revision, default);
+        var saved = await Commands.SaveChannelAsync(entry, CancellationToken.None);
+        _formError = saved.Error;
+        if (saved.IsSuccess || saved.Error?.Type == Errors.Conflict)
+        {
+            await ReadAsync();
+        }
+
+        (_saved, _busy) = (saved.IsSuccess, false);
+    }
+
+    /// <summary>Deletes the stored entry, and reads the channel again, so the page shows the values of the code.</summary>
+    private async Task ResetAsync()
+    {
+        _confirmReset = false;
+        if (_channel is not { } channel)
+        {
+            return;
+        }
+
+        (_busy, _saved) = (true, false);
+        _formError = await Commands.ResetChannelAsync(channel.Id, CancellationToken.None);
+        if (_formError is null)
+        {
+            await ReadAsync();
+        }
+
+        _busy = false;
+    }
+
+    private List<string> PendingChanges(RegistryChannel channel)
+    {
+        List<string> changes = [];
+        if (RegistryTexts.StoredValueOf(_displayName) != channel.Entry?.DisplayName)
+        {
+            changes.Add("Display name");
+        }
+
+        if (RegistryTexts.StoredValueOf(_description) != channel.Entry?.Description)
+        {
+            changes.Add("Description");
+        }
+
+        if (_enabled != channel.Enabled)
+        {
+            changes.Add("Enabled");
+        }
+
+        return changes;
+    }
+}

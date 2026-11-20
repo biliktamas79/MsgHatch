@@ -1,7 +1,7 @@
 @attribute [Route(RegistryAdminRoutes.ChannelTemplate)]
 @inject IServiceProvider Services
 @inject TimeProvider Time
-@* The read-only view of one channel: its values, its state with its history (D279), and the message types that register it, each with its state on the channel (D272). *@
+@* The view of one channel: its values, its state with its history (D279), the message types that register it, each with its state on the channel (D272), and Edit as its main action (D287). *@
 
 <AdminEditPage>
     <Header>
@@ -70,7 +70,8 @@
             <End>
                 @if (_channel is not null)
                 {
-                    <button type="button" class="btn btn-primary" data-action="history" @onclick="() => _historyOpen = true">History</button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="history" @onclick="() => _historyOpen = true">History</button>
+                    <a class="btn btn-primary" data-action="edit" href="@RegistryAdminRoutes.ChannelEdit(_channel.Id).TrimStart('/')">Edit</a>
                 }
             </End>
         </AdminActions>

@@ -6,9 +6,20 @@ using MsgHatch.Domain.Routing;
 
 namespace MsgHatch.AdminUI;
 
-/// <summary>The texts of the registry pages (D272, D273, D279, D283).</summary>
+/// <summary>The texts of the registry pages (D272, D273, D279, D283, D287).</summary>
 internal static class RegistryTexts
 {
+    /// <summary>The help text under the enabled flag of an edit page (D287).</summary>
+    public const string ChangeHelp =
+        "A change applies to the next events. The outbox still sends the messages that it holds. "
+        + "Another process applies the change within its refresh interval.";
+
+    /// <summary>The placeholder of a text field with a stored value (D287).</summary>
+    public const string CodeValuePlaceholder = "An empty field gives the value of the code.";
+
+    /// <summary>The text of a successful save on an edit page (D287).</summary>
+    public const string SavedText = "Saved.";
+
     private static readonly ChannelFeatures[] _features =
         [ChannelFeatures.Languages, ChannelFeatures.RichText, ChannelFeatures.RawData, ChannelFeatures.GroupDelivery];
 
@@ -53,6 +64,19 @@ internal static class RegistryTexts
 
     /// <summary>Gives the Bootstrap class of the alert of a check: <c>alert-success</c> with no error, else <c>alert-warning</c>.</summary>
     public static string CheckClassOf(ChannelCheck check) => check.Healthy ? "alert-success" : "alert-warning";
+
+    /// <summary>
+    /// Gives the placeholder of a text field of an edit page (D287): with no stored value, the value of the query, which is
+    /// then the value of the code, and with a stored value, what an empty field gives.
+    /// </summary>
+    public static string PlaceholderOf(string? stored, string? valueOfTheQuery) =>
+        stored is null ? valueOfTheQuery ?? string.Empty : CodeValuePlaceholder;
+
+    /// <summary>Gives the value of a text field to save: null for an empty field, which is the value of the code (D287).</summary>
+    public static string? StoredValueOf(string text) => string.IsNullOrWhiteSpace(text) ? null : text;
+
+    /// <summary>Gives a stored text of a reset question, or "Value of the code" for no stored text (D287).</summary>
+    public static string StoredTextOf(string? stored) => stored ?? "Value of the code";
 
     /// <summary>Gives a UTC time to the minute, for example "2026-11-18 13:32 UTC".</summary>
     public static string TimeOf(DateTime utc) => utc.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);

@@ -1,0 +1,64 @@
+@* The fields of the stored settings of a channel or a message type (D287): the display name, the description, and the enabled flag with the help text of a change. More fields of the page go into the child content. *@
+<div class="row g-3" data-form="registry-entry">
+    <div class="col-md-6">
+        <label class="form-label" for="msghatch-entry-name">Display name</label>
+        <input id="msghatch-entry-name" class="form-control" data-field="display-name" maxlength="200" disabled="@Disabled"
+               placeholder="@DisplayNamePlaceholder" @bind:get="DisplayName" @bind:set="DisplayNameChanged.InvokeAsync" />
+    </div>
+    <div class="col-12">
+        <label class="form-label" for="msghatch-entry-description">Description</label>
+        <textarea id="msghatch-entry-description" class="form-control" data-field="description" rows="3" maxlength="2000" disabled="@Disabled"
+                  placeholder="@DescriptionPlaceholder" @bind:get="Description" @bind:set="DescriptionChanged.InvokeAsync"></textarea>
+    </div>
+    <div class="col-12">
+        <div class="form-check">
+            <input id="msghatch-entry-enabled" class="form-check-input" type="checkbox" data-field="enabled" disabled="@Disabled"
+                   @bind:get="Enabled" @bind:set="EnabledChanged.InvokeAsync" />
+            <label class="form-check-label" for="msghatch-entry-enabled">Enabled</label>
+        </div>
+        <div class="form-text" data-field="enabled-help">@RegistryTexts.ChangeHelp</div>
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>The text of the display name field. An empty field saves null, which is the value of the code.</summary>
+    [Parameter]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Runs when the user changes the display name.</summary>
+    [Parameter]
+    public EventCallback<string> DisplayNameChanged { get; set; }
+
+    /// <summary>The placeholder of the display name field: the value of the code, or what an empty field gives.</summary>
+    [Parameter]
+    public string? DisplayNamePlaceholder { get; set; }
+
+    /// <summary>The text of the description field. An empty field saves null, which is the value of the code.</summary>
+    [Parameter]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Runs when the user changes the description.</summary>
+    [Parameter]
+    public EventCallback<string> DescriptionChanged { get; set; }
+
+    /// <summary>The placeholder of the description field: the value of the code, or what an empty field gives.</summary>
+    [Parameter]
+    public string? DescriptionPlaceholder { get; set; }
+
+    /// <summary>The enabled flag.</summary>
+    [Parameter]
+    public bool Enabled { get; set; }
+
+    /// <summary>Runs when the user changes the enabled flag.</summary>
+    [Parameter]
+    public EventCallback<bool> EnabledChanged { get; set; }
+
+    /// <summary>True while the page saves or resets, so the user cannot change a field.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>More fields of the page, after the enabled flag.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

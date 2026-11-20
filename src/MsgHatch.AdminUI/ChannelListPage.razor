@@ -1,7 +1,7 @@
 @attribute [Route(RegistryAdminRoutes.Channels)]
 @inject IServiceProvider Services
 @inject TimeProvider Time
-@* The channels of the registry, with their features, their enabled flag, the number of their message types (D272), their state with its history (D279), and the channel check (D283). *@
+@* The channels of the registry, with their features, their enabled flag, the number of their message types (D272), their state with its history (D279), the channel check (D283), and the edit page (D287). *@
 
 <AdminListPage Title="Channels">
 @if (_check is { } check)
@@ -30,6 +30,7 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-action="history" @onclick="() => _historyChannel = channel">History</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-action="check" disabled="@_checking" @onclick="() => CheckAsync(channel.Id)">Check</button>
                 <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@RegistryAdminRoutes.Channel(channel.Id).TrimStart('/')">View</a>
+                <a class="btn btn-sm btn-outline-secondary" data-action="edit" href="@RegistryAdminRoutes.ChannelEdit(channel.Id).TrimStart('/')">Edit</a>
             </td>
         </tr>
     </Row>

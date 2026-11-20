@@ -13,8 +13,15 @@ public static class RegistryAdminRoutes
 
     internal const string ChannelTemplate = Channels + "/{ChannelName}";
 
+    internal const string ChannelEditTemplate = ChannelTemplate + "/edit";
+
     /// <summary>Gives the address of the view page of one channel.</summary>
     /// <param name="channel">The id of the channel.</param>
     /// <returns>For example <c>/msghatch/channels/Email</c>.</returns>
     public static string Channel(ChannelId channel) => $"{Channels}/{Uri.EscapeDataString(channel.Name)}";
+
+    /// <summary>Gives the address of the edit page of the stored settings of one channel (D287).</summary>
+    /// <param name="channel">The id of the channel.</param>
+    /// <returns>For example <c>/msghatch/channels/Email/edit</c>.</returns>
+    public static string ChannelEdit(ChannelId channel) => $"{Channel(channel)}/edit";
 }

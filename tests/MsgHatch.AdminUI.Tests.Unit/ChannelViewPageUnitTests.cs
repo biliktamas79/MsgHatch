@@ -34,15 +34,25 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     }
 
     [Fact]
-    public void ClickHistory_KnownChannel_IsTheMainActionOnTheRightAndOpensTheDialogOfTheChannel()
+    public void ClickHistory_KnownChannel_OpensTheDialogOfTheChannel()
     {
         var cut = RenderPage("Email");
-        var history = cut.Find("[data-actions-end] [data-action=history]");
 
-        history.Click();
+        cut.Find("[data-actions-end] [data-action=history]").Click();
 
-        Assert.Equal(("btn btn-primary", "History of Email"), (history.ClassName, cut.Find("[data-dialog] .modal-title").TextContent));
+        Assert.Equal("History of Email", cut.Find("[data-dialog] .modal-title").TextContent);
         Queries.Received(1).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Render_KnownChannel_HasEditAsTheMainActionOnTheRightAfterHistory()
+    {
+        var cut = RenderPage("Email");
+
+        var actions = cut.FindAll("[data-actions-end] > *");
+        Assert.Equal(
+            ("history edit", "btn btn-primary", RegistryAdminRoutes.ChannelEdit(Email).TrimStart('/')),
+            (string.Join(' ', actions.Select(static action => action.GetAttribute("data-action"))), actions[^1].ClassName, actions[^1].GetAttribute("href")));
     }
 
     [Fact]

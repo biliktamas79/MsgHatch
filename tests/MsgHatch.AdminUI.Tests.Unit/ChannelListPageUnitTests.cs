@@ -10,19 +10,19 @@ namespace MsgHatch.AdminUI.Tests.Unit;
 public sealed class ChannelListPageUnitTests : RegistryPageContext
 {
     [Fact]
-    public void Render_Channels_ShowsEachRowWithItsFeaturesItsEnabledFlagItsMessageTypeCountAndTheAddressOfView()
+    public void Render_Channels_ShowsEachRowWithItsFeaturesItsEnabledFlagItsMessageTypeCountAndTheAddressesOfViewAndEdit()
     {
         var cut = Render<ChannelListPage>();
 
         var rows = cut.FindAll("tr[data-row]");
         Assert.Equal(
-            ["Email", "Email channel", "LanguagesRichText", "Yes", "3", "Up", "No down state recorded", "History Check View"], rows[0].Children.Select(SpacedTextOf));
-        Assert.Equal(["Sms", "Text messages", "", "No", "1", "Up", "No down state recorded", "History Check View"], rows[1].Children.Select(SpacedTextOf));
-        Assert.Equal(["Fax", "Fax", "GroupDelivery", "Yes", "0", "Up", "No down state recorded", "History Check View"], rows[2].Children.Select(SpacedTextOf));
+            ["Email", "Email channel", "LanguagesRichText", "Yes", "3", "Up", "No down state recorded", "History Check View Edit"], rows[0].Children.Select(SpacedTextOf));
+        Assert.Equal(["Sms", "Text messages", "", "No", "1", "Up", "No down state recorded", "History Check View Edit"], rows[1].Children.Select(SpacedTextOf));
+        Assert.Equal(["Fax", "Fax", "GroupDelivery", "Yes", "0", "Up", "No down state recorded", "History Check View Edit"], rows[2].Children.Select(SpacedTextOf));
         Assert.Equal(
-            ("Channels", 2, RegistryAdminRoutes.Channel(Email).TrimStart('/')),
+            ("Channels", 2, RegistryAdminRoutes.Channel(Email).TrimStart('/'), RegistryAdminRoutes.ChannelEdit(Email).TrimStart('/')),
             (cut.Find("[data-list-header] h1").TextContent, rows[0].QuerySelectorAll("[data-feature].badge").Length,
-                rows[0].QuerySelector("[data-action=view]")?.GetAttribute("href")));
+                rows[0].QuerySelector("[data-action=view]")?.GetAttribute("href"), rows[0].QuerySelector("[data-action=edit]")?.GetAttribute("href")));
     }
 
     [Fact]

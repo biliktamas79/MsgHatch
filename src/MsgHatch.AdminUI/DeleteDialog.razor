@@ -1,22 +1,29 @@
-@* The question before a delete, with the details of the item (D239, D261, D262). A delete runs only after the user confirms it. *@
-<AdminDialog Open="Open" Title="Delete">
+@* The question before a delete or a reset, with the details of the item (D239, D261, D262, D287). The action runs only after the user confirms it. *@
+<AdminDialog Open="Open" Title="@Action">
     <ChildContent>
         <p>@Question</p>
         @if (Details is not null)
         {
             <div class="mb-3" data-delete-details>@Details</div>
         }
-        <p class="text-danger mb-0" data-delete-warning>The delete cannot be undone.</p>
+        <p class="text-danger mb-0" data-delete-warning>The @Action.ToLowerInvariant() cannot be undone.</p>
     </ChildContent>
     <Start>
         <button type="button" class="btn btn-outline-secondary" data-action="cancel-delete" @onclick="() => Cancelled.InvokeAsync()">Cancel</button>
     </Start>
     <End>
-        <button type="button" class="btn btn-danger" data-action="confirm-delete" @onclick="() => Confirmed.InvokeAsync()">Delete</button>
+        <button type="button" class="btn btn-danger" data-action="confirm-delete" @onclick="() => Confirmed.InvokeAsync()">@Action</button>
     </End>
 </AdminDialog>
 
 @code {
+    /// <summary>
+    /// The action that the dialog asks for, for example "Reset". It is the title, the text of the button, and the noun of the
+    /// warning, for example "The reset cannot be undone." (D287).
+    /// </summary>
+    [Parameter]
+    public string Action { get; set; } = "Delete";
+
     /// <summary>True when the dialog shows the question.</summary>
     [Parameter]
     public bool Open { get; set; }

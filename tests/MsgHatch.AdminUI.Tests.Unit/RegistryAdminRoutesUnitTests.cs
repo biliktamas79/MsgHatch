@@ -17,10 +17,17 @@ public sealed class RegistryAdminRoutesUnitTests
     }
 
     [Fact]
+    public void ChannelEdit_Id_GivesTheAddressOfTheEditPage()
+    {
+        Assert.Equal("/msghatch/channels/Email/edit", RegistryAdminRoutes.ChannelEdit(new ChannelId("Email")));
+    }
+
+    [Fact]
     public void Pages_RouteTemplates_AreTheAddressesOfTheRouteBuilders()
     {
         Assert.Equal([RegistryAdminRoutes.Channels], TemplatesOf<ChannelListPage>());
         Assert.Equal([RegistryAdminRoutes.Channels + "/{ChannelName}"], TemplatesOf<ChannelViewPage>());
+        Assert.Equal([RegistryAdminRoutes.Channels + "/{ChannelName}/edit"], TemplatesOf<ChannelEditPage>());
         Assert.Equal(["/msghatch/message-types"], TemplatesOf<MessageTypeListPage>());
     }
 

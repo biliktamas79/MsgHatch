@@ -114,6 +114,7 @@ public sealed class AdminUiApplicationUnitTests
     [InlineData("/msghatch/templates", "Templates")]
     [InlineData("/msghatch/channels", "Channels")]
     [InlineData("/msghatch/channels/Email", "Channels")]
+    [InlineData("/msghatch/channels/Email/edit", "Channels")]
     [InlineData("/msghatch/message-types", "Message types")]
     public async Task Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive(string path, string link)
     {
