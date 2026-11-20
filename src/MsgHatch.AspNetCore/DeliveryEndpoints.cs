@@ -14,11 +14,11 @@ namespace MsgHatch.AspNetCore;
 public static class DeliveryEndpoints
 {
     /// <summary>
-    /// Maps the overview and the actions of <see cref="IDeliveryManager"/>: the channels with their pause and resume,
-    /// the traffic, the pages of the inbox and the outbox, the detail of an outgoing message, the retry and the cancel
-    /// of the messages of a query, and the purge. Each route takes the optional query parameter <c>tenantId</c>, and
-    /// uses the manager of <see cref="TenantKey.For"/> that tenant, or of <see cref="TenantKey.None"/>. The pause,
-    /// resume, and purge routes act on all tenants, so a <c>tenantId</c> gives 400.
+    /// Maps the overview of <see cref="IDeliveryQueries"/> and the actions of <see cref="IDeliveryCommands"/> (D289): the
+    /// channels with their pause and resume, the traffic, the pages of the inbox and the outbox, the detail of an outgoing
+    /// message, the retry and the cancel of the messages of a query, and the purge. Each route takes the optional query
+    /// parameter <c>tenantId</c>, and uses the queries or the commands of <see cref="TenantKey.For"/> that tenant, or of
+    /// <see cref="TenantKey.None"/>. The pause, resume, and purge routes act on all tenants, so a <c>tenantId</c> gives 400.
     /// </summary>
     /// <param name="routes">The endpoint route builder, for example the web application.</param>
     /// <param name="prefix">The path of the route group.</param>
@@ -33,7 +33,7 @@ public static class DeliveryEndpoints
     }
 
     /// <summary>
-    /// Maps the content routes of <see cref="IDeliveryManager"/>: <c>GET {prefix}/inbox/{id}/content</c> gives the
+    /// Maps the content routes of <see cref="IDeliveryQueries"/>: <c>GET {prefix}/inbox/{id}/content</c> gives the
     /// received message with its event, and <c>GET {prefix}/outbox/{id}/content</c> the outgoing message with its
     /// envelope, written with <c>MsgHatchJson</c> (D109). Each route takes the optional query parameter <c>tenantId</c>.
     /// </summary>

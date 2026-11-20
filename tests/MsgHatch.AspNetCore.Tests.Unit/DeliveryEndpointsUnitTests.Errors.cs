@@ -12,30 +12,40 @@ namespace MsgHatch.AspNetCore.Tests.Unit;
 public sealed partial class DeliveryEndpointsUnitTests
 {
     [Fact]
-    public async Task GetChannels_TenantId_UsesTheManagerOfThatTenant()
+    public async Task GetChannels_TenantId_UsesTheQueriesOfThatTenant()
     {
         // Act
         await _host.Client.GetAsync(new Uri("/delivery/channels?tenantId=t2", UriKind.Relative), Ct);
 
         // Assert
-        Assert.Equal((1, 0), (_host.T2Manager.ReceivedCalls().Count(), _host.Manager.ReceivedCalls().Count()));
+        Assert.Equal((1, 0), (_host.T2Queries.ReceivedCalls().Count(), _host.Calls.Count()));
     }
 
     [Fact]
-    public async Task GetChannels_NoTenantId_UsesTheManagerOfNoTenant()
+    public async Task GetChannels_NoTenantId_UsesTheQueriesOfNoTenant()
     {
         // Act
         await _host.Client.GetAsync(new Uri("/delivery/channels", UriKind.Relative), Ct);
 
         // Assert
-        Assert.Equal((1, 0), (_host.Manager.ReceivedCalls().Count(), _host.T2Manager.ReceivedCalls().Count()));
+        Assert.Equal((1, 0), (_host.Queries.ReceivedCalls().Count(), _host.T2Calls.Count()));
+    }
+
+    [Fact]
+    public async Task RetryOutgoing_TenantId_UsesTheCommandsOfThatTenant()
+    {
+        // Act
+        await _host.Client.SendAsync(RequestOf("POST", "/delivery/outbox/retry?tenantId=t2", """{"channel":"Test"}"""), Ct);
+
+        // Assert
+        Assert.Equal((1, 0), (_host.T2Commands.ReceivedCalls().Count(), _host.Calls.Count()));
     }
 
     [Theory]
     [InlineData("/delivery/channels/Test/pause", "{}")]
     [InlineData("/delivery/channels/Test/resume", null)]
     [InlineData("/delivery/purge", """{"finishedBefore":"2030-01-01T00:00:00Z","maxCount":10}""")]
-    public async Task GlobalRoute_TenantId_Gives400AndCallsNoManager(string path, string? body)
+    public async Task GlobalRoute_TenantId_Gives400AndCallsNoService(string path, string? body)
     {
         // Act
         var response = await _host.Client.SendAsync(RequestOf("POST", $"{path}?tenantId=t2", body), Ct);
@@ -43,7 +53,7 @@ public sealed partial class DeliveryEndpointsUnitTests
         // Assert
         Assert.Equal(
             (HttpStatusCode.BadRequest, 0, 0),
-            (response.StatusCode, _host.Manager.ReceivedCalls().Count(), _host.T2Manager.ReceivedCalls().Count()));
+            (response.StatusCode, _host.Calls.Count(), _host.T2Calls.Count()));
     }
 
     public static TheoryData<string, HttpStatusCode> ErrorRows => new()
@@ -55,7 +65,7 @@ public sealed partial class DeliveryEndpointsUnitTests
 
     [Theory]
     [MemberData(nameof(ErrorRows))]
-    public async Task ManagerError_Type_GivesItsStatusCodeWithAProblemDetailsOfTheErrorName(string errorName, HttpStatusCode expected)
+    public async Task QueryError_Type_GivesItsStatusCodeWithAProblemDetailsOfTheErrorName(string errorName, HttpStatusCode expected)
     {
         // Arrange
         var type = errorName switch
@@ -64,7 +74,7 @@ public sealed partial class DeliveryEndpointsUnitTests
             nameof(Errors.NotFound) => Errors.NotFound,
             _ => Errors.Unavailable,
         };
-        _host.Manager.GetOutgoingMessageAsync(default, Ct)
+        _host.Queries.GetOutgoingMessageAsync(default, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<OutgoingMessageDetail>.ForError(new Error(type, "text"))));
 
         // Act
@@ -86,17 +96,17 @@ public sealed partial class DeliveryEndpointsUnitTests
     [InlineData("/delivery/channels?tenantId=")]
     [InlineData("/delivery/outbox?channel=bad-name")]
     [InlineData("/delivery/inbox?messageType=1x")]
-    public async Task Query_InvalidValue_Gives400AndCallsNoManager(string path)
+    public async Task Query_InvalidValue_Gives400AndCallsNoService(string path)
     {
         // Act
         var response = await _host.Client.GetAsync(new Uri(path, UriKind.Relative), Ct);
 
         // Assert
-        Assert.Equal((HttpStatusCode.BadRequest, 0), (response.StatusCode, _host.Manager.ReceivedCalls().Count()));
+        Assert.Equal((HttpStatusCode.BadRequest, 0), (response.StatusCode, _host.Calls.Count()));
     }
 
     [Fact]
-    public async Task Pause_BodyThatIsNotJson_Gives415AndCallsNoManager()
+    public async Task Pause_BodyThatIsNotJson_Gives415AndCallsNoService()
     {
         // Arrange
         var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/delivery/channels/Test/pause", UriKind.Relative))
@@ -108,17 +118,17 @@ public sealed partial class DeliveryEndpointsUnitTests
         var response = await _host.Client.SendAsync(request, Ct);
 
         // Assert
-        Assert.Equal((HttpStatusCode.UnsupportedMediaType, 0), (response.StatusCode, _host.Manager.ReceivedCalls().Count()));
+        Assert.Equal((HttpStatusCode.UnsupportedMediaType, 0), (response.StatusCode, _host.Calls.Count()));
     }
 
     [Fact]
-    public async Task Purge_BodyWithNoMaxCount_Gives400AndCallsNoManager()
+    public async Task Purge_BodyWithNoMaxCount_Gives400AndCallsNoService()
     {
         // Act
         var response = await _host.Client.SendAsync(RequestOf("POST", "/delivery/purge", """{"finishedBefore":"2030-01-01T00:00:00Z"}"""), Ct);
 
         // Assert
-        Assert.Equal((HttpStatusCode.BadRequest, 0), (response.StatusCode, _host.Manager.ReceivedCalls().Count()));
+        Assert.Equal((HttpStatusCode.BadRequest, 0), (response.StatusCode, _host.Calls.Count()));
     }
 
     [Fact]
@@ -131,7 +141,7 @@ public sealed partial class DeliveryEndpointsUnitTests
         var response = await host.Client.GetAsync(new Uri($"/delivery/outbox/{_id}/content", UriKind.Relative), Ct);
 
         // Assert
-        Assert.Equal((HttpStatusCode.NotFound, 0), (response.StatusCode, host.Manager.ReceivedCalls().Count()));
+        Assert.Equal((HttpStatusCode.NotFound, 0), (response.StatusCode, host.Calls.Count()));
     }
 
     [Fact]
@@ -144,7 +154,7 @@ public sealed partial class DeliveryEndpointsUnitTests
         var response = await host.Client.GetAsync(new Uri("/delivery/channels", UriKind.Relative), Ct);
 
         // Assert
-        Assert.Equal((HttpStatusCode.NotFound, 0), (response.StatusCode, host.Manager.ReceivedCalls().Count()));
+        Assert.Equal((HttpStatusCode.NotFound, 0), (response.StatusCode, host.Calls.Count()));
     }
 
     [Theory]
@@ -155,9 +165,9 @@ public sealed partial class DeliveryEndpointsUnitTests
     public async Task Group_PolicyOfTheOtherGroup_DoesNotApply(string role, string path, HttpStatusCode expected)
     {
         // Arrange
-        _host.Manager.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelStatus>>.ForValue([])));
-        _host.Manager.GetOutgoingContentAsync(default, Ct)
-            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<Domain.Delivery.OutgoingMessage>.ForValue(Domain.Tests.Unit.TestTypes.TestMessages.AnOutgoingMessage())));
+        _host.Queries.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelStatus>>.ForValue([])));
+        _host.Queries.GetOutgoingContentAsync(default, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<MessageContent>.ForValue(new MessageContent(Guid.Empty, "{}"))));
         using var client = _host.ClientWithRoles(role);
 
         // Act

@@ -117,7 +117,11 @@ public sealed class NotificationHistoryUnitTests : IAsyncLifetime
         await AcceptAsync(new UserLogin("north", 1, Now));
         await AcceptAsync(new ProjectCreated("north", 7, "Bridge", OwnerUserId: 1), after: TimeSpan.FromMinutes(1));
         var cancelled = await SignalRIdAsync(nameof(ProjectCreated), User(_user1));
-        Assert.False((await Manager().CancelOutgoingAsync(new OutboxQuery(Ids: [cancelled]), Ct)).IsError);
+        await using (var scope = _host.Provider.CreateAsyncScope())
+        {
+            var commands = scope.ServiceProvider.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.For(_north));
+            Assert.False((await commands.CancelOutgoingAsync(new OutboxQuery(Ids: [cancelled]), Ct)).IsError);
+        }
 
         // Act
         var missed = await _sut.GetMissedAsync(_north, _user1, _acme, lastMessageId: null, Ct);
@@ -164,12 +168,11 @@ public sealed class NotificationHistoryUnitTests : IAsyncLifetime
 
     private async Task<Guid> SignalRIdAsync(string messageType, DeliveryTarget target)
     {
-        var page = await Manager().GetOutgoingMessagesAsync(
+        await using var scope = _host.Provider.CreateAsyncScope();
+        var page = await scope.ServiceProvider.GetRequiredKeyedService<IDeliveryQueries>(TenantKey.For(_north)).GetOutgoingMessagesAsync(
             new OutboxQuery(Type: new MessageType(messageType), Channel: SignalRChannel.Id, Target: target), Ct);
         return Assert.Single(page.Value.Items).Delivery.Id;
     }
-
-    private IDeliveryManager Manager() => _host.Provider.GetRequiredKeyedService<IDeliveryManager>(TenantKey.For(_north));
 
     private static DeliveryTarget User(UserId user) => new(DeliveryTargetKind.User, user.Value);
 

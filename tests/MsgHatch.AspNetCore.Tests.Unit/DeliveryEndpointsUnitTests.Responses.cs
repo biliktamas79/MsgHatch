@@ -17,7 +17,7 @@ public sealed partial class DeliveryEndpointsUnitTests
     {
         // Arrange
         var pause = new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, _time, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "ticket 42");
-        _host.Manager.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelStatus>>.ForValue(
+        _host.Queries.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelStatus>>.ForValue(
             [new ChannelStatus(TestChannel.Descriptor, pause, Pending: 2, PendingTest: 1, _time)])));
 
         // Act
@@ -41,7 +41,7 @@ public sealed partial class DeliveryEndpointsUnitTests
         var report = new TrafficReport(
             [new MessageCount(type, null, DeliveryStatus.Failed, Test: true, 3, null)],
             [new MessageCount(type, TestChannel.Id, DeliveryStatus.Pending, Test: false, 5, _time)]);
-        _host.Manager.GetTrafficAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<TrafficReport>.ForValue(report)));
+        _host.Queries.GetTrafficAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<TrafficReport>.ForValue(report)));
 
         // Act
         var text = await _host.Client.GetStringAsync(new Uri("/delivery/traffic", UriKind.Relative), Ct);
@@ -59,7 +59,7 @@ public sealed partial class DeliveryEndpointsUnitTests
     {
         // Arrange
         var message = TestMessages.AReceivedMessage(new TestEvent("event text"), DeliveryHost.T2, flags: MessageFlags.Test);
-        _host.T2Manager.GetReceivedMessagesAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<MessagePage<ReceivedMessageSummary>>.ForValue(
+        _host.T2Queries.GetReceivedMessagesAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<MessagePage<ReceivedMessageSummary>>.ForValue(
             new MessagePage<ReceivedMessageSummary>([ReceivedMessageSummary.Of(message)], Next: null))));
 
         // Act
@@ -79,7 +79,7 @@ public sealed partial class DeliveryEndpointsUnitTests
     {
         // Arrange
         var message = TestMessages.AnOutgoingMessage(id: _id);
-        _host.Manager.GetOutgoingMessageAsync(_id, Ct).ReturnsForAnyArgs(ValueTask.FromResult(
+        _host.Queries.GetOutgoingMessageAsync(_id, Ct).ReturnsForAnyArgs(ValueTask.FromResult(
             ErrorOr<OutgoingMessageDetail>.ForValue(new OutgoingMessageDetail(OutgoingMessageSummary.Of(message), Trace: null, []))));
 
         // Act

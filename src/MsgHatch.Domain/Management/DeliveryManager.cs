@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
@@ -7,15 +8,16 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
+using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Time;
 
 namespace MsgHatch.Domain.Management;
 
 /// <summary>
-/// The delivery manager of one tenant key (section 4.19): the message members use the tenant stores of the key, and
-/// the channel members, the test data delete, and the purge use the dispatch stores of all tenants. The inbox store is
-/// optional.
+/// The in-process delivery queries and commands of one tenant key (section 4.19, D289): the message members use the tenant
+/// stores of the key, and the channel members, the test data delete, and the purge use the dispatch stores of all tenants.
+/// The inbox store is optional. The content and the route trace are JSON text of the content type registry (D290).
 /// </summary>
 // ponytail: a bulk action runs inside the call, a background job if a UI needs very large actions
 internal sealed class DeliveryManager(
@@ -27,7 +29,8 @@ internal sealed class DeliveryManager(
     IMessageRegistry registry,
     IDispatchSignal signal,
     IOptionsMonitor<RetryOptions> retryOptions,
-    TimeProvider time) : IDeliveryManager
+    MsgHatchJson json,
+    TimeProvider time) : IDeliveryQueries, IDeliveryCommands
 {
     private const int _bulkPageLimit = 500;
 
@@ -41,6 +44,7 @@ internal sealed class DeliveryManager(
             tenantServices.GetRequiredService<IMessageRegistry>(),
             tenantServices.GetRequiredService<IDispatchSignal>(),
             tenantServices.GetRequiredService<IOptionsMonitor<RetryOptions>>(),
+            tenantServices.GetRequiredService<MsgHatchJson>(),
             tenantServices.GetRequiredService<TimeProvider>());
 
     public async ValueTask<ErrorOr<IReadOnlyList<ChannelStatus>>> GetChannelsAsync(CancellationToken ct)
@@ -117,12 +121,21 @@ internal sealed class DeliveryManager(
     public async ValueTask<ErrorOr<OutgoingMessageDetail>> GetOutgoingMessageAsync(Guid id, CancellationToken ct)
     {
         var history = await outbox.GetAsync(id, ct);
-        return history.IsError ? history.Error!
-            : history.Value is { } found ? new OutgoingMessageDetail(OutgoingMessageSummary.Of(found.Message), found.Message.Trace, found.Tries)
-            : NotFound(id);
+        if (history.IsError)
+        {
+            return history.Error!;
+        }
+
+        if (history.Value is not { } found)
+        {
+            return NotFound(id);
+        }
+
+        var trace = TraceTextOf(found.Message.Trace);
+        return trace.IsError ? trace.Error! : new OutgoingMessageDetail(OutgoingMessageSummary.Of(found.Message), trace.Value, found.Tries);
     }
 
-    public async ValueTask<ErrorOr<ReceivedMessage>> GetReceivedContentAsync(Guid id, CancellationToken ct)
+    public async ValueTask<ErrorOr<MessageContent>> GetReceivedContentAsync(Guid id, CancellationToken ct)
     {
         if (inbox is null)
         {
@@ -130,13 +143,13 @@ internal sealed class DeliveryManager(
         }
 
         var message = await inbox.GetAsync(id, ct);
-        return message.IsError ? message.Error! : message.Value is { } found ? found : NotFound(id);
+        return message.IsError ? message.Error! : message.Value is { } found ? ContentOf(id, json.Serialize(found)) : NotFound(id);
     }
 
-    public async ValueTask<ErrorOr<OutgoingMessage>> GetOutgoingContentAsync(Guid id, CancellationToken ct)
+    public async ValueTask<ErrorOr<MessageContent>> GetOutgoingContentAsync(Guid id, CancellationToken ct)
     {
         var history = await outbox.GetAsync(id, ct);
-        return history.IsError ? history.Error! : history.Value is { } found ? found.Message : NotFound(id);
+        return history.IsError ? history.Error! : history.Value is { } found ? ContentOf(id, json.Serialize(found.Message)) : NotFound(id);
     }
 
     public async ValueTask<ErrorOr<DeliveryActionResult>> RetryReceivedAsync(InboxQuery query, CancellationToken ct)
@@ -306,6 +319,12 @@ internal sealed class DeliveryManager(
             pending.Where(static count => count.Test).Sum(static count => count.Count),
             pending.Min(static count => count.OldestDueAtUtc));
     }
+
+    private ErrorOr<string?> TraceTextOf(RouteTrace? trace) =>
+        trace is null ? ErrorOr<string?>.ForValue(null) : json.SerializeTrace(trace).ThenIfSuccess(static text => ErrorOr<string?>.ForValue(text));
+
+    private static ErrorOr<MessageContent> ContentOf(Guid id, ErrorOr<byte[]> utf8Json) =>
+        utf8Json.IsError ? utf8Json.Error : new MessageContent(id, Encoding.UTF8.GetString(utf8Json.Value));
 
     private static Guid[] IdsOf(MessagePage<ReceivedMessageSummary> page) => [.. page.Items.Select(static summary => summary.Delivery.Id)];
 

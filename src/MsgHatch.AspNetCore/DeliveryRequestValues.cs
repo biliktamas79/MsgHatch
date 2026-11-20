@@ -10,9 +10,10 @@ using MsgHatch.Domain.Routing;
 namespace MsgHatch.AspNetCore;
 
 /// <summary>
-/// Reads the queries and the bodies of the delivery endpoints into the queries of <see cref="IDeliveryManager"/>
-/// (section 4.19). Each value from outside is checked: an invalid value gives <see cref="Errors.ValidationFailed"/>, and
-/// so 400. A cursor is the text <c>{CreatedAtUtc}_{Id}</c>, with the time in the format of D57.
+/// Reads the queries and the bodies of the delivery endpoints into the queries of <see cref="IDeliveryQueries"/> and
+/// <see cref="IDeliveryCommands"/> (section 4.19). Each value from outside is checked: an invalid value gives
+/// <see cref="Errors.ValidationFailed"/>, and so 400. A cursor is the text <c>{CreatedAtUtc}_{Id}</c>, with the time in the
+/// format of D57.
 /// </summary>
 internal static class DeliveryRequestValues
 {

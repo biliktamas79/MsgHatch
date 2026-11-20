@@ -14,7 +14,7 @@ using NSubstitute;
 
 namespace MsgHatch.AspNetCore.Tests.Unit;
 
-/// <summary>The delivery endpoints (section 4.19) on a <c>TestServer</c> with an <see cref="IDeliveryManager"/> substitute.</summary>
+/// <summary>The delivery endpoints (section 4.19) on a <c>TestServer</c> with substitutes of <see cref="IDeliveryQueries"/> and <see cref="IDeliveryCommands"/>.</summary>
 public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
 {
     private static readonly Guid _id = new("7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31");
@@ -29,31 +29,31 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
 
     public static TheoryData<string, string, string?, string> RouteRows => new()
     {
-        { "GET", "/delivery/channels", null, nameof(IDeliveryManager.GetChannelsAsync) },
-        { "POST", "/delivery/channels/Test/pause", "{}", nameof(IDeliveryManager.PauseChannelAsync) },
-        { "POST", "/delivery/channels/Test/resume", null, nameof(IDeliveryManager.ResumeChannelAsync) },
-        { "GET", "/delivery/traffic", null, nameof(IDeliveryManager.GetTrafficAsync) },
-        { "GET", "/delivery/inbox", null, nameof(IDeliveryManager.GetReceivedMessagesAsync) },
-        { "POST", "/delivery/inbox/retry", """{"status":"Failed"}""", nameof(IDeliveryManager.RetryReceivedAsync) },
-        { "POST", "/delivery/inbox/cancel", """{"status":"Pending"}""", nameof(IDeliveryManager.CancelReceivedAsync) },
-        { "GET", "/delivery/outbox", null, nameof(IDeliveryManager.GetOutgoingMessagesAsync) },
-        { "GET", "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31", null, nameof(IDeliveryManager.GetOutgoingMessageAsync) },
-        { "POST", "/delivery/outbox/retry", """{"channel":"Test"}""", nameof(IDeliveryManager.RetryOutgoingAsync) },
-        { "POST", "/delivery/outbox/cancel", """{"channel":"Test"}""", nameof(IDeliveryManager.CancelOutgoingAsync) },
-        { "POST", "/delivery/purge", """{"finishedBefore":"2030-01-01T00:00:00Z","maxCount":10}""", nameof(IDeliveryManager.PurgeAsync) },
-        { "GET", "/delivery/inbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", null, nameof(IDeliveryManager.GetReceivedContentAsync) },
-        { "GET", "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", null, nameof(IDeliveryManager.GetOutgoingContentAsync) },
+        { "GET", "/delivery/channels", null, nameof(IDeliveryQueries.GetChannelsAsync) },
+        { "POST", "/delivery/channels/Test/pause", "{}", nameof(IDeliveryCommands.PauseChannelAsync) },
+        { "POST", "/delivery/channels/Test/resume", null, nameof(IDeliveryCommands.ResumeChannelAsync) },
+        { "GET", "/delivery/traffic", null, nameof(IDeliveryQueries.GetTrafficAsync) },
+        { "GET", "/delivery/inbox", null, nameof(IDeliveryQueries.GetReceivedMessagesAsync) },
+        { "POST", "/delivery/inbox/retry", """{"status":"Failed"}""", nameof(IDeliveryCommands.RetryReceivedAsync) },
+        { "POST", "/delivery/inbox/cancel", """{"status":"Pending"}""", nameof(IDeliveryCommands.CancelReceivedAsync) },
+        { "GET", "/delivery/outbox", null, nameof(IDeliveryQueries.GetOutgoingMessagesAsync) },
+        { "GET", "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31", null, nameof(IDeliveryQueries.GetOutgoingMessageAsync) },
+        { "POST", "/delivery/outbox/retry", """{"channel":"Test"}""", nameof(IDeliveryCommands.RetryOutgoingAsync) },
+        { "POST", "/delivery/outbox/cancel", """{"channel":"Test"}""", nameof(IDeliveryCommands.CancelOutgoingAsync) },
+        { "POST", "/delivery/purge", """{"finishedBefore":"2030-01-01T00:00:00Z","maxCount":10}""", nameof(IDeliveryCommands.PurgeAsync) },
+        { "GET", "/delivery/inbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", null, nameof(IDeliveryQueries.GetReceivedContentAsync) },
+        { "GET", "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", null, nameof(IDeliveryQueries.GetOutgoingContentAsync) },
     };
 
     [Theory]
     [MemberData(nameof(RouteRows))]
-    public async Task Route_Request_CallsTheMatchingManagerMethodOneTime(string method, string path, string? body, string expected)
+    public async Task Route_Request_CallsTheMatchingMethodOneTime(string method, string path, string? body, string expected)
     {
         // Act
         await _host.Client.SendAsync(RequestOf(method, path, body), Ct);
 
         // Assert
-        Assert.Equal([expected], _host.Manager.ReceivedCalls().Select(static call => call.GetMethodInfo().Name));
+        Assert.Equal([expected], _host.Calls.Select(static call => call.GetMethodInfo().Name));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         await _host.Client.GetAsync(new Uri(path, UriKind.Relative), Ct);
 
         // Assert
-        await _host.Manager.Received(1).GetOutgoingMessagesAsync(
+        await _host.Queries.Received(1).GetOutgoingMessagesAsync(
             Arg.Is<OutboxQuery>(query => SameQuery(query, expected, ids)), Arg.Any<CancellationToken>());
     }
 
@@ -93,7 +93,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         await _host.Client.GetAsync(new Uri(path, UriKind.Relative), Ct);
 
         // Assert
-        await _host.Manager.Received(1).GetReceivedMessagesAsync(
+        await _host.Queries.Received(1).GetReceivedMessagesAsync(
             Arg.Is<InboxQuery>(query => SameQuery(query, expected, new[] { id })), Arg.Any<CancellationToken>());
     }
 
@@ -105,7 +105,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
             new Uri("/delivery/traffic?createdFrom=2030-01-01T00:00:00Z&createdTo=2030-01-02T00:00:00Z&status=Cancelled&includeTest=true", UriKind.Relative), Ct);
 
         // Assert
-        await _host.Manager.Received(1).GetTrafficAsync(
+        await _host.Queries.Received(1).GetTrafficAsync(
             new TrafficQuery(_time.AddHours(-10), _time.AddHours(14), DeliveryStatus.Cancelled, IncludeTest: true), Arg.Any<CancellationToken>());
     }
 
@@ -113,21 +113,21 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     public async Task Pause_Note_CallsThePauseWithTheChannelAndTheNote()
     {
         // Arrange
-        _host.Manager.PauseChannelAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(null));
+        _host.Commands.PauseChannelAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(null));
 
         // Act
         var response = await _host.Client.SendAsync(RequestOf("POST", "/delivery/channels/Email/pause", """{"note":"SES outage, ticket 42"}"""), Ct);
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        await _host.Manager.Received(1).PauseChannelAsync(new ChannelId("Email"), "SES outage, ticket 42", Arg.Any<CancellationToken>());
+        await _host.Commands.Received(1).PauseChannelAsync(new ChannelId("Email"), "SES outage, ticket 42", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Purge_Body_CallsThePurgeAndGivesBothCounts()
     {
         // Arrange
-        _host.Manager.PurgeAsync(default, default, Ct)
+        _host.Commands.PurgeAsync(default, default, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<DeletedMessages>.ForValue(new DeletedMessages(3, 4))));
 
         // Act
@@ -135,7 +135,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
             RequestOf("POST", "/delivery/purge", """{"finishedBefore":"2030-01-01T10:00:00Z","maxCount":100}"""), Ct);
 
         // Assert
-        await _host.Manager.Received(1).PurgeAsync(_time, 100, Arg.Any<CancellationToken>());
+        await _host.Commands.Received(1).PurgeAsync(_time, 100, Arg.Any<CancellationToken>());
         Assert.Equal("""{"inboxMessages":3,"outboxMessages":4}""", await response.Content.ReadAsStringAsync(Ct));
     }
 
@@ -143,7 +143,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     public async Task RetryOutgoing_Body_CallsTheRetryWithTheFiltersAndGivesTheCounts()
     {
         // Arrange
-        _host.Manager.RetryOutgoingAsync(default!, Ct)
+        _host.Commands.RetryOutgoingAsync(default!, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<DeliveryActionResult>.ForValue(new DeliveryActionResult(5, 4))));
         var body = """{"status":"Failed","channel":"Email","targetKind":"User","targetId":"1","createdFrom":"2030-01-01T00:00:00Z","includeTest":true}""";
 
@@ -151,7 +151,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         var response = await _host.Client.SendAsync(RequestOf("POST", "/delivery/outbox/retry", body), Ct);
 
         // Assert
-        await _host.Manager.Received(1).RetryOutgoingAsync(
+        await _host.Commands.Received(1).RetryOutgoingAsync(
             new OutboxQuery(
                 Status: DeliveryStatus.Failed, Channel: new ChannelId("Email"), Target: new DeliveryTarget(DeliveryTargetKind.User, "1"),
                 CreatedFromUtc: _time.AddHours(-10), IncludeTest: true),
@@ -165,7 +165,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         // Arrange
         var cursor = new MessageCursor(_time.AddTicks(1), _id);
         var summary = OutgoingMessageSummary.Of(TestMessages.AnOutgoingMessage(id: _id, flags: MessageFlags.Test));
-        _host.Manager.GetOutgoingMessagesAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(
+        _host.Queries.GetOutgoingMessagesAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(
             ErrorOr<MessagePage<OutgoingMessageSummary>>.ForValue(new MessagePage<OutgoingMessageSummary>([summary], cursor))));
         using var first = JsonDocument.Parse(await _host.Client.GetStringAsync(new Uri("/delivery/outbox?limit=1", UriKind.Relative), Ct));
         var next = first.RootElement.GetProperty("next").GetString();
@@ -178,7 +178,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
             ("2030-01-01T10:00:00.0000001Z_7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31", _id.ToString(), "Test", "User"),
             (next, ItemOf(first).GetProperty("delivery").GetProperty("id").GetString(), ItemOf(first).GetProperty("flags").GetString(),
                 ItemOf(first).GetProperty("target").GetProperty("kind").GetString()));
-        await _host.Manager.Received(1).GetOutgoingMessagesAsync(Arg.Is<OutboxQuery>(query => query.After == cursor), Arg.Any<CancellationToken>());
+        await _host.Queries.Received(1).GetOutgoingMessagesAsync(Arg.Is<OutboxQuery>(query => query.After == cursor), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -186,8 +186,10 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     {
         // Arrange
         var message = TestMessages.AnOutgoingMessage(new TestEnvelope("client1@example.com"), id: _id, trace: new TestTrace("rule 7"));
-        var detail = new OutgoingMessageDetail(OutgoingMessageSummary.Of(message), message.Trace, [PublishTry.Cancel(_id, 1, _time)]);
-        _host.Manager.GetOutgoingMessageAsync(_id, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<OutgoingMessageDetail>.ForValue(detail)));
+        var detail = new OutgoingMessageDetail(
+            OutgoingMessageSummary.Of(message), JsonSerializer.Serialize(new TestTrace("rule 7"), TestJsonContext.Default.TestTrace),
+            [PublishTry.Cancel(_id, 1, _time)]);
+        _host.Queries.GetOutgoingMessageAsync(_id, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<OutgoingMessageDetail>.ForValue(detail)));
 
         // Act
         var text = await _host.Client.GetStringAsync(new Uri($"/delivery/outbox/{_id}", UriKind.Relative), Ct);
@@ -203,12 +205,13 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetOutgoingContent_TestMessage_WritesTheMessageWithItsEnvelopeWithMsgHatchJson()
+    public async Task GetOutgoingContent_TestMessage_WritesTheJsonTextOfMsgHatchJsonAsTheBody()
     {
         // Arrange
         var message = TestMessages.AnOutgoingMessage(new TestEnvelope("client1@example.com"), id: _id, flags: MessageFlags.Test);
-        _host.Manager.GetOutgoingContentAsync(_id, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<OutgoingMessage>.ForValue(message)));
         var expected = Encoding.UTF8.GetString(_host.Services.GetRequiredService<MsgHatchJson>().Serialize(message).Value);
+        _host.Queries.GetOutgoingContentAsync(_id, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<MessageContent>.ForValue(new MessageContent(_id, expected))));
 
         // Act
         var response = await _host.Client.GetAsync(new Uri($"/delivery/outbox/{_id}/content", UriKind.Relative), Ct);
@@ -220,12 +223,13 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetReceivedContent_Message_WritesTheMessageWithItsEventWithMsgHatchJson()
+    public async Task GetReceivedContent_Message_WritesTheJsonTextOfMsgHatchJsonAsTheBody()
     {
         // Arrange
         var message = TestMessages.AReceivedMessage(new TestEvent("Ősz-űr"), delivery: TestMessages.ADeliveryState(_id));
-        _host.Manager.GetReceivedContentAsync(_id, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<ReceivedMessage>.ForValue(message)));
         var expected = Encoding.UTF8.GetString(_host.Services.GetRequiredService<MsgHatchJson>().Serialize(message).Value);
+        _host.Queries.GetReceivedContentAsync(_id, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<MessageContent>.ForValue(new MessageContent(_id, expected))));
 
         // Act
         var text = await _host.Client.GetStringAsync(new Uri($"/delivery/inbox/{_id}/content", UriKind.Relative), Ct);

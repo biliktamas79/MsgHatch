@@ -13,12 +13,13 @@ using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
+using NSubstitute.Core;
 
 namespace MsgHatch.AspNetCore.Tests.Unit.TestTypes;
 
 /// <summary>
 /// A web application on a <see cref="TestServer"/> with the delivery endpoints, the content types of the test types,
-/// and a manager substitute for <see cref="TenantKey.None"/> and for the tenant <c>t2</c>. The overview group needs the
+/// and substitutes of the queries and the commands for <see cref="TenantKey.None"/> and for the tenant <c>t2</c>. The overview group needs the
 /// role <see cref="AdminRole"/>, and the content group the role <see cref="ContentRole"/>. The header
 /// <see cref="RolesHeader"/> gives the roles of the caller.
 /// </summary>
@@ -32,20 +33,35 @@ public sealed class DeliveryHost : IAsyncDisposable
 
     private readonly WebApplication _app;
 
-    private DeliveryHost(WebApplication app, IDeliveryManager manager, IDeliveryManager t2Manager)
+    private DeliveryHost(
+        WebApplication app, IDeliveryQueries queries, IDeliveryCommands commands, IDeliveryQueries t2Queries, IDeliveryCommands t2Commands)
     {
         _app = app;
-        Manager = manager;
-        T2Manager = t2Manager;
+        Queries = queries;
+        Commands = commands;
+        T2Queries = t2Queries;
+        T2Commands = t2Commands;
         Client = app.GetTestClient();
         Client.DefaultRequestHeaders.Add(RolesHeader, $"{AdminRole},{ContentRole}");
     }
 
-    /// <summary>The manager of <see cref="TenantKey.None"/>.</summary>
-    public IDeliveryManager Manager { get; }
+    /// <summary>The queries of <see cref="TenantKey.None"/>.</summary>
+    public IDeliveryQueries Queries { get; }
 
-    /// <summary>The manager of the tenant <see cref="T2"/>.</summary>
-    public IDeliveryManager T2Manager { get; }
+    /// <summary>The commands of <see cref="TenantKey.None"/>.</summary>
+    public IDeliveryCommands Commands { get; }
+
+    /// <summary>The queries of the tenant <see cref="T2"/>.</summary>
+    public IDeliveryQueries T2Queries { get; }
+
+    /// <summary>The commands of the tenant <see cref="T2"/>.</summary>
+    public IDeliveryCommands T2Commands { get; }
+
+    /// <summary>The calls of the queries and the commands of <see cref="TenantKey.None"/>.</summary>
+    public IEnumerable<ICall> Calls => Queries.ReceivedCalls().Concat(Commands.ReceivedCalls());
+
+    /// <summary>The calls of the queries and the commands of the tenant <see cref="T2"/>.</summary>
+    public IEnumerable<ICall> T2Calls => T2Queries.ReceivedCalls().Concat(T2Commands.ReceivedCalls());
 
     /// <summary>A client with both roles.</summary>
     public HttpClient Client { get; }
@@ -60,10 +76,12 @@ public sealed class DeliveryHost : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(TestContentTypes.ARegistry());
         builder.Services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseInMemoryStores();
-        var manager = Substitute.For<IDeliveryManager>();
-        var t2Manager = Substitute.For<IDeliveryManager>();
-        builder.Services.AddKeyedSingleton(TenantKey.None, manager);
-        builder.Services.AddKeyedSingleton(TenantKey.For(T2), t2Manager);
+        var (queries, commands) = (Substitute.For<IDeliveryQueries>(), Substitute.For<IDeliveryCommands>());
+        var (t2Queries, t2Commands) = (Substitute.For<IDeliveryQueries>(), Substitute.For<IDeliveryCommands>());
+        builder.Services.AddKeyedSingleton(TenantKey.None, queries);
+        builder.Services.AddKeyedSingleton(TenantKey.None, commands);
+        builder.Services.AddKeyedSingleton(TenantKey.For(T2), t2Queries);
+        builder.Services.AddKeyedSingleton(TenantKey.For(T2), t2Commands);
         builder.Services.AddAuthentication(RolesHandler.SchemeName).AddScheme<AuthenticationSchemeOptions, RolesHandler>(RolesHandler.SchemeName, null);
         builder.Services.AddAuthorization(static options =>
         {
@@ -75,7 +93,7 @@ public sealed class DeliveryHost : IAsyncDisposable
         app.UseAuthorization();
         MapGroups(app, overview, content);
         await app.StartAsync(Ct);
-        return new DeliveryHost(app, manager, t2Manager);
+        return new DeliveryHost(app, queries, commands, t2Queries, t2Commands);
     }
 
     public HttpClient ClientWithRoles(string roles)

@@ -72,6 +72,18 @@ public sealed class MsgHatchJson
                 static (writer, state) => WriteOutgoing(writer, state.message, state.Item2, state.Item3));
     }
 
+    /// <summary>
+    /// Writes a route trace with the JSON type information of the newest registered version of its type, with no
+    /// <c>$type</c>. The delivery queries give it as the trace of an outgoing message (D290).
+    /// </summary>
+    /// <param name="trace">The route trace.</param>
+    /// <returns>The JSON text, or <see cref="Errors.SerializationFailed"/> for an unregistered trace type.</returns>
+    internal ErrorOr<string> SerializeTrace(RouteTrace trace)
+    {
+        var entry = TraceEntryOf(trace);
+        return entry.IsError ? entry.Error : JsonSerializer.Serialize(trace, entry.Value!.ContentJsonTypeInfo);
+    }
+
     /// <summary>Reads a received message as its registered closed type.</summary>
     /// <param name="utf8Json">The UTF-8 JSON.</param>
     /// <returns>

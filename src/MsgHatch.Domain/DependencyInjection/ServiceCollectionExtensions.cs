@@ -24,7 +24,9 @@ public static class ServiceCollectionExtensions
     /// registrations (D117), the content type registry, <see cref="MsgHatchJson"/>, <see cref="InProcessDispatchSignal"/>
     /// as the <see cref="IDispatchSignal"/>, the in-process <see cref="IRegistryQueries"/> as the default of
     /// <see cref="MsgHatchBuilder.UseRegistryQueries"/> (D268, D269), the in-process <see cref="IRegistryCommands"/> as the
-    /// default of <see cref="MsgHatchBuilder.UseRegistryCommands"/> (D283), and <see cref="TimeProvider.System"/>
+    /// default of <see cref="MsgHatchBuilder.UseRegistryCommands"/> (D283), the in-process <see cref="IDeliveryQueries"/> and
+    /// <see cref="IDeliveryCommands"/> as the defaults of <see cref="MsgHatchBuilder.UseDeliveryQueries"/> and
+    /// <see cref="MsgHatchBuilder.UseDeliveryCommands"/> (D289), and <see cref="TimeProvider.System"/>
     /// if the host has registered no <see cref="TimeProvider"/>. The options bind from the section <c>MsgHatch</c>
     /// of the <c>IConfiguration</c> of the host.
     /// </summary>
@@ -34,13 +36,7 @@ public static class ServiceCollectionExtensions
     public static MsgHatchBuilder AddMsgHatch(this IServiceCollection services, Action<MsgHatchOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
-        var existingSetup = ExistingSetup(services);
-        var setup = existingSetup ?? AddSetup(services);
-        if (existingSetup is null)
-        {
-            AddDeliveryManager(services, setup);
-        }
-
+        var setup = ExistingSetup(services) ?? AddSetup(services);
         var options = services.AddOptions<MsgHatchOptions>().BindConfiguration(MsgHatchOptions.SectionName);
         if (configure is not null)
         {
@@ -84,15 +80,12 @@ public static class ServiceCollectionExtensions
             .AddDefaultTenantService<IRegistryQueries>(
                 ServiceLifetime.Scoped, static (tenantServices, _) => RegistryManager.Create(tenantServices), RegistryQueriesLoggingWrapper.Wrap)
             .AddDefaultTenantService<IRegistryCommands>(
-                ServiceLifetime.Scoped, static (tenantServices, _) => RegistryManager.Create(tenantServices), RegistryCommandsLoggingWrapper.Wrap);
+                ServiceLifetime.Scoped, static (tenantServices, _) => RegistryManager.Create(tenantServices), RegistryCommandsLoggingWrapper.Wrap)
+            .AddDefaultTenantService<IDeliveryQueries>(
+                ServiceLifetime.Scoped, static (tenantServices, key) => DeliveryManager.Create(tenantServices, key), DeliveryQueriesLoggingWrapper.Wrap)
+            .AddDefaultTenantService<IDeliveryCommands>(
+                ServiceLifetime.Scoped, static (tenantServices, key) => DeliveryManager.Create(tenantServices, key), DeliveryCommandsLoggingWrapper.Wrap);
     }
-
-    private static void AddDeliveryManager(IServiceCollection services, MsgHatchSetup setup) =>
-        TenantServices.Add<IDeliveryManager>(
-            services, setup, ServiceLifetime.Singleton,
-            static (tenantServices, key) => DeliveryManager.Create(tenantServices, key),
-            static (tenantServices, key, inner) => new DeliveryManagerLoggingWrapper(
-                inner, key, Loggers.For<DeliveryManagerLoggingWrapper>(tenantServices), tenantServices.GetRequiredService<TimeProvider>()));
 
     private static void AddDispatchOptions(IServiceCollection services, string name) =>
         services.AddOptions<DispatchOptions>(name).BindConfiguration($"{DispatchOptions.SectionName}:{name}").ValidateOnStart();
