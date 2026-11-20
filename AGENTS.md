@@ -81,7 +81,7 @@ The example app needs no server, no cloud account, and no network. Its SQLite fi
 
 The admin UI example `examples/AdminUiExample` calls the subscription, template, registry, and delivery APIs of `ExampleApp` through the HTTP clients, so `ExampleApp` runs first (section 4.24). It reads its token from the option `AdminUiExample:ApiToken` in its user secrets, which git ignores. The token needs the roles `TemplateAdmin`, `RegistryAdmin`, `DeliveryAdmin`, and `DeliveryContent`, and also passes the policy of the subscription routes. A token with no role `RegistryAdmin` gives 403 on the pages Channels and Message types. A token with no role `DeliveryAdmin` gives 403 on the pages Traffic, Outbox, and Inbox, and on the pending counts of the channel pages. A token with no role `DeliveryContent` gives 403 only on the content of a message page. Never write a token into a file of the repository. The host listens only on `http://localhost:5090`.
 
-`examples/ExampleApp/README.md` has the steps that make the tokens and start both apps. The tests of both apps need no token and no setup:
+`examples/ExampleApp/README.md` has the steps that make the tokens and start both apps. `pwsh ./start-admin-ui.ps1` starts both apps in one terminal, and checks the roles of the token. The tests of both apps need no token and no setup:
 
 ```bash
 dotnet test tests/ExampleApp.Tests.Unit

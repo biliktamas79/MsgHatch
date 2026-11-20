@@ -93,6 +93,14 @@ Each delivery route writes its errors as problem details with the member `errorT
 
 4. Open `http://localhost:5090`. The admin UI has no sign-in, and listens only on `localhost`. It sends the same token for each user.
 
+In PowerShell 7, one command does steps 2 and 3 in one terminal:
+
+```bash
+pwsh ./start-admin-ui.ps1
+```
+
+The script checks that the token of `AdminUiExample` has the four roles of step 1, and shows a warning for each role that is missing. It starts `ExampleApp` and then `AdminUiExample`, and waits until each app answers on its port. An app that already runs stays as it is. The output of each app goes to `artifacts/admin-ui`. Ctrl+C stops the apps that the script started.
+
 The emails of the message types A to E use the placeholder engine, so their html parts open in the plain editor with the HTML highlight. The password reset email of F uses the Liquid engine, so its parts open in the Liquid editor with its check.
 
 Each row of the template list has the buttons View and Edit. The view page shows the stored text read-only. The edit page shows the editor. Both pages show a preview of the text next to it, or under it on a narrow screen. The preview renders the text with the sample payload that `ExampleSetup` gives each email with `WithTemplateSample` (D254). For example, the preview of the password reset email shows the link `https://example.com/reset`. The edit page renders the preview again 500 ms after the last change of the text. An html part shows its preview in a frame that runs no script.
