@@ -95,6 +95,17 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     }
 
     [Fact]
+    public void Render_ReportNotReadYet_ShowsTheLoadingStateOfEachStore()
+    {
+        DeliveryQueries.GetTrafficAsync(default!, Arg.Any<CancellationToken>())
+            .ReturnsForAnyArgs(new ValueTask<ErrorOr<TrafficReport>>(new TaskCompletionSource<ErrorOr<TrafficReport>>().Task));
+
+        var cut = Render<TrafficPage>();
+
+        Assert.Equal(2, cut.FindAll("[data-state=loading]").Count);
+    }
+
+    [Fact]
     public void Render_EmptyReport_ShowsTheEmptyTextOfEachStore()
     {
         DeliveryQueries.GetTrafficAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new TrafficReport([], [])));

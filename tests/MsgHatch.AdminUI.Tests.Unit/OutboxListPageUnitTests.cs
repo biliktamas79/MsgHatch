@@ -31,6 +31,20 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
         Assert.Equal(["Failed", "Test"], cells[1].QuerySelectorAll(".badge").Select(static badge => badge.TextContent));
     }
 
+    [Theory]
+    [InlineData(DeliveryStatus.Pending, "text-bg-info")]
+    [InlineData(DeliveryStatus.Done, "text-bg-success")]
+    [InlineData(DeliveryStatus.Failed, "text-bg-danger")]
+    [InlineData(DeliveryStatus.Cancelled, "text-bg-secondary")]
+    public void Render_Status_ShowsTheBadgeClassOfTheStatus(DeliveryStatus status, string badgeClass)
+    {
+        GivenOutbox(next: null, Outgoing(1, status));
+
+        var cut = Render<OutboxListPage>();
+
+        Assert.True(cut.Find("[data-status]").ClassList.Contains(badgeClass));
+    }
+
     [Fact]
     public void Render_MessageWithNoTestFlag_ShowsNoBadgeTest()
     {
