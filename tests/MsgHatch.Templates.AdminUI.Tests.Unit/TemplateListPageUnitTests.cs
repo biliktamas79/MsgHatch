@@ -113,7 +113,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     }
 
     [Fact]
-    public void ClickShow_LanguagePartAndKind_ShowsOnlyTheTemplatesThatMatchAllThree()
+    public void Change_LanguagePartAndKind_ShowsOnlyTheTemplatesThatMatchAllThree()
     {
         GivenTemplates(
             new TemplateEntry(Lookup("en", null, "body", TemplatePartKind.Html), 1),
@@ -122,37 +122,50 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
             new TemplateEntry(Lookup("en", null, "body", TemplatePartKind.PlainText), 4));
         var cut = Render<TemplateListPage>();
 
-        cut.Find("#msghatch-template-language-filter").Change(" EN ");
+        cut.Find("#msghatch-template-language-filter").Input(" EN ");
         cut.Find("#msghatch-template-part-filter").Change("body");
         cut.Find("#msghatch-template-kind").Change("Html");
-        cut.Find("[data-action=filter]").Click();
 
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
         Assert.Equal(["Requests", "en", "All companies", "body", "Html", "1"], row.Children.SkipLast(1).Select(static cell => cell.TextContent));
     }
 
     [Fact]
-    public void ClickShow_MessageTypeAndCompany_QueriesTheTemplatesWithBothFilters()
+    public void Change_MessageTypeAndCompany_QueriesTheTemplatesWithBothFilters()
     {
         GivenTemplates();
         var cut = Render<TemplateListPage>();
 
         cut.Find("#msghatch-template-type").Change("Requests");
-        cut.Find("#msghatch-template-company").Change(" 42 ");
-        cut.Find("[data-action=filter]").Click();
+        cut.Find("#msghatch-template-company").Input(" 42 ");
 
         Queries.Received(1).GetTemplatesAsync(new TemplateQuery(Requests, "42"), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void ClickShow_MessageTypeThatIsNotAName_ShowsValidationFailedAndQueriesNothing()
+    public async Task Input_CompanyWhileAnEarlierQueryRuns_ShowsOnlyTheAnswerOfTheLastQuery()
+    {
+        var earlier = new TaskCompletionSource<ErrorOr<IReadOnlyList<TemplateEntry>>>();
+        GivenTemplates();
+        Queries.GetTemplatesAsync(new TemplateQuery(null, "4"), Arg.Any<CancellationToken>()).Returns(new ValueTask<ErrorOr<IReadOnlyList<TemplateEntry>>>(earlier.Task));
+        Queries.GetTemplatesAsync(new TemplateQuery(null, "42"), Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<TemplateEntry>>([new TemplateEntry(Lookup(scope: "42"), 2)]));
+        var cut = Render<TemplateListPage>();
+
+        cut.Find("#msghatch-template-company").Input("4");
+        cut.Find("#msghatch-template-company").Input("42");
+        await cut.InvokeAsync(() => earlier.SetResult(ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([new TemplateEntry(Lookup(scope: "4"), 1)])));
+
+        Assert.Equal(["42"], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent));
+    }
+
+    [Fact]
+    public void Change_MessageTypeThatIsNotAName_ShowsValidationFailedAndQueriesNothing()
     {
         GivenTemplates();
         var cut = Render<TemplateListPage>();
         Queries.ClearReceivedCalls();
 
         cut.Find("#msghatch-template-type").Change("not a name");
-        cut.Find("[data-action=filter]").Click();
 
         Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code"));
         Queries.DidNotReceiveWithAnyArgs().GetTemplatesAsync(default!, Arg.Any<CancellationToken>());

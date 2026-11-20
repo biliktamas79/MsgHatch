@@ -1,7 +1,7 @@
 @attribute [Route(SubscriptionAdminRoutes.List)]
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
-@* The subscriptions, with filters for the owner level, the message type, the kind, the channel, and the mandatory flag (D239), and the dialog of a new subscription (D260). *@
+@* The subscriptions, with filters for the owner level, the message type, the kind, the channel, and the mandatory flag (D239), which apply at each change, and the dialog of a new subscription (D260). *@
 
 <AdminListPage Title="Subscriptions">
 <Links>
@@ -13,7 +13,7 @@
 <Filters>
     <div>
         <label class="form-label small mb-1" for="msghatch-subscription-level">Owner level</label>
-        <select id="msghatch-subscription-level" class="form-select form-select-sm" @bind="_levelFilter">
+        <select id="msghatch-subscription-level" class="form-select form-select-sm" @bind="_levelFilter" @bind:after="LoadAsync">
             <option value="">All</option>
             @foreach (var level in Enum.GetValues<SubscriptionLevel>())
             {
@@ -23,7 +23,7 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-subscription-type">Message type</label>
-        <select id="msghatch-subscription-type" class="form-select form-select-sm" @bind="_typeFilter">
+        <select id="msghatch-subscription-type" class="form-select form-select-sm" @bind="_typeFilter" @bind:after="LoadAsync">
             <option value="">All</option>
             @foreach (var type in _types)
             {
@@ -33,7 +33,7 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-subscription-kind">Kind</label>
-        <select id="msghatch-subscription-kind" class="form-select form-select-sm" @bind="_kindFilter">
+        <select id="msghatch-subscription-kind" class="form-select form-select-sm" @bind="_kindFilter" @bind:after="LoadAsync">
             <option value="">All</option>
             @foreach (var kind in Enum.GetValues<SubscriptionKind>())
             {
@@ -43,7 +43,7 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-subscription-channel">Channel</label>
-        <select id="msghatch-subscription-channel" class="form-select form-select-sm" @bind="_channelFilter">
+        <select id="msghatch-subscription-channel" class="form-select form-select-sm" @bind="_channelFilter" @bind:after="LoadAsync">
             <option value="">All</option>
             @foreach (var channel in _channels)
             {
@@ -53,14 +53,11 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-subscription-mandatory">Mandatory</label>
-        <select id="msghatch-subscription-mandatory" class="form-select form-select-sm" @bind="_mandatoryFilter">
+        <select id="msghatch-subscription-mandatory" class="form-select form-select-sm" @bind="_mandatoryFilter" @bind:after="LoadAsync">
             <option value="">All</option>
             <option value="Yes">Yes</option>
             <option value="No">No</option>
         </select>
-    </div>
-    <div>
-        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" @onclick="LoadAsync">Show</button>
     </div>
 </Filters>
 <ChildContent>
@@ -113,6 +110,7 @@
     private string _channelFilter = string.Empty;
     private string _kindFilter = string.Empty;
     private string _mandatoryFilter = string.Empty;
+    private int _lastLoad;
 
     /// <summary>True from the query <c>new=true</c> of <see cref="SubscriptionAdminRoutes.New"/>, which opens the dialog of a new subscription.</summary>
     [SupplyParameterFromQuery(Name = "new")]
@@ -176,6 +174,7 @@
 
     private async Task LoadAsync()
     {
+        var load = ++_lastLoad;
         _subscriptions = null;
         MessageType? type = null;
         if (_typeFilter.Length > 0)
@@ -192,6 +191,11 @@
 
         SubscriptionLevel? level = Enum.TryParse<SubscriptionLevel>(_levelFilter, out var known) && Enum.IsDefined(known) ? known : null;
         var found = await Queries.GetSubscriptionsAsync(new SubscriptionQuery(Type: type, Level: level), CancellationToken.None);
+        if (load != _lastLoad)
+        {
+            return;
+        }
+
         _subscriptions = found.IsError ? found : ErrorOr<IReadOnlyList<Subscription>>.ForValue([.. found.Value.Where(MatchesTheListFilters)]);
     }
 

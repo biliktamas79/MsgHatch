@@ -1,7 +1,7 @@
 @attribute [Route(TemplateAdminRoutes.List)]
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
-@* The template list, with filters for the message type, the language, the company, the part, and the kind, and a dialog of a new template from the declared parts (D240, D260). *@
+@* The template list, with filters for the message type, the language, the company, the part, and the kind, which apply at each change, and a dialog of a new template from the declared parts (D240, D260). *@
 
 <AdminListPage Title="Templates">
 <Actions>
@@ -10,7 +10,7 @@
 <Filters>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-type">Message type</label>
-        <select id="msghatch-template-type" class="form-select form-select-sm" @bind="_typeFilter">
+        <select id="msghatch-template-type" class="form-select form-select-sm" @bind="_typeFilter" @bind:after="LoadEntriesAsync">
             <option value="">All</option>
             @foreach (var type in TypesOf(_parts))
             {
@@ -20,15 +20,15 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-language-filter">Language</label>
-        <input id="msghatch-template-language-filter" class="form-control form-control-sm" @bind="_languageFilter" />
+        <input id="msghatch-template-language-filter" class="form-control form-control-sm" @bind="_languageFilter" @bind:event="oninput" @bind:after="LoadEntriesAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-company">Company id</label>
-        <input id="msghatch-template-company" class="form-control form-control-sm" @bind="_companyFilter" />
+        <input id="msghatch-template-company" class="form-control form-control-sm" @bind="_companyFilter" @bind:event="oninput" @bind:after="LoadEntriesAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-part-filter">Part</label>
-        <select id="msghatch-template-part-filter" class="form-select form-select-sm" @bind="_partFilter">
+        <select id="msghatch-template-part-filter" class="form-select form-select-sm" @bind="_partFilter" @bind:after="LoadEntriesAsync">
             <option value="">All</option>
             @foreach (var part in PartNamesOf(_parts))
             {
@@ -38,16 +38,13 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-kind">Kind</label>
-        <select id="msghatch-template-kind" class="form-select form-select-sm" @bind="_kindFilter">
+        <select id="msghatch-template-kind" class="form-select form-select-sm" @bind="_kindFilter" @bind:after="LoadEntriesAsync">
             <option value="">All</option>
             @foreach (var kind in Enum.GetValues<TemplatePartKind>())
             {
                 <option value="@kind">@kind</option>
             }
         </select>
-    </div>
-    <div>
-        <button type="button" class="btn btn-sm btn-secondary" data-action="filter" @onclick="LoadEntriesAsync">Show</button>
     </div>
 </Filters>
 <ChildContent>
@@ -139,6 +136,7 @@
     private string _languageFilter = string.Empty;
     private string _partFilter = string.Empty;
     private string _kindFilter = string.Empty;
+    private int _lastLoad;
     private string _newPart = "0";
     private string _newLanguage = "en";
     private string _newCompany = string.Empty;
@@ -175,6 +173,7 @@
 
     private async Task LoadEntriesAsync()
     {
+        var load = ++_lastLoad;
         _entries = null;
         MessageType? type = null;
         if (_typeFilter.Length > 0)
@@ -190,6 +189,11 @@
         }
 
         var found = await Queries.GetTemplatesAsync(new TemplateQuery(type, OptionalOf(_companyFilter)), CancellationToken.None);
+        if (load != _lastLoad)
+        {
+            return;
+        }
+
         _entries = found.IsError ? found : ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([.. found.Value.Where(MatchesTheListFilters)]);
     }
 

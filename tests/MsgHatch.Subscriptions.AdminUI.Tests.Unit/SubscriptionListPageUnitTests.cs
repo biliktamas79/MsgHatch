@@ -112,7 +112,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
-    public void ClickShow_KindAndMandatory_ShowsOnlyTheSubscriptionsThatMatchBoth()
+    public void Change_KindAndMandatory_ShowsOnlyTheSubscriptionsThatMatchBoth()
     {
         GivenSubscriptions(
             Subscription() with { Mandatory = true },
@@ -122,21 +122,19 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         cut.Find("#msghatch-subscription-kind").Change("Channel");
         cut.Find("#msghatch-subscription-mandatory").Change("Yes");
-        cut.Find("[data-action=filter]").Click();
 
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
         Assert.Equal(("Channel", "Yes"), (row.Children[2].TextContent, row.Children[5].TextContent));
     }
 
     [Fact]
-    public void ClickShow_LevelAndMessageType_QueriesTheSubscriptionsWithBothFilters()
+    public void Change_LevelAndMessageType_QueriesTheSubscriptionsWithBothFilters()
     {
         GivenSubscriptions();
         var cut = Render<SubscriptionListPage>();
 
         cut.Find("#msghatch-subscription-level").Change("Company");
         cut.Find("#msghatch-subscription-type").Change("Requests");
-        cut.Find("[data-action=filter]").Click();
 
         Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(Type: Requests, Level: SubscriptionLevel.Company), Arg.Any<CancellationToken>());
     }
@@ -170,25 +168,41 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
-    public void ClickShow_MessageTypeThatIsNotAName_ShowsValidationFailed()
+    public void Change_MessageTypeThatIsNotAName_ShowsValidationFailed()
     {
         GivenSubscriptions();
         var cut = Render<SubscriptionListPage>();
 
         cut.Find("#msghatch-subscription-type").Change("not a name");
-        cut.Find("[data-action=filter]").Click();
 
         Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code"));
     }
 
     [Fact]
-    public void ClickShow_Channel_ShowsOnlyTheSubscriptionsOfTheChannel()
+    public async Task Change_LevelWhileAnEarlierQueryRuns_ShowsOnlyTheAnswerOfTheLastQuery()
+    {
+        var earlier = new TaskCompletionSource<ErrorOr<IReadOnlyList<Subscription>>>();
+        GivenSubscriptions();
+        Queries.GetSubscriptionsAsync(new SubscriptionQuery(Level: SubscriptionLevel.Company), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ErrorOr<IReadOnlyList<Subscription>>>(earlier.Task));
+        Queries.GetSubscriptionsAsync(new SubscriptionQuery(Level: SubscriptionLevel.User), Arg.Any<CancellationToken>())
+            .Returns(Ok<IReadOnlyList<Subscription>>([Subscription(channel: Pager)]));
+        var cut = Render<SubscriptionListPage>();
+
+        cut.Find("#msghatch-subscription-level").Change("Company");
+        cut.Find("#msghatch-subscription-level").Change("User");
+        await cut.InvokeAsync(() => earlier.SetResult(ErrorOr<IReadOnlyList<Subscription>>.ForValue([Subscription()])));
+
+        Assert.Equal(["Pager"], cut.FindAll("tr[data-row]").Select(static row => row.Children[3].TextContent));
+    }
+
+    [Fact]
+    public void Change_Channel_ShowsOnlyTheSubscriptionsOfTheChannel()
     {
         GivenSubscriptions(Subscription(), Subscription(channel: Pager, id: Guid.Empty));
         var cut = Render<SubscriptionListPage>();
 
         cut.Find("#msghatch-subscription-channel").Change("Pager");
-        cut.Find("[data-action=filter]").Click();
 
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
         Assert.Equal("Pager", row.Children[3].TextContent);
