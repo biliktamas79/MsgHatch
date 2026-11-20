@@ -257,6 +257,35 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void ClickCreate_OptOutWithTheDefaultSettingsInTheDialog_CreatesADraftWithNoSettings()
+    {
+        GivenSubscriptions();
+        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("[data-action=new]").Click();
+        cut.Find("#msghatch-edit-kind").Change("OptOut");
+
+        cut.Find(".modal [data-action=save]").Click();
+
+        var expected = new SubscriptionDraft(SubscriptionOwner.Default, Requests, SubscriptionKind.OptOut, Fax, Settings: null, SubscriptionRecipients.ScopeUsers);
+        Commands.Received(1).CreateAsync(expected, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void ChangeKind_OptOut_DisablesTheSettingsAndTellsThatAnOptOutHasNoSettings()
+    {
+        GivenSubscriptions();
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("[data-action=new]").Click();
+
+        cut.Find("#msghatch-edit-kind").Change("OptOut");
+
+        Assert.Equal(
+            (true, "An opt-out has no settings, so the save sends none."),
+            (cut.Find("#msghatch-edit-settings").HasAttribute("disabled"), cut.Find("[data-field=settings-type]").TextContent));
+    }
+
+    [Fact]
     public void ClickCreate_RejectedInTheDialog_ShowsTheTextOfRejectedAndKeepsTheDialog()
     {
         GivenSubscriptions();

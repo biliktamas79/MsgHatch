@@ -71,7 +71,7 @@ internal sealed record SubscriptionForm
             return firstError;
         }
 
-        var settings = SettingsOf(channel.Value, channels, registry);
+        var settings = Kind == SubscriptionKind.OptOut ? (ChannelSettings?)null : SettingsOf(channel.Value, channels, registry);
         return settings.IsError ? settings.Error
             : new SubscriptionDraft(owner.Value, type.Value, Kind, channel.Value, settings.Value, recipients.Value, Mandatory);
     }

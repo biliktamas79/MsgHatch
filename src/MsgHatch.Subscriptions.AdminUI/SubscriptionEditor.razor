@@ -80,7 +80,7 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="msghatch-edit-settings">Settings (JSON)</label>
-                    <textarea id="msghatch-edit-settings" class="form-control font-monospace" rows="6" spellcheck="false" @bind="form.Settings"></textarea>
+                    <textarea id="msghatch-edit-settings" class="form-control font-monospace" rows="6" spellcheck="false" disabled="@(form.Kind == SubscriptionKind.OptOut)" @bind="form.Settings"></textarea>
                     <div class="form-text" data-field="settings-type">@SettingsTypeText(form)</div>
                 </div>
                 <div class="col-md-4">
@@ -331,7 +331,8 @@
     }
 
     private string SettingsTypeText(SubscriptionForm form) =>
-        _channels.FirstOrDefault(channel => channel.Id.Name == form.Channel) is not { } channel ? "A subscription with no channel has no settings."
+        form.Kind == SubscriptionKind.OptOut ? "An opt-out has no settings, so the save sends none."
+        : _channels.FirstOrDefault(channel => channel.Id.Name == form.Channel) is not { } channel ? "A subscription with no channel has no settings."
         : channel.SettingsType == typeof(ChannelSettings) ? "This host has no settings type for the channel, so it sends the JSON with no change."
         : $"This host reads the settings as {channel.SettingsType.Name}.";
 
