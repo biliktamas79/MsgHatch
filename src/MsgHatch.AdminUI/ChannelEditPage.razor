@@ -46,7 +46,7 @@
                     {
                         <button type="button" class="btn btn-outline-danger" data-action="reset" disabled="@_busy" @onclick="() => _confirmReset = true">Reset</button>
                     }
-                    <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="SaveAsync">Save</button>
+                    <button type="button" class="btn btn-primary" data-action="save" disabled="@_busy" @onclick="() => SaveAsync(channel)">Save</button>
                 }
             </End>
         </AdminActions>
@@ -55,7 +55,7 @@
 
 @if (_channel is { Entry: { } stored } asked)
 {
-    <DeleteDialog Open="_confirmReset" Action="Reset" Question="@($"Do you want to reset the channel {asked.Id.Name}?")" Confirmed="ResetAsync" Cancelled="() => _confirmReset = false">
+    <DeleteDialog Open="_confirmReset" Action="Reset" Question="@($"Do you want to reset the channel {asked.Id.Name}?")" Confirmed="() => ResetAsync(asked)" Cancelled="() => _confirmReset = false">
         <Details>
             <dl class="row small mb-2">
                 <dt class="col-4">Display name</dt><dd class="col-8" data-detail="display-name">@RegistryTexts.StoredTextOf(stored.DisplayName)</dd>
@@ -118,13 +118,8 @@
     }
 
     /// <summary>Saves the fields with the revision of the last read. A conflict reads the stored values again.</summary>
-    private async Task SaveAsync()
+    private async Task SaveAsync(RegistryChannel channel)
     {
-        if (_channel is not { } channel)
-        {
-            return;
-        }
-
         (_busy, _saved, _formError) = (true, false, null);
         var entry = new ChannelEntry(
             channel.Id, RegistryTexts.StoredValueOf(_displayName), RegistryTexts.StoredValueOf(_description), _enabled, channel.Revision, default);
@@ -139,14 +134,9 @@
     }
 
     /// <summary>Deletes the stored entry, and reads the channel again, so the page shows the values of the code.</summary>
-    private async Task ResetAsync()
+    private async Task ResetAsync(RegistryChannel channel)
     {
         _confirmReset = false;
-        if (_channel is not { } channel)
-        {
-            return;
-        }
-
         (_busy, _saved) = (true, false);
         _formError = await Commands.ResetChannelAsync(channel.Id, CancellationToken.None);
         if (_formError is null)

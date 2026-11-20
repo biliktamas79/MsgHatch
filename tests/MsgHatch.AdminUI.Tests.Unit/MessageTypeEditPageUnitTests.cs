@@ -115,9 +115,11 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         var cut = RenderPage("Requests");
 
         cut.Find("[data-field=display-name]").Change("Client requests");
+        cut.Find("[data-field=description]").Change("Sent when a client asks");
+        cut.Find("[data-field=enabled]").Change(false);
         cut.Find("[data-send-on=Sms]").Change(false);
 
-        Assert.Equal("Changes that are not saved: Display name, Send on Sms.", cut.Find("[data-state=pending]").TextContent);
+        Assert.Equal("Changes that are not saved: Display name, Description, Enabled, Send on Sms.", cut.Find("[data-state=pending]").TextContent);
     }
 
     [Fact]
