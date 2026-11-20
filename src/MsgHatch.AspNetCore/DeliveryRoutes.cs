@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
@@ -24,24 +25,24 @@ internal static class DeliveryRoutes
 
     public static void MapOverviewTo(RouteGroupBuilder group)
     {
-        group.MapGet("/channels", (Delegate)GetChannelsAsync);
-        group.MapPost("/channels/{channel}/pause", PauseAsync);
-        group.MapPost("/channels/{channel}/resume", ResumeAsync);
-        group.MapGet("/traffic", (Delegate)GetTrafficAsync);
-        group.MapGet("/inbox", (Delegate)GetReceivedMessagesAsync);
-        group.MapPost("/inbox/retry", (Delegate)RetryReceivedAsync);
-        group.MapPost("/inbox/cancel", (Delegate)CancelReceivedAsync);
-        group.MapGet("/outbox", (Delegate)GetOutgoingMessagesAsync);
-        group.MapGet("/outbox/{id:guid}", GetOutgoingMessageAsync);
-        group.MapPost("/outbox/retry", (Delegate)RetryOutgoingAsync);
-        group.MapPost("/outbox/cancel", (Delegate)CancelOutgoingAsync);
-        group.MapPost("/purge", (Delegate)PurgeAsync);
+        group.MapGet(DeliveryApiRoutes.Channels, (Delegate)GetChannelsAsync);
+        group.MapPost(DeliveryApiRoutes.ChannelPause, PauseAsync);
+        group.MapPost(DeliveryApiRoutes.ChannelResume, ResumeAsync);
+        group.MapGet(DeliveryApiRoutes.Traffic, (Delegate)GetTrafficAsync);
+        group.MapGet(DeliveryApiRoutes.Inbox, (Delegate)GetReceivedMessagesAsync);
+        group.MapPost(DeliveryApiRoutes.InboxRetry, (Delegate)RetryReceivedAsync);
+        group.MapPost(DeliveryApiRoutes.InboxCancel, (Delegate)CancelReceivedAsync);
+        group.MapGet(DeliveryApiRoutes.Outbox, (Delegate)GetOutgoingMessagesAsync);
+        group.MapGet(DeliveryApiRoutes.OutgoingMessage, GetOutgoingMessageAsync);
+        group.MapPost(DeliveryApiRoutes.OutboxRetry, (Delegate)RetryOutgoingAsync);
+        group.MapPost(DeliveryApiRoutes.OutboxCancel, (Delegate)CancelOutgoingAsync);
+        group.MapPost(DeliveryApiRoutes.Purge, (Delegate)PurgeAsync);
     }
 
     public static void MapContentTo(RouteGroupBuilder group)
     {
-        group.MapGet("/inbox/{id:guid}/content", GetReceivedContentAsync);
-        group.MapGet("/outbox/{id:guid}/content", GetOutgoingContentAsync);
+        group.MapGet(DeliveryApiRoutes.ReceivedContent, GetReceivedContentAsync);
+        group.MapGet(DeliveryApiRoutes.OutgoingContent, GetOutgoingContentAsync);
     }
 
     private static Task<IResult> GetChannelsAsync(HttpContext context) =>
@@ -94,10 +95,7 @@ internal static class DeliveryRoutes
 
     private static Task<IResult> GetOutgoingMessageAsync(HttpContext context, Guid id) =>
         RunQueryAsync(context, async queries => Json(
-            await queries.GetOutgoingMessageAsync(id, context.RequestAborted),
-            static detail => new OutgoingMessageDetailResponse(
-                OutgoingMessageSummaryResponse.From(detail.Summary), TraceJsonOf(detail.Trace), detail.Tries),
-            _json.OutgoingMessageDetailResponse));
+            await queries.GetOutgoingMessageAsync(id, context.RequestAborted), OutgoingMessageDetailResponse.From, _json.OutgoingMessageDetailResponse));
 
     private static Task<IResult> RetryReceivedAsync(HttpContext context) =>
         ActOnInboxAsync(context, static (commands, query, ct) => commands.RetryReceivedAsync(query, ct));
@@ -150,7 +148,7 @@ internal static class DeliveryRoutes
     private static async Task<IResult> RunAsync<TService>(HttpContext context, Func<TService, Task<IResult>> action)
         where TService : notnull
     {
-        var tenant = TenantOf(context.Request.Query["tenantId"]);
+        var tenant = TenantOf(context.Request.Query[DeliveryApiRoutes.Query.TenantId]);
         return tenant.IsError
             ? Problem(tenant.Error!)
             : await action(context.RequestServices.GetRequiredKeyedService<TService>(TenantKey.For(tenant.Value)));
@@ -158,24 +156,12 @@ internal static class DeliveryRoutes
 
     /// <summary>Runs a route that acts on all tenants, so it uses the commands of <see cref="TenantKey.None"/>, and a <c>tenantId</c> gives 400.</summary>
     private static Task<IResult> RunGlobalAsync(HttpContext context, Func<IDeliveryCommands, Task<IResult>> action) =>
-        context.Request.Query.ContainsKey("tenantId")
+        context.Request.Query.ContainsKey(DeliveryApiRoutes.Query.TenantId)
             ? Task.FromResult<IResult>(Problem(new Error(Errors.ValidationFailed, "This route acts on all tenants, so it takes no tenantId.")))
             : action(context.RequestServices.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None));
 
     private static MessagePageResponse<TResponse> PageOf<TSummary, TResponse>(MessagePage<TSummary> page, Func<TSummary, TResponse> response) =>
-        new([.. page.Items.Select(response)], page.Next is { } next ? CursorText(next) : null);
-
-    /// <summary>Reads the JSON text of a route trace, so that the body holds the trace as a JSON value (D290).</summary>
-    private static JsonElement? TraceJsonOf(string? trace)
-    {
-        if (trace is null)
-        {
-            return null;
-        }
-
-        using var document = JsonDocument.Parse(trace);
-        return document.RootElement.Clone();
-    }
+        new([.. page.Items.Select(response)], page.Next is { } next ? DeliveryApiRoutes.CursorText(next) : null);
 
     /// <summary>
     /// Reads the JSON body, and runs the action with it. A content type that is not JSON gives 415 and calls no

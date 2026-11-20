@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
+using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
@@ -17,21 +18,10 @@ namespace MsgHatch.AspNetCore;
 /// </summary>
 internal static class DeliveryRequestValues
 {
-    private const string _cursorTimeFormat = "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'";
     private const DateTimeStyles _utc = DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal;
 
-    public static string CursorText(MessageCursor cursor) =>
-        $"{cursor.CreatedAtUtc.ToString(_cursorTimeFormat, CultureInfo.InvariantCulture)}_{cursor.Id:D}";
-
-    public static ErrorOr<MessageCursor> CursorOf(string text)
-    {
-        var separator = text.LastIndexOf('_');
-        return separator > 0
-            && DateTime.TryParseExact(text[..separator], _cursorTimeFormat, CultureInfo.InvariantCulture, _utc, out var createdAtUtc)
-            && Guid.TryParseExact(text[(separator + 1)..], "D", out var id)
-                ? new MessageCursor(createdAtUtc, id)
-                : Invalid("The cursor is not {CreatedAtUtc}_{Id}.");
-    }
+    public static ErrorOr<MessageCursor> CursorOf(string text) =>
+        DeliveryApiRoutes.TryParseCursor(text, out var cursor) ? cursor : Invalid("The cursor is not {CreatedAtUtc}_{Id}.");
 
     public static ErrorOr<TenantId?> TenantOf(StringValues values) => Optional(values, static text => TenantId.Create(text));
 
@@ -39,10 +29,10 @@ internal static class DeliveryRequestValues
 
     public static ErrorOr<TrafficQuery> TrafficQueryOf(IQueryCollection query)
     {
-        var from = Optional(query["createdFrom"], TimeOf);
-        var to = Optional(query["createdTo"], TimeOf);
-        var status = Optional(query["status"], EnumOf<DeliveryStatus>);
-        var includeTest = Optional(query["includeTest"], BoolOf);
+        var from = Optional(query[DeliveryApiRoutes.Query.CreatedFrom], TimeOf);
+        var to = Optional(query[DeliveryApiRoutes.Query.CreatedTo], TimeOf);
+        var status = Optional(query[DeliveryApiRoutes.Query.Status], EnumOf<DeliveryStatus>);
+        var includeTest = Optional(query[DeliveryApiRoutes.Query.IncludeTest], BoolOf);
         return from.Error ?? to.Error ?? status.Error ?? includeTest.Error
             ?? (ErrorOr<TrafficQuery>)new TrafficQuery(from.Value, to.Value, status.Value, includeTest.Value ?? false);
     }
@@ -56,9 +46,9 @@ internal static class DeliveryRequestValues
     public static ErrorOr<OutboxQuery> OutboxQueryOf(IQueryCollection query)
     {
         var shared = SharedOf(query);
-        var channel = Optional(query["channel"], ChannelOf);
-        var target = TargetOf(First(query["targetKind"]), First(query["targetId"]));
-        var source = Optional(query["sourceMessageId"], GuidOf);
+        var channel = Optional(query[DeliveryApiRoutes.Query.Channel], ChannelOf);
+        var target = TargetOf(First(query[DeliveryApiRoutes.Query.TargetKind]), First(query[DeliveryApiRoutes.Query.TargetId]));
+        var source = Optional(query[DeliveryApiRoutes.Query.SourceMessageId], GuidOf);
         return shared.Error ?? channel.Error ?? target.Error ?? source.Error
             ?? (ErrorOr<OutboxQuery>)shared.Value.ToOutbox(channel.Value, target.Value, source.Value);
     }
@@ -88,15 +78,15 @@ internal static class DeliveryRequestValues
 
     private static ErrorOr<SharedFilters> SharedOf(IQueryCollection query)
     {
-        var ids = IdsOf(query["ids"]);
-        var status = Optional(query["status"], EnumOf<DeliveryStatus>);
-        var type = Optional(query["messageType"], MessageTypeOf);
-        var from = Optional(query["createdFrom"], TimeOf);
-        var to = Optional(query["createdTo"], TimeOf);
-        var dueBefore = Optional(query["dueBefore"], TimeOf);
-        var includeTest = Optional(query["includeTest"], BoolOf);
-        var limit = Optional(query["limit"], IntOf);
-        var after = Optional(query["after"], CursorOf);
+        var ids = IdsOf(query[DeliveryApiRoutes.Query.Ids]);
+        var status = Optional(query[DeliveryApiRoutes.Query.Status], EnumOf<DeliveryStatus>);
+        var type = Optional(query[DeliveryApiRoutes.Query.MessageType], MessageTypeOf);
+        var from = Optional(query[DeliveryApiRoutes.Query.CreatedFrom], TimeOf);
+        var to = Optional(query[DeliveryApiRoutes.Query.CreatedTo], TimeOf);
+        var dueBefore = Optional(query[DeliveryApiRoutes.Query.DueBefore], TimeOf);
+        var includeTest = Optional(query[DeliveryApiRoutes.Query.IncludeTest], BoolOf);
+        var limit = Optional(query[DeliveryApiRoutes.Query.Limit], IntOf);
+        var after = Optional(query[DeliveryApiRoutes.Query.After], CursorOf);
         return ids.Error ?? status.Error ?? type.Error ?? from.Error ?? to.Error ?? dueBefore.Error ?? includeTest.Error
             ?? limit.Error ?? after.Error
             ?? (ErrorOr<SharedFilters>)new SharedFilters(

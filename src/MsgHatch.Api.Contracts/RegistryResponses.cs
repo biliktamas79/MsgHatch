@@ -39,11 +39,11 @@ public sealed record RegistryChannelResponse(
     /// <returns>The channel, or an error.</returns>
     public ErrorOr<RegistryChannel> ToChannel()
     {
-        var id = RegistryWireValues.ChannelOf(Id);
+        var id = WireValues.ChannelOf(Id);
         var current = Current?.ToState();
         var entry = Entry?.ToEntry();
         return id.IsError ? id.Error
-            : Name is null ? RegistryWireValues.Invalid("A channel has a name.")
+            : Name is null ? WireValues.Invalid("A channel has a name.")
             : current is { IsError: true } ? current.Value.Error
             : entry is { IsError: true } ? entry.Value.Error
             : new RegistryChannel(id.Value, Name, Description, Features, Enabled, Revision, current?.Value, entry?.Value);
@@ -113,9 +113,9 @@ public sealed record ChannelStateResponse(
     /// <returns>The state row, or an error.</returns>
     public ErrorOr<ChannelState> ToState()
     {
-        var channel = RegistryWireValues.ChannelOf(Channel);
+        var channel = WireValues.ChannelOf(Channel);
         return channel.IsError ? channel.Error
-            : Kind == ChannelStateKind.Down && Reason is null ? RegistryWireValues.Invalid("A Down row has a reason.")
+            : Kind == ChannelStateKind.Down && Reason is null ? WireValues.Invalid("A Down row has a reason.")
             : new ChannelState(
                 channel.Value, Version, Kind, SinceUtc, PreviousKind,
                 PreviousDurationMs is { } milliseconds ? TimeSpan.FromMilliseconds(milliseconds) : null, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note);
@@ -146,9 +146,9 @@ public sealed record ChannelCheckResponse(string Channel, int? ErrorCode, string
     /// <returns>The check, or an error.</returns>
     public ErrorOr<ChannelCheck> ToCheck()
     {
-        var channel = RegistryWireValues.ChannelOf(Channel);
+        var channel = WireValues.ChannelOf(Channel);
         return channel.IsError ? channel.Error
-            : ErrorCode is null != ErrorName is null ? RegistryWireValues.Invalid("A failed check has an error code and an error name.")
+            : ErrorCode is null != ErrorName is null ? WireValues.Invalid("A failed check has an error code and an error name.")
             : new ChannelCheck(channel.Value, ErrorCode, ErrorName, Changed);
     }
 }
@@ -183,9 +183,9 @@ public sealed record RegistryMessageTypeResponse(
     /// <returns>The message type, or an error.</returns>
     public ErrorOr<RegistryMessageType> ToMessageType()
     {
-        var type = RegistryWireValues.MessageTypeOf(Name);
-        var channels = RegistryWireValues.ChannelsOf(Channels);
-        var disabled = RegistryWireValues.ChannelsOf(DisabledChannels);
+        var type = WireValues.MessageTypeOf(Name);
+        var channels = WireValues.ChannelsOf(Channels);
+        var disabled = WireValues.ChannelsOf(DisabledChannels);
         var entry = Entry?.ToEntry();
         return (type.Error ?? channels.Error ?? disabled.Error ?? entry?.Error) is { } invalid
             ? invalid
@@ -220,7 +220,7 @@ public sealed record ChannelEntryResponse(
     /// <returns>The entry, or an error.</returns>
     public ErrorOr<ChannelEntry> ToEntry()
     {
-        var channel = RegistryWireValues.ChannelOf(Channel);
+        var channel = WireValues.ChannelOf(Channel);
         return channel.IsError ? channel.Error : new ChannelEntry(channel.Value, DisplayName, Description, Enabled, Revision, LastModifiedAtUtc);
     }
 }
@@ -259,59 +259,10 @@ public sealed record MessageTypeEntryResponse(
     /// <returns>The entry, or an error.</returns>
     public ErrorOr<MessageTypeEntry> ToEntry()
     {
-        var type = RegistryWireValues.MessageTypeOf(Type);
-        var disabled = RegistryWireValues.ChannelsOf(DisabledChannels);
+        var type = WireValues.MessageTypeOf(Type);
+        var disabled = WireValues.ChannelsOf(DisabledChannels);
         return (type.Error ?? disabled.Error) is { } invalid
             ? invalid
             : new MessageTypeEntry(type.Value, DisplayName, Description, Enabled, disabled.Value, Revision, LastModifiedAtUtc);
-    }
-}
-
-/// <summary>The checks of the names in a registry body, which give <see cref="Errors.SerializationFailed"/> (D228).</summary>
-internal static class RegistryWireValues
-{
-    public static Error Invalid(string message) => new(Errors.SerializationFailed, message);
-
-    public static ErrorOr<ChannelId> ChannelOf(string? name) => NameOf(name, "channel", static valid => new ChannelId(valid));
-
-    public static ErrorOr<MessageType> MessageTypeOf(string? name) => NameOf(name, "message type", static valid => new MessageType(valid));
-
-    public static ErrorOr<IReadOnlyList<ChannelId>> ChannelsOf(IReadOnlyList<string>? names)
-    {
-        if (names is null)
-        {
-            return Invalid("A message type has a list of channels and a list of disabled channels.");
-        }
-
-        var channels = new ChannelId[names.Count];
-        for (var index = 0; index < channels.Length; index++)
-        {
-            var channel = ChannelOf(names[index]);
-            if (channel.IsError)
-            {
-                return channel.Error;
-            }
-
-            channels[index] = channel.Value;
-        }
-
-        return channels;
-    }
-
-    private static ErrorOr<T> NameOf<T>(string? name, string kind, Func<string, T> create)
-    {
-        if (name is null)
-        {
-            return Invalid($"A {kind} has a name.");
-        }
-
-        try
-        {
-            return create(name);
-        }
-        catch (ArgumentException exception)
-        {
-            return Invalid($"The {kind} name is not valid: {exception.Message}");
-        }
     }
 }

@@ -1,11 +1,11 @@
 using System.Text.Json.Serialization;
 using MsgHatch.Domain.Management;
 
-namespace MsgHatch.AspNetCore;
+namespace MsgHatch.Api.Contracts;
 
 /// <summary>
 /// The JSON type information of the request and response bodies of the delivery endpoints, with camelCase names and
-/// enum values as strings (section 4.19). A missing required property is invalid JSON, so the endpoint gives 400 for it.
+/// enum values as strings (section 4.19, D291). A missing required property is invalid JSON, so the endpoint gives 400 for it.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true,
@@ -21,4 +21,4 @@ namespace MsgHatch.AspNetCore;
 [JsonSerializable(typeof(OutgoingMessageDetailResponse))]
 [JsonSerializable(typeof(DeliveryActionResult))]
 [JsonSerializable(typeof(DeletedMessages))]
-internal sealed partial class DeliveryEndpointJson : JsonSerializerContext;
+public sealed partial class DeliveryEndpointJson : JsonSerializerContext;
