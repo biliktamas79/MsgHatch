@@ -4,11 +4,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Testing;
 using ExampleApp.Tests.Unit.TestTypes;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Management;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Email;
+using MsgHatch.SignalR;
 using MsgHatch.Subscriptions;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Verification;
@@ -89,5 +93,85 @@ public sealed class ExampleStartupUnitTests : IDisposable
                 "Information 9004: Routing check skipped: type A, test case (null), level Company, channel Email, language (null)",
             ],
             logger.Collector.GetSnapshot().Select(static record => $"{record.Level} {record.Id.Id}: {record.Message}"));
+    }
+    [Fact]
+    public async Task SeedChannelHistoryAsync_NewFile_WritesTheRowsOfEmailAndSignalRWithTheirTimesAndNoRowOfBroker_D288()
+    {
+        // Arrange
+        await using var provider = AProvider();
+
+        // Act
+        await ExampleStartup.SeedChannelHistoryAsync(provider, Ct);
+
+        // Assert
+        Assert.Equal(
+            [
+                "Email 1 Down Errors -40.00:00:00 Unavailable", "Email 2 Up -39.22:00:00",
+                "Email 3 Down Errors -12.00:00:00 Unavailable", "Email 4 Up -11.23:15:00",
+                "Email 5 Down Operator -5.00:00:00 Example maintenance", "Email 6 Up -4.21:00:00",
+                "Email 7 Down Errors -1.02:00:00 Unavailable", "Email 8 Up -1.01:53:00",
+                "SignalR 1 Down Errors -20.00:00:00 Unavailable", "SignalR 2 Up -19.18:00:00",
+            ],
+            await RowsAsync(provider));
+    }
+
+    [Fact]
+    public async Task SeedChannelHistoryAsync_NewFile_EachChannelIsUpAndTheHistoryOfEmailHasTheRowBeforeTheWindow_D288()
+    {
+        // Arrange
+        await using var provider = AProvider();
+
+        // Act
+        await ExampleStartup.SeedChannelHistoryAsync(provider, Ct);
+
+        // Assert
+        await using var scope = provider.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
+        var channels = await queries.GetChannelsAsync(Ct);
+        var history = await queries.GetChannelHistoryAsync(EmailChannel.Id, Ct);
+        Assert.Equal(
+            ("Broker:none Email:Up SignalR:Up", 0, 7, "Up -39.22:00:00"),
+            (string.Join(' ', channels.Value.OrderBy(static channel => channel.Id.Name, StringComparer.Ordinal)
+                    .Select(static channel => $"{channel.Id.Name}:{channel.Current?.Kind.ToString() ?? "none"}")),
+                (await Store(provider).GetDownChannelsAsync(Ct)).Value.Count, history.Value.Count,
+                $"{history.Value[^1].Kind} {history.Value[^1].SinceUtc - _time.UtcNow:c}"));
+    }
+
+    [Fact]
+    public async Task SeedChannelHistoryAsync_SecondSeedAndAChannelWithAStateRow_AddNoRow_D288()
+    {
+        // Arrange
+        await using var provider = AProvider();
+        await Store(provider).SetChannelDownAsync(
+            new ChannelDown(SignalRChannel.Id, ChannelDownReason.Operator, _time.UtcNow.AddMinutes(-1), NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "Real pause"),
+            Ct);
+        await ExampleStartup.SeedChannelHistoryAsync(provider, Ct);
+
+        // Act
+        await ExampleStartup.SeedChannelHistoryAsync(provider, Ct);
+
+        // Assert
+        var rows = await RowsAsync(provider);
+        Assert.Equal(
+            (8, "SignalR 1 Down Operator -00:01:00 Real pause"),
+            (rows.Count(static row => row.StartsWith("Email ", StringComparison.Ordinal)), string.Join('|', rows.Where(static row => row.StartsWith("SignalR ", StringComparison.Ordinal)))));
+    }
+
+    private ServiceProvider AProvider()
+    {
+        var services = CreateServices(_database, _time);
+        services.AddExampleMsgHatch();
+        return services.Build();
+    }
+
+    private static IOutboxDispatchStore Store(IServiceProvider provider) => provider.GetRequiredService<IOutboxDispatchStore>();
+
+    /// <summary>The state rows of each channel as text, by channel and version: the kind, the reason, the start before now, and the error name or the note.</summary>
+    private async Task<List<string>> RowsAsync(IServiceProvider provider)
+    {
+        var rows = await Store(provider).GetChannelStatesAsync(DateTime.MinValue, Ct);
+        return [.. rows.Value.OrderBy(static row => row.Channel.Name, StringComparer.Ordinal).ThenBy(static row => row.Version)
+            .Select(row => $"{row.Channel.Name} {row.Version} {row.Kind}{(row.Reason is { } reason ? $" {reason}" : "")} {row.SinceUtc - _time.UtcNow:c}"
+                + ((row.ErrorName ?? row.Note) is { } detail ? $" {detail}" : ""))];
     }
 }

@@ -7,6 +7,7 @@ await ExampleStartup.RunAsync(app.Services, CancellationToken.None);
 if (app.Environment.IsDevelopment())
 {
     await ExampleStartup.VerifyRoutingAsync(app.Services, CancellationToken.None);
+    await ExampleStartup.SeedChannelHistoryAsync(app.Services, CancellationToken.None);
 }
 
 await app.RunAsync();

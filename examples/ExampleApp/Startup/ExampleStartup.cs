@@ -3,9 +3,14 @@ using ExampleApp.Notices;
 using ExampleApp.PasswordResets;
 using ExampleApp.Recipients;
 using MsgHatch.Domain.Delivery;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Management;
+using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Pipeline;
+using MsgHatch.Email;
+using MsgHatch.SignalR;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Verification;
 
@@ -76,6 +81,35 @@ public static class ExampleStartup
         return report.Value;
     }
 
+    /// <summary>
+    /// Writes an example history of the channel states into the outbox dispatch store, so that the History dialog of the admin
+    /// UI has data (D288). The times come before the current time of <see cref="TimeProvider"/>. Email gets four down states:
+    /// one 40 days ago, before the 30-day window, a pause with the note "Example maintenance", and two down states for errors.
+    /// SignalR gets one down state for errors, and Broker gets no row. Each down state ends with an up row, so each channel is
+    /// up after the seed. A channel with a state row gets no seed, so a second call adds nothing. The app calls it at startup
+    /// in the <c>Development</c> environment.
+    /// </summary>
+    /// <param name="services">The services of the app.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task that completes when the rows are in the store.</returns>
+    public static async Task SeedChannelHistoryAsync(IServiceProvider services, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        await using var scope = services.CreateAsyncScope();
+        var channels = await scope.ServiceProvider.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None).GetChannelsAsync(ct);
+        ThrowIfFailed(channels.Error);
+        var store = services.GetRequiredService<IOutboxDispatchStore>();
+        var nowUtc = services.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
+        foreach (var channel in channels.Value.Where(static channel => channel.Current is null))
+        {
+            foreach (var (down, duration) in ExampleHistoryOf(channel.Id, nowUtc))
+            {
+                ThrowIfFailed((await store.SetChannelDownAsync(down, ct)).Error);
+                ThrowIfFailed((await store.SetChannelUpAsync(down.Channel, down.Reason, down.SinceUtc + duration, ct)).Error);
+            }
+        }
+    }
+
     /// <summary>Logs the counts of a report, each failed row as a warning, and each skipped row (D162).</summary>
     /// <param name="logger">The logger.</param>
     /// <param name="report">The report.</param>
@@ -108,6 +142,23 @@ public static class ExampleStartup
         Accepted(await notifications.AcceptAsync(new PasswordReset(1, "client1@acme.example", "en"), NewContext(), ct));
         Accepted(await notifications.AcceptAsync(new EventC(null, ExampleScenario.Acme, "The maintenance starts at 22:00."), NewContext(), ct));
     }
+
+    /// <summary>The down states of the example history of one channel, oldest first, each with the time until its up row (D288).</summary>
+    private static (ChannelDown Down, TimeSpan Duration)[] ExampleHistoryOf(ChannelId channel, DateTime nowUtc) =>
+        channel == EmailChannel.Id
+            ?
+            [
+                (DownForErrors(channel, nowUtc.AddDays(-40)), TimeSpan.FromHours(2)),
+                (DownForErrors(channel, nowUtc.AddDays(-12)), TimeSpan.FromMinutes(45)),
+                (new ChannelDown(channel, ChannelDownReason.Operator, nowUtc.AddDays(-5), NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "Example maintenance"),
+                    TimeSpan.FromHours(3)),
+                (DownForErrors(channel, nowUtc.AddHours(-26)), TimeSpan.FromMinutes(7)),
+            ]
+            : channel == SignalRChannel.Id ? [(DownForErrors(channel, nowUtc.AddDays(-20)), TimeSpan.FromHours(6))]
+            : [];
+
+    private static ChannelDown DownForErrors(ChannelId channel, DateTime sinceUtc) =>
+        new(channel, ChannelDownReason.Errors, sinceUtc, sinceUtc.AddSeconds(30), Errors.Unavailable.Code, Errors.Unavailable.Name, Note: null);
 
     private static MessageContext NewContext() => new(Guid.NewGuid());
 
