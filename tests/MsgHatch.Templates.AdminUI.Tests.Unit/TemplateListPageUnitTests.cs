@@ -136,10 +136,39 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         GivenTemplates();
         var cut = Render<TemplateListPage>();
 
-        cut.Find("#msghatch-template-type").Change("Requests");
         cut.Find("#msghatch-template-company").Input(" 42 ");
+        cut.Find("#msghatch-template-type").Change("Requests");
 
         Queries.Received(1).GetTemplatesAsync(new TemplateQuery(Requests, "42"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Input_CompanyTwiceWithinThePause_QueriesOnlyTheLastTextAfter500Milliseconds()
+    {
+        GivenTemplates();
+        var cut = Render<TemplateListPage>();
+
+        cut.Find("#msghatch-template-company").Input("4");
+        Clock.Advance(TimeSpan.FromMilliseconds(499));
+        cut.Find("#msghatch-template-company").Input("42");
+        Clock.Advance(TimeSpan.FromMilliseconds(500));
+
+        cut.WaitForAssertion(() => Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, "42"), Arg.Any<CancellationToken>()));
+        Queries.DidNotReceive().GetTemplatesAsync(new TemplateQuery(null, "4"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Input_Language_FiltersTheListOnlyAfter500Milliseconds()
+    {
+        GivenTemplates(new TemplateEntry(Lookup("en"), 1), new TemplateEntry(Lookup("hu"), 2));
+        var cut = Render<TemplateListPage>();
+
+        cut.Find("#msghatch-template-language-filter").Input("hu");
+        Clock.Advance(TimeSpan.FromMilliseconds(499));
+        var beforeThePause = await cut.InvokeAsync(() => LanguagesOf(cut));
+        Clock.Advance(TimeSpan.FromMilliseconds(1));
+
+        cut.WaitForAssertion(() => Assert.Equal(("en hu", "hu"), (beforeThePause, LanguagesOf(cut))));
     }
 
     [Fact]
@@ -152,7 +181,11 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         var cut = Render<TemplateListPage>();
 
         cut.Find("#msghatch-template-company").Input("4");
+        Clock.Advance(TimeSpan.FromMilliseconds(500));
+        cut.WaitForAssertion(() => Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, "4"), Arg.Any<CancellationToken>()));
         cut.Find("#msghatch-template-company").Input("42");
+        Clock.Advance(TimeSpan.FromMilliseconds(500));
+        cut.WaitForAssertion(() => Assert.Equal(["42"], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent)));
         await cut.InvokeAsync(() => earlier.SetResult(ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([new TemplateEntry(Lookup(scope: "4"), 1)])));
 
         Assert.Equal(["42"], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent));
@@ -312,6 +345,9 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         Assert.Equal((AdminErrors.RejectedText, 1), (cut.Find("[data-list-body] > .alert-danger").TextContent, cut.FindAll("tr[data-row]").Count));
     }
+
+    private static string LanguagesOf(IRenderedComponent<TemplateListPage> cut) =>
+        string.Join(' ', cut.FindAll("tr[data-row]").Select(static row => row.Children[1].TextContent));
 
     private void GivenTemplates(params TemplateEntry[] entries) =>
         Queries.GetTemplatesAsync(Arg.Any<TemplateQuery>(), Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<TemplateEntry>>(entries));

@@ -1,7 +1,8 @@
 @attribute [Route(TemplateAdminRoutes.List)]
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
-@* The template list, with filters for the message type, the language, the company, the part, and the kind, which apply at each change, and a dialog of a new template from the declared parts (D240, D260). *@
+@inject TimeProvider Clock
+@* The template list, with filters for the message type, the language, the company, the part, and the kind, which apply at each change, a text filter after a pause of 500 ms, and a dialog of a new template from the declared parts (D240, D260). *@
 
 <AdminListPage Title="Templates">
 <Actions>
@@ -20,11 +21,11 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-language-filter">Language</label>
-        <input id="msghatch-template-language-filter" class="form-control form-control-sm" @bind="_languageFilter" @bind:event="oninput" @bind:after="LoadEntriesAsync" />
+        <input id="msghatch-template-language-filter" class="form-control form-control-sm" @bind="_languageFilter" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-company">Company id</label>
-        <input id="msghatch-template-company" class="form-control form-control-sm" @bind="_companyFilter" @bind:event="oninput" @bind:after="LoadEntriesAsync" />
+        <input id="msghatch-template-company" class="form-control form-control-sm" @bind="_companyFilter" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-template-part-filter">Part</label>
@@ -129,6 +130,7 @@
 </AdminDialog>
 
 @code {
+    private static readonly TimeSpan _pause = TimeSpan.FromMilliseconds(500);
     private ErrorOr<IReadOnlyList<TemplatePartInfo>>? _parts;
     private ErrorOr<IReadOnlyList<TemplateEntry>>? _entries;
     private string _typeFilter = string.Empty;
@@ -195,6 +197,16 @@
         }
 
         _entries = found.IsError ? found : ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([.. found.Value.Where(MatchesTheListFilters)]);
+    }
+
+    private async Task LoadAfterAPauseAsync()
+    {
+        var load = ++_lastLoad;
+        await Task.Delay(_pause, Clock);
+        if (load == _lastLoad)
+        {
+            await LoadEntriesAsync();
+        }
     }
 
     private bool MatchesTheListFilters(TemplateEntry entry) =>
