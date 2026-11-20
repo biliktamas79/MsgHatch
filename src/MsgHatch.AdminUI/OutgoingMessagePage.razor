@@ -1,0 +1,154 @@
+@attribute [Route(DeliveryAdminRoutes.OutgoingMessageTemplate)]
+@inject IServiceProvider Services
+@* The page of one outgoing message (D296): its summary, its tries, its trace as formatted JSON, its content only on request, and Cancel and Retry on the query of its one id. *@
+
+<AdminEditPage>
+    <Header>
+        <h1 class="h3">Outgoing message</h1>
+    </Header>
+    <ChildContent>
+        @if (_loadError is not null)
+        {
+            <ErrorAlert Error="_loadError" />
+        }
+        else if (_detail is not { } detail)
+        {
+            <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+        }
+        else
+        {
+            var message = detail.Summary;
+            @if (_result is { } result)
+            {
+                <div class="alert @(result.IsError ? "alert-danger" : "alert-success") py-2" role="status" data-action-result>@ResultTextOf(result)</div>
+            }
+            <dl class="row mb-3">
+                <dt class="col-sm-3">Id</dt>
+                <dd class="col-sm-9" data-field="id">@message.Delivery.Id</dd>
+                <dt class="col-sm-3">Status</dt>
+                <dd class="col-sm-9" data-field="status"><DeliveryStatusBadge Delivery="message.Delivery" Flags="message.Flags" /></dd>
+                <dt class="col-sm-3">Message type</dt>
+                <dd class="col-sm-9" data-field="type">@message.Type.Name</dd>
+                <dt class="col-sm-3">Channel</dt>
+                <dd class="col-sm-9" data-field="channel">@message.Channel.Name</dd>
+                <dt class="col-sm-3">Target</dt>
+                <dd class="col-sm-9" data-field="target">@DeliveryTexts.TargetOf(message.Target)</dd>
+                <dt class="col-sm-3">Tenant</dt>
+                <dd class="col-sm-9" data-field="tenant">@message.Tenant?.Value</dd>
+                <dt class="col-sm-3">Tries</dt>
+                <dd class="col-sm-9" data-field="tries">@DeliveryTexts.TriesOf(message.Delivery)</dd>
+                <dt class="col-sm-3">Created</dt>
+                <dd class="col-sm-9" data-field="created">@DeliveryTexts.TimeOf(message.Delivery.CreatedAtUtc)</dd>
+                <dt class="col-sm-3">Last try</dt>
+                <dd class="col-sm-9" data-field="last-try">@DeliveryTexts.TimeOf(message.Delivery.LastTryAtUtc)</dd>
+                <dt class="col-sm-3">Next try</dt>
+                <dd class="col-sm-9" data-field="next-try">@DeliveryTexts.TimeOf(message.Delivery.NextTryAtUtc)</dd>
+                <dt class="col-sm-3">Lease until</dt>
+                <dd class="col-sm-9" data-field="lease">@DeliveryTexts.TimeOf(message.Delivery.LeaseUntilUtc)</dd>
+                <dt class="col-sm-3">Expires</dt>
+                <dd class="col-sm-9" data-field="expires">@DeliveryTexts.TimeOf(message.Delivery.ExpiresAtUtc)</dd>
+                <dt class="col-sm-3">Last error</dt>
+                <dd class="col-sm-9 text-break" data-field="last-error">@message.Delivery.LastError</dd>
+                <dt class="col-sm-3">Content type</dt>
+                <dd class="col-sm-9" data-field="content-type">@message.ContentType, version @message.ContentVersion</dd>
+                <dt class="col-sm-3">Source message</dt>
+                <dd class="col-sm-9" data-field="source">
+                    <a data-action="source" href="@DeliveryAdminRoutes.ReceivedMessage(message.SourceMessageId).TrimStart('/')">@message.SourceMessageId</a>
+                </dd>
+            </dl>
+            <h2 class="h5">Tries</h2>
+            @if (detail.Tries.Count == 0)
+            {
+                <p class="text-secondary" data-state="no-tries">There are no tries.</p>
+            }
+            else
+            {
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Try</th><th>Started</th><th>Finished</th><th>Outcome</th><th>Provider message id</th><th>Error</th></tr></thead>
+                    <tbody>
+                        @foreach (var publishTry in detail.Tries)
+                        {
+                            <tr data-try>
+                                <td>@publishTry.TryNumber</td>
+                                <td class="text-nowrap">@DeliveryTexts.TimeOf(publishTry.StartedAtUtc)</td>
+                                <td class="text-nowrap">@DeliveryTexts.TimeOf(publishTry.FinishedAtUtc)</td>
+                                <td>@publishTry.Outcome</td>
+                                <td class="text-break">@publishTry.ProviderMessageId</td>
+                                <td class="small text-break">@publishTry.ErrorText()</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <h2 class="h5">Trace</h2>
+            @if (detail.Trace is { } trace)
+            {
+                <pre class="border rounded p-2 small" data-trace>@DeliveryTexts.IndentedJsonOf(trace)</pre>
+            }
+            else
+            {
+                <p class="text-secondary" data-state="no-trace">There is no trace.</p>
+            }
+            <h2 class="h5">Content</h2>
+            <MessageContentPanel @key="message.Delivery.Id" Load="LoadContentAsync" />
+        }
+    </ChildContent>
+    <Actions>
+        <AdminActions>
+            <Start><a class="btn btn-outline-secondary" data-action="back" href="@DeliveryAdminRoutes.Outbox.TrimStart('/')">Back to the outbox</a></Start>
+            <End>
+                @if (_detail is not null)
+                {
+                    <button type="button" class="btn btn-outline-danger" data-action="cancel" @onclick="CancelAsync">Cancel</button>
+                    <button type="button" class="btn btn-primary" data-action="retry" @onclick="RetryAsync">Retry</button>
+                }
+            </End>
+        </AdminActions>
+    </Actions>
+</AdminEditPage>
+
+@code {
+    private OutgoingMessageDetail? _detail;
+    private Error? _loadError;
+    private ErrorOr<DeliveryActionResult>? _result;
+
+    /// <summary>The id of the outgoing message, from the address.</summary>
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private IDeliveryQueries Queries => Services.GetRequiredKeyedService<IDeliveryQueries>(TenantKey.None);
+
+    private IDeliveryCommands Commands => Services.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None);
+
+    private OutboxQuery OneMessage => new(Ids: [Id], IncludeTest: true);
+
+    /// <inheritdoc />
+    protected override Task OnParametersSetAsync()
+    {
+        _result = null;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        (_detail, _loadError) = (null, null);
+        var detail = await Queries.GetOutgoingMessageAsync(Id, CancellationToken.None);
+        _detail = detail.IsError ? null : detail.Value;
+        _loadError = detail.IsError ? detail.Error : null;
+    }
+
+    private Task<ErrorOr<MessageContent>> LoadContentAsync() => Queries.GetOutgoingContentAsync(Id, CancellationToken.None).AsTask();
+
+    private async Task RetryAsync() => await ShowResultAsync(await Commands.RetryOutgoingAsync(OneMessage, CancellationToken.None));
+
+    private async Task CancelAsync() => await ShowResultAsync(await Commands.CancelOutgoingAsync(OneMessage, CancellationToken.None));
+
+    private async Task ShowResultAsync(ErrorOr<DeliveryActionResult> result)
+    {
+        _result = result;
+        await LoadAsync();
+    }
+
+    private static string ResultTextOf(ErrorOr<DeliveryActionResult> result) =>
+        result.IsError ? AdminErrors.TextOf(result.Error) : DeliveryTexts.OneMessageResultOf(result.Value);
+}

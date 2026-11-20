@@ -1,0 +1,29 @@
+@* The content of a message, which the panel reads only after a click on "Show content" (D296). So a look at a message reads no personal data, and an error, for example Rejected for a token with no role DeliveryContent, shows only in the panel. *@
+@if (_content is not { } content)
+{
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-action="show-content" disabled="@_loading" @onclick="ShowAsync">Show content</button>
+}
+else if (content.IsError)
+{
+    <ErrorAlert Error="content.Error" />
+}
+else
+{
+    <pre class="border rounded p-2 small" data-content>@DeliveryTexts.IndentedJsonOf(content.Value.Json)</pre>
+}
+
+@code {
+    private ErrorOr<MessageContent>? _content;
+    private bool _loading;
+
+    /// <summary>Reads the content of the message.</summary>
+    [Parameter, EditorRequired]
+    public Func<Task<ErrorOr<MessageContent>>> Load { get; set; } = null!;
+
+    private async Task ShowAsync()
+    {
+        _loading = true;
+        _content = await Load();
+        _loading = false;
+    }
+}

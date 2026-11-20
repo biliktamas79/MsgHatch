@@ -17,6 +17,14 @@ public sealed class DeliveryAdminRoutesUnitTests
     }
 
     [Fact]
+    public void ReceivedMessage_Id_GivesTheAddressOfTheMessagePage()
+    {
+        Assert.Equal(
+            "/msghatch/inbox/00000000-0000-0000-0000-000000000001",
+            DeliveryAdminRoutes.ReceivedMessage(Guid.Parse("00000000-0000-0000-0000-000000000001")));
+    }
+
+    [Fact]
     public void OutboxOf_NoFilter_GivesTheAddressOfTheList()
     {
         Assert.Equal("/msghatch/outbox", DeliveryAdminRoutes.OutboxOf());
@@ -40,6 +48,7 @@ public sealed class DeliveryAdminRoutesUnitTests
     public void Pages_RouteTemplates_AreTheAddressesOfTheRouteBuilders()
     {
         Assert.Equal([DeliveryAdminRoutes.Outbox], TemplatesOf<OutboxListPage>());
+        Assert.Equal([DeliveryAdminRoutes.Outbox + "/{Id:guid}"], TemplatesOf<OutgoingMessagePage>());
     }
 
     private static string[] TemplatesOf<TPage>() => [.. typeof(TPage).GetCustomAttributes<RouteAttribute>().Select(static route => route.Template).Order(StringComparer.Ordinal)];

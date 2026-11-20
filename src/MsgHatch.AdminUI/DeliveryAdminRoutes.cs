@@ -12,10 +12,20 @@ public static class DeliveryAdminRoutes
     /// <summary>The address of the outbox list.</summary>
     public const string Outbox = "/msghatch/outbox";
 
+    /// <summary>The address of the inbox list.</summary>
+    public const string Inbox = "/msghatch/inbox";
+
+    internal const string OutgoingMessageTemplate = Outbox + "/{Id:guid}";
+
     /// <summary>Gives the address of the page of one outgoing message (D296).</summary>
     /// <param name="id">The id of the outgoing message.</param>
     /// <returns>For example <c>/msghatch/outbox/7d2e…</c>.</returns>
     public static string OutgoingMessage(Guid id) => $"{Outbox}/{id.ToString("D", CultureInfo.InvariantCulture)}";
+
+    /// <summary>Gives the address of the page of one received message (D296).</summary>
+    /// <param name="id">The id of the received message.</param>
+    /// <returns>For example <c>/msghatch/inbox/7d2e…</c>.</returns>
+    public static string ReceivedMessage(Guid id) => $"{Inbox}/{id.ToString("D", CultureInfo.InvariantCulture)}";
 
     /// <summary>
     /// Gives the address of the outbox list with filters (D295). A time is UTC, and goes into the address to the second.
