@@ -29,9 +29,7 @@ internal sealed class DeliveryManager(
     IOptionsMonitor<RetryOptions> retryOptions,
     TimeProvider time) : IDeliveryManager
 {
-    private const int _maxLimit = 500;
-    private const int _maxIds = 1000;
-    private const int _maxNoteLength = 500;
+    private const int _bulkPageLimit = 500;
 
     public static DeliveryManager Create(IServiceProvider tenantServices, TenantKey key) =>
         new(
@@ -61,7 +59,7 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<Error?> PauseChannelAsync(ChannelId channel, string? note, CancellationToken ct)
     {
-        if ((GlobalChangeError() ?? NoteError(note) ?? UnknownChannelError(channel)) is { } error)
+        if ((DeliveryRules.CheckPause(key, note) ?? UnknownChannelError(channel)) is { } error)
         {
             return error;
         }
@@ -72,7 +70,7 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<Error?> ResumeChannelAsync(ChannelId channel, CancellationToken ct)
     {
-        if ((GlobalChangeError() ?? UnknownChannelError(channel)) is { } error)
+        if ((DeliveryRules.CheckGlobalAction(key) ?? UnknownChannelError(channel)) is { } error)
         {
             return error;
         }
@@ -89,8 +87,7 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<ErrorOr<TrafficReport>> GetTrafficAsync(TrafficQuery query, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        if (RangeError(query.CreatedFromUtc, query.CreatedToUtc) is { } error)
+        if (DeliveryRules.Check(query) is { } error)
         {
             return error;
         }
@@ -107,17 +104,14 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<ErrorOr<MessagePage<ReceivedMessageSummary>>> GetReceivedMessagesAsync(InboxQuery query, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        return QueryError(query.Ids, query.CreatedFromUtc, query.CreatedToUtc, query.Limit) is { } error ? error
+        return DeliveryRules.Check(query) is { } error ? error
             : inbox is null ? new MessagePage<ReceivedMessageSummary>([], Next: null)
             : await inbox.QueryAsync(query, ct);
     }
 
     public async ValueTask<ErrorOr<MessagePage<OutgoingMessageSummary>>> GetOutgoingMessagesAsync(OutboxQuery query, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        return QueryError(query.Ids, query.CreatedFromUtc, query.CreatedToUtc, query.Limit) is { } error ? error
-            : await outbox.QueryAsync(query, ct);
+        return DeliveryRules.Check(query) is { } error ? error : await outbox.QueryAsync(query, ct);
     }
 
     public async ValueTask<ErrorOr<OutgoingMessageDetail>> GetOutgoingMessageAsync(Guid id, CancellationToken ct)
@@ -147,8 +141,7 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<ErrorOr<DeliveryActionResult>> RetryReceivedAsync(InboxQuery query, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        if (BulkError(query) is { } error)
+        if (DeliveryRules.CheckBulkAction(query) is { } error)
         {
             return error;
         }
@@ -160,7 +153,7 @@ internal sealed class DeliveryManager(
 
         var addedTries = retryOptions.Get(OptionNames.Inbox).MaxTryCount;
         var result = await RunOnPagesAsync(
-            after => inbox.QueryAsync(query with { Limit = _maxLimit, After = after }, ct),
+            after => inbox.QueryAsync(query with { Limit = _bulkPageLimit, After = after }, ct),
             async page => await inbox.RetryAsync(IdsOf(page), time.GetUtcNowDateTime(), addedTries, ct));
         if (result is { IsSuccess: true, Value.Changed: > 0 })
         {
@@ -172,25 +165,23 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<ErrorOr<DeliveryActionResult>> CancelReceivedAsync(InboxQuery query, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        return BulkError(query) is { } error ? error
+        return DeliveryRules.CheckBulkAction(query) is { } error ? error
             : inbox is null ? new DeliveryActionResult(0, 0)
             : await RunOnPagesAsync(
-                after => inbox.QueryAsync(query with { Limit = _maxLimit, After = after }, ct),
+                after => inbox.QueryAsync(query with { Limit = _bulkPageLimit, After = after }, ct),
                 async page => await inbox.CancelAsync(IdsOf(page), time.GetUtcNowDateTime(), ct));
     }
 
     public async ValueTask<ErrorOr<DeliveryActionResult>> RetryOutgoingAsync(OutboxQuery query, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        if (BulkError(query) is { } error)
+        if (DeliveryRules.CheckBulkAction(query) is { } error)
         {
             return error;
         }
 
         HashSet<ChannelId> changedChannels = [];
         var result = await RunOnPagesAsync(
-            after => outbox.QueryAsync(query with { Limit = _maxLimit, After = after }, ct),
+            after => outbox.QueryAsync(query with { Limit = _bulkPageLimit, After = after }, ct),
             page => RetryEachContentTypeAsync(page, changedChannels, ct));
         foreach (var channel in changedChannels)
         {
@@ -202,16 +193,15 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<ErrorOr<DeliveryActionResult>> CancelOutgoingAsync(OutboxQuery query, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(query);
-        return BulkError(query) is { } error ? error
+        return DeliveryRules.CheckBulkAction(query) is { } error ? error
             : await RunOnPagesAsync(
-                after => outbox.QueryAsync(query with { Limit = _maxLimit, After = after }, ct),
+                after => outbox.QueryAsync(query with { Limit = _bulkPageLimit, After = after }, ct),
                 async page => await outbox.CancelAsync(IdsOf(page), time.GetUtcNowDateTime(), ct));
     }
 
     public async ValueTask<ErrorOr<DeletedMessages>> DeleteTestDataAsync(CancellationToken ct)
     {
-        if (GlobalChangeError() is { } error)
+        if (DeliveryRules.CheckGlobalAction(key) is { } error)
         {
             return error;
         }
@@ -228,7 +218,7 @@ internal sealed class DeliveryManager(
 
     public async ValueTask<ErrorOr<DeletedMessages>> PurgeAsync(DateTime finishedBeforeUtc, int maxCount, CancellationToken ct)
     {
-        if ((GlobalChangeError() ?? PurgeError(finishedBeforeUtc, maxCount)) is { } error)
+        if ((DeliveryRules.CheckPurge(key, maxCount) ?? FinishTimeError(finishedBeforeUtc)) is { } error)
         {
             return error;
         }
@@ -321,44 +311,11 @@ internal sealed class DeliveryManager(
 
     private static Guid[] IdsOf(MessagePage<OutgoingMessageSummary> page) => [.. page.Items.Select(static summary => summary.Delivery.Id)];
 
-    private Error? GlobalChangeError() =>
-        key.Tenant is null ? null
-        : Invalid("A channel, the test data, and the purge are global, so only the manager with no tenant changes them (D106).");
-
     private Error? UnknownChannelError(ChannelId channel) =>
         registry.FindChannel(channel) is null ? new Error(Errors.NotFound, $"The channel {channel.Name} is not registered.") : null;
 
-    private Error? PurgeError(DateTime finishedBeforeUtc, int maxCount) =>
-        maxCount < 1 ? Invalid("maxCount is less than 1.")
-        : finishedBeforeUtc > time.GetUtcNowDateTime() ? Invalid("finishedBefore is after the current time.")
-        : null;
-
-    private static Error? NoteError(string? note) =>
-        note?.Length > _maxNoteLength ? Invalid($"The note has more than {_maxNoteLength} characters.") : null;
-
-    private static Error? QueryError(IReadOnlyList<Guid>? ids, DateTime? createdFromUtc, DateTime? createdToUtc, int limit) =>
-        limit is < 1 or > _maxLimit ? Invalid($"The limit is not 1 to {_maxLimit}.")
-        : ids is { Count: 0 or > _maxIds } ? Invalid($"The ids are empty or more than {_maxIds}.")
-        : RangeError(createdFromUtc, createdToUtc);
-
-    private static Error? RangeError(DateTime? createdFromUtc, DateTime? createdToUtc) =>
-        createdFromUtc >= createdToUtc ? Invalid("createdFrom is not before createdTo.") : null;
-
-    private static Error? BulkError(InboxQuery query) =>
-        QueryError(query.Ids, query.CreatedFromUtc, query.CreatedToUtc, query.Limit)
-        ?? (query is { Ids: null, Status: null, Type: null, CreatedFromUtc: null, CreatedToUtc: null, DueBeforeUtc: null } ? NoFilter() : null);
-
-    private static Error? BulkError(OutboxQuery query) =>
-        QueryError(query.Ids, query.CreatedFromUtc, query.CreatedToUtc, query.Limit)
-        ?? (query is
-        {
-            Ids: null, Status: null, Type: null, Channel: null, Target: null, SourceMessageId: null, CreatedFromUtc: null,
-            CreatedToUtc: null, DueBeforeUtc: null,
-        } ? NoFilter() : null);
-
-    private static Error NoFilter() => Invalid("A retry or a cancel needs at least one filter, so one call cannot change the whole store.");
+    private Error? FinishTimeError(DateTime finishedBeforeUtc) =>
+        finishedBeforeUtc > time.GetUtcNowDateTime() ? new Error(Errors.ValidationFailed, "finishedBefore is after the current time.") : null;
 
     private static Error NotFound(Guid id) => new(Errors.NotFound, $"The message {id:D} is not stored for this tenant.");
-
-    private static Error Invalid(string message) => new(Errors.ValidationFailed, message);
 }
