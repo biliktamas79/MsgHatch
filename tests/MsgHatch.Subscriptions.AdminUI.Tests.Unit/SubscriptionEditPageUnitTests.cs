@@ -262,5 +262,20 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
         Assert.Equal("http://localhost/msghatch/subscriptions", Navigation.Uri);
     }
 
+    [Fact]
+    public void Change_CompanySettingsAndMandatory_MarksOnlyTheseFieldsWithAYellowBorder()
+    {
+        var cut = RenderEdit();
+        var before = MarkedOf(cut);
+
+        cut.Find("#msghatch-edit-company").Change("43");
+        cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
+        cut.Find("#msghatch-edit-mandatory").Change(true);
+
+        Assert.Equal(("", "msghatch-edit-company msghatch-edit-settings msghatch-edit-mandatory"), (before, MarkedOf(cut)));
+    }
+
+    private static string MarkedOf(IRenderedComponent<SubscriptionEditPage> cut) => string.Join(' ', cut.FindAll(".border-warning").Select(static field => field.Id));
+
     private IRenderedComponent<SubscriptionEditPage> RenderEdit() => Render<SubscriptionEditPage>(p => p.Add(x => x.Id, Id));
 }

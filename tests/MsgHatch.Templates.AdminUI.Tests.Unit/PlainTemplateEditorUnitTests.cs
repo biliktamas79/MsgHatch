@@ -41,6 +41,20 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
         Assert.Contains("is-invalid", cut.Find("textarea").ClassList);
     }
 
+    [Theory]
+    [InlineData(TemplatePartKind.PlainText, false, false, "")]
+    [InlineData(TemplatePartKind.PlainText, true, false, "border-warning")]
+    [InlineData(TemplatePartKind.PlainText, true, true, "is-invalid")]
+    [InlineData(TemplatePartKind.Html, true, false, "border-warning")]
+    public void Render_ChangedText_MarksTheTextAreaWithAYellowBorderUnlessTheTextHasAnIssue(TemplatePartKind kind, bool changed, bool issue, string expected)
+    {
+        IReadOnlyList<TemplateIssue> issues = issue ? [new TemplateIssue("The tag has no end.", null, null)] : [];
+
+        var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup(part: "body", kind: kind)).Add(x => x.Changed, changed).Add(x => x.Issues, issues));
+
+        Assert.Equal(expected, string.Join(' ', cut.Find("textarea").ClassList.Where(static name => name is "border-warning" or "is-invalid")));
+    }
+
     [Fact]
     public void Render_HtmlPart_HighlightsTheHtmlOverTheTextArea()
     {

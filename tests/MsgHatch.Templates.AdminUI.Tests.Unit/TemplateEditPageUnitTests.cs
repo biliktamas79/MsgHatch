@@ -380,6 +380,17 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
         Assert.Single(cut.FindAll("[data-editor=plain]"));
     }
 
+    [Fact]
+    public void Input_ChangedText_MarksTheTextAreaWithAYellowBorder()
+    {
+        var cut = RenderPage();
+        var before = cut.Find("textarea").ClassList.Contains("border-warning");
+
+        cut.Find("textarea").Input("Hi {{Name}}");
+
+        Assert.Equal((false, true), (before, cut.Find("textarea").ClassList.Contains("border-warning")));
+    }
+
     private void GivenParts(params TemplatePartInfo[] parts) =>
         Queries.GetTemplatePartsAsync(Requests, Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<TemplatePartInfo>>(parts));
 

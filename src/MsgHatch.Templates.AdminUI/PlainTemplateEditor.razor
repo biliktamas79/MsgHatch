@@ -3,12 +3,12 @@
 @if (Lookup.Kind == TemplatePartKind.Html)
 {
     <div data-editor="plain">
-        <HighlightedTextArea Text="@Text" Segments="TextSegments.Of(Text, Lookup.Kind)" TextChanged="TextChanged" Invalid="Issues.Count > 0" Disabled="Disabled" />
+        <HighlightedTextArea Text="@Text" Segments="TextSegments.Of(Text, Lookup.Kind)" TextChanged="TextChanged" Invalid="Issues.Count > 0" Changed="Changed" Disabled="Disabled" />
     </div>
 }
 else
 {
-    <textarea class="form-control font-monospace @(Issues.Count > 0 ? "is-invalid" : null)" rows="16" spellcheck="false"
+    <textarea class="form-control font-monospace @(Issues.Count > 0 ? "is-invalid" : Changed ? "border-warning" : null)" rows="16" spellcheck="false"
               aria-label="Template text" data-editor="plain" value="@Text" disabled="@Disabled" @oninput="OnInputAsync"></textarea>
 }
 @foreach (var issue in Issues)

@@ -21,7 +21,7 @@
         }
         else
         {
-            <RegistryEntryFields @bind-DisplayName="_displayName" @bind-Description="_description" @bind-Enabled="_enabled" Disabled="_busy"
+            <RegistryEntryFields @bind-DisplayName="_displayName" @bind-Description="_description" @bind-Enabled="_enabled" Disabled="_busy" Changes="PendingChanges(channel)"
                                  DisplayNamePlaceholder="@RegistryTexts.PlaceholderOf(channel.Entry?.DisplayName, channel.Name)"
                                  DescriptionPlaceholder="@RegistryTexts.PlaceholderOf(channel.Entry?.Description, channel.Description)" />
 

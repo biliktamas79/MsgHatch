@@ -175,6 +175,21 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
         Assert.Equal(("404", ""), (cut.Find(".alert-danger").GetAttribute("data-error-code"), ActionsOf(cut)));
     }
 
+    [Fact]
+    public void Change_Fields_MarksOnlyTheChangedFieldsWithAYellowBorder()
+    {
+        var cut = RenderPage("Email");
+        var before = MarkedOf(cut);
+
+        cut.Find("[data-field=description]").Change("New description");
+        cut.Find("[data-field=enabled]").Change(false);
+
+        Assert.Equal(("", "description enabled"), (before, MarkedOf(cut)));
+    }
+
+    private static string MarkedOf(IRenderedComponent<ChannelEditPage> cut) =>
+        string.Join(' ', cut.FindAll(".border-warning").Select(static field => field.GetAttribute("data-field")));
+
     private IRenderedComponent<ChannelEditPage> RenderPage(string channel) =>
         Render<ChannelEditPage>(parameters => parameters.Add(page => page.ChannelName, channel));
 

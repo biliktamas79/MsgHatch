@@ -44,6 +44,20 @@ public sealed class HighlightedTextAreaUnitTests : BunitContext
         Assert.Equal((readOnly, false), (cut.Find("textarea").HasAttribute("readonly"), cut.Find("textarea").HasAttribute("disabled")));
     }
 
+    [Theory]
+    [InlineData(false, false, "")]
+    [InlineData(true, false, "border-warning")]
+    [InlineData(true, true, "is-invalid")]
+    public void Render_Changed_MarksTheTextAreaWithAYellowBorderUnlessItIsInvalid(bool changed, bool invalid, string expected)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var cut = Render<HighlightedTextArea>(p => p.Add(x => x.Text, "x").Add(x => x.Segments, [new TextSegment(0, 1, "a")]).Add(x => x.Changed, changed)
+            .Add(x => x.Invalid, invalid));
+
+        Assert.Equal(expected, string.Join(' ', cut.Find("textarea").ClassList.Where(static name => name is "border-warning" or "is-invalid")));
+    }
+
     [Fact]
     public void Input_NewText_GivesTheTextToTextChanged()
     {

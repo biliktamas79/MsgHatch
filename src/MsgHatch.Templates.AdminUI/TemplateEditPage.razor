@@ -234,5 +234,6 @@
         [nameof(TemplateEditorBase.TextChanged)] = EventCallback.Factory.Create<string>(this, OnTextChanged),
         [nameof(TemplateEditorBase.Issues)] = _issues,
         [nameof(TemplateEditorBase.Disabled)] = _busy,
+        [nameof(TemplateEditorBase.Changed)] = !string.Equals(_text, _storedText, StringComparison.Ordinal),
     };
 }

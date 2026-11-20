@@ -4,7 +4,7 @@
 
 <div class="liquid-editor" data-editor="liquid">
     <HighlightedTextArea Text="@Text" Segments="LiquidSegments.Of(Text, MarkedOffsets(), Lookup.Kind == TemplatePartKind.Html)" TextChanged="OnInputAsync"
-                         Invalid="AllIssues().Count > 0" Disabled="Disabled" />
+                         Invalid="AllIssues().Count > 0" Changed="Changed" Disabled="Disabled" />
 </div>
 @foreach (var issue in AllIssues())
 {

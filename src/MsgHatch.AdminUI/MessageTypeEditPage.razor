@@ -21,14 +21,14 @@
         }
         else
         {
-            <RegistryEntryFields @bind-DisplayName="_displayName" @bind-Description="_description" @bind-Enabled="_enabled" Disabled="_busy"
+            <RegistryEntryFields @bind-DisplayName="_displayName" @bind-Description="_description" @bind-Enabled="_enabled" Disabled="_busy" Changes="PendingChanges(type)"
                                  DisplayNamePlaceholder="@RegistryTexts.PlaceholderOf(type.Entry?.DisplayName, type.DisplayName)"
                                  DescriptionPlaceholder="@RegistryTexts.PlaceholderOf(type.Entry?.Description, type.Description)">
                 <div class="col-12" data-field="channels">
                     @foreach (var channel in type.Channels)
                     {
                         <div class="form-check">
-                            <input id="msghatch-entry-send-@channel.Name" class="form-check-input" type="checkbox" data-send-on="@channel.Name" disabled="@_busy"
+                            <input id="msghatch-entry-send-@channel.Name" class="form-check-input @(SendOnChanged(type, channel) ? "border-warning" : null)" type="checkbox" data-send-on="@channel.Name" disabled="@_busy"
                                    checked="@(!_disabled.Contains(channel))" @onchange="change => SetSendOn(channel, change.Value is true)" />
                             <label class="form-check-label" for="msghatch-entry-send-@channel.Name">Send on @channel.Name</label>
                         </div>
@@ -176,6 +176,8 @@
         _busy = false;
     }
 
+    private bool SendOnChanged(RegistryMessageType type, ChannelId channel) => _disabled.Contains(channel) != type.DisabledChannels.Contains(channel);
+
     private List<string> PendingChanges(RegistryMessageType type)
     {
         List<string> changes = [];
@@ -194,7 +196,7 @@
             changes.Add("Enabled");
         }
 
-        changes.AddRange(type.Channels.Where(channel => _disabled.Contains(channel) != type.DisabledChannels.Contains(channel)).Select(static channel => $"Send on {channel.Name}"));
+        changes.AddRange(type.Channels.Where(channel => SendOnChanged(type, channel)).Select(static channel => $"Send on {channel.Name}"));
         return changes;
     }
 }

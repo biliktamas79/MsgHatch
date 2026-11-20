@@ -13,7 +13,7 @@
                 <span class="@segment.CssClass">@Text.Substring(segment.Start, segment.Length)</span>
             }
         }@("\n")</pre>
-    <textarea class="highlight-input form-control @(Invalid ? "is-invalid" : null)" spellcheck="false" aria-label="Template text" @ref="_input"
+    <textarea class="highlight-input form-control @(Invalid ? "is-invalid" : Changed ? "border-warning" : null)" spellcheck="false" aria-label="Template text" @ref="_input"
               value="@Text" disabled="@Disabled" readonly="@ReadOnly" @oninput="OnInputAsync"></textarea>
 </div>
 
@@ -37,6 +37,10 @@
     /// <summary>True when the text has an issue, so the text area has the style of an invalid field.</summary>
     [Parameter]
     public bool Invalid { get; set; }
+
+    /// <summary>True when the text is not the stored text, so the text area has a yellow border. <see cref="Invalid"/> has precedence.</summary>
+    [Parameter]
+    public bool Changed { get; set; }
 
     /// <summary>True when the text area accepts no change.</summary>
     [Parameter]

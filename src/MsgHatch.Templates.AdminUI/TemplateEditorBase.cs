@@ -34,6 +34,10 @@ public abstract class TemplateEditorBase : ComponentBase
     [Parameter]
     public bool Disabled { get; set; }
 
+    /// <summary>True when the text is not the stored text, so the text area has a yellow border. An issue has precedence.</summary>
+    [Parameter]
+    public bool Changed { get; set; }
+
     [Inject]
     private IServiceProvider Services { get; set; } = default!;
 

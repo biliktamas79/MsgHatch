@@ -233,6 +233,14 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
     private void GivenCheck(IReadOnlyList<TemplateIssue> issues) =>
         _queries.CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues)));
 
+    [Fact]
+    public void Render_Changed_MarksTheTextAreaWithAYellowBorder()
+    {
+        var cut = Render<LiquidTemplateEditor>(p => p.Add(x => x.Lookup, _lookup).Add(x => x.Text, "a").Add(x => x.Changed, true));
+
+        Assert.Contains("border-warning", cut.Find("textarea").ClassList);
+    }
+
     private IRenderedComponent<LiquidTemplateEditor> RenderEditor(string text, Action<string>? textChanged = null, TemplateLookup? lookup = null) =>
         Render<LiquidTemplateEditor>(p => p.Add(x => x.Lookup, lookup ?? _lookup).Add(x => x.Text, text).Add(x => x.TextChanged, textChanged ?? (static _ => { })));
 }

@@ -174,6 +174,22 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         Assert.Equal(("404", ""), (cut.Find(".alert-danger").GetAttribute("data-error-code"), ActionsOf(cut)));
     }
 
+    [Fact]
+    public void Change_FieldAndBox_MarksOnlyTheChangedFieldAndBoxWithAYellowBorder()
+    {
+        var cut = RenderPage("Requests");
+        var before = MarkedOf(cut);
+
+        cut.Find("[data-field=display-name]").Change("Client requests");
+        cut.Find("[data-send-on=Sms]").Change(false);
+
+        Assert.Equal(("", "display-name Sms"), (before, MarkedOf(cut)));
+    }
+
+    /// <summary>The fields and the check boxes with a yellow border, by their field name or their channel.</summary>
+    private static string MarkedOf(IRenderedComponent<MessageTypeEditPage> cut) =>
+        string.Join(' ', cut.FindAll(".border-warning").Select(static field => field.GetAttribute("data-field") ?? field.GetAttribute("data-send-on")));
+
     private IRenderedComponent<MessageTypeEditPage> RenderPage(string type) =>
         Render<MessageTypeEditPage>(parameters => parameters.Add(page => page.TypeName, type));
 

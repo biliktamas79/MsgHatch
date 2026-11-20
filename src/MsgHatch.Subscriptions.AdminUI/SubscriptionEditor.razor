@@ -29,7 +29,7 @@
             <div class="row g-3" data-form="subscription">
                 <div class="col-md-4">
                     <label class="form-label" for="msghatch-edit-level">Owner level</label>
-                    <select id="msghatch-edit-level" class="form-select" @bind="form.Level">
+                    <select id="msghatch-edit-level" class="form-select @ChangedClass(static draft => draft.Level)" @bind="form.Level">
                         @foreach (var level in Enum.GetValues<SubscriptionLevel>())
                         {
                             <option value="@level">@level</option>
@@ -40,19 +40,19 @@
                 {
                     <div class="col-md-4">
                         <label class="form-label" for="msghatch-edit-company">Company id</label>
-                        <input id="msghatch-edit-company" class="form-control" @bind="form.CompanyId" />
+                        <input id="msghatch-edit-company" class="form-control @ChangedClass(static draft => draft.CompanyId)" @bind="form.CompanyId" />
                     </div>
                 }
                 @if (form.Level == SubscriptionLevel.User)
                 {
                     <div class="col-md-4">
                         <label class="form-label" for="msghatch-edit-user">User id</label>
-                        <input id="msghatch-edit-user" class="form-control" @bind="form.UserId" />
+                        <input id="msghatch-edit-user" class="form-control @ChangedClass(static draft => draft.UserId)" @bind="form.UserId" />
                     </div>
                 }
                 <div class="col-md-4">
                     <label class="form-label" for="msghatch-edit-type">Message type</label>
-                    <select id="msghatch-edit-type" class="form-select" @bind="form.MessageType" @bind:after="() => KeepARegisteredChannel(form)">
+                    <select id="msghatch-edit-type" class="form-select @ChangedClass(static draft => draft.MessageType)" @bind="form.MessageType" @bind:after="() => KeepARegisteredChannel(form)">
                         @foreach (var type in TypeOptions(form))
                         {
                             <option value="@type">@type</option>
@@ -61,7 +61,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="msghatch-edit-kind">Kind</label>
-                    <select id="msghatch-edit-kind" class="form-select" @bind="form.Kind">
+                    <select id="msghatch-edit-kind" class="form-select @ChangedClass(static draft => draft.Kind)" @bind="form.Kind">
                         @foreach (var kind in Enum.GetValues<SubscriptionKind>())
                         {
                             <option value="@kind">@kind</option>
@@ -70,7 +70,7 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="msghatch-edit-channel">Channel</label>
-                    <select id="msghatch-edit-channel" class="form-select" @bind="form.Channel">
+                    <select id="msghatch-edit-channel" class="form-select @ChangedClass(static draft => draft.Channel)" @bind="form.Channel">
                         <option value="">None</option>
                         @foreach (var channel in ChannelOptions(form))
                         {
@@ -80,12 +80,12 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="msghatch-edit-settings">Settings (JSON)</label>
-                    <textarea id="msghatch-edit-settings" class="form-control font-monospace" rows="6" spellcheck="false" disabled="@(form.Kind == SubscriptionKind.OptOut)" @bind="form.Settings"></textarea>
+                    <textarea id="msghatch-edit-settings" class="form-control font-monospace @ChangedClass(static draft => draft.Settings)" rows="6" spellcheck="false" disabled="@(form.Kind == SubscriptionKind.OptOut)" @bind="form.Settings"></textarea>
                     <div class="form-text" data-field="settings-type">@SettingsTypeText(form)</div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="msghatch-edit-recipients">Recipients</label>
-                    <select id="msghatch-edit-recipients" class="form-select" @bind="form.Recipients">
+                    <select id="msghatch-edit-recipients" class="form-select @ChangedClass(static draft => draft.Recipients)" @bind="form.Recipients">
                         @foreach (var recipients in Enum.GetValues<RecipientKind>())
                         {
                             <option value="@recipients">@recipients</option>
@@ -96,7 +96,7 @@
                 {
                     <div class="col-md-8">
                         <label class="form-label" for="msghatch-edit-users">Named users, one user id on each line</label>
-                        <textarea id="msghatch-edit-users" class="form-control" rows="4" @bind="form.Users"></textarea>
+                        <textarea id="msghatch-edit-users" class="form-control @ChangedClass(static draft => draft.Users)" rows="4" @bind="form.Users"></textarea>
                     </div>
                 }
                 <div class="col-12 mt-1">
@@ -104,7 +104,7 @@
                 </div>
                 <div class="col-12">
                     <div class="form-check">
-                        <input id="msghatch-edit-mandatory" class="form-check-input" type="checkbox" @bind="form.Mandatory" />
+                        <input id="msghatch-edit-mandatory" class="form-check-input @ChangedClass(static draft => draft.Mandatory)" type="checkbox" @bind="form.Mandatory" />
                         <label class="form-check-label" for="msghatch-edit-mandatory">Mandatory</label>
                     </div>
                 </div>
@@ -321,6 +321,10 @@
     /// for the message type, the channel, and the recipient kind. A create loads no stored version, so the fixed text of
     /// <see cref="AdminErrors.ConflictText"/> does not apply.
     /// </summary>
+    /// <summary>The yellow border of a field whose value is not the stored value, or null for a field with no change.</summary>
+    private string? ChangedClass(Func<SubscriptionForm, object?> field) =>
+        _form is { } form && _stored is { } stored && !Equals(field(form), field(stored)) ? "border-warning" : null;
+
     private string? CreateConflictText(Error? error) => Id is null && error?.Type == Errors.Conflict ? error.Message : null;
 
     private IEnumerable<string> TypeOptions(SubscriptionForm form) =>
