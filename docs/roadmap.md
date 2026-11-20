@@ -2670,6 +2670,23 @@ Tests:
   - A second seed adds no row, and a channel with a state row gets no seed row.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-19 and 2026-11-20), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| The generator of D236 writes a `PUT` call with a `[HttpBody]` body and a `DELETE` call that gives `Task<Error?>`, as `ISubscriptionApi` and `ITemplateApi` show. The four new calls of `IRegistryApi` build with no warning. | `ISubscriptionApi.cs`, `ITemplateApi.cs`, `IRegistryApi.cs`, and the solution build at commit 4 |
+| The links Channels and Message types of `AdminUiExample` are `NavLink` with no `Match`, so they match by prefix. The menu marks "Channels" on `/msghatch/channels/Email/edit`, and "Message types" on `/msghatch/message-types/A/edit`. | `MainLayout.razor` and the new rows of `Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive` |
+| `RegistryManager` calls `IRegistryWriter.GetEntriesAsync` one time in `GetChannelsAsync` and one time in `GetMessageTypesAsync`. So it takes each entry from the entries of that read, with no second store read. | `RegistryManager.cs` |
+| The SQLite dispatch store adds a state row with a time in the past, because `ChannelState.AfterDown` and `AfterUp` take the given time with no check. For the down state of Email 40 days ago, the history of Email has 7 rows, and the oldest is the `Up` row of 39 days and 22 hours ago, which was current at the start of the window. A copy of `ExampleApp` in `Development` on port 5081, with its own SQLite file in a scratch folder, wrote the 8 rows of Email and the 2 rows of SignalR at its start. | `SqliteOutboxStore.cs`, `ExampleStartupUnitTests`, and the state table of the copy |
+| The 35 unit test projects pass 5,129 tests and skip 1 test: the path limit test of the named pipe signal on Windows. The phase adds 115 tests and test rows. `MsgHatch.Domain.Tests.Unit` passes 1,607 tests, `MsgHatch.AspNetCore.Tests.Unit` 129, `MsgHatch.AdminUI.Tests.Unit` 117, `MsgHatch.Api.Contracts.Tests.Unit` 104, `MsgHatch.Api.Client.Tests.Unit` 68, `ExampleApp.Tests.Unit` 47, and `AdminUiExample.Tests.Unit` 15. The line coverage of the production code is 98.8 %: `MsgHatch.AdminUI` 100 %, `MsgHatch.Api.Contracts` 100 %, `MsgHatch.Domain` 99.6 %, `MsgHatch.AspNetCore` 97.9 %, and `MsgHatch.Api.Client` 85 %, with the same shared source `ErrorProblems` with no caller as in phase 31. The first run at commit 9 gave 98.7 %, and 96.3 % for `MsgHatch.AdminUI`, so commit 10 covers the lines that it found. The runs used the copy of `coverage.ps1` that builds with `--artifacts-path` in a scratch folder, because the example apps of the owner lock `examples/*/bin/Debug`. The solution build with `--no-incremental` has no errors and no warnings at commits 9 and 10. | The copies of `pwsh ./coverage.ps1` at commits 9 and 10, and `dotnet build MsgHatch.slnx --no-incremental --artifacts-path` |
+| The new tests did not build before the code of their commit, because their types and members did not exist, or they failed with a break of the code that they cover. The breaks failed: the check of a duplicate disabled channel, the maximum length of a display name, and the check of the registry that each disabled channel is a channel of the message type (commit 2); the entry of a channel and of a message type in `RegistryManager`, the entry of the channel body, and the errors of an entry body that is not valid (commit 3); the rules in `RegistryManager`, the error type with no writer, the mapping of the save and reset routes, the revision and the entry name of the log record, and the disabled channels of the client body (commit 4); the rules in the client, and the description and the disabled channels of `From` (commit 5); the save of an empty field as null, the second read after a `Conflict` and after a reset, Reset with no stored entry, the noun of the warning of `DeleteDialog`, the placeholder of a stored text, the address of Edit on the view page, and the dynamic dependency of the page (commit 6); the disabled channels of a save, the state of the check boxes, the pending changes of the boxes, the address of Edit on the list, the dynamic dependency, and the reset text of a disabled message type (commit 7); and the seed of each channel, the seed with no up rows, and the first down state of Email inside the window (commit 8); and the pending changes "Description" and "Enabled" of the message type page (commit 10). One break did not build at first, because the compiler found an unreachable branch, so it ran again with a break that builds. | The breaks, each one reverted after its run |
+
+Checks that the phase did not do:
+- A browser check of the edit pages on copies of the example apps. A token with the role `RegistryAdmin` comes from `dotnet user-jwts`, which writes into the user secrets of `ExampleApp`. The bUnit tests check the fields, the save, the conflict, the reset, and the buttons.
+- A break of the new menu rows of `AdminUiExample`. They check the `NavLink` of the host, which the phase does not change.
+- A trimmed WebAssembly host and the dark mode of the new pages.
+- The EF Core and MongoDB integration tests. The commands call `IRegistryWriter`, and the phase changes no settings store.
+
 Commits:
 1. "Plan phase 35: the registry commands"
 2. "Make the stateless rules of a registry entry public"
@@ -2680,10 +2697,25 @@ Commits:
 7. "Add the message type edit page"
 8. "Seed an example channel history in the example app"
 9. "Describe the registry commands and the example history in the design"
-10. "Record the commits and the checked facts of phase 35 in the plan"
-11. "Record phase 35 as done in README and AGENTS.md"
+10. "Pass the item to the save and the reset of the registry edit pages"
+11. "Record the commits and the checked facts of phase 35 in the plan"
+12. "Record phase 35 as done in README and AGENTS.md"
 
-Commit 1 holds the plan and the decisions D284 to D288. Item 1 is a check, and its results go into the checked facts.
+Commit 1 holds the plan and the decisions D284 to D288 (`db97b3d`), commit 2 item 2 (`3e45196`), commit 3 item 3 (`a3d5aa6`), commit 4 item 4 (`ef7f926`), commit 5 item 5 (`a48b09e`), commit 6 item 6 (`95dad2e`), commit 7 item 7 (`059d88f`), commit 8 item 8 (`5c73e88`), commit 9 item 9 (`08c5cae`), and commit 10 the fix of the lines that the first coverage run found with no test (`82a2519`). Item 1 is a check, and its results are in the checked facts. The unit test projects of the changed code passed at each commit. The solution build had no warning at commits 3 to 7, and with `--no-incremental` at commits 9 and 10. The phase adds no project and no package.
+
+The implementation changed the plan in these points:
+- Commit 10 is new. The coverage run at commit 9 found lines of the edit pages with no test: the null checks of the save and the reset, which no user action reaches, and the pending changes "Description" and "Enabled" of the message type page. So the buttons pass the item to the save and the reset, and the test of the pending changes covers the two lines. The phase has 12 commits.
+- The new members of `IRegistryCommands` break the build of `HttpRegistryCommands`, and the use cases of `RegistryCommandsTestsBase` run on the HTTP client too. So commit 4 also adds the `PUT` and `DELETE` calls of `IRegistryApi` and the four methods of the client, with the bodies made in the adapter. Commit 5 adds `From` of the bodies in place of them, and the rules before a call.
+- Another session made two commits of the subscription form and the example app between commits 3 and 4: `68d067d` and `d850359`. The history stays as it is.
+- The logging wrapper has two events, 2917 for a save or a reset and 2918 for an error, with the name of the operation as a field, as the events 2906 and 2907 of the writer. It does not have a pair of events for each command.
+- `RegistryManager` runs the rules before it checks the writer. So an entry that breaks a rule gives `ValidationFailed` also in a host with no writer.
+- The edit pages show the pending changes, because section 4.24 asks this of each edit page. The plan did not name them.
+- The public component `RegistryEntryFields` holds the display name, the description, the enabled flag, and the help text of both edit pages. The message type page puts its check boxes into its child content.
+- A save reads the item again, so "Saved." shows the values of a second read. Only a read gives the value of the code for the placeholder of a text that the save cleared.
+- A text field with only white space saves null, as an empty field does. The rules would give `ValidationFailed` for it.
+- On the view page of a channel, History becomes an outline button, because Edit is the main action. Back of an edit page goes to its list.
+- The test host `RegistryHost` of the route tests gets the property `Services`, and `RegistryTestHost` gets `EntryCommandRows` and `RunEntryCommandAsync`, which the use cases and the logging tests share.
+- Commit 9 also changes the line of `MsgHatch.AdminUI` in the project table and the sentence about the setup of `MsgHatch.AspNetCore`. The decisions D284 to D288 stay "Recommended", as D280 to D282 of phase 34 do.
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
