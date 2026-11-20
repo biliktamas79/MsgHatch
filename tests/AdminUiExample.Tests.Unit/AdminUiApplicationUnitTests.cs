@@ -123,7 +123,9 @@ public sealed class AdminUiApplicationUnitTests
 
         var links = Regex.Matches(page, "<a\\b(?=[^>]*\\bclass=\"nav-link[^\"]*\")[^>]*>(?<text>[^<]*)</a>");
 
-        Assert.Equal(["Channels", "Message types", "Subscriptions", "Templates", "Verification"], links.Select(static match => match.Groups["text"].Value));
+        Assert.Equal(
+            ["Channels", "Message types", "Subscriptions", "Templates", "Verification", "Traffic", "Outbox", "Inbox"],
+            links.Select(static match => match.Groups["text"].Value));
     }
 
     [Theory]
@@ -136,6 +138,11 @@ public sealed class AdminUiApplicationUnitTests
     [InlineData("/msghatch/channels/Email/edit", "Channels")]
     [InlineData("/msghatch/message-types", "Message types")]
     [InlineData("/msghatch/message-types/A/edit", "Message types")]
+    [InlineData("/msghatch/traffic", "Traffic")]
+    [InlineData("/msghatch/outbox", "Outbox")]
+    [InlineData("/msghatch/outbox/00000000-0000-0000-0000-000000000001", "Outbox")]
+    [InlineData("/msghatch/inbox", "Inbox")]
+    [InlineData("/msghatch/inbox/00000000-0000-0000-0000-000000000001", "Inbox")]
     public async Task Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive(string path, string link)
     {
         await using var app = Build(new RecordingHandler(available: false));

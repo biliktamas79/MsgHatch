@@ -2,7 +2,7 @@
 
 `ExampleApp` runs the subscription example of section 1.1 of `docs/design.md` as a web app. It needs no broker server, no SMTP server, no cloud account, and no network. It writes each email to the log, sends the broker messages to a local Wolverine queue, and keeps all data in one SQLite file. It maps the HTTP APIs of the subscriptions, the delivery, the registry, and the templates.
 
-`examples/AdminUiExample` is the admin UI of this app. It calls the subscription and template APIs of `ExampleApp` through the HTTP clients.
+`examples/AdminUiExample` is the admin UI of this app. It calls the subscription, template, registry, and delivery APIs of `ExampleApp` through the HTTP clients.
 
 Run each command from the root folder of the repository. The commands work in PowerShell and in bash.
 
@@ -71,13 +71,13 @@ Each delivery route writes its errors as problem details with the member `errorT
 
 ## Start the admin UI
 
-1. Make a token with the roles `TemplateAdmin` and `RegistryAdmin`. This command also stores the token in the user secrets of `AdminUiExample`:
+1. Make a token with the roles `TemplateAdmin`, `RegistryAdmin`, `DeliveryAdmin`, and `DeliveryContent`. This command also stores the token in the user secrets of `AdminUiExample`:
 
    ```bash
-   dotnet user-secrets set "AdminUiExample:ApiToken" $(dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin --role RegistryAdmin --output token) --project examples/AdminUiExample
+   dotnet user-secrets set "AdminUiExample:ApiToken" $(dotnet user-jwts create --project examples/ExampleApp --name 1 --role TemplateAdmin --role RegistryAdmin --role DeliveryAdmin --role DeliveryContent --output token) --project examples/AdminUiExample
    ```
 
-   The role `TemplateAdmin` gives access to the template endpoints. The role `RegistryAdmin` gives access to the registry endpoints, which the pages Channels and Message types read (D170). The subscription endpoints accept each signed-in user. Never write a token into a file of the repository.
+   The role `TemplateAdmin` gives access to the template endpoints. The role `RegistryAdmin` gives access to the registry endpoints, which the pages Channels and Message types read (D170). The role `DeliveryAdmin` gives access to the delivery endpoints, which the pages Traffic, Outbox, and Inbox and the pending counts of the channel pages read. The role `DeliveryContent` gives access to the content of a message, which a message page reads after a click on "Show content" (D165, D296). The subscription endpoints accept each signed-in user. Never write a token into a file of the repository.
 
 2. Start `ExampleApp` in a terminal, and keep it open:
 
@@ -97,9 +97,11 @@ The emails of the message types A to E use the placeholder engine, so their html
 
 Each row of the template list has the buttons View and Edit. The view page shows the stored text read-only. The edit page shows the editor. Both pages show a preview of the text next to it, or under it on a narrow screen. The preview renders the text with the sample payload that `ExampleSetup` gives each email with `WithTemplateSample` (D254). For example, the preview of the password reset email shows the link `https://example.com/reset`. The edit page renders the preview again 500 ms after the last change of the text. An html part shows its preview in a frame that runs no script.
 
-The menu has the order Channels, Message types, Subscriptions, Templates, and Verification. The page Channels shows the channels of `ExampleApp`, each with its state: the badge Up or Down, the reason of a down state, and the start of the state with the time since then and the duration of the previous state. The button Check runs the health check of the channel, and shows the result above the list. The transports of the example give no error, so a check only ends a down state for errors, and never a pause. The button History opens a timeline of the last 30 days, red where the channel was down, with the list of its state changes. The view page of a channel shows the same state, and the message types that register it. The page Message types shows each message type with its channels and its number of subscriptions of each owner level, and each number links to the subscription list with these filters. In the `Development` environment, the History dialog shows the example history of the first start. To see a new down state, pause a channel with `POST /api/delivery/channels/{channel}/pause`, which needs the role `DeliveryAdmin`.
+The menu has the order Channels, Message types, Subscriptions, Templates, Verification, Traffic, Outbox, and Inbox. The page Channels shows the channels of `ExampleApp`, each with its state: the badge Up or Down, the reason of a down state, and the start of the state with the time since then and the duration of the previous state. The button Check runs the health check of the channel, and shows the result above the list. The transports of the example give no error, so a check only ends a down state for errors, and never a pause. The button History opens a timeline of the last 30 days, red where the channel was down, with the list of its state changes. The view page of a channel shows the same state, and the message types that register it. The page Message types shows each message type with its channels and its number of subscriptions of each owner level, and each number links to the subscription list with these filters. In the `Development` environment, the History dialog shows the example history of the first start. The channel pages also show the pending messages, the pending test messages, and the oldest due time of each channel. The button Pause asks for a note of at most 500 characters, and pauses the channel. The button Resume of a down channel ends the down state (D297).
 
 The button Edit of a channel row, of the view page of a channel, and of a message type row opens the edit page of the stored settings (D287). It edits the display name, the description, and the enabled flag, and on a message type also a check box "Send on {channel}" for each of its channels. An empty text field gives the value of the code. A change applies to the next events of `ExampleApp`, and the outbox still sends the messages that it holds. The button Reset deletes the stored settings, so the values of the code apply again. The edit pages need the role `RegistryAdmin`, as the other registry pages.
+
+The page Traffic shows the counts of the inbox and of the outbox, and each count links to its list with the filters of its row. The button "Delete test data" deletes the test messages of all tenants, and the button Purge deletes the finished messages before a time (D298). The pages Outbox and Inbox show the messages with filters, one page of 50 messages at a time, with the buttons Newer and Older. "Retry filtered" and "Cancel filtered" act on the messages of the filters, and are disabled with no filter (D295). The button View opens the page of one message, with its tries, its trace, Retry, and Cancel. The content of a message shows only after a click on "Show content" (D296).
 
 The admin UI reads the token one time, at its start. After a change of the token, restart `AdminUiExample`.
 
@@ -122,6 +124,8 @@ dotnet test tests/AdminUiExample.Tests.Unit
 | Each page of the admin UI shows "You have no permission to do this action." | `ExampleApp` rejects the token of the admin UI with 401. The token is not a JWT (for example a placeholder text), or it expired, or another signing key signed it. | Store a new token with step 1 of "Start the admin UI". Then restart `AdminUiExample`. |
 | An endpoint gives 403. | The token does not have the role of the endpoint. | Make a token with the role from the table in "Setup". |
 | The pages Channels and Message types show "You have no permission to do this action.", and the other pages work. | `ExampleApp` rejects the calls of the registry pages with 403, because the token has no role `RegistryAdmin`. | Store a new token with step 1 of "Start the admin UI". Then restart `AdminUiExample`. |
+| The pages Traffic, Outbox, and Inbox show "You have no permission to do this action.", and the channel pages show it above the list. | `ExampleApp` rejects the delivery calls with 403, because the token has no role `DeliveryAdmin`. | Store a new token with step 1 of "Start the admin UI". Then restart `AdminUiExample`. |
+| A message page shows "You have no permission to do this action." after a click on "Show content", and the rest of the page works. | `ExampleApp` rejects the content call with 403, because the token has no role `DeliveryContent`. | Store a new token with step 1 of "Start the admin UI". Then restart `AdminUiExample`. |
 | `AdminUiExample` stops at its start with an options error about `ApiToken`. | The user secrets of `AdminUiExample` have no token. | Do step 1 of "Start the admin UI". |
 | `dotnet user-jwts` gives "Could not find file ... appsettings.Development.json". | The checkout is older than the commit that added this file. | Pull `main`. |
 | `dotnet run` gives an error that the address is in use. | The app already runs in another terminal. | Use the app that runs, or stop it first. |

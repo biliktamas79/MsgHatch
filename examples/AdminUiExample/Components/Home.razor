@@ -2,7 +2,7 @@
 
 <h1 class="h3">MsgHatch admin</h1>
 <p>
-    This host calls the subscription, template, and registry APIs of ExampleApp through the HTTP clients. Start ExampleApp first, and put
+    This host calls the subscription, template, registry, and delivery APIs of ExampleApp through the HTTP clients. Start ExampleApp first, and put
     a token of ExampleApp into the user secrets of this project.
 </p>
 <ul>
@@ -11,4 +11,7 @@
     <li><a href="@SubscriptionAdminRoutes.List.TrimStart('/')">Subscriptions</a></li>
     <li><a href="@TemplateAdminRoutes.List.TrimStart('/')">Templates</a></li>
     <li><a href="@SubscriptionAdminRoutes.Verification.TrimStart('/')">Routing verification</a></li>
+    <li><a href="@DeliveryAdminRoutes.Traffic.TrimStart('/')">Traffic</a></li>
+    <li><a href="@DeliveryAdminRoutes.Outbox.TrimStart('/')">Outbox</a></li>
+    <li><a href="@DeliveryAdminRoutes.Inbox.TrimStart('/')">Inbox</a></li>
 </ul>
