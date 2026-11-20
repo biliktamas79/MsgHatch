@@ -1,0 +1,119 @@
+@attribute [Route(DeliveryAdminRoutes.Inbox)]
+@inject IServiceProvider Services
+@inject TimeProvider Clock
+@* The inbox list (D295): the filters of InboxQuery, which go to the server and apply at each change, a text filter after a pause of 500 ms, the server pages with Newer and Older, and "Retry filtered" and "Cancel filtered". *@
+
+<AdminListPage Title="Inbox">
+<Filters>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-inbox-status">Status</label>
+        <select id="msghatch-inbox-status" class="form-select form-select-sm" @bind="_filters.Status" @bind:after="_list.LoadFirstPageAsync">
+            <option value="">All</option>
+            @foreach (var status in Enum.GetValues<DeliveryStatus>())
+            {
+                <option value="@status">@status</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-inbox-type">Message type</label>
+        <input id="msghatch-inbox-type" class="form-control form-control-sm" @bind="_filters.Type" @bind:event="oninput" @bind:after="_list.LoadAfterAPauseAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-inbox-from">Created from (UTC)</label>
+        <input id="msghatch-inbox-from" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedFrom" @bind:after="_list.LoadFirstPageAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-inbox-to">Created to (UTC)</label>
+        <input id="msghatch-inbox-to" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedTo" @bind:after="_list.LoadFirstPageAsync" />
+    </div>
+    <div class="form-check mb-1">
+        <input id="msghatch-inbox-test" type="checkbox" class="form-check-input" @bind="_filters.IncludeTest" @bind:after="_list.LoadFirstPageAsync" />
+        <label class="form-check-label small" for="msghatch-inbox-test">Test messages</label>
+    </div>
+</Filters>
+<Actions>
+    <DeliveryBulkActions Disabled="!HasFilter" Noun="received" Retry="RetryAsync" Cancel="CancelAsync" Completed="_list.ShowResultAsync" />
+</Actions>
+<ChildContent>
+    <DeliveryResultAlert Result="_list.Result" />
+    <AdminList TItem="ReceivedMessageSummary" Items="_list.Items" EmptyText="There are no received messages.">
+        <Head>
+            <tr><th>Created</th><th>Status</th><th>Message type</th><th>Tries</th><th>Last error</th><th></th></tr>
+        </Head>
+        <Row Context="message">
+            <tr data-row>
+                <td class="text-nowrap">@DeliveryTexts.TimeOf(message.Delivery.CreatedAtUtc)</td>
+                <td class="text-nowrap"><DeliveryStatusBadge Delivery="message.Delivery" Flags="message.Flags" /></td>
+                <td>@message.Type.Name</td>
+                <td class="text-nowrap">@DeliveryTexts.TriesOf(message.Delivery)</td>
+                <td class="small text-break">@message.Delivery.LastError</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@DeliveryAdminRoutes.ReceivedMessage(message.Delivery.Id).TrimStart('/')">View</a>
+                </td>
+            </tr>
+        </Row>
+        <Pager>
+            <CursorPager HasNewer="_list.HasNewer" HasOlder="_list.HasOlder" Newer="_list.NewerAsync" Older="_list.OlderAsync" />
+        </Pager>
+    </AdminList>
+</ChildContent>
+</AdminListPage>
+
+@code {
+    private const int _limit = 50;
+    private readonly DeliveryFilters _filters = new();
+    private DeliveryListState<ReceivedMessageSummary> _list = null!;
+
+    /// <summary>The status filter from the address of <see cref="DeliveryAdminRoutes.InboxOf"/>.</summary>
+    [SupplyParameterFromQuery(Name = "status")]
+    public string? Status { get; set; }
+
+    /// <summary>The message type filter from the address.</summary>
+    [SupplyParameterFromQuery(Name = "type")]
+    public string? Type { get; set; }
+
+    /// <summary>The earliest creation time in UTC from the address.</summary>
+    [SupplyParameterFromQuery(Name = "from")]
+    public string? From { get; set; }
+
+    /// <summary>The creation time in UTC that ends the range, from the address.</summary>
+    [SupplyParameterFromQuery(Name = "to")]
+    public string? To { get; set; }
+
+    /// <summary>True from the address when the list also shows the test messages.</summary>
+    [SupplyParameterFromQuery(Name = "test")]
+    public bool? Test { get; set; }
+
+    private IDeliveryQueries Queries => Services.GetRequiredKeyedService<IDeliveryQueries>(TenantKey.None);
+
+    private IDeliveryCommands Commands => Services.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None);
+
+    private bool HasFilter => _filters.ToInboxQuery(_limit, after: null) is { IsSuccess: true } query && DeliveryRules.CheckBulkAction(query.Value) is null;
+
+    /// <inheritdoc />
+    protected override Task OnInitializedAsync()
+    {
+        _filters.SetFromAddress(Status, Type, From, To, Test);
+        _list = new(ReadAsync, Clock);
+        return _list.LoadAsync();
+    }
+
+    private async Task<ErrorOr<MessagePage<ReceivedMessageSummary>>> ReadAsync(MessageCursor? after)
+    {
+        var query = _filters.ToInboxQuery(_limit, after);
+        return query.IsError ? query.Error : await Queries.GetReceivedMessagesAsync(query.Value, CancellationToken.None);
+    }
+
+    private async Task<ErrorOr<DeliveryActionResult>> RetryAsync()
+    {
+        var query = _filters.ToInboxQuery(_limit, after: null);
+        return query.IsError ? query.Error : await Commands.RetryReceivedAsync(query.Value, CancellationToken.None);
+    }
+
+    private async Task<ErrorOr<DeliveryActionResult>> CancelAsync()
+    {
+        var query = _filters.ToInboxQuery(_limit, after: null);
+        return query.IsError ? query.Error : await Commands.CancelReceivedAsync(query.Value, CancellationToken.None);
+    }
+}

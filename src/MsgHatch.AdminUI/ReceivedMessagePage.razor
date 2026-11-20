@@ -1,0 +1,115 @@
+@attribute [Route(DeliveryAdminRoutes.ReceivedMessageTemplate)]
+@inject IServiceProvider Services
+@* The page of one received message (D296): its summary from a page of its one id, its event only on request, the outgoing messages of the event, and Cancel and Retry on the query of its one id. *@
+
+<AdminEditPage>
+    <Header>
+        <h1 class="h3">Received message</h1>
+    </Header>
+    <ChildContent>
+        @if (_loadError is not null)
+        {
+            <ErrorAlert Error="_loadError" />
+        }
+        else if (_message is not { } message)
+        {
+            <p class="text-secondary" role="status" data-state="loading">Loading.</p>
+        }
+        else
+        {
+            <DeliveryResultAlert Result="_result" Text="DeliveryTexts.OneMessageResultOf" />
+            <dl class="row mb-3">
+                <dt class="col-sm-3">Id</dt>
+                <dd class="col-sm-9" data-field="id">@message.Delivery.Id</dd>
+                <dt class="col-sm-3">Status</dt>
+                <dd class="col-sm-9" data-field="status"><DeliveryStatusBadge Delivery="message.Delivery" Flags="message.Flags" /></dd>
+                <dt class="col-sm-3">Message type</dt>
+                <dd class="col-sm-9" data-field="type">@message.Type.Name</dd>
+                <dt class="col-sm-3">Tenant</dt>
+                <dd class="col-sm-9" data-field="tenant">@message.Tenant?.Value</dd>
+                <dt class="col-sm-3">Tries</dt>
+                <dd class="col-sm-9" data-field="tries">@DeliveryTexts.TriesOf(message.Delivery)</dd>
+                <dt class="col-sm-3">Created</dt>
+                <dd class="col-sm-9" data-field="created">@DeliveryTexts.TimeOf(message.Delivery.CreatedAtUtc)</dd>
+                <dt class="col-sm-3">Last try</dt>
+                <dd class="col-sm-9" data-field="last-try">@DeliveryTexts.TimeOf(message.Delivery.LastTryAtUtc)</dd>
+                <dt class="col-sm-3">Next try</dt>
+                <dd class="col-sm-9" data-field="next-try">@DeliveryTexts.TimeOf(message.Delivery.NextTryAtUtc)</dd>
+                <dt class="col-sm-3">Lease until</dt>
+                <dd class="col-sm-9" data-field="lease">@DeliveryTexts.TimeOf(message.Delivery.LeaseUntilUtc)</dd>
+                <dt class="col-sm-3">Expires</dt>
+                <dd class="col-sm-9" data-field="expires">@DeliveryTexts.TimeOf(message.Delivery.ExpiresAtUtc)</dd>
+                <dt class="col-sm-3">Last error</dt>
+                <dd class="col-sm-9 text-break" data-field="last-error">@message.Delivery.LastError</dd>
+                <dt class="col-sm-3">Content version</dt>
+                <dd class="col-sm-9" data-field="content-version">@message.ContentVersion</dd>
+                <dt class="col-sm-3">Outgoing messages</dt>
+                <dd class="col-sm-9" data-field="outgoing">
+                    <a data-action="outgoing" href="@OutgoingOf(message).TrimStart('/')">Show the outgoing messages of this event</a>
+                </dd>
+            </dl>
+            <h2 class="h5">Event</h2>
+            <MessageContentPanel @key="message.Delivery.Id" Load="LoadContentAsync" />
+        }
+    </ChildContent>
+    <Actions>
+        <AdminActions>
+            <Start><a class="btn btn-outline-secondary" data-action="back" href="@DeliveryAdminRoutes.Inbox.TrimStart('/')">Back to the inbox</a></Start>
+            <End>
+                @if (_message is not null)
+                {
+                    <button type="button" class="btn btn-outline-danger" data-action="cancel" @onclick="CancelAsync">Cancel</button>
+                    <button type="button" class="btn btn-primary" data-action="retry" @onclick="RetryAsync">Retry</button>
+                }
+            </End>
+        </AdminActions>
+    </Actions>
+</AdminEditPage>
+
+@code {
+    private ReceivedMessageSummary? _message;
+    private Error? _loadError;
+    private ErrorOr<DeliveryActionResult>? _result;
+
+    /// <summary>The id of the received message, from the address.</summary>
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private IDeliveryQueries Queries => Services.GetRequiredKeyedService<IDeliveryQueries>(TenantKey.None);
+
+    private IDeliveryCommands Commands => Services.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None);
+
+    private InboxQuery OneMessage => new(Ids: [Id], IncludeTest: true, Limit: 1);
+
+    /// <inheritdoc />
+    protected override Task OnParametersSetAsync()
+    {
+        _result = null;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        (_message, _loadError) = (null, null);
+        var page = await Queries.GetReceivedMessagesAsync(OneMessage, CancellationToken.None);
+        _message = page.IsError ? null : page.Value.Items.FirstOrDefault();
+        _loadError = page.IsError ? page.Error
+            : _message is null ? new Error(Errors.NotFound, "The received message is not in the inbox.")
+            : null;
+    }
+
+    private static string OutgoingOf(ReceivedMessageSummary message) =>
+        DeliveryAdminRoutes.OutboxOf(sourceMessageId: message.Delivery.Id, includeTest: message.Flags.HasFlag(MessageFlags.Test));
+
+    private Task<ErrorOr<MessageContent>> LoadContentAsync() => Queries.GetReceivedContentAsync(Id, CancellationToken.None).AsTask();
+
+    private async Task RetryAsync() => await ShowResultAsync(await Commands.RetryReceivedAsync(OneMessage, CancellationToken.None));
+
+    private async Task CancelAsync() => await ShowResultAsync(await Commands.CancelReceivedAsync(OneMessage, CancellationToken.None));
+
+    private async Task ShowResultAsync(ErrorOr<DeliveryActionResult> result)
+    {
+        _result = result;
+        await LoadAsync();
+    }
+}

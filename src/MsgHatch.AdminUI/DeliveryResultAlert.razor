@@ -1,0 +1,15 @@
+@* The result of a retry or a cancel (D295, D296): the counts in a success alert, or the text of the error. *@
+@if (Result is { } result)
+{
+    <div class="alert @(result.IsError ? "alert-danger" : "alert-success") py-2" role="status" data-action-result>@(result.IsError ? AdminErrors.TextOf(result.Error) : Text(result.Value))</div>
+}
+
+@code {
+    /// <summary>The result, or null for no alert.</summary>
+    [Parameter]
+    public ErrorOr<DeliveryActionResult>? Result { get; set; }
+
+    /// <summary>Gives the text of a result with no error, by default "Matched N, changed M.".</summary>
+    [Parameter]
+    public Func<DeliveryActionResult, string> Text { get; set; } = DeliveryTexts.ResultOf;
+}

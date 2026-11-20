@@ -17,7 +17,7 @@ namespace MsgHatch.AdminUI.Tests.Unit.TestTypes;
 /// that gives the channels Email, Sms, and Fax, and the message types Requests on Email and Sms, Notices on Email (disabled),
 /// and Invoices on Email (disabled on Email). <see cref="IRegistryCommands"/> of <see cref="TenantKey.None"/> is a
 /// substitute too. <see cref="IDeliveryQueries"/> of <see cref="TenantKey.None"/> is a substitute that gives an empty page of
-/// the outbox, and <see cref="IDeliveryCommands"/> is a substitute too, for the delivery pages.
+/// the outbox and of the inbox, and <see cref="IDeliveryCommands"/> is a substitute too, for the delivery pages.
 /// </summary>
 public abstract class RegistryPageContext : BunitContext
 {
@@ -33,6 +33,7 @@ public abstract class RegistryPageContext : BunitContext
         Services.AddKeyedSingleton(TenantKey.None, Queries);
         Services.AddKeyedSingleton(TenantKey.None, Commands);
         DeliveryQueries.GetOutgoingMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new MessagePage<OutgoingMessageSummary>([], null)));
+        DeliveryQueries.GetReceivedMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new MessagePage<ReceivedMessageSummary>([], null)));
         Services.AddKeyedSingleton(TenantKey.None, DeliveryQueries);
         Services.AddKeyedSingleton(TenantKey.None, DeliveryCommands);
         Services.AddSingleton<TimeProvider>(Time);

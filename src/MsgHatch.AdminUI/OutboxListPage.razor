@@ -7,7 +7,7 @@
 <Filters>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-status">Status</label>
-        <select id="msghatch-outbox-status" class="form-select form-select-sm" @bind="_filters.Status" @bind:after="LoadFirstPageAsync">
+        <select id="msghatch-outbox-status" class="form-select form-select-sm" @bind="_filters.Status" @bind:after="_list.LoadFirstPageAsync">
             <option value="">All</option>
             @foreach (var status in Enum.GetValues<DeliveryStatus>())
             {
@@ -17,15 +17,15 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-type">Message type</label>
-        <input id="msghatch-outbox-type" class="form-control form-control-sm" @bind="_filters.Type" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+        <input id="msghatch-outbox-type" class="form-control form-control-sm" @bind="_filters.Type" @bind:event="oninput" @bind:after="_list.LoadAfterAPauseAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-channel">Channel</label>
-        <input id="msghatch-outbox-channel" class="form-control form-control-sm" @bind="_filters.Channel" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+        <input id="msghatch-outbox-channel" class="form-control form-control-sm" @bind="_filters.Channel" @bind:event="oninput" @bind:after="_list.LoadAfterAPauseAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-target-kind">Target kind</label>
-        <select id="msghatch-outbox-target-kind" class="form-select form-select-sm" @bind="_filters.TargetKind" @bind:after="LoadFirstPageAsync">
+        <select id="msghatch-outbox-target-kind" class="form-select form-select-sm" @bind="_filters.TargetKind" @bind:after="_list.LoadFirstPageAsync">
             <option value="">All</option>
             @foreach (var kind in Enum.GetValues<DeliveryTargetKind>())
             {
@@ -35,34 +35,31 @@
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-target-id">Target id</label>
-        <input id="msghatch-outbox-target-id" class="form-control form-control-sm" @bind="_filters.TargetId" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+        <input id="msghatch-outbox-target-id" class="form-control form-control-sm" @bind="_filters.TargetId" @bind:event="oninput" @bind:after="_list.LoadAfterAPauseAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-source">Source message</label>
-        <input id="msghatch-outbox-source" class="form-control form-control-sm" @bind="_filters.Source" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+        <input id="msghatch-outbox-source" class="form-control form-control-sm" @bind="_filters.Source" @bind:event="oninput" @bind:after="_list.LoadAfterAPauseAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-from">Created from (UTC)</label>
-        <input id="msghatch-outbox-from" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedFrom" @bind:after="LoadFirstPageAsync" />
+        <input id="msghatch-outbox-from" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedFrom" @bind:after="_list.LoadFirstPageAsync" />
     </div>
     <div>
         <label class="form-label small mb-1" for="msghatch-outbox-to">Created to (UTC)</label>
-        <input id="msghatch-outbox-to" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedTo" @bind:after="LoadFirstPageAsync" />
+        <input id="msghatch-outbox-to" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedTo" @bind:after="_list.LoadFirstPageAsync" />
     </div>
     <div class="form-check mb-1">
-        <input id="msghatch-outbox-test" type="checkbox" class="form-check-input" @bind="_filters.IncludeTest" @bind:after="LoadFirstPageAsync" />
+        <input id="msghatch-outbox-test" type="checkbox" class="form-check-input" @bind="_filters.IncludeTest" @bind:after="_list.LoadFirstPageAsync" />
         <label class="form-check-label small" for="msghatch-outbox-test">Test messages</label>
     </div>
 </Filters>
 <Actions>
-    <DeliveryBulkActions Disabled="!HasFilter" Noun="outgoing" Retry="RetryAsync" Cancel="CancelAsync" Completed="ShowResultAsync" />
+    <DeliveryBulkActions Disabled="!HasFilter" Noun="outgoing" Retry="RetryAsync" Cancel="CancelAsync" Completed="_list.ShowResultAsync" />
 </Actions>
 <ChildContent>
-    @if (_result is { } result)
-    {
-        <div class="alert @(result.IsError ? "alert-danger" : "alert-success") py-2" role="status" data-action-result>@(result.IsError ? AdminErrors.TextOf(result.Error) : DeliveryTexts.ResultOf(result.Value))</div>
-    }
-    <AdminList TItem="OutgoingMessageSummary" Items="_items" EmptyText="There are no outgoing messages.">
+    <DeliveryResultAlert Result="_list.Result" />
+    <AdminList TItem="OutgoingMessageSummary" Items="_list.Items" EmptyText="There are no outgoing messages.">
         <Head>
             <tr><th>Created</th><th>Status</th><th>Message type</th><th>Channel</th><th>Target</th><th>Tries</th><th>Last error</th><th></th></tr>
         </Head>
@@ -81,7 +78,7 @@
             </tr>
         </Row>
         <Pager>
-            <CursorPager HasNewer="_pages.HasNewer" HasOlder="_next is not null" Newer="NewerAsync" Older="OlderAsync" />
+            <CursorPager HasNewer="_list.HasNewer" HasOlder="_list.HasOlder" Newer="_list.NewerAsync" Older="_list.OlderAsync" />
         </Pager>
     </AdminList>
 </ChildContent>
@@ -89,13 +86,8 @@
 
 @code {
     private const int _limit = 50;
-    private static readonly TimeSpan _pause = TimeSpan.FromMilliseconds(500);
     private readonly DeliveryFilters _filters = new();
-    private readonly CursorPages _pages = new();
-    private ErrorOr<IReadOnlyList<OutgoingMessageSummary>>? _items;
-    private MessageCursor? _next;
-    private ErrorOr<DeliveryActionResult>? _result;
-    private int _lastLoad;
+    private DeliveryListState<OutgoingMessageSummary> _list = null!;
 
     /// <summary>The status filter from the address of <see cref="DeliveryAdminRoutes.OutboxOf"/>.</summary>
     [SupplyParameterFromQuery(Name = "status")]
@@ -142,64 +134,16 @@
     /// <inheritdoc />
     protected override Task OnInitializedAsync()
     {
-        (_filters.Status, _filters.Type, _filters.Channel) = (Status ?? string.Empty, Type ?? string.Empty, Channel ?? string.Empty);
-        (_filters.TargetKind, _filters.TargetId, _filters.Source) = (TargetKind ?? string.Empty, TargetId ?? string.Empty, Source ?? string.Empty);
-        (_filters.CreatedFrom, _filters.CreatedTo, _filters.IncludeTest) = (DeliveryFilters.TimeOf(From), DeliveryFilters.TimeOf(To), Test == true);
-        return LoadAsync();
+        _filters.SetFromAddress(Status, Type, From, To, Test);
+        (_filters.Channel, _filters.TargetKind, _filters.TargetId, _filters.Source) = (Channel ?? string.Empty, TargetKind ?? string.Empty, TargetId ?? string.Empty, Source ?? string.Empty);
+        _list = new(ReadAsync, Clock);
+        return _list.LoadAsync();
     }
 
-    private Task LoadFirstPageAsync()
+    private async Task<ErrorOr<MessagePage<OutgoingMessageSummary>>> ReadAsync(MessageCursor? after)
     {
-        _pages.Reset();
-        _result = null;
-        return LoadAsync();
-    }
-
-    private async Task LoadAfterAPauseAsync()
-    {
-        var load = ++_lastLoad;
-        await Task.Delay(_pause, Clock);
-        if (load == _lastLoad)
-        {
-            await LoadFirstPageAsync();
-        }
-    }
-
-    private async Task LoadAsync()
-    {
-        var load = ++_lastLoad;
-        (_items, _next) = (null, null);
-        var query = _filters.ToOutboxQuery(_limit, _pages.Current);
-        if (query.IsError)
-        {
-            _items = query.Error;
-            return;
-        }
-
-        var page = await Queries.GetOutgoingMessagesAsync(query.Value, CancellationToken.None);
-        if (load != _lastLoad)
-        {
-            return;
-        }
-
-        _items = page.IsError ? page.Error : ErrorOr<IReadOnlyList<OutgoingMessageSummary>>.ForValue(page.Value.Items);
-        _next = page.IsError ? null : page.Value.Next;
-    }
-
-    private Task OlderAsync()
-    {
-        if (_next is { } next)
-        {
-            _pages.Older(next);
-        }
-
-        return LoadAsync();
-    }
-
-    private Task NewerAsync()
-    {
-        _pages.Newer();
-        return LoadAsync();
+        var query = _filters.ToOutboxQuery(_limit, after);
+        return query.IsError ? query.Error : await Queries.GetOutgoingMessagesAsync(query.Value, CancellationToken.None);
     }
 
     private async Task<ErrorOr<DeliveryActionResult>> RetryAsync()
@@ -212,11 +156,5 @@
     {
         var query = _filters.ToOutboxQuery(_limit, after: null);
         return query.IsError ? query.Error : await Commands.CancelOutgoingAsync(query.Value, CancellationToken.None);
-    }
-
-    private async Task ShowResultAsync(ErrorOr<DeliveryActionResult> result)
-    {
-        _result = result;
-        await LoadAsync();
     }
 }

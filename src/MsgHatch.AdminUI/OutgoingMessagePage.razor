@@ -18,10 +18,7 @@
         else
         {
             var message = detail.Summary;
-            @if (_result is { } result)
-            {
-                <div class="alert @(result.IsError ? "alert-danger" : "alert-success") py-2" role="status" data-action-result>@ResultTextOf(result)</div>
-            }
+            <DeliveryResultAlert Result="_result" Text="DeliveryTexts.OneMessageResultOf" />
             <dl class="row mb-3">
                 <dt class="col-sm-3">Id</dt>
                 <dd class="col-sm-9" data-field="id">@message.Delivery.Id</dd>
@@ -148,7 +145,4 @@
         _result = result;
         await LoadAsync();
     }
-
-    private static string ResultTextOf(ErrorOr<DeliveryActionResult> result) =>
-        result.IsError ? AdminErrors.TextOf(result.Error) : DeliveryTexts.OneMessageResultOf(result.Value);
 }

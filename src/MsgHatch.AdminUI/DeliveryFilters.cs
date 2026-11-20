@@ -36,11 +36,18 @@ internal sealed class DeliveryFilters
 
     public bool IncludeTest { get; set; }
 
+    /// <summary>Sets the filters of both lists from the values of the address. A time that is not valid is no filter.</summary>
+    public void SetFromAddress(string? status, string? type, string? from, string? to, bool? test)
+    {
+        (Status, Type) = (status ?? string.Empty, type ?? string.Empty);
+        (CreatedFrom, CreatedTo, IncludeTest) = (TimeOf(from), TimeOf(to), test == true);
+    }
+
     /// <summary>Gives the query of the outbox with a limit and a cursor.</summary>
     public ErrorOr<OutboxQuery> ToOutboxQuery(int limit, MessageCursor? after)
     {
         var status = Optional(Status, StatusOf);
-        var type = Optional(Type, static text => NameOf(text, "message type", static valid => new MessageType(valid)));
+        var type = Optional(Type, TypeOf);
         var channel = Optional(Channel, static text => NameOf(text, "channel", static valid => new ChannelId(valid)));
         var target = TargetOf();
         var source = Optional<Guid>(Source, static text => Guid.TryParse(text, out var id) ? id : Invalid("The source message is not an id."));
@@ -51,8 +58,17 @@ internal sealed class DeliveryFilters
                 DueBeforeUtc: null, IncludeTest, limit, after);
     }
 
-    /// <summary>Gives the time of a value of the address in UTC, or null for no value or a value that is not a time.</summary>
-    public static DateTime? TimeOf(string? text) =>
+    /// <summary>Gives the query of the inbox with a limit and a cursor, from the status, the message type, the times, and the test flag.</summary>
+    public ErrorOr<InboxQuery> ToInboxQuery(int limit, MessageCursor? after)
+    {
+        var status = Optional(Status, StatusOf);
+        var type = Optional(Type, TypeOf);
+        return (status.Error ?? type.Error) is { } invalid
+            ? invalid
+            : new InboxQuery(Ids: null, status.Value, type.Value, Utc(CreatedFrom), Utc(CreatedTo), DueBeforeUtc: null, IncludeTest, limit, after);
+    }
+
+    private static DateTime? TimeOf(string? text) =>
         DateTime.TryParse(text, CultureInfo.InvariantCulture, _utc, out var time) ? time : null;
 
     private ErrorOr<DeliveryTarget?> TargetOf()
@@ -70,6 +86,8 @@ internal sealed class DeliveryFilters
 
     private static ErrorOr<DeliveryStatus> StatusOf(string text) =>
         Enum.TryParse<DeliveryStatus>(text, out var status) && Enum.IsDefined(status) ? status : Invalid($"The status {text} is not known.");
+
+    private static ErrorOr<MessageType> TypeOf(string text) => NameOf(text, "message type", static valid => new MessageType(valid));
 
     private static DateTime? Utc(DateTime? time) => time is { } value ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : null;
 

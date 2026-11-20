@@ -45,10 +45,28 @@ public sealed class DeliveryAdminRoutesUnitTests
     }
 
     [Fact]
+    public void InboxOf_NoFilter_GivesTheAddressOfTheList()
+    {
+        Assert.Equal("/msghatch/inbox", DeliveryAdminRoutes.InboxOf());
+    }
+
+    [Fact]
+    public void InboxOf_EachFilter_GivesEachValueEscapedInTheQuery()
+    {
+        var address = DeliveryAdminRoutes.InboxOf(
+            DeliveryStatus.Pending, new MessageType("Requests"), new DateTime(2030, 1, 1, 10, 0, 5, DateTimeKind.Utc),
+            new DateTime(2030, 1, 2, 0, 0, 0, DateTimeKind.Utc), includeTest: true);
+
+        Assert.Equal("/msghatch/inbox?status=Pending&type=Requests&from=2030-01-01T10%3A00%3A05&to=2030-01-02T00%3A00%3A00&test=true", address);
+    }
+
+    [Fact]
     public void Pages_RouteTemplates_AreTheAddressesOfTheRouteBuilders()
     {
         Assert.Equal([DeliveryAdminRoutes.Outbox], TemplatesOf<OutboxListPage>());
         Assert.Equal([DeliveryAdminRoutes.Outbox + "/{Id:guid}"], TemplatesOf<OutgoingMessagePage>());
+        Assert.Equal([DeliveryAdminRoutes.Inbox], TemplatesOf<InboxListPage>());
+        Assert.Equal([DeliveryAdminRoutes.Inbox + "/{Id:guid}"], TemplatesOf<ReceivedMessagePage>());
     }
 
     private static string[] TemplatesOf<TPage>() => [.. typeof(TPage).GetCustomAttributes<RouteAttribute>().Select(static route => route.Template).Order(StringComparer.Ordinal)];
