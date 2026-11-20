@@ -181,7 +181,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         cut.Find("textarea").Input("Hi {{Name}}");
 
-        Assert.Single(cut.FindAll("[data-state=pending]"));
+        Assert.Single(cut.FindAll("[data-actions-middle] [data-state=pending]"));
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         Commands.Received(1).SaveTemplateAsync(Lookup(), "Hi {{Name}}", 7, Arg.Any<CancellationToken>());
         Assert.Equal("8", cut.Find("[data-field=version]").TextContent);
-        Assert.Single(cut.FindAll("[data-state=saved]"));
+        Assert.Single(cut.FindAll("[data-actions-middle] [data-state=saved]"));
         Assert.Empty(cut.FindAll("[data-state=pending]"));
     }
 

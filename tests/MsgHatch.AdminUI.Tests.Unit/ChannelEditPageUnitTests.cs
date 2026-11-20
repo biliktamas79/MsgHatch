@@ -77,7 +77,7 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
         Commands.Received(1).SaveChannelAsync(Arg.Is<ChannelEntry>(static entry => entry.DisplayName == "Shop email"), Arg.Any<CancellationToken>());
         Assert.Equal(
             ("Saved.", "Shop email", "2", 1, 0),
-            (cut.Find("[data-state=saved]").TextContent, ValueOf(cut, "display-name"), cut.Find("[data-field=revision]").TextContent,
+            (cut.Find("[data-actions-middle] [data-state=saved]").TextContent, ValueOf(cut, "display-name"), cut.Find("[data-field=revision]").TextContent,
                 cut.FindAll("[data-action=reset]").Count, cut.FindAll("[data-state=pending]").Count));
     }
 
@@ -119,7 +119,7 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
         cut.Find("[data-field=description]").Change("New description");
         cut.Find("[data-field=enabled]").Change(false);
 
-        Assert.Equal("Changes that are not saved: Description, Enabled.", cut.Find("[data-state=pending]").TextContent);
+        Assert.Equal("Changes that are not saved: Description, Enabled.", cut.Find("[data-actions-middle] [data-state=pending]").TextContent);
     }
 
     [Fact]

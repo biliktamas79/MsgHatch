@@ -37,20 +37,22 @@
                 </div>
             </div>
 
-            @if (!string.Equals(_text, _storedText, StringComparison.Ordinal))
-            {
-                <p class="text-warning mt-2" data-state="pending">The text has changes that are not saved.</p>
-            }
-            @if (_saved)
-            {
-                <div class="alert alert-success mt-2" role="status" data-state="saved">The template is saved.</div>
-            }
         }
     </ChildContent>
     <Actions>
         <AdminActions>
             <Start><a class="btn btn-outline-secondary" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a></Start>
-            <Middle><ErrorAlert Error="_formError" Class="mb-0 py-1 px-2" /></Middle>
+            <Middle>
+                <ErrorAlert Error="_formError" Class="mb-0 py-1 px-2" />
+                @if (_loadError is null && _lookup is not null && !string.Equals(_text, _storedText, StringComparison.Ordinal))
+                {
+                    <p class="text-warning mb-0" data-state="pending">The text has changes that are not saved.</p>
+                }
+                @if (_saved && _loadError is null && _lookup is not null)
+                {
+                    <div class="alert alert-success mb-0 py-1 px-2" role="status" data-state="saved">The template is saved.</div>
+                }
+            </Middle>
             <End>
                 @if (_loadError is null && _lookup is not null)
                 {

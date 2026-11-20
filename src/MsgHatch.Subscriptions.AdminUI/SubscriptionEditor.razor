@@ -110,14 +110,6 @@
                 </div>
             </div>
 
-            @if (_stored is not null && form.ChangesFrom(_stored) is { Count: > 0 } changes)
-            {
-                <p class="text-warning mt-3" data-state="pending">Changes that are not saved: @string.Join(", ", changes).</p>
-            }
-            @if (_saved)
-            {
-                <div class="alert alert-success mt-3" role="status" data-state="saved">The subscription is saved.</div>
-            }
 
             <DeleteDialog Open="_confirmDelete" Question="Do you want to delete this subscription?" Confirmed="DeleteAsync" Cancelled="() => _confirmDelete = false">
                 <Details>
@@ -143,6 +135,14 @@
             </Start>
             <Middle>
                 <ErrorAlert Error="_formError" Text="@CreateConflictText(_formError)" Class="mb-0 py-1 px-2" />
+                @if (_loadError is null && _form is { } form && _stored is not null && form.ChangesFrom(_stored) is { Count: > 0 } changes)
+                {
+                    <p class="text-warning mb-0" data-state="pending">Changes that are not saved: @string.Join(", ", changes).</p>
+                }
+                @if (_saved && _loadError is null && _form is not null)
+                {
+                    <div class="alert alert-success mb-0 py-1 px-2" role="status" data-state="saved">The subscription is saved.</div>
+                }
             </Middle>
             <End>
                 @if (_loadError is null && _form is not null)

@@ -36,20 +36,22 @@
                 </div>
             </RegistryEntryFields>
 
-            @if (PendingChanges(type) is { Count: > 0 } changes)
-            {
-                <p class="text-warning mt-3" data-state="pending">Changes that are not saved: @string.Join(", ", changes).</p>
-            }
-            @if (_saved)
-            {
-                <div class="alert alert-success mt-3" role="status" data-state="saved">@RegistryTexts.SavedText</div>
-            }
         }
     </ChildContent>
     <Actions>
         <AdminActions>
             <Start><a class="btn btn-outline-secondary" data-action="back" href="@RegistryAdminRoutes.MessageTypes.TrimStart('/')">Back to the message types</a></Start>
-            <Middle><ErrorAlert Error="_formError" Class="mb-0 py-1 px-2" /></Middle>
+            <Middle>
+                <ErrorAlert Error="_formError" Class="mb-0 py-1 px-2" />
+                @if (_type is { } type && PendingChanges(type) is { Count: > 0 } changes)
+                {
+                    <p class="text-warning mb-0" data-state="pending">Changes that are not saved: @string.Join(", ", changes).</p>
+                }
+                @if (_saved && _loadError is null && _type is not null)
+                {
+                    <div class="alert alert-success mb-0 py-1 px-2" role="status" data-state="saved">@RegistryTexts.SavedText</div>
+                }
+            </Middle>
             <End>
                 @if (_type is { } type)
                 {

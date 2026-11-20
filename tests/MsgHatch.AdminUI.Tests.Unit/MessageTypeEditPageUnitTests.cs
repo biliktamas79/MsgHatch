@@ -76,7 +76,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
             Arg.Is<MessageTypeEntry>(static entry => entry.DisabledChannels.Count == 0 && entry.Revision == 4), Arg.Any<CancellationToken>());
         Assert.Equal(
             ("Saved.", "Email:True Sms:True", "5", 0),
-            (cut.Find("[data-state=saved]").TextContent, BoxesOf(cut), cut.Find("[data-field=revision]").TextContent, cut.FindAll("[data-state=pending]").Count));
+            (cut.Find("[data-actions-middle] [data-state=saved]").TextContent, BoxesOf(cut), cut.Find("[data-field=revision]").TextContent, cut.FindAll("[data-state=pending]").Count));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         cut.Find("[data-field=enabled]").Change(false);
         cut.Find("[data-send-on=Sms]").Change(false);
 
-        Assert.Equal("Changes that are not saved: Display name, Description, Enabled, Send on Sms.", cut.Find("[data-state=pending]").TextContent);
+        Assert.Equal("Changes that are not saved: Display name, Description, Enabled, Send on Sms.", cut.Find("[data-actions-middle] [data-state=pending]").TextContent);
     }
 
     [Fact]

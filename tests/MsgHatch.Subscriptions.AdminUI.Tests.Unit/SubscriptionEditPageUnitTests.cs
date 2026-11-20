@@ -109,7 +109,7 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
 
         cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
 
-        Assert.Equal("Changes that are not saved: settings.", cut.Find("[data-state=pending]").TextContent);
+        Assert.Equal("Changes that are not saved: settings.", cut.Find("[data-actions-middle] [data-state=pending]").TextContent);
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
 
         Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
         Assert.Equal("4", cut.Find("[data-field=revision]").TextContent);
-        Assert.Single(cut.FindAll("[data-state=saved]"));
+        Assert.Single(cut.FindAll("[data-actions-middle] [data-state=saved]"));
         Assert.Empty(cut.FindAll("[data-state=pending]"));
     }
 
