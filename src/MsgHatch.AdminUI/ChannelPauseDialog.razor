@@ -1,0 +1,65 @@
+@inject IServiceProvider Services
+@* The pause of a channel (D297): a note of at most 500 characters, which the dialog checks with DeliveryRules before the call, and the error of the call in the dialog. *@
+
+<AdminDialog Open="Channel is not null" Title="@($"Pause {Channel?.Id.Name}")">
+    <ChildContent>
+        <p data-question>A paused channel sends no message until a resume. Its messages wait in the outbox.</p>
+        <label class="form-label" for="msghatch-pause-note">Note</label>
+        <textarea id="msghatch-pause-note" class="form-control" rows="3" @bind="_note" @bind:event="oninput"></textarea>
+        <ErrorAlert Error="_error" Class="mt-2 mb-0" />
+    </ChildContent>
+    <Start>
+        <button type="button" class="btn btn-outline-secondary" data-action="back" @onclick="() => OnClose.InvokeAsync()">Back</button>
+    </Start>
+    <End>
+        <button type="button" class="btn btn-danger" data-action="confirm-pause" disabled="@_pausing" @onclick="PauseAsync">Pause</button>
+    </End>
+</AdminDialog>
+
+@code {
+    private string _note = string.Empty;
+    private Error? _error;
+    private bool _pausing;
+    private ChannelId? _shown;
+
+    /// <summary>The channel to pause, or null when the dialog is closed.</summary>
+    [Parameter]
+    public RegistryChannel? Channel { get; set; }
+
+    /// <summary>Runs when the user closes the dialog with no pause.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>Runs after a pause with no error, so that the page reads the channels again.</summary>
+    [Parameter]
+    public EventCallback OnPaused { get; set; }
+
+    private IDeliveryCommands Commands => Services.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (Channel?.Id != _shown)
+        {
+            (_shown, _note, _error) = (Channel?.Id, string.Empty, null);
+        }
+    }
+
+    private async Task PauseAsync()
+    {
+        var note = string.IsNullOrWhiteSpace(_note) ? null : _note.Trim();
+        _error = DeliveryRules.CheckPause(TenantKey.None, note);
+        if (_error is not null || Channel is not { } channel)
+        {
+            return;
+        }
+
+        _pausing = true;
+        _error = await Commands.PauseChannelAsync(channel.Id, note, CancellationToken.None);
+        _pausing = false;
+        if (_error is null)
+        {
+            await OnPaused.InvokeAsync();
+        }
+    }
+}

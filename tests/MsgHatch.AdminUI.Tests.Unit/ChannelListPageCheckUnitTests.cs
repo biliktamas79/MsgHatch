@@ -16,7 +16,7 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
         var cut = Render<ChannelListPage>();
 
         Assert.Equal(
-            ["history check view edit", "history check view edit", "history check view edit"],
+            ["pause history check view edit", "pause history check view edit", "pause history check view edit"],
             cut.FindAll("tr[data-row]").Select(static row => string.Join(' ', row.QuerySelectorAll("[data-action]").Select(static action => action.GetAttribute("data-action")))));
     }
 

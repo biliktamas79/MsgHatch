@@ -1,7 +1,7 @@
 @attribute [Route(RegistryAdminRoutes.ChannelTemplate)]
 @inject IServiceProvider Services
 @inject TimeProvider Time
-@* The view of one channel: its values, its state with its history (D279), the message types that register it, each with its state on the channel (D272), and Edit as its main action (D287). *@
+@* The view of one channel: its values, its state with its history (D279), the message types that register it, each with its state on the channel (D272), its pending messages with Pause and Resume (D297), and Edit as its main action (D287). *@
 
 <AdminEditPage>
     <Header>
@@ -18,6 +18,8 @@
         }
         else
         {
+            <div data-delivery-error><ErrorAlert Error="_deliveryError" /></div>
+            <div data-action-error><ErrorAlert Error="_actionError" /></div>
             <dl class="row mb-3">
                 <dt class="col-sm-3">Channel</dt>
                 <dd class="col-sm-9" data-field="id">@channel.Id.Name</dd>
@@ -40,6 +42,12 @@
                 <dd class="col-sm-9" data-field="state"><ChannelStateBadge Channel="channel" /></dd>
                 <dt class="col-sm-3">Since</dt>
                 <dd class="col-sm-9" data-field="since">@RegistryTexts.SinceOf(channel, _nowUtc)</dd>
+                <dt class="col-sm-3">Pending</dt>
+                <dd class="col-sm-9" data-field="pending">@_status?.Pending</dd>
+                <dt class="col-sm-3">Pending test</dt>
+                <dd class="col-sm-9" data-field="pending-test">@_status?.PendingTest</dd>
+                <dt class="col-sm-3">Oldest due</dt>
+                <dd class="col-sm-9" data-field="oldest-due">@DeliveryTexts.TimeOf(_status?.OldestDueAtUtc)</dd>
             </dl>
             <h2 class="h5">Message types</h2>
             @if (_messageTypes.Count == 0)
@@ -70,6 +78,14 @@
             <End>
                 @if (_channel is not null)
                 {
+                    @if (_channel.Current?.ToDown() is null)
+                    {
+                        <button type="button" class="btn btn-outline-danger" data-action="pause" @onclick="() => _pauseOpen = true">Pause</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-outline-success" data-action="resume" disabled="@_resuming" @onclick="ResumeAsync">Resume</button>
+                    }
                     <button type="button" class="btn btn-outline-secondary" data-action="history" @onclick="() => _historyOpen = true">History</button>
                     <a class="btn btn-primary" data-action="edit" href="@RegistryAdminRoutes.ChannelEdit(_channel.Id).TrimStart('/')">Edit</a>
                 }
@@ -79,12 +95,18 @@
 </AdminEditPage>
 
 <ChannelHistoryDialog Channel="_historyOpen ? _channel : null" OnClose="() => _historyOpen = false" />
+<ChannelPauseDialog Channel="_pauseOpen ? _channel : null" OnClose="() => _pauseOpen = false" OnPaused="PausedAsync" />
 
 @code {
     private RegistryChannel? _channel;
     private IReadOnlyList<RegistryMessageType> _messageTypes = [];
     private Error? _loadError;
     private bool _historyOpen;
+    private ChannelStatus? _status;
+    private Error? _deliveryError;
+    private Error? _actionError;
+    private bool _pauseOpen;
+    private bool _resuming;
     private DateTime _nowUtc;
 
     /// <summary>The id of the channel, from the address.</summary>
@@ -93,11 +115,39 @@
 
     private IRegistryQueries Queries => Services.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None);
 
+    private IDeliveryQueries DeliveryQueries => Services.GetRequiredKeyedService<IDeliveryQueries>(TenantKey.None);
+
+    private IDeliveryCommands DeliveryCommands => Services.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None);
+
     /// <inheritdoc />
-    protected override async Task OnParametersSetAsync()
+    protected override Task OnParametersSetAsync()
     {
-        (_channel, _messageTypes, _loadError, _historyOpen) = (null, [], null, false);
+        (_historyOpen, _pauseOpen, _actionError) = (false, false, null);
+        return ReadAsync();
+    }
+
+    /// <summary>Resumes the down channel, and then reads the channel again, so the page shows the new state (D297).</summary>
+    private async Task ResumeAsync()
+    {
+        _resuming = true;
+        var error = await DeliveryCommands.ResumeChannelAsync(_channel!.Id, CancellationToken.None);
+        await ReadAsync();
+        (_actionError, _resuming) = (error, false);
+    }
+
+    private async Task PausedAsync()
+    {
+        (_pauseOpen, _actionError) = (false, null);
+        await ReadAsync();
+    }
+
+    private async Task ReadAsync()
+    {
+        (_channel, _messageTypes, _loadError, _status) = (null, [], null, null);
         _nowUtc = Time.GetUtcNow().UtcDateTime;
+        var statuses = await DeliveryQueries.GetChannelsAsync(CancellationToken.None);
+        _deliveryError = statuses.IsError ? statuses.Error : null;
+        _status = statuses.IsError ? null : statuses.Value.FirstOrDefault(status => string.Equals(status.Descriptor.Id.Name, ChannelName, StringComparison.Ordinal));
         var channels = await Queries.GetChannelsAsync(CancellationToken.None);
         var types = channels.IsError ? channels.Error : await Queries.GetMessageTypesAsync(CancellationToken.None);
         if (types.IsError)

@@ -51,7 +51,7 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
 
         var actions = cut.FindAll("[data-actions-end] > *");
         Assert.Equal(
-            ("history edit", "btn btn-primary", RegistryAdminRoutes.ChannelEdit(Email).TrimStart('/')),
+            ("pause history edit", "btn btn-primary", RegistryAdminRoutes.ChannelEdit(Email).TrimStart('/')),
             (string.Join(' ', actions.Select(static action => action.GetAttribute("data-action"))), actions[^1].ClassName, actions[^1].GetAttribute("href")));
     }
 

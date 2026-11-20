@@ -34,6 +34,7 @@ public abstract class RegistryPageContext : BunitContext
         Services.AddKeyedSingleton(TenantKey.None, Commands);
         DeliveryQueries.GetOutgoingMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new MessagePage<OutgoingMessageSummary>([], null)));
         DeliveryQueries.GetReceivedMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new MessagePage<ReceivedMessageSummary>([], null)));
+        DeliveryQueries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<ChannelStatus>>([]));
         Services.AddKeyedSingleton(TenantKey.None, DeliveryQueries);
         Services.AddKeyedSingleton(TenantKey.None, DeliveryCommands);
         Services.AddSingleton<TimeProvider>(Time);
