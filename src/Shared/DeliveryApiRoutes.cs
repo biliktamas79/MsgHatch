@@ -24,6 +24,7 @@ internal static class DeliveryApiRoutes
     public const string OutboxCancel = Outbox + "/cancel";
     public const string OutgoingContent = OutgoingMessage + "/content";
     public const string Purge = "/purge";
+    public const string TestData = "/test-data";
 
     private const string _cursorTimeFormat = "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'";
     private const DateTimeStyles _utc = DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal;

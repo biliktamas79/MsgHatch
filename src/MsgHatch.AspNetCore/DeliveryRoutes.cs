@@ -3,13 +3,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Api.Contracts;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
+using static MsgHatch.AspNetCore.ApiProblems;
 using static MsgHatch.AspNetCore.DeliveryRequestValues;
 
 namespace MsgHatch.AspNetCore;
@@ -17,7 +17,9 @@ namespace MsgHatch.AspNetCore;
 /// <summary>
 /// The routes of the two route groups of the delivery management (section 4.19). Each route takes the optional query
 /// parameter <c>tenantId</c> and calls <see cref="IDeliveryQueries"/> or <see cref="IDeliveryCommands"/> of that tenant key
-/// (D289), except the pause, resume, and purge routes: they act on all tenants, so a <c>tenantId</c> gives 400.
+/// (D289), except the pause, resume, purge, and test data routes: they act on all tenants, so a <c>tenantId</c> gives 400.
+/// Each route writes its errors as problem details with the status of <see cref="ErrorProblems"/> and the member
+/// <c>errorType</c> (D233, D291).
 /// </summary>
 internal static class DeliveryRoutes
 {
@@ -37,6 +39,7 @@ internal static class DeliveryRoutes
         group.MapPost(DeliveryApiRoutes.OutboxRetry, (Delegate)RetryOutgoingAsync);
         group.MapPost(DeliveryApiRoutes.OutboxCancel, (Delegate)CancelOutgoingAsync);
         group.MapPost(DeliveryApiRoutes.Purge, (Delegate)PurgeAsync);
+        group.MapDelete(DeliveryApiRoutes.TestData, (Delegate)DeleteTestDataAsync);
     }
 
     public static void MapContentTo(RouteGroupBuilder group)
@@ -115,6 +118,10 @@ internal static class DeliveryRoutes
             static deleted => deleted,
             _json.DeletedMessages)));
 
+    private static Task<IResult> DeleteTestDataAsync(HttpContext context) =>
+        RunGlobalAsync(context, async commands => Json(
+            await commands.DeleteTestDataAsync(context.RequestAborted), static deleted => deleted, _json.DeletedMessages));
+
     private static Task<IResult> GetReceivedContentAsync(HttpContext context, Guid id) =>
         RunQueryAsync(context, async queries => Content(await queries.GetReceivedContentAsync(id, context.RequestAborted)));
 
@@ -165,11 +172,10 @@ internal static class DeliveryRoutes
 
     /// <summary>
     /// Reads the JSON body, and runs the action with it. A content type that is not JSON gives 415 and calls no
-    /// manager, so a form of another site cannot post a body as text (D156). Invalid JSON gives 400, written with
-    /// <paramref name="problem"/>, or with the problem of the delivery routes when it is null.
+    /// service, so a form of another site cannot post a body as text (D156). Invalid JSON gives 400 with the error type
+    /// <see cref="Errors.ValidationFailed"/>.
     /// </summary>
-    public static async Task<IResult> WithBodyAsync<T>(
-        HttpContext context, JsonTypeInfo<T> typeInfo, Func<T, Task<IResult>> action, Func<Error, IResult>? problem = null)
+    public static async Task<IResult> WithBodyAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo, Func<T, Task<IResult>> action)
         where T : class
     {
         if (!context.Request.HasJsonContentType())
@@ -178,7 +184,7 @@ internal static class DeliveryRoutes
         }
 
         var body = await ReadAsync(context, typeInfo);
-        return body.IsError ? (problem ?? Problem)(body.Error!) : await action(body.Value);
+        return body.IsError ? Problem(body.Error!) : await action(body.Value);
     }
 
     private static async Task<ErrorOr<T>> ReadAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo)
@@ -203,12 +209,4 @@ internal static class DeliveryRoutes
         content.IsError ? Problem(content.Error!) : TypedResults.Text(content.Value.Json, "application/json", Encoding.UTF8);
 
     private static IResult NoContent(Error? error) => error is null ? TypedResults.NoContent() : Problem(error);
-
-    private static ProblemHttpResult Problem(Error error) =>
-        TypedResults.Problem(detail: error.Message, statusCode: StatusCodeOf(error.Type), title: error.Type.Name);
-
-    private static int StatusCodeOf(ErrorType type) =>
-        type == Errors.ValidationFailed ? StatusCodes.Status400BadRequest
-        : type == Errors.NotFound ? StatusCodes.Status404NotFound
-        : StatusCodes.Status500InternalServerError;
 }

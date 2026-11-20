@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Api.Contracts;
 using MsgHatch.AspNetCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
@@ -41,6 +42,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         { "POST", "/delivery/outbox/retry", """{"channel":"Test"}""", nameof(IDeliveryCommands.RetryOutgoingAsync) },
         { "POST", "/delivery/outbox/cancel", """{"channel":"Test"}""", nameof(IDeliveryCommands.CancelOutgoingAsync) },
         { "POST", "/delivery/purge", """{"finishedBefore":"2030-01-01T00:00:00Z","maxCount":10}""", nameof(IDeliveryCommands.PurgeAsync) },
+        { "DELETE", "/delivery/test-data", null, nameof(IDeliveryCommands.DeleteTestDataAsync) },
         { "GET", "/delivery/inbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", null, nameof(IDeliveryQueries.GetReceivedContentAsync) },
         { "GET", "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", null, nameof(IDeliveryQueries.GetOutgoingContentAsync) },
     };
@@ -245,6 +247,19 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         query with { Ids = null } == expected && query.Ids!.SequenceEqual(ids);
 
     private static JsonElement ItemOf(JsonDocument page) => page.RootElement.GetProperty("items")[0];
+
+    private static async Task<(string Status, string? Title, string? Detail, int? ErrorCode)> ProblemOf(HttpResponseMessage response)
+    {
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        var root = problem.RootElement;
+        return (
+            $"{response.StatusCode}",
+            root.GetProperty("title").GetString(),
+            root.TryGetProperty("detail", out var detail) ? detail.GetString() : null,
+            root.TryGetProperty("errorType", out var errorType) ? errorType.Deserialize(ApiErrorJson.Default.ErrorTypeBody)?.Code : null);
+    }
+
+    private static async Task<int?> ErrorCodeOf(HttpResponseMessage response) => (await ProblemOf(response)).ErrorCode;
 
     private static HttpRequestMessage RequestOf(string method, string path, string? body) =>
         new(new HttpMethod(method), new Uri(path, UriKind.Relative))

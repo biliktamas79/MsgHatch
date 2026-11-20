@@ -16,9 +16,11 @@ public static class DeliveryEndpoints
     /// <summary>
     /// Maps the overview of <see cref="IDeliveryQueries"/> and the actions of <see cref="IDeliveryCommands"/> (D289): the
     /// channels with their pause and resume, the traffic, the pages of the inbox and the outbox, the detail of an outgoing
-    /// message, the retry and the cancel of the messages of a query, and the purge. Each route takes the optional query
-    /// parameter <c>tenantId</c>, and uses the queries or the commands of <see cref="TenantKey.For"/> that tenant, or of
-    /// <see cref="TenantKey.None"/>. The pause, resume, and purge routes act on all tenants, so a <c>tenantId</c> gives 400.
+    /// message, the retry and the cancel of the messages of a query, the purge, and the delete of the test data with
+    /// <c>DELETE {prefix}/test-data</c> (D291). Each route takes the optional query parameter <c>tenantId</c>, and uses the
+    /// queries or the commands of <see cref="TenantKey.For"/> that tenant, or of <see cref="TenantKey.None"/>. The pause,
+    /// resume, purge, and test data routes act on all tenants, so a <c>tenantId</c> gives 400. An error gives the problem
+    /// details of D233, with the member <c>errorType</c>.
     /// </summary>
     /// <param name="routes">The endpoint route builder, for example the web application.</param>
     /// <param name="prefix">The path of the route group.</param>
