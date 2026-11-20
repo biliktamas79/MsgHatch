@@ -8,8 +8,9 @@ namespace MsgHatch.AdminUI.DependencyInjection;
 public static class AdminUIExtensions
 {
     /// <summary>
-    /// Adds the registry pages of the core admin UI. The pages use <c>IRegistryQueries</c> and <c>IRegistryCommands</c> of <c>TenantKey.None</c>, so the
-    /// host selects the HTTP client or the in-process implementation in its setup (D235, D269). The host adds the
+    /// Adds the registry pages and the delivery pages of the core admin UI. The pages use <c>IRegistryQueries</c>,
+    /// <c>IRegistryCommands</c>, <c>IDeliveryQueries</c>, and <c>IDeliveryCommands</c> of <c>TenantKey.None</c>, so the host
+    /// selects the HTTP clients or the in-process implementations in its setup (D235, D269, D295). The host adds the
     /// authorization, and maps the pages with the assembly of <see cref="RegistryAdminRoutes"/> as an additional assembly of
     /// its router. The method keeps the pages in a trimmed host (D250). The channel pages read the time from
     /// <see cref="TimeProvider"/>, so the method adds <see cref="TimeProvider.System"/> when the host has none (D279).
@@ -21,6 +22,7 @@ public static class AdminUIExtensions
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ChannelEditPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(MessageTypeListPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(MessageTypeEditPage))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(OutboxListPage))]
     public static IServiceCollection AddMsgHatchAdminUI(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

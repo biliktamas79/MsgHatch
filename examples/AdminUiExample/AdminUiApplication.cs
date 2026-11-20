@@ -17,7 +17,7 @@ namespace AdminUiExample;
 
 /// <summary>
 /// The Interactive Server host of the admin UIs (D239). It has no message type and no store: it calls the subscription,
-/// template, and registry APIs of <c>ExampleApp</c> through the HTTP clients, for all reads and writes (D235).
+/// template, registry, and delivery APIs of <c>ExampleApp</c> through the HTTP clients, for all reads and writes (D235).
 /// </summary>
 public static class AdminUiApplication
 {
@@ -37,7 +37,8 @@ public static class AdminUiApplication
         builder.Services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.None)
             .UseSubscriptionApiClient(configureHttp: static http => http.AddHttpMessageHandler<ApiTokenHandler>())
             .UseTemplateApiClient(configureHttp: static http => http.AddHttpMessageHandler<ApiTokenHandler>())
-            .UseRegistryApiClient(configureHttp: static http => http.AddHttpMessageHandler<ApiTokenHandler>());
+            .UseRegistryApiClient(configureHttp: static http => http.AddHttpMessageHandler<ApiTokenHandler>())
+            .UseDeliveryApiClient(configureHttp: static http => http.AddHttpMessageHandler<ApiTokenHandler>());
         builder.Services.AddMsgHatchAdminUI().AddMsgHatchSubscriptionsAdminUI().AddMsgHatchTemplatesAdminUI().AddLiquidTemplateEditor();
         builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 

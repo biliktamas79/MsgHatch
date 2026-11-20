@@ -1,0 +1,222 @@
+@attribute [Route(DeliveryAdminRoutes.Outbox)]
+@inject IServiceProvider Services
+@inject TimeProvider Clock
+@* The outbox list (D295): the filters of OutboxQuery, which go to the server and apply at each change, a text filter after a pause of 500 ms, the server pages with Newer and Older, and "Retry filtered" and "Cancel filtered". *@
+
+<AdminListPage Title="Outbox">
+<Filters>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-status">Status</label>
+        <select id="msghatch-outbox-status" class="form-select form-select-sm" @bind="_filters.Status" @bind:after="LoadFirstPageAsync">
+            <option value="">All</option>
+            @foreach (var status in Enum.GetValues<DeliveryStatus>())
+            {
+                <option value="@status">@status</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-type">Message type</label>
+        <input id="msghatch-outbox-type" class="form-control form-control-sm" @bind="_filters.Type" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-channel">Channel</label>
+        <input id="msghatch-outbox-channel" class="form-control form-control-sm" @bind="_filters.Channel" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-target-kind">Target kind</label>
+        <select id="msghatch-outbox-target-kind" class="form-select form-select-sm" @bind="_filters.TargetKind" @bind:after="LoadFirstPageAsync">
+            <option value="">All</option>
+            @foreach (var kind in Enum.GetValues<DeliveryTargetKind>())
+            {
+                <option value="@kind">@kind</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-target-id">Target id</label>
+        <input id="msghatch-outbox-target-id" class="form-control form-control-sm" @bind="_filters.TargetId" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-source">Source message</label>
+        <input id="msghatch-outbox-source" class="form-control form-control-sm" @bind="_filters.Source" @bind:event="oninput" @bind:after="LoadAfterAPauseAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-from">Created from (UTC)</label>
+        <input id="msghatch-outbox-from" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedFrom" @bind:after="LoadFirstPageAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-outbox-to">Created to (UTC)</label>
+        <input id="msghatch-outbox-to" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedTo" @bind:after="LoadFirstPageAsync" />
+    </div>
+    <div class="form-check mb-1">
+        <input id="msghatch-outbox-test" type="checkbox" class="form-check-input" @bind="_filters.IncludeTest" @bind:after="LoadFirstPageAsync" />
+        <label class="form-check-label small" for="msghatch-outbox-test">Test messages</label>
+    </div>
+</Filters>
+<Actions>
+    <DeliveryBulkActions Disabled="!HasFilter" Noun="outgoing" Retry="RetryAsync" Cancel="CancelAsync" Completed="ShowResultAsync" />
+</Actions>
+<ChildContent>
+    @if (_result is { } result)
+    {
+        <div class="alert @(result.IsError ? "alert-danger" : "alert-success") py-2" role="status" data-action-result>@(result.IsError ? AdminErrors.TextOf(result.Error) : DeliveryTexts.ResultOf(result.Value))</div>
+    }
+    <AdminList TItem="OutgoingMessageSummary" Items="_items" EmptyText="There are no outgoing messages.">
+        <Head>
+            <tr><th>Created</th><th>Status</th><th>Message type</th><th>Channel</th><th>Target</th><th>Tries</th><th>Last error</th><th></th></tr>
+        </Head>
+        <Row Context="message">
+            <tr data-row>
+                <td class="text-nowrap">@DeliveryTexts.TimeOf(message.Delivery.CreatedAtUtc)</td>
+                <td class="text-nowrap"><DeliveryStatusBadge Delivery="message.Delivery" Flags="message.Flags" /></td>
+                <td>@message.Type.Name</td>
+                <td>@message.Channel.Name</td>
+                <td>@DeliveryTexts.TargetOf(message.Target)</td>
+                <td class="text-nowrap">@DeliveryTexts.TriesOf(message.Delivery)</td>
+                <td class="small text-break">@message.Delivery.LastError</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-secondary" data-action="view" href="@DeliveryAdminRoutes.OutgoingMessage(message.Delivery.Id).TrimStart('/')">View</a>
+                </td>
+            </tr>
+        </Row>
+        <Pager>
+            <CursorPager HasNewer="_pages.HasNewer" HasOlder="_next is not null" Newer="NewerAsync" Older="OlderAsync" />
+        </Pager>
+    </AdminList>
+</ChildContent>
+</AdminListPage>
+
+@code {
+    private const int _limit = 50;
+    private static readonly TimeSpan _pause = TimeSpan.FromMilliseconds(500);
+    private readonly DeliveryFilters _filters = new();
+    private readonly CursorPages _pages = new();
+    private ErrorOr<IReadOnlyList<OutgoingMessageSummary>>? _items;
+    private MessageCursor? _next;
+    private ErrorOr<DeliveryActionResult>? _result;
+    private int _lastLoad;
+
+    /// <summary>The status filter from the address of <see cref="DeliveryAdminRoutes.OutboxOf"/>.</summary>
+    [SupplyParameterFromQuery(Name = "status")]
+    public string? Status { get; set; }
+
+    /// <summary>The message type filter from the address.</summary>
+    [SupplyParameterFromQuery(Name = "type")]
+    public string? Type { get; set; }
+
+    /// <summary>The channel filter from the address.</summary>
+    [SupplyParameterFromQuery(Name = "channel")]
+    public string? Channel { get; set; }
+
+    /// <summary>The kind of the target filter from the address.</summary>
+    [SupplyParameterFromQuery(Name = "targetKind")]
+    public string? TargetKind { get; set; }
+
+    /// <summary>The id of the target filter from the address.</summary>
+    [SupplyParameterFromQuery(Name = "targetId")]
+    public string? TargetId { get; set; }
+
+    /// <summary>The source message filter from the address.</summary>
+    [SupplyParameterFromQuery(Name = "source")]
+    public string? Source { get; set; }
+
+    /// <summary>The earliest creation time in UTC from the address.</summary>
+    [SupplyParameterFromQuery(Name = "from")]
+    public string? From { get; set; }
+
+    /// <summary>The creation time in UTC that ends the range, from the address.</summary>
+    [SupplyParameterFromQuery(Name = "to")]
+    public string? To { get; set; }
+
+    /// <summary>True from the address when the list also shows the test messages.</summary>
+    [SupplyParameterFromQuery(Name = "test")]
+    public bool? Test { get; set; }
+
+    private IDeliveryQueries Queries => Services.GetRequiredKeyedService<IDeliveryQueries>(TenantKey.None);
+
+    private IDeliveryCommands Commands => Services.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None);
+
+    private bool HasFilter => _filters.ToOutboxQuery(_limit, after: null) is { IsSuccess: true } query && DeliveryRules.CheckBulkAction(query.Value) is null;
+
+    /// <inheritdoc />
+    protected override Task OnInitializedAsync()
+    {
+        (_filters.Status, _filters.Type, _filters.Channel) = (Status ?? string.Empty, Type ?? string.Empty, Channel ?? string.Empty);
+        (_filters.TargetKind, _filters.TargetId, _filters.Source) = (TargetKind ?? string.Empty, TargetId ?? string.Empty, Source ?? string.Empty);
+        (_filters.CreatedFrom, _filters.CreatedTo, _filters.IncludeTest) = (DeliveryFilters.TimeOf(From), DeliveryFilters.TimeOf(To), Test == true);
+        return LoadAsync();
+    }
+
+    private Task LoadFirstPageAsync()
+    {
+        _pages.Reset();
+        _result = null;
+        return LoadAsync();
+    }
+
+    private async Task LoadAfterAPauseAsync()
+    {
+        var load = ++_lastLoad;
+        await Task.Delay(_pause, Clock);
+        if (load == _lastLoad)
+        {
+            await LoadFirstPageAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var load = ++_lastLoad;
+        (_items, _next) = (null, null);
+        var query = _filters.ToOutboxQuery(_limit, _pages.Current);
+        if (query.IsError)
+        {
+            _items = query.Error;
+            return;
+        }
+
+        var page = await Queries.GetOutgoingMessagesAsync(query.Value, CancellationToken.None);
+        if (load != _lastLoad)
+        {
+            return;
+        }
+
+        _items = page.IsError ? page.Error : ErrorOr<IReadOnlyList<OutgoingMessageSummary>>.ForValue(page.Value.Items);
+        _next = page.IsError ? null : page.Value.Next;
+    }
+
+    private Task OlderAsync()
+    {
+        if (_next is { } next)
+        {
+            _pages.Older(next);
+        }
+
+        return LoadAsync();
+    }
+
+    private Task NewerAsync()
+    {
+        _pages.Newer();
+        return LoadAsync();
+    }
+
+    private async Task<ErrorOr<DeliveryActionResult>> RetryAsync()
+    {
+        var query = _filters.ToOutboxQuery(_limit, after: null);
+        return query.IsError ? query.Error : await Commands.RetryOutgoingAsync(query.Value, CancellationToken.None);
+    }
+
+    private async Task<ErrorOr<DeliveryActionResult>> CancelAsync()
+    {
+        var query = _filters.ToOutboxQuery(_limit, after: null);
+        return query.IsError ? query.Error : await Commands.CancelOutgoingAsync(query.Value, CancellationToken.None);
+    }
+
+    private async Task ShowResultAsync(ErrorOr<DeliveryActionResult> result)
+    {
+        _result = result;
+        await LoadAsync();
+    }
+}

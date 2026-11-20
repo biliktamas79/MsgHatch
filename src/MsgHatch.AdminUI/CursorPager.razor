@@ -1,0 +1,29 @@
+@* The pager of a list of server pages (D295): Newer goes back to the page before, and Older reads the page after the cursor of the last message. *@
+<nav aria-label="Pages">
+    <ul class="pagination mb-0">
+        <li class="page-item @(HasNewer ? null : "disabled")">
+            <button type="button" class="page-link" data-page="newer" disabled="@(!HasNewer)" @onclick="() => Newer.InvokeAsync()">Newer</button>
+        </li>
+        <li class="page-item @(HasOlder ? null : "disabled")">
+            <button type="button" class="page-link" data-page="older" disabled="@(!HasOlder)" @onclick="() => Older.InvokeAsync()">Older</button>
+        </li>
+    </ul>
+</nav>
+
+@code {
+    /// <summary>True when a newer page is before the shown page.</summary>
+    [Parameter]
+    public bool HasNewer { get; set; }
+
+    /// <summary>True when the server gave the cursor of a next page.</summary>
+    [Parameter]
+    public bool HasOlder { get; set; }
+
+    /// <summary>Runs when the user goes to the newer page.</summary>
+    [Parameter]
+    public EventCallback Newer { get; set; }
+
+    /// <summary>Runs when the user goes to the older page.</summary>
+    [Parameter]
+    public EventCallback Older { get; set; }
+}

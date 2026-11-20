@@ -1,0 +1,16 @@
+@* The status of a message as a badge, and the badge Test for a test message (D82, D295). *@
+<span class="badge @DeliveryTexts.StatusClassOf(Delivery.Status)" data-status="@Delivery.Status">@Delivery.Status</span>
+@if (Flags.HasFlag(MessageFlags.Test))
+{
+    <span class="badge text-bg-light border ms-1" data-test>Test</span>
+}
+
+@code {
+    /// <summary>The delivery state of the message.</summary>
+    [Parameter, EditorRequired]
+    public DeliveryState Delivery { get; set; }
+
+    /// <summary>The flags of the message.</summary>
+    [Parameter]
+    public MessageFlags Flags { get; set; }
+}

@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using MsgHatch.AdminUI.DependencyInjection;
@@ -15,7 +16,8 @@ namespace MsgHatch.AdminUI.Tests.Unit.TestTypes;
 /// The bUnit context of the registry pages: <see cref="IRegistryQueries"/> of <see cref="TenantKey.None"/> is a substitute
 /// that gives the channels Email, Sms, and Fax, and the message types Requests on Email and Sms, Notices on Email (disabled),
 /// and Invoices on Email (disabled on Email). <see cref="IRegistryCommands"/> of <see cref="TenantKey.None"/> is a
-/// substitute too.
+/// substitute too. <see cref="IDeliveryQueries"/> of <see cref="TenantKey.None"/> is a substitute that gives an empty page of
+/// the outbox, and <see cref="IDeliveryCommands"/> is a substitute too, for the delivery pages.
 /// </summary>
 public abstract class RegistryPageContext : BunitContext
 {
@@ -30,6 +32,9 @@ public abstract class RegistryPageContext : BunitContext
         Queries.GetChannelHistoryAsync(default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok<IReadOnlyList<ChannelState>>([]));
         Services.AddKeyedSingleton(TenantKey.None, Queries);
         Services.AddKeyedSingleton(TenantKey.None, Commands);
+        DeliveryQueries.GetOutgoingMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new MessagePage<OutgoingMessageSummary>([], null)));
+        Services.AddKeyedSingleton(TenantKey.None, DeliveryQueries);
+        Services.AddKeyedSingleton(TenantKey.None, DeliveryCommands);
         Services.AddSingleton<TimeProvider>(Time);
         Services.AddMsgHatchAdminUI();
     }
@@ -51,6 +56,12 @@ public abstract class RegistryPageContext : BunitContext
     protected IRegistryQueries Queries { get; } = Substitute.For<IRegistryQueries>();
 
     protected IRegistryCommands Commands { get; } = Substitute.For<IRegistryCommands>();
+
+    protected IDeliveryQueries DeliveryQueries { get; } = Substitute.For<IDeliveryQueries>();
+
+    protected IDeliveryCommands DeliveryCommands { get; } = Substitute.For<IDeliveryCommands>();
+
+    protected NavigationManager Navigation => Services.GetRequiredService<NavigationManager>();
 
     /// <summary>The clock of the pages, at 2030-01-01T00:00:00Z.</summary>
     protected FakeTimeProvider Time { get; } = new(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));

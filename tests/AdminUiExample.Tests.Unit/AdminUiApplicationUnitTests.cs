@@ -70,6 +70,25 @@ public sealed class AdminUiApplicationUnitTests
     }
 
     [Fact]
+    public async Task Build_ClientHost_SendsTheDeliveryCallsOverHttpWithTheTokenOfTheConfiguration()
+    {
+        var handler = new RecordingHandler();
+        await using var app = Build(handler);
+        await using var scope = app.Services.CreateAsyncScope();
+        var ct = TestContext.Current.CancellationToken;
+
+        await Service<IDeliveryQueries>(scope).GetChannelsAsync(ct);
+        await Service<IDeliveryCommands>(scope).DeleteTestDataAsync(ct);
+
+        Assert.Equal(
+            [
+                ("GET http://localhost:5080/api/delivery/channels", "Bearer " + _testToken),
+                ("DELETE http://localhost:5080/api/delivery/test-data", "Bearer " + _testToken),
+            ],
+            handler.Requests);
+    }
+
+    [Fact]
     public async Task Get_TemplateListWithNoApi_ShowsTheTextOfUnavailable()
     {
         await using var app = Build(new RecordingHandler(available: false));

@@ -92,10 +92,31 @@ public sealed class AdminListUnitTests : BunitContext
         Assert.Equal(3, cut.FindAll("tbody tr").Count);
     }
 
+    [Fact]
+    public void Render_ThirtyItemsWithAPager_ShowsEachItemAndThePagerInPlaceOfThePageNumbers()
+    {
+        var cut = RenderList(Items(30), pager: "<button data-server-pager>Older</button>");
+
+        Assert.Equal(
+            (30, true, false),
+            (cut.FindAll("tbody tr").Count, cut.Find("[data-list-pager]").QuerySelector("[data-server-pager]") is not null,
+                cut.Markup.Contains("Page 1 of", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Render_EmptyListWithAPager_ShowsThePagerUnderTheEmptyText()
+    {
+        var cut = RenderList(Items(0), pager: "<button data-server-pager>Newer</button>");
+
+        Assert.Equal(
+            (true, true),
+            (cut.Find("[data-state=empty]") is not null, cut.Find("[data-list-pager]").QuerySelector("[data-server-pager]") is not null));
+    }
+
     private static ErrorOr<IReadOnlyList<string>> Items(int count) =>
         ErrorOr<IReadOnlyList<string>>.ForValue([.. Enumerable.Range(0, count).Select(static index => $"item{index}")]);
 
-    private IRenderedComponent<AdminList<string>> RenderList(ErrorOr<IReadOnlyList<string>>? items, string? emptyText = null) =>
+    private IRenderedComponent<AdminList<string>> RenderList(ErrorOr<IReadOnlyList<string>>? items, string? emptyText = null, string? pager = null) =>
         Render<AdminList<string>>(p =>
         {
             p.Add(x => x.Items, items)
@@ -104,6 +125,11 @@ public sealed class AdminListUnitTests : BunitContext
             if (emptyText is not null)
             {
                 p.Add(x => x.EmptyText, emptyText);
+            }
+
+            if (pager is not null)
+            {
+                p.Add(x => x.Pager, pager);
             }
         });
 }

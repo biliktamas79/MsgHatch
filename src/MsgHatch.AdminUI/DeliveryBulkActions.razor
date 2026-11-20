@@ -1,0 +1,59 @@
+@* "Retry filtered" and "Cancel filtered" of a delivery list (D295): disabled with no filter (D292), a question first, and the result to the page after. *@
+<button type="button" class="btn btn-sm btn-outline-primary" data-action="retry-filtered" disabled="@Disabled" @onclick="() => _asked = _retry">Retry filtered</button>
+<button type="button" class="btn btn-sm btn-outline-danger ms-2" data-action="cancel-filtered" disabled="@Disabled" @onclick="() => _asked = _cancel">Cancel filtered</button>
+
+<AdminDialog Open="_asked is not null" Title="@(_asked == _retry ? "Retry filtered" : "Cancel filtered")">
+    <ChildContent>
+        <p class="mb-0" data-question>
+            @if (_asked == _retry)
+            {
+                @($"Retry each {Noun} message that matches the filters of the list? A retry changes only the failed messages and the pending messages with no active lease.")
+            }
+            else
+            {
+                @($"Cancel each {Noun} message that matches the filters of the list? A cancel changes only the pending messages with no active lease. It cannot be undone.")
+            }
+        </p>
+    </ChildContent>
+    <Start>
+        <button type="button" class="btn btn-outline-secondary" data-action="back" @onclick="() => _asked = null">Back</button>
+    </Start>
+    <End>
+        <button type="button" class="btn @(_asked == _retry ? "btn-primary" : "btn-danger")" data-action="confirm" @onclick="ConfirmAsync">
+            @(_asked == _retry ? "Retry" : "Cancel the messages")
+        </button>
+    </End>
+</AdminDialog>
+
+@code {
+    private const string _retry = "retry";
+    private const string _cancel = "cancel";
+    private string? _asked;
+
+    /// <summary>True when the list has no filter, so that one call cannot change the whole store (D292).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>The kind of the messages in the question, for example <c>outgoing</c>.</summary>
+    [Parameter]
+    public string Noun { get; set; } = "outgoing";
+
+    /// <summary>Retries the messages of the filters of the list.</summary>
+    [Parameter, EditorRequired]
+    public Func<Task<ErrorOr<DeliveryActionResult>>> Retry { get; set; } = null!;
+
+    /// <summary>Cancels the messages of the filters of the list.</summary>
+    [Parameter, EditorRequired]
+    public Func<Task<ErrorOr<DeliveryActionResult>>> Cancel { get; set; } = null!;
+
+    /// <summary>Gets the result of a confirmed action, so that the page shows it and reads the list again.</summary>
+    [Parameter]
+    public EventCallback<ErrorOr<DeliveryActionResult>> Completed { get; set; }
+
+    private async Task ConfirmAsync()
+    {
+        var action = _asked == _retry ? Retry : Cancel;
+        _asked = null;
+        await Completed.InvokeAsync(await action());
+    }
+}

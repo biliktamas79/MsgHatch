@@ -1,5 +1,5 @@
 @typeparam TItem
-@* The list of an admin page with the states loading, error, and empty, and a pager (D239). The table is in an area that scrolls by itself, with a sticky row of column names, and the pager is under it (D259). *@
+@* The list of an admin page with the states loading, error, and empty, and a pager (D239). The table is in an area that scrolls by itself, with a sticky row of column names, and the pager is under it (D259). A list of server pages gives its own pager, which replaces the page numbers (D295). *@
 @if (Items is not { } items)
 {
     <p class="text-secondary" role="status" data-state="loading">Loading.</p>
@@ -11,6 +11,10 @@ else if (items.IsError)
 else if (items.Value.Count == 0)
 {
     <p class="text-secondary" data-state="empty">@EmptyText</p>
+    @if (Pager is not null)
+    {
+        <div class="flex-shrink-0 pt-2" data-list-pager>@Pager</div>
+    }
 }
 else
 {
@@ -21,7 +25,7 @@ else
                 <thead>@Head</thead>
             }
             <tbody>
-                @foreach (var item in PageOf(items.Value))
+                @foreach (var item in Pager is null ? PageOf(items.Value) : items.Value)
                 {
                     @Row?.Invoke(item)
                 }
@@ -29,7 +33,14 @@ else
         </table>
     </div>
     <div class="flex-shrink-0 pt-2" data-list-pager>
-        <AdminPager Page="_page" PageCount="PageCountOf(items.Value.Count)" PageChanged="page => _page = page" />
+        @if (Pager is null)
+        {
+            <AdminPager Page="_page" PageCount="PageCountOf(items.Value.Count)" PageChanged="page => _page = page" />
+        }
+        else
+        {
+            @Pager
+        }
     </div>
 }
 
@@ -51,6 +62,13 @@ else
     /// <summary>The text of an empty list.</summary>
     [Parameter]
     public string EmptyText { get; set; } = "There are no items.";
+
+    /// <summary>
+    /// The pager of a list of server pages, for example <see cref="CursorPager"/>, or null for the page numbers of the list. With a
+    /// pager, the list shows each item that it gets, and shows the pager also under an empty page (D295).
+    /// </summary>
+    [Parameter]
+    public RenderFragment? Pager { get; set; }
 
     /// <summary>The number of items on one page, 25 by default.</summary>
     [Parameter]
