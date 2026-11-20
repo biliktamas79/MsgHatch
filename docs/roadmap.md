@@ -43,6 +43,8 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 33 Channel check | 32 |
 | 34 Open allocations | 13, 33 |
 | 35 Registry commands | 33 |
+| 36 Delivery API | 27, 31 |
+| 37 Delivery pages | 35, 36 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2719,6 +2721,149 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
+### Phase 36: delivery API
+
+Goal: the delivery management gets the same API boundary as the subscriptions, the templates, and the registry (D289 to D294). `IDeliveryManager` becomes a query interface and a command interface. The bodies move to the contracts package, the routes write their errors with `ErrorProblems`, and `MsgHatch.Api.Client` gets the delivery client. Phase 37 adds the admin pages on this client.
+
+Starting point: the tag `phase-35` (`7269509`) and four commits after it, which the record of phase 35 does not name:
+- `9ee0be0`: the action bar of the edit pages shows the pending changes and the alert "Saved.".
+- `0a35632`: each changed field of the edit pages has a yellow border.
+- `940264e`: the list filters apply at each change, with no Show button.
+- `b5be5f4`: the text filters of the template list apply after a pause of 500 ms.
+
+The owner chose the roadmap item "Delivery API", then "Two phases (Recommended)", and then all four groups of pages for phase 37. For the content of a message, the owner asked for the options with short examples, and then chose "JSON text" (D290).
+
+1. Check first, before the code:
+   - The generator of D236 reads a success body of type `JsonElement` from a property of the JSON context. So the client gives the content text with no content type registry.
+   - `ExampleApp` maps both delivery route groups with the one prefix `/api/delivery`, so one prefix of the client serves both groups.
+   - The callers of `IDeliveryManager` are `MsgHatch.AspNetCore`, the setup of `MsgHatch.Domain`, `NotificationHistory` of `WolverineExample.Consumer`, and their tests.
+   - List the tests of the delivery routes that expect 500 for an error type that has its own status in `ErrorProblems`. These tests change with item 6.
+2. Write lists and times as query values in the generator (D293):
+   - A query value of type `IReadOnlyList<T>`, with `T` a type that the generator writes already, gives one `name=value` pair for each item. Null and an empty list give no pair.
+   - A `DateTime` value has the ISO 8601 text of D57, which is the format `O` of a UTC time. A value of another type still gives the diagnostic of an unsupported value.
+3. Add the public rules of a delivery request (D292):
+   - `DeliveryRules` in `MsgHatch.Domain.Management` checks the limit of a page, the ids, the order of the created times, a bulk action with no filter, the length of a pause note, a global action of a tenant key, and a `maxCount` less than 1. Each failed rule gives `Errors.ValidationFailed` with the message that the manager gives today.
+   - `DeliveryManager` calls the rules in place of its own checks. The check that `finishedBeforeUtc` is not after the current time stays in the manager, because the clock of a client can differ.
+4. Split the delivery manager into a query interface and a command interface (D289, D290):
+   - `IDeliveryQueries` and `IDeliveryCommands` in `MsgHatch.Domain.Management` get the methods of D289, and `IDeliveryManager` goes away. `DeliveryManager` implements both.
+   - The two content methods give `MessageContent(Guid Id, string Json)`, with the JSON that `MsgHatchJson` writes with the content type registry. `OutgoingMessageDetail.Trace` becomes the JSON text of the route trace, written with the newest registered version of its type. An unknown id still gives `Errors.NotFound`.
+   - `AddMsgHatch` registers both interfaces as scoped default tenant services with their logging wrappers. `UseDeliveryQueries` and `UseDeliveryCommands` select another implementation, and a second selection gives the setup error of D62. The two wrappers keep the event ids of `DeliveryManagerLoggingWrapper`.
+   - The routes call the queries or the commands of the key of `tenantId`. The bodies and the status codes do not change in this item.
+   - `NotificationHistory` of the Wolverine example reads the summaries through `IDeliveryQueries`, and the typed envelope through `IOutboxStore.GetAsync` of its tenant.
+5. Move the delivery bodies to the shared contracts (D291):
+   - The delivery bodies and `DeliveryEndpointJson` move to `MsgHatch.Api.Contracts`, with public `From` methods. The response bodies get their mappings back to the domain types. A name that is not valid gives `Errors.SerializationFailed`.
+   - `src/Shared/DeliveryApiRoutes.cs` holds the route paths, the names of the query values, and the format and the parse of a cursor `{CreatedAtUtc}_{Id}`. `MsgHatch.AspNetCore` and `MsgHatch.Api.Client` compile it.
+   - The paths and the JSON of the bodies do not change, so the existing tests of the bodies stay green.
+6. Write the errors of the delivery routes with `ErrorProblems`, and add the route of the test data (D233, D291):
+   - The problem body gets `errorType` and `detail`. `ValidationFailed` and `NotFound` keep 400 and 404. Each other error type gets the status of `ErrorProblems.StatusCodeOf`, for example 503 for `Unavailable`. A body that is not valid JSON also gives a problem with `errorType`.
+   - `DELETE {prefix}/test-data` in the overview group calls `DeleteTestDataAsync` of `TenantKey.None`, and gives 200 with `inboxMessages` and `outboxMessages`. A `tenantId` gives 400, as for pause, resume, and purge.
+7. Add the delivery client to `MsgHatch.Api.Client` (D294):
+   - `IDeliveryApi` with `[HttpApi(typeof(DeliveryEndpointJson))]`, the adapters `HttpDeliveryQueries` and `HttpDeliveryCommands`, `DeliveryApiClientOptions` with its validator, and `UseDeliveryApiClient` with an overload with `Uri baseAddress`.
+   - The adapter of a tenant key sends its tenant as `tenantId`. The global commands send no `tenantId`.
+   - Each adapter runs `DeliveryRules` first, and gives the error of a rule with no HTTP call.
+   - The content methods read the body as a `JsonElement`, and give its text.
+8. Describe the phase in the design: the sections 4.2, 4.7, 4.19, and 4.23, and the list of the AOT packages if it changes. Change `docs/stores.md` if it names the delivery manager. The README of the example app gets the route of the test data.
+
+Tests:
+- The generator: a list query value with two items, with one item, empty, and null. A `DateTime` value in the format `O`. The diagnostic for a list of an unsupported type.
+- `DeliveryRules`: one row for each rule with `ValidationFailed`, and a valid request with no error.
+- `DeliveryQueriesTestsBase<T>` and `DeliveryCommandsTestsBase<T>`, with `DeliveryManager` and with the HTTP client. They take their use cases from the existing tests of the delivery manager:
+  - The pages of the inbox and the outbox with each filter, the cursor of the next page, and the test flag.
+  - The detail of an outgoing message with its trace as JSON text and its tries, and `NotFound` for an unknown id.
+  - The content of a received message and of an outgoing message as JSON text, and `NotFound` for an unknown id.
+  - The traffic counts and the channel states.
+  - Pause, resume, retry, cancel, delete test data, and purge, with their counts and their errors.
+  - A global command of a tenant key gives `ValidationFailed`.
+  - An error of a store is the error of the method.
+- The client: a request that breaks a rule gives `ValidationFailed` and sends no request. The tenant of a key goes as `tenantId`. The options and their validation, the setup error of a second selection, `Unavailable` for a network error, and `Rejected` for 401 and 403.
+- The logging wrappers: one event for each call, with the event ids of the delivery manager.
+- The contracts: each body maps to its domain type and back, a name that is not valid gives `SerializationFailed`, and a cursor text gives its cursor and back.
+- The routes: the problem body of D233 for each error type, and the route of the test data with its 400 for a `tenantId`.
+- The Wolverine example: the catch-up still gives the missed notifications.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phases 36 and 37: the delivery API and pages"
+2. "Write lists and times as query values of the generated clients"
+3. "Add the public rules of a delivery request"
+4. "Split the delivery manager into query and command interfaces"
+5. "Move the delivery bodies and route paths to the shared contracts"
+6. "Write the errors of the delivery endpoints with ErrorProblems"
+7. "Add the HTTP client of the delivery API"
+8. "Describe the delivery API in the design"
+9. "Record the commits and the checked facts of phase 36 in the plan"
+10. "Record phase 36 as done in README and AGENTS.md"
+
+Commit 1 holds the plans of phases 36 and 37 and the decisions D289 to D298. Item 1 is a check, and its results go into the checked facts.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
+### Phase 37: delivery pages
+
+Goal: an operator sees the traffic, the outbox, and the inbox in the admin UI (D295 to D298). The operator looks at one message with its tries, its trace, and its content, retries and cancels messages, pauses and resumes channels, and deletes the test data. The pages use the delivery client of phase 36.
+
+Starting point: the commits of phase 36. The owner chose four groups of pages: "Outbox and messages", "Pause and resume", "Inbox", and "Traffic and cleanup".
+
+1. Check first, before the code:
+   - `AdminList` pages its items in the page. A list of server pages needs the buttons Newer and Older in place of the page numbers.
+   - The token of `AdminUiExample` needs the roles `DeliveryAdmin` and `DeliveryContent`. A token with no role `DeliveryContent` gets `Rejected` only for the content.
+   - A page formats the JSON text with `Utf8JsonWriter` and `Indented`, with no reflection, so a trimmed host keeps it (D237).
+2. Add the outbox list page (D295):
+   - `OutboxListPage` at `/msghatch/outbox`, with the route builder `DeliveryAdminRoutes.Outbox`, uses `AdminListPage`. Its filters are the status, the message type, the channel, the target, the created times, the source message, and the test flag.
+   - The filters go into `OutboxQuery`, and apply at each change. A text filter applies after a pause of 500 ms, as in `b5be5f4`.
+   - `AdminList` gets the parameter `Pager`, which replaces its page numbers. The outbox list gives the buttons Newer and Older. Older reads the page after the `Next` cursor. Newer goes back to the cursor of the page before, which the page keeps.
+   - Each row shows the created time, the status as a badge, the message type, the channel, the target, the tries as "3 / 8", the last error, and the button View.
+   - The toolbar has "Retry filtered" and "Cancel filtered", which are disabled with no filter (D292). Each one asks with `AdminDialog`, and then an alert shows "Matched N, changed M.". After the action, the page reads the list again.
+   - `DeliveryAdminRoutes.OutboxOf(...)` gives the address of the list with filters, so another page links to it.
+3. Add the outgoing message page (D296):
+   - `OutgoingMessagePage` at `/msghatch/outbox/{id}` uses `AdminEditPage`. It shows the summary, the tries in a table, and the trace as formatted JSON.
+   - The content shows only after a click on "Show content", so the page reads it only on request. With no role `DeliveryContent`, the content area shows the text of `Rejected`, and the rest of the page stays.
+   - The actions are Back on the left, and Cancel and Retry on the right. Each one acts on the query of the one id, and shows its result. "Changed 0" shows "The message did not change, because it is done, cancelled, leased, or expired."
+   - A link opens the page of the received message of its source.
+4. Add the inbox list page and the received message page (D295, D296):
+   - `InboxListPage` at `/msghatch/inbox` has the filters of `InboxQuery`, the same pager, and "Retry filtered" and "Cancel filtered".
+   - `ReceivedMessagePage` at `/msghatch/inbox/{id}` reads its summary with a page of its one id, and shows the event on request, as in item 3. A link opens the outbox list with the filter of its source message.
+5. Add pause and resume to the channel pages (D297):
+   - The channel list and the channel view page also read `IDeliveryQueries.GetChannelsAsync`. They show the pending messages, the pending test messages, and the oldest due time of each channel. An error of the delivery query shows above the list, and the registry columns still show.
+   - The button Pause opens `AdminDialog` with a note of at most 500 characters. The button Resume shows for a down channel. After an action, the page reads the channels again, so the state shows the new row.
+6. Add the traffic page (D298):
+   - `TrafficPage` at `/msghatch/traffic` shows the counts of the inbox and of the outbox, with the filters of `TrafficQuery`. Each count links to its list with the filters of its row.
+   - "Delete test data" asks with `DeleteDialog`, and shows the two counts after the delete.
+   - "Purge" opens a dialog with the finish time and the maximum count, and shows the two counts after the purge.
+7. Show the delivery pages in the example admin host (D298):
+   - `UseDeliveryApiClient` with the token handler, and the section `MsgHatch:DeliveryApiClient` with `http://localhost:5080/` and the prefix `/api/delivery`.
+   - The menu and the home page get "Traffic", "Outbox", and "Inbox" after "Verification".
+   - The README of the example app and AGENTS.md tell that the token needs the roles `DeliveryAdmin` and `DeliveryContent`, and name the 403 of a token with no such role.
+   - `AddMsgHatchAdminUI` keeps each new page with `DynamicDependency` (D250).
+8. Describe the phase in the design: section 4.24.
+
+Tests:
+- The pages, with bUnit:
+  - The outbox list: the rows, each filter in the query, the buttons Newer and Older with their cursors, the empty state, and the texts of `Unavailable` and `Rejected`.
+  - "Retry filtered" and "Cancel filtered": disabled with no filter, the question, the counts, and the second read.
+  - The outgoing message page: the summary, the tries, the trace, the content only after the click, the text of `Rejected` in the content area, Cancel and Retry with their results, and `NotFound` with the link back.
+  - The inbox pages: the same use cases, and the link to the outbox list of the source message.
+  - The channel pages: the pending counts, the error of the delivery query above the list, Pause with its note and its length check, Resume only for a down channel, and the second read.
+  - The traffic page: the counts with their links, "Delete test data" with its question and counts, and "Purge" with its dialog and counts.
+  - The addresses of `DeliveryAdminRoutes`, and a `DynamicDependency` for each new page.
+- The example host: the delivery client sends its calls with the token, and the menu marks each new page.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Add the outbox list page"
+2. "Add the outgoing message page"
+3. "Add the inbox pages"
+4. "Add pause and resume to the channel pages"
+5. "Add the traffic page"
+6. "Show the delivery pages in the example admin host"
+7. "Describe the delivery pages in the design"
+8. "Record the commits and the checked facts of phase 37 in the plan"
+9. "Record phase 37 as done in README and AGENTS.md"
+
+The plan of this phase is in commit 1 of phase 36. Item 1 is a check, and its results go into the checked facts.
+
+Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -2743,5 +2888,4 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
   - The phase checks the SDK call of the `Publish` action, and the size limit of a message with its attributes, in the pinned version.
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
 - More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
-- The delivery endpoints of `MsgHatch.AspNetCore` write their errors with `ErrorProblems` (D233), and get contracts, a generated HTTP client in `MsgHatch.Api.Client` (D271), and admin pages in the same way as phases 26 to 28.
 - AOT for the other packages (D237): each package outside the API boundary sets `IsAotCompatible` when its dependencies allow it, or the design records why not.
