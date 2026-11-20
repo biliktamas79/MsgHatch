@@ -61,6 +61,14 @@ curl -H "Authorization: Bearer $(dotnet user-jwts create --project examples/Exam
 
 `--output token` writes only the token, so the token does not show on the screen.
 
+A test message has the flag `Test` of its caller (D82), and stays in the inbox and the outbox until a delete. This request deletes the test messages of all tenants, and gives the two counts, for example `{"inboxMessages":2,"outboxMessages":5}` (D291). It needs the role `DeliveryAdmin`, and a `tenantId` gives 400:
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $(dotnet user-jwts create --project examples/ExampleApp --name 1 --role DeliveryAdmin --output token)" http://localhost:5080/api/delivery/test-data
+```
+
+Each delivery route writes its errors as problem details with the member `errorType` (D233), for example 503 for `Unavailable`.
+
 ## Start the admin UI
 
 1. Make a token with the roles `TemplateAdmin` and `RegistryAdmin`. This command also stores the token in the user secrets of `AdminUiExample`:

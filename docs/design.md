@@ -133,7 +133,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | Publisher | The role of a host that sends the messages of the channels whose transports it registered. `MsgHatchRoles.Publisher` selects it (D101, D105). A publisher instance is the dispatch loop of one channel in one process. |
 | Down channel | A channel that the outbox dispatch store marks as down, for all its publisher instances: after transient errors in a row (reason `Errors`), or by a person (reason `Operator`). No publisher instance claims its messages until it is up again (D106). |
 | Stuck message | A pending message that is due since a long time, because no publisher runs or its channel is down. Or a failed message that a person must retry or cancel. |
-| Delivery manager | `IDeliveryManager`, the API for a UI that shows the traffic and the history of the messages, and repairs stuck messages and down channels (D107). |
+| Delivery management | `IDeliveryQueries` and `IDeliveryCommands`, the API for a UI that shows the traffic and the history of the messages, and repairs stuck messages and down channels (D107, D289). `DeliveryManager` is the in-process implementation of both. |
 | Registry reader | `IMessageRegistry`. It gives the registered channels and message types with their settings. The default reader is in memory, from the DI registrations (D117). |
 | Registry writer | `IRegistryWriter`. It reads and writes the registry settings, only for the administration. A setup in code needs no writer (D117). |
 | Registry settings | The stored settings of a channel or a message type on top of the code: a display name, a description, and enabled flags (D118). |
@@ -472,8 +472,8 @@ Steps 3 to 5 run inside the composer of each channel registration (D96). The pip
 | Project | Target | References | Packages | Content |
 |---|---|---|---|---|
 | `src/MsgHatch.Domain` | `net10.0` | none | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Options.ConfigurationExtensions`, `Microsoft.Extensions.Diagnostics` | Failures, identities, the tenant key, the routing contract, the registry reader and writer, delivery types, persistence, the in-memory stores, pipeline, inbox, outbox, dispatch, telemetry, and the DI builder |
-| `src/MsgHatch.Api.Contracts` | `net10.0` | `MsgHatch.Domain` | none | The error metadata of the HTTP APIs: `ErrorTypeBody` and its JSON context `ApiErrorJson` (D227, D233), and the bodies of the registry API with their JSON context `RegistryEndpointJson` (D270) |
-| `src/MsgHatch.Api.Client` | `net10.0` | `MsgHatch.Api.Contracts`, and `MsgHatch.SourceGeneration` as an analyzer | `Microsoft.Extensions.Http` | The HTTP client of the core APIs: `IRegistryQueries` and `IRegistryCommands` over HTTP, and `UseRegistryApiClient` (D271, D283, section 4.23) |
+| `src/MsgHatch.Api.Contracts` | `net10.0` | `MsgHatch.Domain` | none | The error metadata of the HTTP APIs: `ErrorTypeBody` and its JSON context `ApiErrorJson` (D227, D233), the bodies of the registry API with their JSON context `RegistryEndpointJson` (D270), and the bodies of the delivery API with their JSON context `DeliveryEndpointJson` (D291) |
+| `src/MsgHatch.Api.Client` | `net10.0` | `MsgHatch.Api.Contracts`, and `MsgHatch.SourceGeneration` as an analyzer | `Microsoft.Extensions.Http` | The HTTP client of the core APIs: `IRegistryQueries` and `IRegistryCommands` over HTTP with `UseRegistryApiClient`, and `IDeliveryQueries` and `IDeliveryCommands` over HTTP with `UseDeliveryApiClient` (D271, D283, D294, section 4.23) |
 | `src/MsgHatch.Subscriptions.Api.Contracts` | `net10.0` | `MsgHatch.Subscriptions`, `MsgHatch.Api.Contracts` | none | The bodies of the subscription HTTP API, their JSON context, `SettingsJson`, and `JsonChannelSettings`, with no HTTP concern (D227, D228, D229) |
 | `src/MsgHatch.Templates.Api.Contracts` | `net10.0` | `MsgHatch.Templates`, `MsgHatch.Api.Contracts` | none | The bodies of the template HTTP API and their JSON context, with no HTTP concern (D227, D228) |
 | `src/MsgHatch.SourceGeneration` | `netstandard2.0` | none | `Microsoft.CodeAnalysis.CSharp`, `Microsoft.CodeAnalysis.Analyzers` | The generator of placeholder writers (D18), and the generator of the HTTP API clients (D236, section 4.23) |
@@ -913,7 +913,7 @@ public enum MsgHatchRoles { None = 0, Consumer = 1, Publisher = 2 }
 `NotificationResult.Errors` is an empty array when no message failed. `Skipped` counts the routes on a disabled channel (D118). For a disabled message type, the pipeline calls no router, and all counts are 0. `RouteResult` is the result of one route of a preview (D84, D100): the outgoing message, or the error of that route.
 
 Test messages (D82 to D84):
-- `MessageFlags.Test` marks a test message. The flag goes from the received message to each outgoing message. The stores persist it, so that `IDeliveryManager.DeleteTestDataAsync` can remove all test data after a test, and analytics can leave test data out.
+- `MessageFlags.Test` marks a test message. The flag goes from the received message to each outgoing message. The stores persist it, so that `IDeliveryCommands.DeleteTestDataAsync` can remove all test data after a test, and analytics can leave test data out.
 - `INotificationService.PreviewAsync` runs steps 3 to 5 of the pipeline, and stores and sends nothing. It returns one `RouteResult` for each route (D84).
 - A test message goes to its channel as `TestDeliveryOptions` of that channel say (section 4.8).
 
@@ -1445,17 +1445,23 @@ public interface IDispatchSignal
 // MsgHatch.Domain.Management
 public readonly record struct DeletedMessages(int InboxMessages, int OutboxMessages);
 
-public interface IDeliveryManager
+public sealed record MessageContent(Guid Id, string Json); // the JSON text of MsgHatchJson (D290)
+
+public interface IDeliveryQueries // D289
 {
     ValueTask<ErrorOr<IReadOnlyList<ChannelStatus>>> GetChannelsAsync(CancellationToken ct);
-    ValueTask<Error?> PauseChannelAsync(ChannelId channel, string? note, CancellationToken ct);
-    ValueTask<Error?> ResumeChannelAsync(ChannelId channel, CancellationToken ct);
     ValueTask<ErrorOr<TrafficReport>> GetTrafficAsync(TrafficQuery query, CancellationToken ct);
     ValueTask<ErrorOr<MessagePage<ReceivedMessageSummary>>> GetReceivedMessagesAsync(InboxQuery query, CancellationToken ct);
     ValueTask<ErrorOr<MessagePage<OutgoingMessageSummary>>> GetOutgoingMessagesAsync(OutboxQuery query, CancellationToken ct);
     ValueTask<ErrorOr<OutgoingMessageDetail>> GetOutgoingMessageAsync(Guid id, CancellationToken ct);
-    ValueTask<ErrorOr<ReceivedMessage>> GetReceivedContentAsync(Guid id, CancellationToken ct);
-    ValueTask<ErrorOr<OutgoingMessage>> GetOutgoingContentAsync(Guid id, CancellationToken ct);
+    ValueTask<ErrorOr<MessageContent>> GetReceivedContentAsync(Guid id, CancellationToken ct);
+    ValueTask<ErrorOr<MessageContent>> GetOutgoingContentAsync(Guid id, CancellationToken ct);
+}
+
+public interface IDeliveryCommands // D289
+{
+    ValueTask<Error?> PauseChannelAsync(ChannelId channel, string? note, CancellationToken ct);
+    ValueTask<Error?> ResumeChannelAsync(ChannelId channel, CancellationToken ct);
     ValueTask<ErrorOr<DeliveryActionResult>> RetryReceivedAsync(InboxQuery query, CancellationToken ct);
     ValueTask<ErrorOr<DeliveryActionResult>> CancelReceivedAsync(InboxQuery query, CancellationToken ct);
     ValueTask<ErrorOr<DeliveryActionResult>> RetryOutgoingAsync(OutboxQuery query, CancellationToken ct);
@@ -1586,7 +1592,7 @@ public sealed class PasswordResetRouter : IMessageRouter<PasswordReset>
 }
 ```
 
-Tenant services (D126). These services are tenant services: each router, payload loader, composer, and template engine, the template store of a tenant, `IInboxStore`, `IOutboxStore`, `IDeliveryManager`, and, in `MsgHatch.Subscriptions`, `ISubscriptionStore`, `IRecipientDirectory`, `ISubscriptionCache`, `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier`. The other services exist one time for the whole system, for example the dispatch stores, the transports, `IMessageRegistry`, and `IDispatchSignal`.
+Tenant services (D126). These services are tenant services: each router, payload loader, composer, and template engine, the template store of a tenant, `IInboxStore`, `IOutboxStore`, `IDeliveryQueries`, `IDeliveryCommands`, and, in `MsgHatch.Subscriptions`, `ISubscriptionStore`, `IRecipientDirectory`, `ISubscriptionCache`, `ISubscriptionQueries`, `ISubscriptionCommands`, and `IRoutingVerifier`. The other services exist one time for the whole system, for example the dispatch stores, the transports, `IMessageRegistry`, and `IDispatchSignal`.
 
 Contract rules of the core:
 - Each store, router, loader, composer, engine, and transport method returns an `Error` for a failure, and does not throw (section 4.12).
@@ -1690,7 +1696,7 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 
 | Method | Effect |
 |---|---|
-| `AddMsgHatch(Action<MsgHatchOptions>?)` | Registers the core services: the in-memory `IMessageRegistry` from the registrations (D117), `InProcessDispatchSignal` as the `IDispatchSignal`, the named `RetryOptions` `Inbox`, the named `DispatchOptions` `Inbox` and `Outbox`, `IInboxProcessor` and `IOutboxDispatcher` with their logging wrappers, `IDeliveryManager` as a tenant service with its logging wrapper, the in-process `IRegistryQueries` as the default tenant service with its logging wrapper (D268, D269), and `TimeProvider.System` with `TryAddSingleton`. Returns `MsgHatchBuilder`. |
+| `AddMsgHatch(Action<MsgHatchOptions>?)` | Registers the core services: the in-memory `IMessageRegistry` from the registrations (D117), `InProcessDispatchSignal` as the `IDispatchSignal`, the named `RetryOptions` `Inbox`, the named `DispatchOptions` `Inbox` and `Outbox`, `IInboxProcessor` and `IOutboxDispatcher` with their logging wrappers, the in-process `IRegistryQueries` and `IRegistryCommands` as the default tenant services with their logging wrappers (D268, D269, D283), the in-process `IDeliveryQueries` and `IDeliveryCommands` as the default scoped tenant services with their logging wrappers (D289), and `TimeProvider.System` with `TryAddSingleton`. Returns `MsgHatchBuilder`. |
 | `AddChannelType<TSettings>(ChannelDescriptor<TSettings>, int settingsVersion, JsonTypeInfo<TSettings> settingsJson, IChannelSettingsValidator)` | Registers a channel: its descriptor, the content type `Settings:{Channel}` of its settings type with the version, and the settings validator. A second call for the same channel id changes nothing. The first `As<Channel>` registration of a channel package calls it (D77). |
 | `AddTenantService<TService>(ServiceLifetime, Func<IServiceProvider, TenantKey, TService> factory, wrapWithLogging?)` | Registers a tenant service of a package (D126): one instance for each `TenantKey`, and an unkeyed registration that gives the instance of `TenantKey.None`. The service provider of the factory gives the key and each tenant service of the same key. The logging wrapper is added only with `EnableLogging`. The channel and router packages call it, for example the email package for the engine of a payload type. |
 | `AddDefaultTenantService<TService>(ServiceLifetime, factory, wrapWithLogging?)` | Registers the default implementation of a tenant service of a package, as `AddTenantService` does, only when the service collection has no registration of the service type (D231). So a selection wins in each order of the setup calls, and a second default adds nothing. |
@@ -1703,6 +1709,8 @@ Domain methods (`MsgHatch.Domain.DependencyInjection`):
 | `UseStoredRegistry()` | Selects `StoredRegistry` as `IMessageRegistry` and `IRegistryWriter`, on the registered `IRegistrySettingsStore` (D118, section 4.20). |
 | `UseRegistryQueries(factory, setupMethod?)` | Selects the implementation of `IRegistryQueries`, for example an HTTP client, with `UseTenantService`, as a scoped tenant service with its logging wrapper (D231, D269). It replaces the in-process default of `AddMsgHatch` in each order of the calls. |
 | `UseRegistryApiClient(Action<RegistryApiClientOptions>?, Action<IHttpClientBuilder>?)`, `UseRegistryApiClient(Uri, Action<IHttpClientBuilder>?)` | In `MsgHatch.Api.Client`: `RegistryApiClientOptions`, a named HTTP client, and the HTTP client of `IRegistryQueries` and `IRegistryCommands` through `UseRegistryQueries` and `UseRegistryCommands` (D271, D283, section 4.23). |
+| `UseDeliveryQueries(factory, setupMethod?)`, `UseDeliveryCommands(factory, setupMethod?)` | Selects the implementation of `IDeliveryQueries` or `IDeliveryCommands`, for example an HTTP client, with `UseTenantService`, as a scoped tenant service with its logging wrapper (D231, D289). It replaces the in-process default of `AddMsgHatch` in each order of the calls. |
+| `UseDeliveryApiClient(Action<DeliveryApiClientOptions>?, Action<IHttpClientBuilder>?)`, `UseDeliveryApiClient(Uri, Action<IHttpClientBuilder>?)` | In `MsgHatch.Api.Client`: `DeliveryApiClientOptions`, a named HTTP client, and the HTTP client of `IDeliveryQueries` and `IDeliveryCommands` through `UseDeliveryQueries` and `UseDeliveryCommands` (D294, section 4.23). |
 | `UseRegistrySettingsStore<TStore>()` | Registers a registry settings store with its logging wrapper. The storage packages call it. |
 | `UseInboxStore<TStore>()`, `UseOutboxStore<TStore>()` | Register a tenant store as a tenant service, with its logging wrapper. |
 | `UseInboxDispatchStore<TStore>()`, `UseOutboxDispatchStore<TStore>()` | Register a dispatch store as a singleton, with its logging wrapper. The storage packages call these methods and the tenant store methods, with the factory overloads. Each factory overload takes an optional `setupMethod`, and a storage package gives the name of its own setup method, so that the message of D62 names it, for example `UseFileStores`. A host calls them for its own store, or to use two different technologies for the inbox and the outbox. |
@@ -1748,7 +1756,7 @@ Shared options (D59). A subscription store package uses the options class of its
 
 `MsgHatch.Subscriptions.AspNetCore` needs no setup method, because its endpoints need only `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, and `IContentTypeRegistry`, which `AddMsgHatch` registers. The registry gives the JSON type information of the `settings` object of a body (section 4.17). `IEndpointRouteBuilder.MapMsgHatchSubscriptions(prefix, configure?)` maps the HTTP endpoints of section 4.17 on the web application.
 
-`MsgHatch.AspNetCore` needs no setup method either, because its endpoints need only `IDeliveryManager`, `IMessageRegistry`, and the registry queries and commands of `AddMsgHatch` (section 4.20). `MapMsgHatchDelivery(prefix)` and `MapMsgHatchDeliveryContent(prefix)` map the HTTP endpoints of section 4.19, and `MapMsgHatchRegistry(prefix)` the endpoints of section 4.20.
+`MsgHatch.AspNetCore` needs no setup method either, because its endpoints need only the delivery queries and commands, `IMessageRegistry`, and the registry queries and commands of `AddMsgHatch` (sections 4.19 and 4.20). `MapMsgHatchDelivery(prefix)` and `MapMsgHatchDeliveryContent(prefix)` map the HTTP endpoints of section 4.19, and `MapMsgHatchRegistry(prefix)` the endpoints of section 4.20.
 
 `MsgHatch.Templates.AspNetCore` needs no setup method either, because its endpoints need only `ITemplateQueries` and `ITemplateCommands`, which each template setup method registers (D231). `MapMsgHatchTemplates(prefix)` maps the HTTP endpoints of section 4.22.
 
@@ -1789,7 +1797,7 @@ Message channel registrations of the channel packages. Each one is an extension 
 
 Lifetimes (D130):
 - Singleton: the options, the content type registry, `IMessageRegistry`, the library stores, the transports, the template stores with their caches, the cache backends, the dispatch signal, the dispatchers, and `TimeProvider`. Each one is thread-safe.
-- Scoped: the routers, the payload loaders, the composers, the template engines, the recipient directory, `INotificationService`, `IDeliveryManager`, `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, and the pipeline.
+- Scoped: the routers, the payload loaders, the composers, the template engines, the recipient directory, `INotificationService`, `IDeliveryQueries`, `IDeliveryCommands`, `ISubscriptionQueries`, `ISubscriptionCommands`, `IRoutingVerifier`, and the pipeline.
 - Only a received message gets a DI scope, because the routers and the payload loaders of the consumer run in it. The inbox processor makes one DI scope for each claimed message. A caller of `ProcessAsync`, `AcceptAsync`, or `PreviewAsync` resolves `INotificationService` in its own scope, for example the scope of an HTTP request or of a broker message. The outbox dispatcher makes no DI scope. It uses the singleton dispatch store and the singleton transport of its channel.
 - A store of the consumer must be thread-safe too, for example an EF Core store on an `IDbContextFactory` that makes one `DbContext` for each operation.
 
@@ -1918,7 +1926,7 @@ A dispatch loop has three parts, and an outbox loop has a fourth part, the down 
    - A claim of a down channel claims nothing, and returns the down state. A worker does not send a message that it claimed before the channel went down, and records no try for it. Its lease ends by itself.
    - While the reason is `Errors`, the loop waits until `NextCheckAtUtc`, and then calls `TryStartChannelCheckAsync` with a next check time of `CheckInterval` later. Only the loop that gets true calls `CheckHealthAsync` of its transport, so one publisher instance at a time checks the channel.
    - A check with no error calls `SetChannelUpAsync` with the reason `Errors`. The loop logs the end at the Information level, with the down time. A check with an error changes nothing more. The next check comes at the moved `NextCheckAtUtc`.
-   - While the reason is `Operator`, no loop checks the channel. Only a person ends this state, through `IDeliveryManager.ResumeChannelAsync` (section 4.19). A resume also notifies the topic of the channel, so that a waiting loop claims again at once.
+   - While the reason is `Operator`, no loop checks the channel. Only a person ends this state, through `IDeliveryCommands.ResumeChannelAsync` (section 4.19). A resume also notifies the topic of the channel, so that a waiting loop claims again at once.
    - When a loop finds its channel up again after a down state, its count starts at `ErrorThreshold` minus 1, so the first transient error marks the channel down again.
    - A message of a down channel keeps its try count, because no loop records a try for it. The expiry still applies: after the channel is up, an expired message gets an `Expired` try, and is not sent.
    - A transport with nothing to check, for example SignalR or the Wolverine broker client, returns null from `CheckHealthAsync`. Its down state then ends after one `CheckInterval`, so a long outage of such a channel uses at most one try for each `CheckInterval`.
@@ -2168,7 +2176,7 @@ These interfaces get a logging wrapper (D36):
 | `IRegistryWriter` | Library | `RegistryWriterLoggingWrapper`. It logs each change at the Information level (section 4.20). |
 | `IRegistrySettingsStore` | Library or consumer | `RegistrySettingsStoreLoggingWrapper` |
 | `ITenantSource` | Consumer | `TenantSourceLoggingWrapper` |
-| `IDeliveryManager` | Library | `DeliveryManagerLoggingWrapper`. It logs each change at the Information level (section 4.19). |
+| `IDeliveryQueries` and `IDeliveryCommands` | Library or an HTTP client | `DeliveryQueriesLoggingWrapper` and `DeliveryCommandsLoggingWrapper`. The commands wrapper logs each change at the Information level (section 4.19). |
 | `IInboxProcessor` and `IOutboxDispatcher` | Library | `InboxProcessorLoggingWrapper` and `OutboxDispatcherLoggingWrapper` |
 | `ITransport` | Library or consumer | `TransportLoggingWrapper` |
 | `IInboxStore`, `IOutboxStore`, `IInboxDispatchStore`, and `IOutboxDispatchStore` | Library or consumer | `InboxStoreLoggingWrapper`, `OutboxStoreLoggingWrapper`, `InboxDispatchStoreLoggingWrapper`, and `OutboxDispatchStoreLoggingWrapper` |
@@ -2351,7 +2359,7 @@ HTTP endpoints (D54). `MapMsgHatchSubscriptions(this IEndpointRouteBuilder route
 ### 4.18 Test messages and routing verification
 
 **Confirmed rule (D82):** an incoming message can be a test message. The caller gives `MessageFlags.Test` to `AcceptAsync` or `ProcessAsync`, for example when a test client or a header of the broker message marks the event as a test. The flag goes to each outgoing message, to the stores, and to each log record:
-- `IDeliveryManager.DeleteTestDataAsync` calls `DeleteTestDataAsync` of the inbox dispatch store and of the outbox dispatch store, and returns the two counts. It deletes the test data of all tenants. A test run calls it at its end. Before phase 15, the tests call the dispatch stores directly.
+- `IDeliveryCommands.DeleteTestDataAsync` calls `DeleteTestDataAsync` of the inbox dispatch store and of the outbox dispatch store, and returns the two counts. The route `DELETE {prefix}/test-data` calls it (D291). It deletes the test data of all tenants. A test run calls it at its end. Before phase 15, the tests call the dispatch stores directly.
 - Analytics can leave test data out with the `Flags` field of the stores and the `MessageFlags` property of the log records.
 - A channel handles a test message as its `TestDeliveryOptions` say (section 4.8, D83). The default `Suppress` records a try and sends nothing, so that a test never reaches a real recipient by mistake.
 
@@ -2377,7 +2385,9 @@ The verifier stores nothing and sends nothing. A test job can fail when `Routing
 
 ### 4.19 Delivery management
 
-**Confirmed rule (D107):** `IDeliveryManager` is the API for a UI of the consumer. The UI shows the traffic and the history of the inbox and the outbox, and repairs stuck messages and down channels. The library implements it on the tenant stores and the dispatch stores (D108, D127). It is a tenant service: its message members use the tenant stores of its key. Its channel members, `DeleteTestDataAsync`, and `PurgeAsync` act on all tenants through the dispatch stores, because a channel is global (D106). So only the manager of `TenantKey.None` changes this global state: `PauseChannelAsync`, `ResumeChannelAsync`, `DeleteTestDataAsync`, and `PurgeAsync` of a manager of a tenant give `Errors.ValidationFailed`. `GetChannelsAsync` works for each key.
+**Confirmed rule (D107, D289):** `IDeliveryQueries` and `IDeliveryCommands` are the API for a UI of the consumer. The UI shows the traffic and the history of the inbox and the outbox, and repairs stuck messages and down channels. The internal `DeliveryManager` implements both on the tenant stores and the dispatch stores (D108, D127), and `MsgHatch.Api.Client` implements both over HTTP (D294, section 4.23). They are tenant services: their message members use the tenant stores of their key. The channel members of the commands, `DeleteTestDataAsync`, and `PurgeAsync` act on all tenants through the dispatch stores, because a channel is global (D106). So only the commands of `TenantKey.None` change this global state: `PauseChannelAsync`, `ResumeChannelAsync`, `DeleteTestDataAsync`, and `PurgeAsync` of the commands of a tenant give `Errors.ValidationFailed`. `GetChannelsAsync` of the queries works for each key.
+
+The queries have the channels, the traffic, the pages, the detail of an outgoing message, and the content. The commands have the pause, the resume, the retries, the cancels, the delete of the test data, and the purge. `AddMsgHatch` registers `DeliveryManager` as the default scoped tenant service of both interfaces, each with its logging wrapper. `UseDeliveryQueries` and `UseDeliveryCommands` select another implementation, and a second selection gives the setup error of D62.
 
 Types (`MsgHatch.Domain.Management`):
 
@@ -2407,7 +2417,9 @@ public sealed record OutgoingMessageSummary(
 public sealed record OutgoingMessageHistory(OutgoingMessage Message, IReadOnlyList<PublishTry> Tries);
 
 public sealed record OutgoingMessageDetail(
-    OutgoingMessageSummary Summary, RouteTrace? Trace, IReadOnlyList<PublishTry> Tries);
+    OutgoingMessageSummary Summary, string? Trace, IReadOnlyList<PublishTry> Tries);
+
+public sealed record MessageContent(Guid Id, string Json);
 
 public sealed record TrafficQuery(
     DateTime? CreatedFromUtc = null, DateTime? CreatedToUtc = null, DeliveryStatus? Status = null,
@@ -2430,6 +2442,7 @@ Rules of the types:
 - A page has the messages in the order newest first: `CreatedAtUtc` descending, then `Id` descending. `After` is the cursor of the last message of the previous page, and the next page starts after that message. `Next` is the cursor of the last message of the page, or null when the page has fewer messages than `Limit`. This paging stays correct while the messages change (D112).
 - A summary has no content: no event, no envelope, no address, and no payload value. `DeliveryState.LastError` can contain the error message of a provider.
 - `OutgoingMessageHistory` is the store result of `GetAsync`: the whole message as its closed type, and all its publish tries in the order of their numbers.
+- `OutgoingMessageDetail.Trace` is the JSON text of the route trace, written with the newest registered version of its type, with no `$type` (D290). `MessageContent.Json` is the JSON text of the whole message with its event or its envelope, as `MsgHatchJson` writes it with the content type registry of the server. An admin host has no message types (D235), so it shows the text, and a host that needs the typed message reads its tenant store with `IInboxStore.GetAsync` or `IOutboxStore.GetAsync`.
 - `MessageCount` counts the messages of one message type, one channel, one status, and one test flag (D164). The channel is null for the inbox. `Test` is true for the messages with `MessageFlags.Test`. With `IncludeTest` false, a count has no row with `Test` true. `OldestDueAtUtc` is the earliest `NextTryAtUtc` of the counted messages, only for the status `Pending`.
 - `ChannelStatus` joins the descriptor of a registered channel, its down state from the store, the number of its pending real messages and of its pending test messages, and the oldest due time of all its pending messages, in all tenants, because a channel is global (D106, D164).
 - `DeliveryActionResult.Matched` counts the messages that the query found. `Changed` counts the messages that the action changed. The difference is the messages that the rules of the action skip.
@@ -2440,8 +2453,8 @@ Actions:
 - `ResumeChannelAsync(channel)` calls `SetChannelUpAsync` with no reason and the time from `TimeProvider`, so it ends a down state of each reason. Then it notifies the topic of the channel. If the provider still fails, the first transient error marks the channel down again (section 4.9).
 - `GetTrafficAsync(query)` calls `CountAsync` of the inbox tenant store and of the outbox tenant store, one time each.
 - `GetReceivedMessagesAsync` and `GetOutgoingMessagesAsync` call `QueryAsync` of their tenant store.
-- `GetOutgoingMessageAsync(id)` calls `IOutboxStore.GetAsync`, and returns the summary, the route trace, and all publish tries, with no envelope. An unknown id gives `Errors.NotFound`.
-- `GetReceivedContentAsync(id)` and `GetOutgoingContentAsync(id)` return the whole message, with its event or its envelope (D109). An unknown id gives `Errors.NotFound`.
+- `GetOutgoingMessageAsync(id)` calls `IOutboxStore.GetAsync`, and returns the summary, the JSON text of the route trace, and all publish tries, with no envelope. An unknown id gives `Errors.NotFound`, and a trace type that the host does not register gives `Errors.SerializationFailed`.
+- `GetReceivedContentAsync(id)` and `GetOutgoingContentAsync(id)` return the whole message, with its event or its envelope, as `MessageContent` (D109, D290). An unknown id gives `Errors.NotFound`.
 - The inbox store is optional. With no inbox store, an inbox page is empty, the inbox counts are empty, and an inbox content request gives `Errors.NotFound`.
 - `RetryReceivedAsync`, `RetryOutgoingAsync`, `CancelReceivedAsync`, and `CancelOutgoingAsync` are bulk actions on the messages of a query:
   1. The manager reads the matching messages with `QueryAsync`, page by page, with `Limit` 500.
@@ -2464,18 +2477,20 @@ Cancel rules (D110). `CancelAsync(ids, nowUtc)` changes only a `Pending` message
 - The outbox tenant store also records a publish try with the next try number, `nowUtc` as the start and the finish time, the outcome `Cancelled`, and no error fields. It sets `TryCount` and `LastTryAtUtc`, and keeps `LastError`. So the history shows when the message was cancelled.
 - The store returns the number of changed messages.
 
-Validation. The manager returns `Errors.ValidationFailed`, and calls no store, in these cases:
+Validation. The public `DeliveryRules` of `MsgHatch.Domain.Management` holds the rules that need no state (D292). `DeliveryManager` and the HTTP client run them first, so a request that breaks a rule gives `Errors.ValidationFailed`, and calls no store and sends no HTTP request. The rules have the messages of the manager:
 - `Limit` is less than 1 or more than 500.
 - `Ids` is empty, or has more than 1,000 ids.
 - `CreatedFromUtc` is not before `CreatedToUtc`.
 - A bulk action has a query with no filter. One call then cannot retry or cancel the whole store. `Limit`, `After`, and `IncludeTest` are not filters for this rule.
 - The note of `PauseChannelAsync` has more than 500 characters.
 - A manager of a tenant gets a call of `PauseChannelAsync`, `ResumeChannelAsync`, `DeleteTestDataAsync`, or `PurgeAsync`.
-- `PurgeAsync` has a `maxCount` less than 1, or a `finishedBeforeUtc` after the time from `TimeProvider`.
+- `PurgeAsync` has a `maxCount` less than 1.
+
+The check that the `finishedBeforeUtc` of `PurgeAsync` is not after the time from `TimeProvider` stays in the manager, because the clock of a client can differ. It also gives `Errors.ValidationFailed`, and calls no store.
 
 `PauseChannelAsync` and `ResumeChannelAsync` with a channel that is not registered give `Errors.NotFound`.
 
-The library has no user concept for an operator. `DeliveryManagerLoggingWrapper` logs each change at the Information level: the action, the channel, the filters of the query, and the counts. The host adds who did the action, for example in its HTTP log.
+The library has no user concept for an operator. `DeliveryCommandsLoggingWrapper` logs each change at the Information level: the action, the channel, the filters of the query, and the counts. `DeliveryQueriesLoggingWrapper` logs each read at the Debug level with the count. Both wrappers keep the event ids 1800 to 1804 of the delivery manager. The host adds who did the action, for example in its HTTP log.
 
 HTTP endpoints (D54, D109). `MsgHatch.AspNetCore` maps two route groups, so that the host can give the content a stricter authorization policy:
 - `MapMsgHatchDelivery(this IEndpointRouteBuilder routes, string prefix = "/delivery")` maps the overview and the actions.
@@ -2494,12 +2509,14 @@ HTTP endpoints (D54, D109). `MsgHatch.AspNetCore` maps two route groups, so that
 | Overview | GET | `{prefix}/outbox/{id}` | none | 200 with the detail: the summary, the trace, and the tries |
 | Overview | POST | `{prefix}/outbox/retry` and `{prefix}/outbox/cancel` | The filters of the query | 200 with `matched` and `changed` |
 | Overview | POST | `{prefix}/purge` | `finishedBefore` and `maxCount` | 200 with `inboxMessages` and `outboxMessages` |
+| Overview | DELETE | `{prefix}/test-data` | none | 200 with `inboxMessages` and `outboxMessages` (D291) |
 | Content | GET | `{prefix}/inbox/{id}/content` | none | 200 with the received message and its event |
 | Content | GET | `{prefix}/outbox/{id}/content` | none | 200 with the outgoing message and its envelope |
 
-- `ids` can repeat in a query string. Each route takes the optional query parameter `tenantId`. It selects the `IDeliveryManager` of `TenantKey.For(tenantId)`, or of `TenantKey.None` with no parameter (D126). The pause, resume, and purge routes act on all tenants, so they take no `tenantId`, and a `tenantId` gives 400. A cursor is the text `{CreatedAtUtc}_{Id}`, with the time in the ISO 8601 format of D57.
-- The JSON of the endpoints uses camelCase names and enum values as strings, through a source-generated `JsonSerializerContext`. The event, the envelope, and the route trace use `MsgHatchJson` with the content type registry.
-- `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, and each other error gives 500. The body is a `ProblemDetails` with the error name and message.
+- `ids` can repeat in a query string. Each route takes the optional query parameter `tenantId`. It selects the `IDeliveryQueries` or the `IDeliveryCommands` of `TenantKey.For(tenantId)`, or of `TenantKey.None` with no parameter (D126, D289). The pause, resume, purge, and test data routes act on all tenants, so they take no `tenantId`, and a `tenantId` gives 400. A cursor is the text `{CreatedAtUtc}_{Id}`, with the time in the ISO 8601 format of D57.
+- The internal source `src/Shared/DeliveryApiRoutes.cs` holds the route paths, the names of the query values, and the text and the parse of a cursor (D291). `MsgHatch.AspNetCore` and `MsgHatch.Api.Client` compile it, so the routes and the client use one format.
+- The bodies and their JSON context `DeliveryEndpointJson` are in `MsgHatch.Api.Contracts`, with public `From` methods and mappings back to the domain types (D228, D291). A name or a tenant that is not valid in a response body gives `Errors.SerializationFailed`. The JSON uses camelCase names and enum values as strings. A content route writes the JSON text of `MessageContent`, and the detail writes the JSON text of the trace as a JSON value.
+- Each route writes its errors with `ErrorProblems` (D233, D291): the status of `ErrorProblems.StatusCodeOf`, the error name as the title, the message as `detail`, and the member `errorType`. So `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, and `Errors.Unavailable` gives 503. Before phase 36, each other error type gave 500 with no `errorType`. A body that is not valid JSON, a query value that is not valid, and a `tenantId` of a global route give 400 with the error type `ValidationFailed`.
 
 A page of failed email messages, for `GET /delivery/outbox?channel=Email&status=Failed&limit=1`:
 
@@ -2778,13 +2795,13 @@ HTTP endpoints (D224). `MapMsgHatchTemplates(this IEndpointRouteBuilder routes, 
 
 ### 4.23 HTTP API clients
 
-**Confirmed rule (D227, D231, D236):** a host calls the subscription and template management APIs of another host through the query and command interfaces of D231. `MsgHatch.Subscriptions.Api.Client` and `MsgHatch.Templates.Api.Client` implement these interfaces over HTTP. `MsgHatch.Api.Client`, the client of the core APIs, implements the registry queries of section 4.20 in the same way (D271). A consumer cannot see which implementation it uses: the same input gives the same result and the same error (D233, D234). A host can read over HTTP and write in process, or the reverse, or use one implementation for both.
+**Confirmed rule (D227, D231, D236):** a host calls the subscription and template management APIs of another host through the query and command interfaces of D231. `MsgHatch.Subscriptions.Api.Client` and `MsgHatch.Templates.Api.Client` implement these interfaces over HTTP. `MsgHatch.Api.Client`, the client of the core APIs, implements the registry queries and commands of section 4.20 and the delivery queries and commands of section 4.19 in the same way (D271, D294). A consumer cannot see which implementation it uses: the same input gives the same result and the same error (D233, D234). A host can read over HTTP and write in process, or the reverse, or use one implementation for both.
 
 Generator (D236). `HttpApiClientGenerator` of `MsgHatch.SourceGeneration` is the second incremental generator of the package:
 - It adds the internal attributes `HttpApi`, `HttpCall`, and `HttpBody` of the namespace `MsgHatch.Http` with `RegisterPostInitializationOutput`. They have `Microsoft.CodeAnalysis.EmbeddedAttribute`, so each compilation with the generator has its own copy, and no other assembly sees them, also with `InternalsVisibleTo`.
 - Its input is an internal interface with `[HttpApi(typeof(TJsonContext))]`. Each method has `[HttpCall(method, route)]` with `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`, and a route of `src/Shared`, for example `SubscriptionApiRoutes.Subscription`.
 - A parameter whose name is in the route is a route value. A constraint, for example `{id:guid}`, is not part of the name. One parameter with `[HttpBody]` is the JSON body. Each other parameter, except the last `CancellationToken`, is a query value, which a request leaves out when it is null.
-- A route value or a query value is a string, a `Guid`, a number, a `bool`, or an enum. A query value can also be a nullable value type. The request escapes each value, writes a number in the invariant culture, a `bool` as `true` or `false`, and an enum with its name.
+- A route value or a query value is a string, a `Guid`, a number, a `bool`, an enum, or a `DateTime`. A query value can also be a nullable value type, or an `IReadOnlyList<T>` with `T` one of these types (D293). The request escapes each value, writes a number in the invariant culture, a `bool` as `true` or `false`, an enum with its name, and a `DateTime` as the ISO 8601 text of D57, which is the format `O`. A list gives one `name=value` pair for each item, and no pair for null or an empty list.
 - A method returns `Task<ErrorOr<TResponse>>`, or `Task<Error?>` for a success with no body.
 - The generator writes an internal sealed class with the name of the interface with no `I`, for example `TemplateApi` for `ITemplateApi`. Its constructor takes the `HttpClient` and the prefix of the route group. The relative URI is the prefix and the route, so a base address with a path, for example `https://api.example.com/admin/`, keeps its path.
 - The class writes each body and reads each success body with the `JsonTypeInfo<T>` property of the JSON context, so it uses no reflection at run time and no proxy (D237). The generator finds the property in the metadata of the context, so the context comes from a referenced assembly, for example a contracts package. In the same compilation, the generator cannot see the properties that the System.Text.Json generator writes.
@@ -2800,7 +2817,7 @@ The generator gives an error diagnostic, and writes no class, for an interface t
 | `MSGHATCH005` | The HTTP method is not `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`. |
 | `MSGHATCH006` | A route value has no parameter with its name. |
 | `MSGHATCH007` | A method has a second parameter with `HttpBody`. |
-| `MSGHATCH008` | A route value or a query value has a type that the generator cannot write, a route value is nullable, or a `CancellationToken` is not the last parameter. |
+| `MSGHATCH008` | A route value or a query value has a type that the generator cannot write, for example a list of an unsupported type or a list of nullable values, a route value is nullable or a list, or a `CancellationToken` is not the last parameter. |
 | `MSGHATCH009` | A method does not return `Task<ErrorOr<TResponse>>` or `Task<Error?>`. |
 | `MSGHATCH010` | A body type or a response type has no `JsonTypeInfo` property in the JSON context. |
 
@@ -2811,13 +2828,15 @@ Client packages (D227). Each package has only the package `Microsoft.Extensions.
 | `MsgHatch.Templates.Api.Client` | `ITemplateQueries`, `ITemplateCommands` | `UseTemplateApiClient`, `UseTemplateQueriesApiClient`, `UseTemplateCommandsApiClient` | `MsgHatch:TemplateApiClient` | `/templates` |
 | `MsgHatch.Subscriptions.Api.Client` | `ISubscriptionQueries`, `IRoutingVerifier`, `ISubscriptionCommands` | `UseSubscriptionApiClient`, `UseSubscriptionQueriesApiClient` (the queries and the verifier, D232), `UseSubscriptionCommandsApiClient` | `MsgHatch:SubscriptionApiClient` | `/subscriptions` |
 | `MsgHatch.Api.Client` | `IRegistryQueries`, `IRegistryCommands` | `UseRegistryApiClient` | `MsgHatch:RegistryApiClient` | `/registry` |
+| `MsgHatch.Api.Client` | `IDeliveryQueries`, `IDeliveryCommands` | `UseDeliveryApiClient` | `MsgHatch:DeliveryApiClient` | `/delivery` |
 
-- The options are `BaseAddress`, a required absolute URI with no default, `Prefix`, with the default prefix of `MapMsgHatchTemplates`, `MapMsgHatchSubscriptions`, or `MapMsgHatchRegistry`, and `Timeout`, from 1 second to 10 minutes, with the default 30 seconds. A value from code wins over the configuration, and an options error stops the start of the host.
+- The options are `BaseAddress`, a required absolute URI with no default, `Prefix`, with the default prefix of `MapMsgHatchTemplates`, `MapMsgHatchSubscriptions`, `MapMsgHatchRegistry`, or `MapMsgHatchDelivery`, and `Timeout`, from 1 second to 10 minutes, with the default 30 seconds. A value from code wins over the configuration, and an options error stops the start of the host.
 - Each setup method takes `Action<TOptions>? configure = null` and `Action<IHttpClientBuilder>? configureHttp = null`, and has an overload with `Uri baseAddress`. Each interface has its own named HTTP client, whose name stays internal. The host adds its handlers with `configureHttp`, for example a handler that adds a token.
 - Each setup method calls the selection methods of D231 with its own name, so a second selection of one interface gives the setup error "… select an implementation of …". The selection adds the logging wrapper of the interface (D244), which logs each call. A host with `MsgHatchRoles.None` that only calls the clients starts (D230).
-- The internal adapters, for example `HttpTemplateQueries`, run the rules of D234 first: `TemplateLookupRules`, `SubscriptionDraftRules`, and `RoutingVerificationRules` (D248). So an input that breaks a rule gives the error of the rule with no HTTP call. Then an adapter maps the domain values to the bodies (D228), sends `tenantId` for the key of a tenant and no `tenantId` for `TenantKey.None`, calls the generated class, and maps the response back. A list with a null item, or a value that is not valid, gives `Errors.SerializationFailed`.
+- The internal adapters, for example `HttpTemplateQueries`, run the rules of D234 first: `TemplateLookupRules`, `SubscriptionDraftRules`, `RoutingVerificationRules`, and `DeliveryRules` (D248, D292). So an input that breaks a rule gives the error of the rule with no HTTP call. Then an adapter maps the domain values to the bodies (D228), sends `tenantId` for the key of a tenant and no `tenantId` for `TenantKey.None`, calls the generated class, and maps the response back. A list with a null item, or a value that is not valid, gives `Errors.SerializationFailed`.
 - `HttpTemplateQueries.PreviewTemplateAsync` runs `TemplateLookupRules.Check` and `CheckText` first, and then posts the text to the route `/preview` of the lookup (D256). The server renders the preview with its engines and its samples, so a client host needs no engine and no payload type. A preview with an empty registration or a null text gives `Errors.SerializationFailed`.
 - `HttpRegistryQueries` runs no rule, because a `ChannelId` is valid by its type and the other queries have no input (D271). The history call sends the name of the channel, and gives `Errors.NotFound` for a channel that the server does not register (D278). `HttpRegistryCommands` sends the channel check, and a body with an error code and no error name, or the reverse, gives `Errors.SerializationFailed` (D283). From phase 35, it also sends the saves and the resets of the stored settings with `PUT` and `DELETE` (D284). A save runs `RegistryEntryRules` first, and gives the error of a rule with no HTTP call, with the same message as the server (D285). It sends the body of `ChannelEntryRequest.From` or `MessageTypeEntryRequest.From`, and maps the saved entry back with `ToEntry`. The registry routes have no `tenantId`, so the adapter sends none, and each tenant key gets the same values (D269). The registry routes write their errors with `ErrorProblems` (section 4.20), so the client gives the error type of the server, for example `Errors.Unavailable` for an error of the registry writer.
+- `HttpDeliveryQueries` and `HttpDeliveryCommands` call the two route groups of section 4.19 under one prefix, so a host maps both groups with the same prefix (D294). They run `DeliveryRules` first, and give the error of a rule with no HTTP call (D292). The adapter of a tenant key sends its tenant as `tenantId` for the queries and the bulk actions. The pause, the resume, the delete of the test data, and the purge act on all tenants, so they send no `tenantId`. The filters of a page go as query values, with the repeated `ids` and the created and due times of D293, and the cursor as the text of `DeliveryApiRoutes`. A bulk action sends `InboxFilterRequest.From` or `OutboxFilterRequest.From`. The content methods read the body as a `JsonElement`, and give its raw text, so the text is the text of the server. A content body that is not a JSON object, a next cursor that does not parse, or a page with no items gives `Errors.SerializationFailed`. The descriptor of a channel state has the settings type `ChannelSettings`, because the body has no settings type. The routes write their errors with `ErrorProblems`, so the client gives the error type of the server, for example `Errors.Unavailable` for an error of a store.
 - The template API has no template id (D224), so `TemplateSource.Key.Id` of a read is a stable id of the lookup. A caller reads it as opaque, and sends back only the version.
 - The subscription client calls the routes with no `/me`, because a `/me` route narrows each query to the signed-in user, and a browser calls it (D154). It reads the settings of a channel with the entry `Settings:{channel}` of the registry of its host, or gives `JsonChannelSettings` (D229), and a request names the settings type of typed settings (D247). A row of a verification report has its trace only when the host registers the trace type `Trace:Subscription`.
 - A create is not idempotent. So a host does not retry a `POST`, for example with a retry handler of `configureHttp`.
@@ -3329,7 +3348,7 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - **Duplicate emails.** Delivery is at-least-once. If the process stops after SES accepts an email and before `RecordTryAsync`, the email is sent again. SES has no idempotency key, so this risk stays. Resend keeps the `Idempotency-Key` of each send for 24 hours (D138), so a repeated try within that time sends no second email. The second success is a second publish try, so the history shows the duplicate.
 - **Lease and buffer.** A message can wait in the work queue before its send. If its lease ends, another instance can claim and send it too. Both senders then record try number 1, the store ignores the second record, and the history shows one try for two sends. The lease safety margin (section 4.9) prevents this in normal operation. Keep `Lease` much longer than the slowest send.
 - **Contract discipline.** The golden-file tests find a breaking change only in a type that has samples. A consumer type with no samples can still break the reading of stored records. Such a failure gives `Errors.SerializationFailed`, a permanent error. `docs/stores.md` and the example app show how to add samples.
-- **Storage growth.** Finished messages and their publish tries stay in the store until `IDeliveryManager.PurgeAsync` deletes them (D128). The host calls it from its own timer with its retention, and a host that never calls it keeps each message. The retention is also the window of the duplicate detection of the inbox. `MaxTryCount` limits the number of tries for each message.
+- **Storage growth.** Finished messages and their publish tries stay in the store until `IDeliveryCommands.PurgeAsync` deletes them (D128). The host calls it from its own timer with its retention, and a host that never calls it keeps each message. The retention is also the window of the duplicate detection of the inbox. `MaxTryCount` limits the number of tries for each message.
 - **Stale subscriptions.** With the cache on, a change that does not go through the subscription store, for example a direct database update, takes effect only after `InvalidateAsync` or after the expiration. With many instances, an invalidation reaches the other instances only through a FusionCache backplane. With HybridCache, the local level of another instance keeps its entry until its local expiration. Keep the expiration short.
 - **SQLite limits.** SQLite allows one writer at a time, so the claims and the try records of all dispatchers wait for each other. This suits one machine and a moderate volume. The database file must be on a local disk.
 - **Management authorization.** The HTTP endpoints accept each company id and user id in their filters and drafts. The consumer must protect them with an authorization policy, or give end users only the `/me` routes.
@@ -3361,7 +3380,7 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - A library recipient directory. The company, the UI language, and the addresses of a user are data of the consumer (D76).
 - A resend of a delivered message. A retry skips a `Done` message (D111).
 - A time series of the traffic. A UI calls `GetTrafficAsync` for each time window.
-- A retention timer in the library. The host calls `IDeliveryManager.PurgeAsync` from its own timer (D128).
+- A retention timer in the library. The host calls `IDeliveryCommands.PurgeAsync` from its own timer (D128).
 - A dispatch signal between machines, for example a message broker, MongoDB change streams, or SQL Server query notifications. A later package implements `IDispatchSignal` for it (D102, D188). Phase 21 adds a named pipe signal between the processes of one machine.
 - Streams for very large fan-outs, for example 100,000 recipients for one event. The benchmarks show if chunks are necessary (D43).
 - SMS and push channels.
