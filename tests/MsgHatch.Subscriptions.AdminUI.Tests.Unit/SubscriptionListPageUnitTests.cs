@@ -272,6 +272,34 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
+    public void ClickCreate_ConflictInTheDialog_ShowsTheMessageOfTheConflictAndKeepsTheDialog()
+    {
+        GivenSubscriptions();
+        const string duplicate = "The owner already has a subscription for the message type, the channel, and the recipient kind.";
+        Commands.CreateAsync(Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(
+            ValueTask.FromResult(ErrorOr<Subscription>.ForError(new Error(Errors.Conflict, duplicate))));
+        var cut = Render<SubscriptionListPage>();
+        cut.Find("[data-action=new]").Click();
+        cut.Find("#msghatch-edit-kind").Change("OptOut");
+
+        cut.Find(".modal [data-action=save]").Click();
+
+        var alert = cut.Find(".modal [data-actions-middle] .alert-danger");
+        Assert.Equal((duplicate, "409", 1, 1), (alert.TextContent, alert.GetAttribute("data-error-code"), cut.FindAll(".modal").Count, cut.FindAll(".alert-danger").Count));
+    }
+
+    [Fact]
+    public void ClickNew_List_ShowsTheHelpOfTheRecipientsInAFullWidthColumn()
+    {
+        GivenSubscriptions();
+        var cut = Render<SubscriptionListPage>();
+
+        cut.Find("[data-action=new]").Click();
+
+        Assert.True(cut.Find("[data-field=recipients-help]").ParentElement!.ClassList.Contains("col-12"));
+    }
+
+    [Fact]
     public void ChangeKind_OptOut_DisablesTheSettingsAndTellsThatAnOptOutHasNoSettings()
     {
         GivenSubscriptions();

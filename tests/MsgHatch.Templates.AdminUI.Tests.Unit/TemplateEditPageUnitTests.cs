@@ -225,7 +225,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         Assert.Equal("Theirs", TextOf(cut));
         Assert.Equal("9", cut.Find("[data-field=version]").TextContent);
-        Assert.Equal(AdminErrors.ConflictText, cut.Find(".alert-danger").TextContent);
+        Assert.Equal(AdminErrors.ConflictText, cut.Find("[data-actions-middle] .alert-danger").TextContent);
     }
 
     [Fact]
@@ -242,14 +242,14 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     }
 
     [Fact]
-    public void ClickSave_ValidationFailed_ShowsTheMessageNextToTheForm()
+    public void ClickSave_ValidationFailed_ShowsTheMessageInTheActionBar()
     {
         Commands.SaveTemplateAsync(Lookup(), Arg.Any<string>(), 7, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.ValidationFailed, "The store is not writable."));
         var cut = RenderPage();
 
         cut.Find("[data-action=save]").Click();
 
-        Assert.Equal("The store is not writable.", cut.Find(".alert-danger").TextContent);
+        Assert.Equal("The store is not writable.", cut.Find("[data-actions-middle] .alert-danger").TextContent);
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         cut.Find("[data-action=confirm-delete]").Click();
 
-        Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-actions-middle] .alert-danger").TextContent);
         Assert.Equal("http://localhost/", Navigation.Uri);
     }
 

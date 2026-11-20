@@ -93,7 +93,7 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
 
         Assert.Equal(
             (AdminErrors.ConflictText, "Shop email", 0),
-            (cut.Find(".alert-danger").TextContent, ValueOf(cut, "display-name"), cut.FindAll("[data-state=saved]").Count));
+            (cut.Find("[data-actions-middle] .alert-danger").TextContent, ValueOf(cut, "display-name"), cut.FindAll("[data-state=saved]").Count));
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
 
         Assert.Equal(
             ("DisplayName has at most 200 characters.", "My name", 1),
-            (cut.Find(".alert-danger").TextContent, ValueOf(cut, "display-name"), Queries.ReceivedCalls().Count()));
+            (cut.Find("[data-actions-middle] .alert-danger").TextContent, ValueOf(cut, "display-name"), Queries.ReceivedCalls().Count()));
     }
 
     [Fact]

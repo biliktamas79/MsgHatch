@@ -44,12 +44,12 @@
             {
                 <div class="alert alert-success mt-3" role="status" data-state="saved">@RegistryTexts.SavedText</div>
             }
-            <div class="mt-3"><ErrorAlert Error="_formError" /></div>
         }
     </ChildContent>
     <Actions>
         <AdminActions>
             <Start><a class="btn btn-outline-secondary" data-action="back" href="@RegistryAdminRoutes.MessageTypes.TrimStart('/')">Back to the message types</a></Start>
+            <Middle><ErrorAlert Error="_formError" Class="mb-0 py-1 px-2" /></Middle>
             <End>
                 @if (_type is { } type)
                 {

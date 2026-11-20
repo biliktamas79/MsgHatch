@@ -19,6 +19,27 @@ public sealed class AdminDialogUnitTests : BunitContext
     }
 
     [Fact]
+    public void Render_ActionsWithMiddle_PutsItBetweenStartAndEndInAnAreaThatGrowsAndWraps()
+    {
+        var cut = Render<AdminActions>(p => p.Add(x => x.Start, Markup("<a>Back</a>")).Add(x => x.Middle, Markup("<span>An error</span>"))
+            .Add(x => x.End, Markup("<button>Save</button>")));
+
+        var middle = cut.Find("[data-actions-middle]");
+        Assert.Equal(
+            ("data-actions-start data-actions-middle data-actions-end", "An error", "flex: 1 1 12rem; min-width: 0"),
+            (string.Join(' ', cut.Find("[data-actions]").Children.Select(static child => child.Attributes.Single(static a => a.Name.StartsWith("data-actions-", StringComparison.Ordinal)).Name)),
+                middle.TextContent, middle.GetAttribute("style")));
+    }
+
+    [Fact]
+    public void Render_ActionsWithNoMiddle_HasNoMiddleArea()
+    {
+        var cut = Render<AdminActions>(p => p.Add(x => x.Start, Markup("<a>Back</a>")).Add(x => x.End, Markup("<button>Save</button>")));
+
+        Assert.Empty(cut.FindAll("[data-actions-middle]"));
+    }
+
+    [Fact]
     public void Render_ClosedDialog_ShowsNothing()
     {
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, false).Add(x => x.Title, "New"));

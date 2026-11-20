@@ -1,6 +1,10 @@
-@* The bottom bar of a dialog or a page (D261): Cancel or Back on the bottom left, and the main action on the bottom right. *@
+@* The bottom bar of a dialog or a page (D261): Cancel or Back on the bottom left, the main action on the bottom right, and an optional area between them, for example the error of a save, which stays on screen with the buttons. *@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 @Class" data-actions>
     <div class="d-flex flex-wrap gap-2" data-actions-start>@Start</div>
+    @if (Middle is not null)
+    {
+        <div style="flex: 1 1 12rem; min-width: 0" data-actions-middle>@Middle</div>
+    }
     <div class="d-flex flex-wrap gap-2 ms-auto" data-actions-end>@End</div>
 </div>
 
@@ -8,6 +12,13 @@
     /// <summary>The content on the left, for example Cancel or Back.</summary>
     [Parameter]
     public RenderFragment? Start { get; set; }
+
+    /// <summary>
+    /// The content between the left and the right, for example the error of a save. It takes the free width of the bar, and
+    /// its text wraps there. On a bar narrower than its content and the buttons, it goes to a line of its own.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? Middle { get; set; }
 
     /// <summary>The content on the right, for example Save, Create, Edit, or Delete, with the main action last.</summary>
     [Parameter]

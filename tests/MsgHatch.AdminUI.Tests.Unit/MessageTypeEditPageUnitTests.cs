@@ -91,7 +91,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
 
         Assert.Equal(
             (AdminErrors.ConflictText, "Email:True Sms:False", 0),
-            (cut.Find(".alert-danger").TextContent, BoxesOf(cut), cut.FindAll("[data-state=saved]").Count));
+            (cut.Find("[data-actions-middle] .alert-danger").TextContent, BoxesOf(cut), cut.FindAll("[data-state=saved]").Count));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
 
         Assert.Equal(
             ("DisabledChannels has only the channels of the message type Requests.", "Email:False Sms:True", 1),
-            (cut.Find(".alert-danger").TextContent, BoxesOf(cut), Queries.ReceivedCalls().Count()));
+            (cut.Find("[data-actions-middle] .alert-danger").TextContent, BoxesOf(cut), Queries.ReceivedCalls().Count()));
     }
 
     [Fact]

@@ -163,7 +163,8 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     [Fact]
     public void ClickSave_Conflict_LoadsTheStoredVersionAgainAndShowsTheTextOfConflict()
     {
-        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.Conflict));
+        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult(
+            ErrorOr<Subscription>.ForError(new Error(Errors.Conflict, "The stored revision is not the expected one, or another subscription of the owner conflicts."))));
         var cut = RenderEdit();
         cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
         Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Ok(Subscription(settings: new FaxSettings("789"), revision: 5)));
@@ -176,7 +177,7 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     }
 
     [Fact]
-    public void ClickSave_ValidationFailedOfTheServer_ShowsTheMessageNextToTheForm()
+    public void ClickSave_ValidationFailedOfTheServer_ShowsTheMessageInTheActionBar()
     {
         Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>())
             .Returns(Fail<Subscription>(Errors.ValidationFailed, "A mandatory subscription is a default or company subscription for the scope users."));
@@ -184,7 +185,7 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
 
         cut.Find("[data-action=save]").Click();
 
-        Assert.Equal("A mandatory subscription is a default or company subscription for the scope users.", cut.Find("[data-form=subscription] ~ div .alert-danger").TextContent);
+        Assert.Equal("A mandatory subscription is a default or company subscription for the scope users.", cut.Find("[data-actions-middle] .alert-danger").TextContent);
     }
 
     [Fact]

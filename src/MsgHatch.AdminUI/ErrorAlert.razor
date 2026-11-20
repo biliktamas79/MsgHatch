@@ -1,11 +1,22 @@
 @* The text of an error in a Bootstrap alert, or nothing for no error (D239). *@
 @if (Error is not null)
 {
-    <div class="alert alert-danger" role="alert" data-error-code="@Error.Type.Code">@AdminErrors.TextOf(Error)</div>
+    <div class="alert alert-danger @Class" role="alert" data-error-code="@Error.Type.Code">@(Text ?? AdminErrors.TextOf(Error))</div>
 }
 
 @code {
     /// <summary>The error to show, or null for no error.</summary>
     [Parameter]
     public Error? Error { get; set; }
+
+    /// <summary>More CSS classes of the alert, for example <c>mb-0 py-1</c> for an alert in a bar of <see cref="AdminActions"/>.</summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>
+    /// The text to show in place of the text of <see cref="AdminErrors.TextOf"/>, or null for that text. For example, a create
+    /// shows the message of a <see cref="Errors.Conflict"/>, because it loads no stored version.
+    /// </summary>
+    [Parameter]
+    public string? Text { get; set; }
 }

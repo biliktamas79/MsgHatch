@@ -45,12 +45,12 @@
             {
                 <div class="alert alert-success mt-2" role="status" data-state="saved">The template is saved.</div>
             }
-            <div class="mt-2"><ErrorAlert Error="_formError" /></div>
         }
     </ChildContent>
     <Actions>
         <AdminActions>
             <Start><a class="btn btn-outline-secondary" data-action="back" href="@TemplateAdminRoutes.List.TrimStart('/')">Back to the templates</a></Start>
+            <Middle><ErrorAlert Error="_formError" Class="mb-0 py-1 px-2" /></Middle>
             <End>
                 @if (_loadError is null && _lookup is not null)
                 {
