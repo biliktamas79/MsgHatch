@@ -52,6 +52,10 @@ internal static class DeliveryTexts
     public static string ResultOf(DeliveryActionResult result) =>
         string.Create(CultureInfo.InvariantCulture, $"Matched {result.Matched}, changed {result.Changed}.");
 
+    /// <summary>Gives the result of a delete of the test data or of a purge, for example "Deleted 3 received messages and 5 outgoing messages.".</summary>
+    public static string DeletedOf(DeletedMessages deleted) =>
+        string.Create(CultureInfo.InvariantCulture, $"Deleted {deleted.InboxMessages} received messages and {deleted.OutboxMessages} outgoing messages.");
+
     /// <summary>Gives the result of a retry or a cancel of one message, with a reason when it changed nothing (D296).</summary>
     public static string OneMessageResultOf(DeliveryActionResult result) => result.Changed == 0 ? _noChange : ResultOf(result);
 

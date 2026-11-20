@@ -26,6 +26,7 @@ public static class AdminUIExtensions
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(OutgoingMessagePage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(InboxListPage))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(ReceivedMessagePage))]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.All, typeof(TrafficPage))]
     public static IServiceCollection AddMsgHatchAdminUI(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

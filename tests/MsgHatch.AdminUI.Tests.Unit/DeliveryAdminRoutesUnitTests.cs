@@ -67,6 +67,7 @@ public sealed class DeliveryAdminRoutesUnitTests
         Assert.Equal([DeliveryAdminRoutes.Outbox + "/{Id:guid}"], TemplatesOf<OutgoingMessagePage>());
         Assert.Equal([DeliveryAdminRoutes.Inbox], TemplatesOf<InboxListPage>());
         Assert.Equal([DeliveryAdminRoutes.Inbox + "/{Id:guid}"], TemplatesOf<ReceivedMessagePage>());
+        Assert.Equal(["/msghatch/traffic"], TemplatesOf<TrafficPage>());
     }
 
     private static string[] TemplatesOf<TPage>() => [.. typeof(TPage).GetCustomAttributes<RouteAttribute>().Select(static route => route.Template).Order(StringComparer.Ordinal)];

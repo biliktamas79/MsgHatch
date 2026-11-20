@@ -1,0 +1,172 @@
+@attribute [Route(DeliveryAdminRoutes.Traffic)]
+@inject IServiceProvider Services
+@inject TimeProvider Clock
+@* The traffic page (D298): the counts of the inbox and of the outbox with the filters of TrafficQuery, each count with a link to its list, "Delete test data", and "Purge". *@
+
+<AdminListPage Title="Traffic">
+<Filters>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-traffic-status">Status</label>
+        <select id="msghatch-traffic-status" class="form-select form-select-sm" @bind="_filters.Status" @bind:after="ReadAsync">
+            <option value="">All</option>
+            @foreach (var status in Enum.GetValues<DeliveryStatus>())
+            {
+                <option value="@status">@status</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-traffic-from">Created from (UTC)</label>
+        <input id="msghatch-traffic-from" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedFrom" @bind:after="ReadAsync" />
+    </div>
+    <div>
+        <label class="form-label small mb-1" for="msghatch-traffic-to">Created to (UTC)</label>
+        <input id="msghatch-traffic-to" type="datetime-local" step="1" class="form-control form-control-sm" @bind="_filters.CreatedTo" @bind:after="ReadAsync" />
+    </div>
+    <div class="form-check mb-1">
+        <input id="msghatch-traffic-test" type="checkbox" class="form-check-input" @bind="_filters.IncludeTest" @bind:after="ReadAsync" />
+        <label class="form-check-label small" for="msghatch-traffic-test">Test messages</label>
+    </div>
+</Filters>
+<Actions>
+    <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete-test-data" @onclick="() => _deleteOpen = true">Delete test data</button>
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" data-action="purge" @onclick="OpenPurge">Purge</button>
+</Actions>
+<ChildContent>
+    @if (_deleted is { } deleted)
+    {
+        <div class="alert @(deleted.IsError ? "alert-danger" : "alert-success") py-2" role="status" data-deleted-result>@(deleted.IsError ? AdminErrors.TextOf(deleted.Error) : DeliveryTexts.DeletedOf(deleted.Value))</div>
+    }
+    @if (_report is { IsError: true } failed)
+    {
+        <ErrorAlert Error="failed.Error" />
+    }
+    else
+    {
+        <h2 class="h5" data-section="inbox">Inbox</h2>
+        <AdminList TItem="MessageCount" Items="RowsOf(static report => report.Inbox)" EmptyText="There are no received messages.">
+            <Head>
+                <tr><th>Message type</th><th>Status</th><th>Test</th><th>Count</th><th>Oldest due</th></tr>
+            </Head>
+            <Row Context="row">
+                <tr data-inbox-row>
+                    <td>@row.Type.Name</td>
+                    <td>@row.Status</td>
+                    <td>@RegistryTexts.YesOrNo(row.Test)</td>
+                    <td><a data-count href="@InboxOf(row).TrimStart('/')">@row.Count</a></td>
+                    <td class="text-nowrap">@DeliveryTexts.TimeOf(row.OldestDueAtUtc)</td>
+                </tr>
+            </Row>
+        </AdminList>
+        <h2 class="h5 mt-3" data-section="outbox">Outbox</h2>
+        <AdminList TItem="MessageCount" Items="RowsOf(static report => report.Outbox)" EmptyText="There are no outgoing messages.">
+            <Head>
+                <tr><th>Message type</th><th>Channel</th><th>Status</th><th>Test</th><th>Count</th><th>Oldest due</th></tr>
+            </Head>
+            <Row Context="row">
+                <tr data-outbox-row>
+                    <td>@row.Type.Name</td>
+                    <td>@row.Channel?.Name</td>
+                    <td>@row.Status</td>
+                    <td>@RegistryTexts.YesOrNo(row.Test)</td>
+                    <td><a data-count href="@OutboxOf(row).TrimStart('/')">@row.Count</a></td>
+                    <td class="text-nowrap">@DeliveryTexts.TimeOf(row.OldestDueAtUtc)</td>
+                </tr>
+            </Row>
+        </AdminList>
+    }
+</ChildContent>
+</AdminListPage>
+
+<DeleteDialog Open="_deleteOpen" Question="Delete each test message of all tenants from the inbox and the outbox?" Confirmed="DeleteTestDataAsync" Cancelled="() => _deleteOpen = false" />
+
+<AdminDialog Open="_purgeOpen" Title="Purge">
+    <ChildContent>
+        <p>The purge deletes the finished messages of all tenants: done, failed, and cancelled. It cannot be undone.</p>
+        <label class="form-label" for="msghatch-purge-before">Finished before (UTC)</label>
+        <input id="msghatch-purge-before" type="datetime-local" step="1" class="form-control mb-2" @bind="_purgeBefore" />
+        <label class="form-label" for="msghatch-purge-max">Maximum count of each store</label>
+        <input id="msghatch-purge-max" type="number" min="1" class="form-control" @bind="_purgeMaxCount" />
+        <ErrorAlert Error="_purgeError" Class="mt-2 mb-0" />
+    </ChildContent>
+    <Start>
+        <button type="button" class="btn btn-outline-secondary" data-action="back" @onclick="() => _purgeOpen = false">Back</button>
+    </Start>
+    <End>
+        <button type="button" class="btn btn-danger" data-action="confirm-purge" @onclick="PurgeAsync">Purge</button>
+    </End>
+</AdminDialog>
+
+@code {
+    private const int _defaultMaxCount = 1000;
+    private readonly DeliveryFilters _filters = new();
+    private ErrorOr<TrafficReport>? _report;
+    private ErrorOr<DeletedMessages>? _deleted;
+    private bool _deleteOpen;
+    private bool _purgeOpen;
+    private DateTime? _purgeBefore;
+    private int _purgeMaxCount = _defaultMaxCount;
+    private Error? _purgeError;
+
+    private IDeliveryQueries Queries => Services.GetRequiredKeyedService<IDeliveryQueries>(TenantKey.None);
+
+    private IDeliveryCommands Commands => Services.GetRequiredKeyedService<IDeliveryCommands>(TenantKey.None);
+
+    /// <inheritdoc />
+    protected override Task OnInitializedAsync() => ReadAsync();
+
+    private ErrorOr<IReadOnlyList<MessageCount>>? RowsOf(Func<TrafficReport, IReadOnlyList<MessageCount>> rows)
+    {
+        if (_report is not { IsError: false } report)
+        {
+            return null;
+        }
+
+        return ErrorOr<IReadOnlyList<MessageCount>>.ForValue(rows(report.Value));
+    }
+
+    private async Task ReadAsync()
+    {
+        _report = null;
+        var query = _filters.ToTrafficQuery();
+        _report = query.IsError ? query.Error : await Queries.GetTrafficAsync(query.Value, CancellationToken.None);
+    }
+
+    private string InboxOf(MessageCount row) =>
+        DeliveryAdminRoutes.InboxOf(row.Status, row.Type, _filters.CreatedFromUtc, _filters.CreatedToUtc, row.Test);
+
+    private string OutboxOf(MessageCount row) =>
+        DeliveryAdminRoutes.OutboxOf(row.Status, row.Type, row.Channel, createdFromUtc: _filters.CreatedFromUtc, createdToUtc: _filters.CreatedToUtc, includeTest: row.Test);
+
+    private async Task DeleteTestDataAsync()
+    {
+        _deleteOpen = false;
+        _deleted = await Commands.DeleteTestDataAsync(CancellationToken.None);
+        await ReadAsync();
+    }
+
+    private void OpenPurge()
+    {
+        var now = Clock.GetUtcNow().UtcDateTime;
+        (_purgeBefore, _purgeMaxCount, _purgeError, _purgeOpen) = (now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond)), _defaultMaxCount, null, true);
+    }
+
+    private async Task PurgeAsync()
+    {
+        _purgeError = _purgeBefore is null ? new Error(Errors.ValidationFailed, "The purge needs a finish time.") : DeliveryRules.CheckPurge(TenantKey.None, _purgeMaxCount);
+        if (_purgeError is not null)
+        {
+            return;
+        }
+
+        var deleted = await Commands.PurgeAsync(DateTime.SpecifyKind(_purgeBefore!.Value, DateTimeKind.Utc), _purgeMaxCount, CancellationToken.None);
+        if (deleted.IsError)
+        {
+            _purgeError = deleted.Error;
+            return;
+        }
+
+        (_purgeOpen, _deleted) = (false, deleted);
+        await ReadAsync();
+    }
+}

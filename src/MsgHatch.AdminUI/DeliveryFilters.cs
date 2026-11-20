@@ -36,6 +36,12 @@ internal sealed class DeliveryFilters
 
     public bool IncludeTest { get; set; }
 
+    /// <summary>The earliest creation time, marked as UTC, or null.</summary>
+    public DateTime? CreatedFromUtc => Utc(CreatedFrom);
+
+    /// <summary>The creation time that ends the range, marked as UTC, or null.</summary>
+    public DateTime? CreatedToUtc => Utc(CreatedTo);
+
     /// <summary>Sets the filters of both lists from the values of the address. A time that is not valid is no filter.</summary>
     public void SetFromAddress(string? status, string? type, string? from, string? to, bool? test)
     {
@@ -54,7 +60,7 @@ internal sealed class DeliveryFilters
         return (status.Error ?? type.Error ?? channel.Error ?? target.Error ?? source.Error) is { } invalid
             ? invalid
             : new OutboxQuery(
-                Ids: null, status.Value, type.Value, channel.Value, target.Value, source.Value, Utc(CreatedFrom), Utc(CreatedTo),
+                Ids: null, status.Value, type.Value, channel.Value, target.Value, source.Value, CreatedFromUtc, CreatedToUtc,
                 DueBeforeUtc: null, IncludeTest, limit, after);
     }
 
@@ -65,7 +71,14 @@ internal sealed class DeliveryFilters
         var type = Optional(Type, TypeOf);
         return (status.Error ?? type.Error) is { } invalid
             ? invalid
-            : new InboxQuery(Ids: null, status.Value, type.Value, Utc(CreatedFrom), Utc(CreatedTo), DueBeforeUtc: null, IncludeTest, limit, after);
+            : new InboxQuery(Ids: null, status.Value, type.Value, CreatedFromUtc, CreatedToUtc, DueBeforeUtc: null, IncludeTest, limit, after);
+    }
+
+    /// <summary>Gives the query of the traffic from the status, the times, and the test flag.</summary>
+    public ErrorOr<TrafficQuery> ToTrafficQuery()
+    {
+        var status = Optional(Status, StatusOf);
+        return status.Error is { } invalid ? invalid : new TrafficQuery(CreatedFromUtc, CreatedToUtc, status.Value, IncludeTest);
     }
 
     private static DateTime? TimeOf(string? text) =>

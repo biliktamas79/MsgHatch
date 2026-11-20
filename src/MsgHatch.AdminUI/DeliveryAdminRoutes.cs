@@ -15,6 +15,9 @@ public static class DeliveryAdminRoutes
     /// <summary>The address of the inbox list.</summary>
     public const string Inbox = "/msghatch/inbox";
 
+    /// <summary>The address of the traffic page (D298).</summary>
+    public const string Traffic = "/msghatch/traffic";
+
     internal const string OutgoingMessageTemplate = Outbox + "/{Id:guid}";
 
     internal const string ReceivedMessageTemplate = Inbox + "/{Id:guid}";
