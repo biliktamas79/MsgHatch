@@ -140,7 +140,7 @@ public sealed class RegistryApiClientExtensionsUnitTests
 
         // Assert
         Assert.Equal(
-            ("RegistryApiClientExtensions, RegistryApiClientOptions, RegistryApiClientOptionsValidator", ""),
+            ("DeliveryApiClientExtensions, DeliveryApiClientOptions, DeliveryApiClientOptionsValidator, RegistryApiClientExtensions, RegistryApiClientOptions, RegistryApiClientOptionsValidator", ""),
             (string.Join(", ", types.Select(static type => type.Name).Order(StringComparer.Ordinal)), string.Join(", ", httpTypes)));
     }
 

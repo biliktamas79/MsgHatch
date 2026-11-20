@@ -61,6 +61,6 @@ public static class RegistryApiClientExtensions
     private static RegistryApi ApiOf(IServiceProvider services) =>
         new(services.GetRequiredService<IHttpClientFactory>().CreateClient(_queriesClient), services.GetRequiredService<IOptions<RegistryApiClientOptions>>().Value.Prefix);
 
-    private static Uri WithTrailingSlash(Uri baseAddress) =>
+    internal static Uri WithTrailingSlash(Uri baseAddress) =>
         baseAddress.AbsoluteUri.EndsWith('/') ? baseAddress : new Uri(baseAddress.AbsoluteUri + "/");
 }

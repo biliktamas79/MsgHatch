@@ -14,10 +14,10 @@ using MsgHatch.Domain.Tests.Unit.TestTypes;
 namespace MsgHatch.Api.Client.Tests.Unit.TestTypes;
 
 /// <summary>
-/// The host of the HTTP registry queries (D271): a web application on a <see cref="TestServer"/> that maps the registry
-/// endpoints on the services of a test, and a client host with no role whose HTTP client uses the handler of the
-/// <see cref="TestServer"/> as its primary handler. The server checks no setup at its start, as the in-process host builds
-/// its services with no check.
+/// The host of the HTTP clients of <c>MsgHatch.Api.Client</c> (D271, D294): a web application on a <see cref="TestServer"/> that
+/// maps the registry endpoints and both delivery route groups with their default prefixes on the services of a test, and a
+/// client host with no role whose HTTP client uses the handler of the <see cref="TestServer"/> as its primary handler. The
+/// server checks no setup at its start, as the in-process host builds its services with no check.
 /// </summary>
 public sealed class HttpRegistryHost : IRegistryQueriesTestHost<IRegistryQueries>
 {
@@ -57,6 +57,8 @@ public sealed class HttpRegistryHost : IRegistryQueriesTestHost<IRegistryQueries
         builder.Services.RemoveAll<IStartupValidator>();
         var server = builder.Build();
         server.MapMsgHatchRegistry();
+        server.MapMsgHatchDelivery();
+        server.MapMsgHatchDeliveryContent();
         await server.StartAsync(TestContext.Current.CancellationToken);
         var services = TestHost.CreateServices();
         selectClient(
