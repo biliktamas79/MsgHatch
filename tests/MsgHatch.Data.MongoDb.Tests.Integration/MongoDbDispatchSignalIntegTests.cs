@@ -9,13 +9,13 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.Contracts;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using static MsgHatch.Data.MongoDb.Tests.Integration.TestTypes.SignalWatch;
 
 namespace MsgHatch.Data.MongoDb.Tests.Integration;
 
 /// <summary>
 /// The MongoDB change stream signal (D303): the use cases of each signal, and the wake of a wait by an insert of a store
-/// on the same database. Each test has its own database, so no insert of another test reaches its watch. The watch opens
-/// in the background, so a test first waits until an insert of a warm-up channel wakes the signal.
+/// on the same database. Each test has its own database, so no insert of another test reaches its watch.
 /// </summary>
 public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<MongoDbDispatchSignal>, IDisposable
 {
@@ -23,8 +23,6 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
     private const int _watchWorksAgain = 2801;
 
     private static readonly DispatchTopic _topic = DispatchTopic.ForChannel(TestChannel.Id);
-    private static readonly DispatchTopic _warmUp = DispatchTopic.ForChannel(new ChannelId("WarmUp"));
-    private static readonly TimeSpan _oneTry = TimeSpan.FromMilliseconds(200);
 
     private readonly TestDatabase _database;
     private readonly WaitRecordingTimeProvider _time;
@@ -222,19 +220,12 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
         Error? error;
         while ((error = await signal.NotifyAsync(_topic, Ct)) is null)
         {
-            await Task.Delay(_oneTry, TimeProvider.System, guard.Token);
+            await Task.Delay(OneTry, TimeProvider.System, guard.Token);
         }
 
         // Assert
         Assert.Equal((null, Errors.Unavailable), (first?.Type, error.Type));
     }
-
-    private static async Task<Error?> CompletedAsync(ValueTask<Error?> wait) =>
-        await wait.AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System);
-
-    /// <summary>A document of the outbox with a channel and a unique message id, as the unique index of the outbox store needs.</summary>
-    private static BsonDocument AnOutboxDocument(string channel) =>
-        new() { { "channel", channel }, { "delivery", new BsonDocument("id", Guid.NewGuid().ToString("D")) } };
 
     private IMongoCollection<BsonDocument> Collection(string name) => _database.Collection(name);
 
@@ -245,36 +236,14 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
         var signals = await _database.DocumentsAsync(MongoDbDispatchSignal.SignalCollectionName, guard.Token);
         while (signals.Count < count)
         {
-            await Task.Delay(_oneTry, TimeProvider.System, guard.Token);
+            await Task.Delay(OneTry, TimeProvider.System, guard.Token);
             signals = await _database.DocumentsAsync(MongoDbDispatchSignal.SignalCollectionName, guard.Token);
         }
 
         return signals;
     }
 
-    /// <summary>
-    /// Waits until the watch is open: it inserts a message of the warm-up channel until the wait of that channel
-    /// completes. While the watch is broken, a wait returns at once, so it waits first for a wait that does not.
-    /// </summary>
-    private async Task OpenTheWatchAsync()
-    {
-        using var guard = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
-        var wait = Signal.WaitAsync(_warmUp, guard.Token).AsTask();
-        while (wait.IsCompleted)
-        {
-            await wait;
-            await Task.Delay(_oneTry, TimeProvider.System, guard.Token);
-            wait = Signal.WaitAsync(_warmUp, guard.Token).AsTask();
-        }
-
-        while (!wait.IsCompleted)
-        {
-            await InsertIntoTheWarmUpChannelAsync(guard.Token);
-            await Task.WhenAny(wait, Task.Delay(_oneTry, TimeProvider.System, guard.Token));
-        }
-
-        Assert.Null(await wait);
-    }
+    private Task OpenTheWatchAsync() => SignalWatch.OpenAsync(Signal, _database);
 
     /// <summary>
     /// Waits until the watch handled each change before this call: the watch handles the changes in their order, so the
@@ -282,11 +251,8 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
     /// </summary>
     private async Task WaitUntilTheWatchHandledTheChangesBeforeAsync()
     {
-        var wait = Signal.WaitAsync(_warmUp, Ct);
-        await InsertIntoTheWarmUpChannelAsync(Ct);
+        var wait = Signal.WaitAsync(WarmUp, Ct);
+        await SignalWatch.InsertIntoTheWarmUpChannelAsync(_database, Ct);
         Assert.Null(await CompletedAsync(wait));
     }
-
-    private Task InsertIntoTheWarmUpChannelAsync(CancellationToken ct) =>
-        Collection(MongoDbOutboxStore.CollectionName).InsertOneAsync(AnOutboxDocument("WarmUp"), cancellationToken: ct);
 }
