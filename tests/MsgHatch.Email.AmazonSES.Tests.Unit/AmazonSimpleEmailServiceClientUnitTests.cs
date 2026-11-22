@@ -55,6 +55,16 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
         { "another exception", new InvalidOperationException("Defect."), 500 },
     };
 
+    public static TheoryData<string, string?, string?, double?> WaitHeaderRows => new()
+    {
+        { "x-amz-retry-after in milliseconds", "2500", null, 2.5 },
+        { "Retry-After in seconds", null, "3", 3 },
+        { "both headers: x-amz-retry-after", "2500", "3", 2.5 },
+        { "no header: no wait", null, null, null },
+        { "headers that are not a count: no wait", "soon", "Wed, 21 Oct 2026 07:28:00 GMT", null },
+        { "a negative count: no wait", "-5", "-3", null },
+    };
+
     public static TheoryData<string, Exception> AccountErrorRows => new()
     {
         { "sending paused", new SendingPausedException($"Sending is paused for {_address}.") },
@@ -274,6 +284,35 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
 
         // Assert
         Assert.Null(error);
+    }
+
+    [Theory]
+    [MemberData(nameof(WaitHeaderRows))]
+    public async Task SendAsync_ThrottleOfTheRealSdk_ReturnsRateLimitedWithTheWaitOfTheHeaders(
+        string row, string? amazonHeader, string? standardHeader, double? expectedSeconds)
+    {
+        // Arrange
+        var headers = new Dictionary<string, string>();
+        if (amazonHeader is not null)
+        {
+            headers["x-amz-retry-after"] = amazonHeader;
+        }
+
+        if (standardHeader is not null)
+        {
+            headers["Retry-After"] = standardHeader;
+        }
+
+        using var ses = FakeSesHttp.ClientThatAnswers(HttpStatusCode.TooManyRequests, "TooManyRequestsException", headers);
+        var client = new AmazonSimpleEmailServiceClient(ses, Options.Create(AnOptions()));
+
+        // Act
+        var result = await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+
+        // Assert
+        Assert.Equal(
+            (row, Errors.RateLimited, expectedSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null),
+            (row, result.Error?.Type, result.Error?.RetryAfter));
     }
 
     private static AmazonSesOptions AnOptions() => new() { SenderEmail = "noreply@example.com", SenderName = "Example" };

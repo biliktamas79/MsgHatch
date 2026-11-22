@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -11,7 +10,6 @@ using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using AmazonServiceException = Amazon.Runtime.AmazonServiceException;
-using HttpErrorResponseException = Amazon.Runtime.Internal.HttpErrorResponseException;
 
 namespace MsgHatch.Broker.AmazonSns;
 
@@ -172,16 +170,7 @@ public sealed partial class AmazonSnsBrokerClient(
     }
 
     private static Error SnsError(ErrorType type, Exception exception) =>
-        new(type, $"Amazon SNS: {exception.GetType().Name}", exception) { RetryAfter = RetryAfterOf(exception) };
-
-    private static TimeSpan? RetryAfterOf(Exception exception) =>
-        exception.InnerException is HttpErrorResponseException { Response: { } response }
-            ? CountOf(response.GetHeaderValue("x-amz-retry-after"), TimeSpan.FromMilliseconds)
-                ?? CountOf(response.GetHeaderValue("Retry-After"), TimeSpan.FromSeconds)
-            : null;
-
-    private static TimeSpan? CountOf(string? header, Func<double, TimeSpan> unit) =>
-        int.TryParse(header, NumberStyles.None, CultureInfo.InvariantCulture, out var count) ? unit(count) : null;
+        new(type, $"Amazon SNS: {exception.GetType().Name}", exception) { RetryAfter = AwsRetryAfter.Of(exception) };
 
     [GeneratedRegex(@"^(?!(?i:aws|amazon)\.)(?!\.)(?!.*\.\.)[A-Za-z0-9_.-]{1,256}(?<!\.)$")]
     private static partial Regex AttributeName();

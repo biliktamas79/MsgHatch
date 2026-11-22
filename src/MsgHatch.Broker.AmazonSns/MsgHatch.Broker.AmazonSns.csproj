@@ -8,4 +8,8 @@
     <PackageReference Include="AWSSDK.SimpleNotificationService" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Shared\AwsRetryAfter.cs" Link="Shared\AwsRetryAfter.cs" />
+  </ItemGroup>
+
 </Project>

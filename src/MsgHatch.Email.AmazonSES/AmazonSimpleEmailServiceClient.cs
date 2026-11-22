@@ -13,7 +13,8 @@ namespace MsgHatch.Email.AmazonSES;
 /// <summary>
 /// The Amazon SES implementation of <see cref="IEmailClient"/>, on the SES API version 2. It converts each exception of
 /// the AWS SDK into an <see cref="Error"/>, and does not throw (section 4.12). An error message names only the exception
-/// type, because the text of an SES exception can contain an address.
+/// type, because the text of an SES exception can contain an address. An error has the wait that SES asked for in its
+/// response as <see cref="Error.RetryAfter"/>, or no wait when the response gives none (D306).
 /// </summary>
 /// <param name="ses">The SES client of the AWS SDK.</param>
 /// <param name="options">The settings.</param>
@@ -111,5 +112,5 @@ public sealed class AmazonSimpleEmailServiceClient(
     }
 
     private static Error SesError(ErrorType type, Exception exception) =>
-        new(type, $"Amazon SES: {exception.GetType().Name}", exception);
+        new(type, $"Amazon SES: {exception.GetType().Name}", exception) { RetryAfter = AwsRetryAfter.Of(exception) };
 }

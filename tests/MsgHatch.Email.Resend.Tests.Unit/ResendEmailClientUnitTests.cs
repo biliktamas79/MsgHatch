@@ -20,6 +20,8 @@ public sealed class ResendEmailClientUnitTests : EmailClientTestsBase<ResendEmai
     private const string _address = "client1@example.com";
     private const string _apiKey = "re_test_123";
 
+    private static readonly string _rateLimitBody = FakeResendApi.ErrorBody(429, "rate_limit_exceeded", "Too many requests.");
+
     private readonly FakeResendApi _api;
     private readonly FakeLogger<ResendEmailClient> _logger;
 
@@ -59,6 +61,15 @@ public sealed class ResendEmailClientUnitTests : EmailClientTestsBase<ResendEmai
         { "no network", new HttpRequestException("No connection."), 503 },
         { "a timeout of the HTTP client", new TaskCanceledException("The request timed out."), 500 },
         { "another exception", new InvalidOperationException("Defect."), 500 },
+    };
+
+    public static TheoryData<string, string?, int?> RetryAfterRows => new()
+    {
+        { "retry-after in seconds", "3", 3 },
+        { "no header: no wait", null, null },
+        { "a date: no wait", "Wed, 21 Oct 2026 07:28:00 GMT", null },
+        { "a negative count: no wait", "-3", null },
+        { "not a count: no wait", "soon", null },
     };
 
     public static TheoryData<string, int, string> ApiKeyErrorRows => new()
@@ -341,6 +352,35 @@ public sealed class ResendEmailClientUnitTests : EmailClientTestsBase<ResendEmai
 
         // Assert
         Assert.Equal(Errors.Unavailable, error?.Type);
+    }
+
+    [Theory]
+    [MemberData(nameof(RetryAfterRows))]
+    public async Task SendAsync_RateLimitWithAWaitHeader_ReturnsRateLimitedWithTheWaitOfTheRow(string row, string? header, int? expectedSeconds)
+    {
+        // Arrange
+        _api.RespondsWith(HttpStatusCode.TooManyRequests, _rateLimitBody, header is null ? null : new Dictionary<string, string> { ["retry-after"] = header });
+
+        // Act
+        var result = await Client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+
+        // Assert
+        Assert.Equal(
+            (row, Errors.RateLimited, expectedSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null),
+            (row, result.Error?.Type, result.Error?.RetryAfter));
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_RateLimitWithAWaitHeader_ReturnsRateLimitedWithTheWait()
+    {
+        // Arrange
+        _api.RespondsWith(HttpStatusCode.TooManyRequests, _rateLimitBody, new Dictionary<string, string> { ["retry-after"] = "3" });
+
+        // Act
+        var error = await Client.CheckHealthAsync(Ct);
+
+        // Assert
+        Assert.Equal((Errors.RateLimited, (TimeSpan?)TimeSpan.FromSeconds(3)), (error?.Type, error?.RetryAfter));
     }
 
     private static ResendOptions AnOptions(string senderEmail = "noreply@example.com", string? senderName = "Example") =>

@@ -20,7 +20,8 @@ public sealed class FakeResendApi : HttpMessageHandler
     public static string ErrorBody(int statusCode, string name, string message) =>
         new JsonObject { ["statusCode"] = statusCode, ["name"] = name, ["message"] = message }.ToJsonString();
 
-    public void RespondsWith(HttpStatusCode status, string body) => _respond = _ => Task.FromResult(ResponseOf(status, body));
+    public void RespondsWith(HttpStatusCode status, string body, IReadOnlyDictionary<string, string>? headers = null) =>
+        _respond = _ => Task.FromResult(WithHeaders(ResponseOf(status, body), headers));
 
     public void Throws(Exception exception) => _respond = _ => Task.FromException<HttpResponseMessage>(exception);
 
@@ -47,6 +48,16 @@ public sealed class FakeResendApi : HttpMessageHandler
 
     private static HttpResponseMessage ResponseOf(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+
+    private static HttpResponseMessage WithHeaders(HttpResponseMessage response, IReadOnlyDictionary<string, string>? headers)
+    {
+        foreach (var (name, value) in headers ?? new Dictionary<string, string>())
+        {
+            response.Headers.TryAddWithoutValidation(name, value);
+        }
+
+        return response;
+    }
 }
 
 /// <summary>One request that the Resend client sent to <see cref="FakeResendApi"/>.</summary>

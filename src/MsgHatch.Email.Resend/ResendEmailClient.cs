@@ -14,7 +14,9 @@ namespace MsgHatch.Email.Resend;
 /// <summary>
 /// The Resend implementation of <see cref="IEmailClient"/>, on the REST API of Resend. It converts each error response
 /// and each exception into an <see cref="Error"/>, and does not throw (section 4.12). An error message names only the
-/// HTTP status and the error name of Resend, because the message of a Resend error can contain an address.
+/// HTTP status and the error name of Resend, because the message of a Resend error can contain an address. An error
+/// response has the wait of its header <c>retry-after</c> in seconds as <see cref="Error.RetryAfter"/>, or no wait
+/// when the header is missing or is not a count of seconds (D306).
 /// </summary>
 /// <param name="httpClients">The factory of the HTTP client <see cref="HttpClientName"/>.</param>
 /// <param name="options">The settings.</param>
@@ -61,7 +63,7 @@ public sealed class ResendEmailClient(
             using var response = await httpClients.CreateClient(HttpClientName).SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
-                return SendErrorOf(response.StatusCode, await ErrorNameOf(response, ct));
+                return SendErrorOf(response.StatusCode, await ErrorNameOf(response, ct)) with { RetryAfter = RetryAfterOf(response) };
             }
 
             var sent = await response.Content.ReadFromJsonAsync(ResendJson.Default.ResendSentEmail, ct);
@@ -91,7 +93,9 @@ public sealed class ResendEmailClient(
             }
 
             var name = await ErrorNameOf(response, ct);
-            return IsAKeyThatCanOnlySend(response.StatusCode, name) ? null : HealthErrorOf(response.StatusCode, name);
+            return IsAKeyThatCanOnlySend(response.StatusCode, name)
+                ? null
+                : HealthErrorOf(response.StatusCode, name) with { RetryAfter = RetryAfterOf(response) };
         }
         catch (Exception exception)
         {
@@ -125,6 +129,8 @@ public sealed class ResendEmailClient(
             return null;
         }
     }
+
+    private static TimeSpan? RetryAfterOf(HttpResponseMessage response) => response.Headers.RetryAfter?.Delta;
 
     private static bool IsAKeyThatCanOnlySend(HttpStatusCode status, string? name) =>
         status == HttpStatusCode.Unauthorized && name == "restricted_api_key";
