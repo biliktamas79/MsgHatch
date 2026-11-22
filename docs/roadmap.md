@@ -2976,6 +2976,30 @@ Tests:
 - The integration tests of item 5, skipped with no settings.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-22), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| `AWSSDK.SimpleEmailV2` 4.0.106.7 needs `AWSSDK.Core` [4.0.102.14, 5.0.0). `AWSSDK.SimpleNotificationService` 4.0.100.22 and `AWSSDK.SQS` 4.0.100.21 need the same lower bound. The versions just before them need 4.0.102.13, and the versions after them need a later core. The restore of the SNS package and of its integration tests gives `AWSSDK.Core` 4.0.102.14. | The nuspec files on nuget.org, and `project.assets.json` |
+| In 4.0.100.22, `PublishRequest` has `TopicArn`, `Message`, and `MessageAttributes`, `MessageAttributeValue` has `DataType` and `StringValue`, and `PublishResponse` has `MessageId`. `GetTopicAttributesRequest` has `TopicArn`. Each exception type of D302 exists. The error list of `Publish` in the API reference has `KMSThrottling`, and no `Throttled`. | The XML documentation of the package, and the API reference of `Publish` |
+| SNS sends at most 10 message attributes to an SQS subscription with raw message delivery, and discards a message with more attributes there. A name has only `A-Z`, `a-z`, `0-9`, `_`, `-`, and `.`. It has no period at the start or at the end, and no two periods in a row. It has at most 256 characters, and does not start with `AWS.` or `Amazon.` in any case of the letters. A name, a type, and a value must not be empty. SNS does not support a surrogate in a value. | The SNS developer guide: message attributes, and raw message delivery |
+| The size limit of a message with its attributes is the attribute `MaximumMessageSize` of the topic: 262,144 bytes (256 KiB) by default, and at most 1,048,576 bytes (1 MiB). A larger message gives `InvalidParameter`. So the 256 KiB of item 1 is only the default. | The API references of `Publish` and of `MessageAttributeValue` |
+| SNS does not retry a delivery that fails with a client-side error, and discards the message, unless the subscription has a dead-letter queue. Section 6 of the design records this risk. | The SNS developer guide: dead-letter queues |
+| `ContentJsonTypeInfo.Options.TryGetTypeInfo(payload.GetType())` gives the type information of the payload for `BrokerTestJsonContext`, and for the context of `BrokerEnvelopeNotice` of `ExampleApp`. The transport tests write the payload with it, and the broker test of `ExampleApplicationUnitTests` sends through the transport. | The tests of commit 2, and `ExampleApp.Tests.Unit` |
+| The configuration key `MsgHatch:AmazonSns:Topics:Broker:DEvent` binds no topic, because the colon separates two sections. So the key of `Topics` is the name of the registration, for example `DEvent`. | A probe test, which the phase did not keep |
+| A client that reads `IOptions<T>.Value` in its constructor gives the failure of invalid options two times at startup, in an `AggregateException`, because the setup check builds the transports. So the SNS client reads its options at the first call, as the SES client does. | The startup test of commit 3 |
+| `[RegularExpression]` accepts an empty text. So `Validate` of the options checks `DefaultTopicArn`, and an empty value is not valid. | The options tests of commit 3 |
+| xUnit gave a theory row with one surrogate in a text to the test with a changed text, and the client sent it. A `[Fact]` that makes the text in code checks one surrogate. | The first run of the tests of commit 3 |
+| After D299, 5 tests of the broker and Wolverine setup methods sent a broker message whose content type the host did not register, and failed with `ValidationFailed`. They get a registry with the entry of `BrokerMessages`. | The run of the broker tests at commit 2 |
+| The 36 unit test projects pass 5,627 tests and skip 1 test: the path limit test of the named pipe signal on Windows. The phase adds 3 tests to `MsgHatch.Broker.Tests.Unit`, which passes 49 tests, and the new `MsgHatch.Broker.AmazonSns.Tests.Unit` passes 109 tests. `MsgHatch.Broker.Wolverine.Tests.Unit` passes 39 tests, as before. The 3 SNS integration tests are skipped with no settings. The line coverage of the production code is 98.8 %, and `MsgHatch.Broker` and `MsgHatch.Broker.AmazonSns` have 100 %. No example app of the owner ran, so `pwsh ./coverage.ps1` ran as it is. The solution build with `--no-incremental` has no errors and no warnings at commit 6. | `pwsh ./coverage.ps1`, and `dotnet build MsgHatch.slnx --no-incremental` |
+| The new tests did not build before the code of their commit, or failed before it, or failed with a break of the code that they cover. The 3 new transport tests failed against a transport with no lookup. The breaks of commit 3 failed: the topic map, the default topic, the prefix of the key, the limit of 10 headers in both directions, each rule of an attribute name, the empty value, the surrogate, the data type, the message, the receipt, the topic ARN, the mapping of `Rejected`, `Unavailable`, and a cancelled token, the error text, the FIFO topic, each rule of the options, the section, the client of the host, the region, the startup validation, the configuration in code, and the missing region (36 breaks). 25 new tests of commit 4 failed before its mapping, and its breaks failed: the health check, its distinct topics, its default topic, the topics of the registrations, its order, its cancelled token, the classifier and its order, each exception of D302, the 500 boundary, the Critical log, its event id, its level, its text, and the log of a rejected message (25 breaks). A break that failed only on a compile error ran again in a form that compiles. | The break runs |
+
+Checks that the phase did not do:
+- The SNS integration tests against a real topic and queue. With no settings, the 3 tests are skipped. The owner creates the topic, the queue, and the subscription with raw message delivery, and puts the settings into `appsettings.Local.json`.
+- A message over the size limit of a real topic. A unit test checks that `InvalidParameterException` gives `Rejected`.
+- The SES, Resend, Wolverine, EF Core, and MongoDB integration tests. The phase changes no store and no email client, and the Wolverine client does not change.
+- The benchmarks. The broker transport adds one lookup in a frozen dictionary, and one type lookup that the JSON options cache, for each send.
+
 Commits:
 1. "Plan phase 38: the Amazon SNS broker client"
 2. "Add the content type and the payload JSON to a broker publish"
@@ -2986,7 +3010,17 @@ Commits:
 7. "Record the commits and the checked facts of phase 38 in the plan"
 8. "Record phase 38 as done in README and AGENTS.md"
 
-Commit 1 holds the plan and the decisions D299 to D302. Item 1 is a check, and its results go into the checked facts.
+Commit 1 holds the plan and the decisions D299 to D302 (`8d69922`). Commit 2 holds item 2 (`f663036`), commit 3 item 3 (`0ef9c1a`), commit 4 item 4 (`3a60c5f`), commit 5 item 5 (`1442e8d`), and commit 6 item 6 (`cdef2da`). Item 1 is a check, and its results are in the checked facts. The unit test projects of the changed code passed at each commit. The phase adds the projects `MsgHatch.Broker.AmazonSns`, `MsgHatch.Broker.AmazonSns.Tests.Unit`, and `MsgHatch.Broker.AmazonSns.Tests.Integration`, and the packages `AWSSDK.SimpleNotificationService` 4.0.100.22 and `AWSSDK.SQS` 4.0.100.21.
+
+The implementation changed the plan in these points:
+- The key of `Topics` is the name of the broker registration, for example `DEvent`, and not the content type, because a configuration key cannot hold the colon of `Broker:DEvent`. D300 records it.
+- `KMSThrottlingException` gives `RateLimited`, and not `Unavailable` with a Critical log, because a throttle needs no administrator. D302 records it.
+- A payload type that the JSON options of the envelope do not know also gives `ValidationFailed`, as a message with no entry does.
+- The tests of the broker and Wolverine setup methods with no message type register the content type of `BrokerMessages` with `BrokerHost.AddContentTypeOfBrokerMessages`, because the transport needs its entry.
+- The contract tests of a broker client compare the payload by value, and give the header `msghatch-tenant` for a tenant, as the transport does. The SNS client writes the payload as JSON, and SNS has no field for the tenant.
+- The SNS client also refuses a header value with a surrogate, because SNS does not support it.
+- The health check calls `GetTopicAttributes` one time for each distinct topic, and stops at the first error.
+- The design also gets `AmazonSnsOptions` in section 4.4, the SNS client in the list of classifiers of section 4.12, and two risks in section 6: the delivery of SNS to the subscriptions, and the limits of the message attributes.
 
 Done when: the build has no errors and no warnings, all unit tests pass, the SNS integration tests pass or are skipped with no settings, and `pwsh ./coverage.ps1` passes.
 
