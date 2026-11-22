@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The MsgHatch dispatch signal between hosts on different machines, through a fanout exchange of RabbitMQ.</Description>
+    <PackageTags>messaging;outbox;rabbitmq</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
   </ItemGroup>

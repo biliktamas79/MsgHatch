@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The MongoDB subscription store of MsgHatch.Subscriptions.</Description>
+    <PackageTags>messaging;subscriptions;mongodb</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
     <ProjectReference Include="..\MsgHatch.Data.MongoDb\MsgHatch.Data.MongoDb.csproj" />

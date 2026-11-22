@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The FusionCache backend of the MsgHatch subscription cache.</Description>
+    <PackageTags>messaging;subscriptions;caching;fusioncache</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
   </ItemGroup>

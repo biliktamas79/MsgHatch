@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
+    <Description>The Blazor admin pages of MsgHatch: the shared page layout, and the pages of the channels, the message types, and the delivery.</Description>
+    <PackageTags>messaging;blazor;admin</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

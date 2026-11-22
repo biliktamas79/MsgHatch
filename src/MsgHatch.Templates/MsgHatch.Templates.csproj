@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The MsgHatch template library, which knows no channel: the template engine contract, the file template store, the template selector, and the placeholder engine.</Description>
+    <PackageTags>messaging;templates;placeholders</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

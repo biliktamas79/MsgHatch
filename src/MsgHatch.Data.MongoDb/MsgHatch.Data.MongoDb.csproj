@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The MongoDB stores of MsgHatch, and the change stream dispatch signal between the hosts of one database.</Description>
+    <PackageTags>messaging;outbox;inbox;mongodb</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
   </ItemGroup>

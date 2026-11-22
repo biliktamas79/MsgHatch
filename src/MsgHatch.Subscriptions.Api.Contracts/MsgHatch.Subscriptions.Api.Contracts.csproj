@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The HTTP bodies and JSON context of the MsgHatch subscription management API.</Description>
+    <PackageTags>messaging;subscriptions;api;contracts</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

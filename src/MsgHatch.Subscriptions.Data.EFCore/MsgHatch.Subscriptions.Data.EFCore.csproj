@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The EF Core subscription store of MsgHatch.Subscriptions, with SQL Server as the provider.</Description>
+    <PackageTags>messaging;subscriptions;efcore;sqlserver</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
     <ProjectReference Include="..\MsgHatch.Data.EFCore\MsgHatch.Data.EFCore.csproj" />

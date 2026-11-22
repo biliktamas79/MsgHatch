@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The SQLite subscription store of MsgHatch.Subscriptions.</Description>
+    <PackageTags>messaging;subscriptions;sqlite</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
     <ProjectReference Include="..\MsgHatch.Data.Sqlite\MsgHatch.Data.Sqlite.csproj" />

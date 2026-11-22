@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The subscription router of MsgHatch: the subscriptions of users, companies, and tenants, their resolution, the management API, the cache wrapper, and the routing verifier.</Description>
+    <PackageTags>messaging;subscriptions;notifications;routing</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

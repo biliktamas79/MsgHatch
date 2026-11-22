@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The ASP.NET Core HTTP endpoints of the MsgHatch template management API, with the template preview.</Description>
+    <PackageTags>messaging;templates;aspnetcore;minimal-api</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
   </PropertyGroup>

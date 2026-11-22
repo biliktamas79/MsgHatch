@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The HTTP client of the MsgHatch subscription management API: ISubscriptionQueries, ISubscriptionCommands, and IRoutingVerifier over HTTP.</Description>
+    <PackageTags>messaging;subscriptions;api;http-client</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

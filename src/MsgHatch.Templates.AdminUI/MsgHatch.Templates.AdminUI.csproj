@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
+    <Description>The Blazor admin pages of the MsgHatch templates, with the template preview and the editor extension point.</Description>
+    <PackageTags>messaging;templates;blazor;admin</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

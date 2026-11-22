@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The core of MsgHatch: message routing, the inbox and the outbox, the dispatch loops, the channel and message type registries, delivery management, telemetry, and the DI builder.</Description>
+    <PackageTags>messaging;outbox;inbox;notifications;routing</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The HTTP client of the MsgHatch template management API: ITemplateQueries and ITemplateCommands over HTTP.</Description>
+    <PackageTags>messaging;templates;api;http-client</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

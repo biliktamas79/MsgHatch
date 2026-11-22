@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The Amazon SNS client of the MsgHatch broker channel, on the AWS SDK.</Description>
+    <PackageTags>messaging;broker;aws;sns</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Broker\MsgHatch.Broker.csproj" />
   </ItemGroup>

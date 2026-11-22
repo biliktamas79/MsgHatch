@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The ASP.NET Core HTTP endpoints of the MsgHatch subscription management API.</Description>
+    <PackageTags>messaging;subscriptions;aspnetcore;minimal-api</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
   </PropertyGroup>

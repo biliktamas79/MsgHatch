@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The HybridCache backend of the MsgHatch subscription cache.</Description>
+    <PackageTags>messaging;subscriptions;caching;hybridcache</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
   </ItemGroup>

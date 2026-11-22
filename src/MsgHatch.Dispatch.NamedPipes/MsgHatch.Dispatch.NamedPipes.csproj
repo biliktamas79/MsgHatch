@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The MsgHatch dispatch signal between the processes of one machine, with named pipes.</Description>
+    <PackageTags>messaging;outbox;named-pipes</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
   </ItemGroup>

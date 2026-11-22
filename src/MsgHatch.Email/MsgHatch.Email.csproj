@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The email channel of MsgHatch: the email composer on the template library, and the IEmailClient contract.</Description>
+    <PackageTags>messaging;email;notifications</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Templates\MsgHatch.Templates.csproj" />
   </ItemGroup>

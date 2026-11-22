@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The message broker channel of MsgHatch: the broker composer and transport, and the IBrokerClient contract.</Description>
+    <PackageTags>messaging;broker;integration-events</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
   </ItemGroup>

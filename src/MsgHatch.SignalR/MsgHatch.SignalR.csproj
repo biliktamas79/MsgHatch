@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The SignalR channel of MsgHatch, which sends messages through a SignalR hub.</Description>
+    <PackageTags>messaging;signalr;realtime;notifications</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

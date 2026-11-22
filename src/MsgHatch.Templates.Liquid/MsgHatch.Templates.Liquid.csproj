@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The Liquid template engine of MsgHatch, on Fluid.</Description>
+    <PackageTags>messaging;templates;liquid;fluid</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Templates\MsgHatch.Templates.csproj" />
   </ItemGroup>

@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The ASP.NET Core HTTP endpoints of the MsgHatch delivery management API and of the registry administration.</Description>
+    <PackageTags>messaging;outbox;aspnetcore;minimal-api</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

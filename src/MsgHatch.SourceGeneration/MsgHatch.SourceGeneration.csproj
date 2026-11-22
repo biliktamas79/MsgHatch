@@ -1,9 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The source generators of MsgHatch: the placeholder payload writers and the HTTP API clients. MsgHatch.Templates carries this assembly as an analyzer.</Description>
+    <PackageTags>messaging;source-generator</PackageTags>
     <TargetFramework>netstandard2.0</TargetFramework>
     <IsRoslynComponent>true</IsRoslynComponent>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

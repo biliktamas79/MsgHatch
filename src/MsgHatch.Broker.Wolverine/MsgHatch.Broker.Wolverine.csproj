@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The Wolverine client of the MsgHatch broker channel.</Description>
+    <PackageTags>messaging;broker;wolverine</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Broker\MsgHatch.Broker.csproj" />
   </ItemGroup>

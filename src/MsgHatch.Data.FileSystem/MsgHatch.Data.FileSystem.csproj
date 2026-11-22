@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The JSON file stores of MsgHatch: the inbox, the outbox, and the registry settings in a folder.</Description>
+    <PackageTags>messaging;outbox;inbox;json</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
   </ItemGroup>

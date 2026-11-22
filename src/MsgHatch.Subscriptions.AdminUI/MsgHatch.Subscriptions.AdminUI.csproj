@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
+    <Description>The Blazor admin pages of the MsgHatch subscriptions and of the routing verification.</Description>
+    <PackageTags>messaging;subscriptions;blazor;admin</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

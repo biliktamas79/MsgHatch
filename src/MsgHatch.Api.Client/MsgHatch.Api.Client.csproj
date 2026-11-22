@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The HTTP client of the MsgHatch registry and delivery APIs: IRegistryQueries, IRegistryCommands, IDeliveryQueries, and IDeliveryCommands over HTTP.</Description>
+    <PackageTags>messaging;api;http-client</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

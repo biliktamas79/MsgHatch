@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Description>The HTTP bodies and JSON contexts of the MsgHatch registry and delivery APIs, and the error metadata of all MsgHatch HTTP APIs.</Description>
+    <PackageTags>messaging;api;contracts</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

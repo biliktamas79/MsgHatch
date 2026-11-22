@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The SQLite stores of MsgHatch: the inbox, the outbox, and the registry settings in one database file.</Description>
+    <PackageTags>messaging;outbox;inbox;sqlite</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Domain\MsgHatch.Domain.csproj" />
   </ItemGroup>

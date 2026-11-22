@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>The JSON file subscription store of MsgHatch.Subscriptions.</Description>
+    <PackageTags>messaging;subscriptions;json</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
     <ProjectReference Include="..\MsgHatch.Data.FileSystem\MsgHatch.Data.FileSystem.csproj" />

@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
+    <Description>The Liquid template editor of the MsgHatch template admin pages.</Description>
+    <PackageTags>messaging;templates;liquid;blazor;admin</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
