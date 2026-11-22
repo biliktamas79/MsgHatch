@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
 using MsgHatch.Dispatch.NamedPipes.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -42,7 +43,7 @@ public sealed class MsgHatchWorkerUnitTests : IDisposable
         await consumer.SeedScenarioAsync(TenantKey.None);
         await using var worker = await RunningWorker.StartAsync(publisher, Ct);
         await publisher.WaitForLogsAsync(_outboxClaimId, count: 1);
-        await _time.NextWaitAsync();
+        await WaitUntilServedAsync($"{prefix}.outbox.Email");
         await consumer.AcceptAsync(new EventA([1], null, "a"));
 
         // Act
@@ -63,7 +64,7 @@ public sealed class MsgHatchWorkerUnitTests : IDisposable
         publisher.GetRequiredService<IStartupValidator>().Validate();
         await consumer.SeedScenarioAsync(TenantKey.None);
         await using var worker = await RunningWorker.StartAsync(publisher, Ct);
-        var poll = await _time.NextWaitAsync();
+        var poll = await FirstPollOfTheLoopAsync();
         await consumer.AcceptAsync(new EventA([1], null, "a"));
         await consumer.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
 
@@ -74,6 +75,41 @@ public sealed class MsgHatchWorkerUnitTests : IDisposable
         var emails = await publisher.WaitForLogsAsync(ExampleLoggerExtensions.EmailSentId, count: 1);
         Assert.Equal(["client1@acme.example | Notification A: a"], emails.Select(static email => $"{email.Field("To")} | {email.Field("Subject")}"));
     }
+
+    /// <summary>
+    /// Waits until the loop of the publisher waits for its first poll, and gives the poll. Before the worker starts, the
+    /// stored registry of the consumer makes its refresh timer on the same clock, so the first wait of the clock is not the poll.
+    /// </summary>
+    private async Task<TimeSpan> FirstPollOfTheLoopAsync()
+    {
+        var poll = new DispatchOptions().PollInterval;
+        TimeSpan wait;
+        do
+        {
+            wait = await _time.NextWaitAsync();
+        }
+        while (wait != poll);
+
+        return poll;
+    }
+
+    /// <summary>
+    /// Waits until a process serves the pipe, because a notification that finds no server is lost (D192). The check lists
+    /// the pipes, and does not connect to the pipe, so it takes no instance of the server.
+    /// </summary>
+    private static async Task WaitUntilServedAsync(string pipeName)
+    {
+        var start = TimeProvider.System.GetTimestamp();
+        while (!IsServed(pipeName) && TimeProvider.System.GetElapsedTime(start) < TestHost.HangGuard)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System, Ct);
+        }
+    }
+
+    private static bool IsServed(string pipeName) =>
+        OperatingSystem.IsWindows()
+            ? Directory.EnumerateFiles(@"\\.\pipe\").Contains(@"\\.\pipe\" + pipeName, StringComparer.OrdinalIgnoreCase)
+            : File.Exists(Path.Combine(Path.GetTempPath(), "CoreFxPipe_" + pipeName));
 
     private ServiceProvider Build(MsgHatchRoles roles, Action<MsgHatchBuilder>? transports = null)
     {
