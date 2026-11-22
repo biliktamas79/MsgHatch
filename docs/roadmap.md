@@ -45,6 +45,7 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 35 Registry commands | 33 |
 | 36 Delivery API | 27, 31 |
 | 37 Delivery pages | 35, 36 |
+| 38 Amazon SNS broker client | 6, 20 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2925,6 +2926,68 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, and `pwsh ./coverage.ps1` passes.
 
+### Phase 38: Amazon SNS broker client
+
+Goal: the broker channel publishes to Amazon SNS with the first direct broker client, `MsgHatch.Broker.AmazonSns` (D134, D299 to D302). SNS fans out each message to the SQS queues and the other subscriptions of its topic. The client uses the AWS SDK of the SES client, so a host keeps one SDK version and one credential setup.
+
+Starting point: the tag `phase-37` (`b2ecb6b`). The owner chose "AmazonSns client" as the next phase. A separate session looks for the cause of the unstable named pipe test of `ExampleApp.Tests.Unit`, which phases 36 and 37 recorded. It does not change the broker code.
+
+The broker contract has no destination and no JSON of the payload: `BrokerPublish` holds the message id, the tenant, the payload object, and the headers. Wolverine selects its routes from the payload type and writes the payload itself, but a direct client must do both. So item 2 adds the content type and the JSON type information of the payload to `BrokerPublish` (D299).
+
+1. Check first, before the code:
+   - The version of `AWSSDK.SimpleNotificationService` that uses the same `AWSSDK.Core` as `AWSSDK.SimpleEmailV2` 4.0.106.7, and the version of `AWSSDK.SQS` for the integration tests, in `Directory.Packages.props`.
+   - The request of the `Publish` action in the pinned version: `TopicArn`, `Message`, and `MessageAttributes` with `DataType` and `StringValue`, and `MessageId` of the response. Also the exception types of D302.
+   - The limits in the documentation of SNS: at most 10 message attributes to an SQS subscription with raw message delivery, the rules of an attribute name, an empty attribute value, and the size limit of a message with its attributes. The plan knows 256 KiB for the size, and the check confirms or corrects it.
+   - `ContentJsonTypeInfo.Options.GetTypeInfo(payload.GetType())` of the content type entry gives the type information of the payload for a source-generated context of a consumer, for example the context of `BrokerEnvelopeNotice` in `ExampleApp` and `BrokerTestJsonContext` of the broker tests.
+2. Add the content type and the payload JSON to a broker publish (D299):
+   - `BrokerPublish` gets `string ContentType`, the content type of the outgoing message, for example `Broker:DEvent`, and `JsonTypeInfo PayloadJson`, the JSON type information of the run-time type of the payload.
+   - `BrokerTransport` gets `IContentTypeRegistry`, finds the entry of the content type and the version of the message, and takes `PayloadJson` from the options of its JSON type information. A message with no entry gives `Errors.ValidationFailed`.
+   - `WolverineBrokerClient` does not change, because Wolverine writes the payload itself.
+3. Add the package `MsgHatch.Broker.AmazonSns` (D300, D301):
+   - `AmazonSnsBrokerClient : IBrokerClient` on `IAmazonSimpleNotificationService`. Each publish is one `Publish` call: the topic of the content type, the payload JSON as the message, and each header as a `String` message attribute. The message id of the response is the provider message id of the receipt.
+   - `AmazonSnsOptions` in the section `MsgHatch:AmazonSns` holds `Region`, `DefaultTopicArn`, and `Topics`, a map from a content type to a topic ARN. A content type with no topic and no default topic gives `Errors.NotFound` with no call.
+   - The client gives `Errors.ValidationFailed` with no call for a message with more than 10 headers, and for a header name or value that SNS does not accept as a message attribute.
+   - The source-generated validator of the options checks the region, each ARN, and that at least one topic exists. It rejects a FIFO topic, an ARN that ends with `.fifo`.
+   - `UseAmazonSnsBroker(Action<AmazonSnsOptions>? configure = null)` registers the options, the validator, the SDK client of the region, and the client with `UseBrokerClient`. The package references only `MsgHatch.Broker` and `AWSSDK.SimpleNotificationService`.
+   - The solution gets the package and `tests/MsgHatch.Broker.AmazonSns.Tests.Unit`.
+4. Map the errors and check the health of the SNS client (D302):
+   - An `IExceptionClassifier<AmazonSnsBrokerClient>` of the host comes first, as for the SES client.
+   - `ThrottledException` gives `Errors.RateLimited`. `InvalidParameterException` and `InvalidParameterValueException` give `Errors.Rejected`, also for a message over the size limit.
+   - `NotFoundException`, `AuthorizationErrorException`, and the KMS exceptions give `Errors.Unavailable` and a Critical log, so the messages stay pending until an administrator acts.
+   - `HttpRequestException`, `InternalErrorException`, and a service status of 500 or more give `Errors.Unavailable`. A cancelled token gives `Errors.OperationCancelled`. Each other exception gives `Errors.Exception`.
+   - `CheckHealthAsync` calls `GetTopicAttributes` for each configured topic, and gives the first error.
+5. Add the integration tests of the SNS client:
+   - `tests/MsgHatch.Broker.AmazonSns.Tests.Integration` reads the region, the topic ARN, and the URL of an SQS queue with a raw message delivery subscription to the topic from `appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. With no settings, each test is skipped.
+   - A publish arrives in the queue with the payload JSON as the body and each header as a message attribute. The test deletes each message that it receives.
+   - The health check gives no error, and a topic that does not exist gives `Errors.Unavailable`.
+   - The phase creates no AWS resource. The owner creates the topic, the queue, and the subscription.
+6. Describe the phase in the design: the sections 4.2, 4.6, 4.7, 4.15, and 5.5, and the broker part of section 6. `AGENTS.md` gets the command of the SNS integration tests with its settings, as for the SES tests.
+
+Tests:
+- The broker transport: `BrokerPublish` carries the content type and the JSON type information of the payload, and a message with no entry gives `ValidationFailed`. The tests of the Wolverine client stay green.
+- `AmazonSnsBrokerClientUnitTests` gets `BrokerClientTestsBase<AmazonSnsBrokerClient>`, with a driver on a substitute of `IAmazonSimpleNotificationService`.
+- The request: the topic of the map, the default topic, the payload JSON as the message, each header as a `String` attribute, and the provider message id of the receipt.
+- The limits: no topic gives `NotFound` with no call, 10 headers pass, 11 headers give `ValidationFailed` with no call, and an invalid attribute name or an empty value gives `ValidationFailed` with no call.
+- The errors: one row for each exception of D302, the classifier first, a cancelled token, and the Critical log of the errors that need an administrator.
+- The health check: one `GetTopicAttributes` call for each configured topic, and the first error.
+- The options: one row for each rule of the validator, the binding of the section, and the registrations of `UseAmazonSnsBroker`.
+- The integration tests of item 5, skipped with no settings.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phase 38: the Amazon SNS broker client"
+2. "Add the content type and the payload JSON to a broker publish"
+3. "Add the Amazon SNS broker client"
+4. "Map the errors and check the health of the Amazon SNS client"
+5. "Add the integration tests of the Amazon SNS client"
+6. "Describe the Amazon SNS broker client in the design"
+7. "Record the commits and the checked facts of phase 38 in the plan"
+8. "Record phase 38 as done in README and AGENTS.md"
+
+Commit 1 holds the plan and the decisions D299 to D302. Item 1 is a check, and its results go into the checked facts.
+
+Done when: the build has no errors and no warnings, all unit tests pass, the SNS integration tests pass or are skipped with no settings, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -2942,11 +3005,6 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
 - A PostgreSQL provider for the EF Core stores.
 - SMS and push channels.
 - Batched try records: one store call records the tries of several sent messages, for more throughput on one channel.
-- `MsgHatch.Broker.AmazonSns`, the first direct broker client (D134):
-  - It is an `IBrokerClient` with one SNS `Publish` call for each message. It maps the headers, with the `msghatch-*` headers, to SNS message attributes. SNS fans out each message to the SQS queues of the topic.
-  - It uses the AWS SDK for .NET, as the SES client of phase 4 does, so the host keeps one SDK version and one credential setup.
-  - SNS sends at most 10 message attributes to an SQS subscription with raw message delivery, and discards a message with more attributes there. So the client gives `Errors.ValidationFailed` for a message with more than 10 headers.
-  - The phase checks the SDK call of the `Publish` action, and the size limit of a message with its attributes, in the pinned version.
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
 - More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
 - AOT for the other packages (D237): each package outside the API boundary sets `IsAotCompatible` when its dependencies allow it, or the design records why not.
