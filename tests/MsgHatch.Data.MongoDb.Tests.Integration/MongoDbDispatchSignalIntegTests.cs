@@ -162,6 +162,73 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
         Assert.Equal((_watchBroken, LogLevel.Warning, true), (warning.Id.Id, warning.Level, warning.Exception is TimeoutException));
     }
 
+    [Fact]
+    public async Task WaitAsync_NotificationOfAnotherSignalOnTheDatabase_CompletesTheWait()
+    {
+        // Arrange
+        using var other = new MongoDbDispatchSignal(_database.Database, _time, new FakeLogger<MongoDbDispatchSignal>());
+        await OpenTheWatchAsync();
+        var wait = Signal.WaitAsync(_topic, Ct);
+
+        // Act
+        await other.NotifyAsync(_topic, Ct);
+
+        // Assert
+        Assert.Null(await CompletedAsync(wait));
+    }
+
+    [Fact]
+    public async Task WaitAsync_OwnNotificationInTheSignalCollection_DoesNotCompleteASecondWait()
+    {
+        // Arrange
+        await OpenTheWatchAsync();
+        await Signal.NotifyAsync(_topic, Ct);
+        Assert.Null(await CompletedAsync(Signal.WaitAsync(_topic, Ct)));
+        await StoredSignalsAsync(count: 1);
+        var second = Signal.WaitAsync(_topic, Ct).AsTask();
+
+        // Act
+        await WaitUntilTheWatchHandledTheChangesBeforeAsync();
+
+        // Assert
+        Assert.False(second.IsCompleted);
+    }
+
+    [Fact]
+    public async Task NotifyAsync_FirstNotification_InsertsTheTopicWithTheTimeIntoACollectionWithATtlIndexOfOneMinute()
+    {
+        // Act
+        await Signal.NotifyAsync(_topic, Ct);
+
+        // Assert
+        var signal = Assert.Single(await StoredSignalsAsync(count: 1));
+        Assert.Equal(_topic.Name, signal["topic"].AsString);
+        Assert.Equal(TestHost.Start.UtcDateTime, signal["createdAtUtc"].ToUniversalTime());
+        var indexes = await (await Collection(MongoDbDispatchSignal.SignalCollectionName).Indexes.ListAsync(Ct)).ToListAsync(Ct);
+        Assert.Contains(
+            indexes,
+            static index => index["key"] == new BsonDocument("createdAtUtc", 1) && index.TryGetValue("expireAfterSeconds", out var ttl) && ttl.ToInt32() == 60);
+    }
+
+    [Fact]
+    public async Task NotifyAsync_AfterAnInsertOfANotificationThatFailed_ReturnsUnavailable()
+    {
+        // Arrange
+        using var signal = new MongoDbDispatchSignal(UnreachableServer.Database, _time, new FakeLogger<MongoDbDispatchSignal>());
+        using var guard = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+
+        // Act
+        var first = await signal.NotifyAsync(_topic, Ct);
+        Error? error;
+        while ((error = await signal.NotifyAsync(_topic, Ct)) is null)
+        {
+            await Task.Delay(_oneTry, TimeProvider.System, guard.Token);
+        }
+
+        // Assert
+        Assert.Equal((null, Errors.Unavailable), (first?.Type, error.Type));
+    }
+
     private static async Task<Error?> CompletedAsync(ValueTask<Error?> wait) =>
         await wait.AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System);
 
@@ -170,6 +237,20 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
         new() { { "channel", channel }, { "delivery", new BsonDocument("id", Guid.NewGuid().ToString("D")) } };
 
     private IMongoCollection<BsonDocument> Collection(string name) => _database.Collection(name);
+
+    /// <summary>Waits until the signal collection holds a number of documents, because a signal inserts them in the background.</summary>
+    private async Task<List<BsonDocument>> StoredSignalsAsync(int count)
+    {
+        using var guard = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+        var signals = await _database.DocumentsAsync(MongoDbDispatchSignal.SignalCollectionName, guard.Token);
+        while (signals.Count < count)
+        {
+            await Task.Delay(_oneTry, TimeProvider.System, guard.Token);
+            signals = await _database.DocumentsAsync(MongoDbDispatchSignal.SignalCollectionName, guard.Token);
+        }
+
+        return signals;
+    }
 
     /// <summary>
     /// Waits until the watch is open: it inserts a message of the warm-up channel until the wait of that channel
