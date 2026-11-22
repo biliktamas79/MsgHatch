@@ -3112,6 +3112,7 @@ Example (`examples/AdminUiExample`). An Interactive Server host of both admin UI
 │   ├── MsgHatch.Templates.Liquid.AdminUI/              (phase 28)
 │   └── MsgHatch.Subscriptions.AdminUI/                 (phase 28)
 ├── tests/                                                                   (section 5.5)
+│   ├── Shared/ReadmeCheck.cs                                                 (phase 42, D311)
 │   ├── MsgHatch.Domain.Tests.Unit/                                          (phase 1)
 │   ├── MsgHatch.SourceGeneration.Tests.Unit/                                (phase 3)
 │   ├── MsgHatch.Email.Tests.Unit/                                           (phase 3)
@@ -3194,12 +3195,12 @@ Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `
 - The packages of the API boundary set `IsAotCompatible` `true` in their own project files (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts`, `MsgHatch.Subscriptions.AspNetCore`, `MsgHatch.Templates.AspNetCore`, the three client packages, and the four admin UI packages. So the trim, AOT, and single-file analyzers run in each build, and `TreatWarningsAsErrors` turns each warning into an error. The two `.AspNetCore` packages also set `EnableRequestDelegateGenerator` `true`, so each minimal API endpoint needs no code generation at run time.
   - A compile link to `src/GeneratedCodeSuppressions.cs` (D32).
   - `IsPackable` `true`. `MsgHatch.SourceGeneration` sets `IsPackable` `false` in its own project file (D308).
-  - The package metadata (D308, section 5.6): `Authors` `Tamás Bilik`, `Copyright`, `RepositoryUrl` and `PackageProjectUrl` `https://github.com/biliktamas79/MsgHatch`, `PackageLicenseExpression` `Apache-2.0`, `IncludeSymbols` `true` with `SymbolPackageFormat` `snupkg`, `EnablePackageValidation` `true`, and `ContinuousIntegrationBuild` `true` when `GITHUB_ACTIONS` is `true`. Each project file sets its own `Description` and `PackageTags`.
+  - The package metadata (D308, section 5.6): `Authors` `Tamás Bilik`, `Copyright`, `RepositoryUrl` and `PackageProjectUrl` `https://github.com/biliktamas79/MsgHatch`, `PackageLicenseExpression` `Apache-2.0`, `IncludeSymbols` `true` with `SymbolPackageFormat` `snupkg`, `EnablePackageValidation` `true`, and `ContinuousIntegrationBuild` `true` when `GITHUB_ACTIONS` is `true`. Each project file sets its own `Description` and `PackageTags`. `PackageReadmeFile` `README.md` packs the `README.md` of the project into the root of the package (D310).
 - For each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance`:
   - `OutputType` `Exe`, and `IsTestingPlatformApplication` `false` (D52).
   - `NoWarn` for `CA1707`, because the test names have underscores.
   - `NoWarn` for `CA2012`, because the setup of a substitute calls a method that returns a `ValueTask` and does not await it.
-- The unit and integration test projects also get the test packages of section 5.5, and `RunSettingsFilePath` `coverage.runsettings` (D70).
+- The unit and integration test projects also get the test packages of section 5.5, `RunSettingsFilePath` `coverage.runsettings` (D70), and the compile link of `tests/Shared/ReadmeCheck.cs` with the assembly metadata `MsgHatch.TestProjectDirectory` (D311).
 - For all other projects, `IsPackable` `false`.
 
 `Directory.Packages.props` sets `ManagePackageVersionsCentrally` `true` (D48). It lists one `PackageVersion` for each package in section 4.2, with the latest stable version at the start of phase 1. The exceptions are `Microsoft.CodeAnalysis.BannedApiAnalyzers` 3.3.4 (D32), and `Microsoft.CodeAnalysis.CSharp` 5.0.0, the compiler of SDK 10.0.100, which is the minimum SDK in `global.json`. A compiler does not load a generator that references a newer Roslyn version. A later phase adds the packages of its projects. A package version changes only in its own commit.
@@ -3412,6 +3413,11 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - Each SQLite test uses its own database file in the shared temporary folder `msghatch-tests`, so the SQLite tests can run in parallel with the other unit tests. The test deletes its database file and the WAL files of it at the end. The store does not create a folder, and the base classes reset the storage before and after each test, so a folder for each test cannot be deleted at a reset. The connection string comes from a configuration layer of the test, bound to `SqliteStoreOptions` (D65), not from code. A file, not an in-memory database, is necessary, because the tests open two connections and two store instances on the same database.
 - A run that reports 0 tests is a failure. VSTest can report an empty xUnit v3 run as a pass, so each run's test count is read.
 - The test classes that listen to the spans of MsgHatch are in the one xUnit collection `Telemetry`, so they never run in parallel. An `ActivityListener` is global, and a span changes the trace context of the messages.
+- The README tests (D311): `Directory.Build.props` links `tests/Shared/ReadmeCheck.cs` into each unit and integration test project, with the folder of the project as assembly metadata. The test project of each package has `ReadmeUnitTests`, or `ReadmeIntegTests` for the 4 EF Core and MongoDB store packages, which open no connection. Each class runs:
+  - `ReadmeCheck.AssertSnippets()`: each C# block of the README equals a region `#region readme:name` of a test file of the project, with the indent removed. Each JSON or Razor block equals the file `Readme/name.json` or `Readme/name.razor`. A marker with no source, a source with no marker, and a C# or JSON block with no marker fail.
+  - `ReadmeCheck.AssertOptionsTables(types)`: the README has one options table for each given options type, and no other. Each table names each public property that the configuration binder can fill, a property with a public setter or a get-only collection, and no other name.
+  - One test for each region, which runs the example. A setup test builds the services and resolves the main service, and reads the options of `Readme/options.json` through `ReadmeCheck.ReadSettings`, so the JSON example binds and passes the options validation.
+- `ReadmeCheckUnitTests` in `MsgHatch.Domain.Tests.Unit` tests the check itself on a README in the test.
 - Each new test fails first (section 5.3).
 
 ### 5.6 Versions and packages
@@ -3437,6 +3443,13 @@ The GitHub workflow `.github/workflows/build.yml` (D309):
 - The job `build` runs on Windows, because 3 unit tests failed in a run on Linux, and `coverage.ps1` stops at the first failed project. 2 tests of `MsgHatch.Templates.Tests.Unit` check that a reader that holds a template file open blocks a save and a delete, which is a file lock of Windows. 1 test of `MsgHatch.Data.FileSystem.Tests.Unit` writes two down states of a channel in parallel. Each other unit test project passed on Linux.
 - On a tag `v<version>`, it checks that the tag is `v` and the `VersionPrefix`, and packs with no suffix. Then its job `publish` in the environment `nuget` gets a temporary API key through trusted publishing: `NuGet/login` sends the OIDC token of GitHub and the nuget.org user name of the secret `NUGET_USER`. `dotnet nuget push` sends the packages and the symbol packages of the same folder, and `--skip-duplicate` makes a second run safe.
 - A tag `phase-N` starts no run.
+
+Package READMEs (D310, D311):
+- Each project under `src/` has a `README.md`, and each package carries it as `PackageReadmeFile` in its root. `pack.ps1` fails for a package with no README.
+- A README has these parts, in this order: the name and what the package does, the install command, the DI setup, the options, the examples of the main uses, and the version history. A package with no options says so.
+- The version history has one entry for each version that changed the package, newest first: the version, the date of the commit that sets the version, and the release notes. A breaking change starts with "Breaking:". It is the only place of the release notes, so no project file sets `PackageReleaseNotes`.
+- nuget.org renders CommonMark through Markdig, with tables and code blocks, but no HTML and no image or link with a relative path. So a README links with absolute GitHub URLs, and its markers are link reference definitions, which no renderer shows: `[//]: # (snippet: name)` before a code block, and `[//]: # (options: Type)` before an options table.
+- A change of a library project keeps its README in sync in the same commit (`AGENTS.md`).
 
 Before the first publish, the owner:
 - Creates a trusted publishing policy on nuget.org for the repository, the workflow file `build.yml`, and the environment `nuget`.
