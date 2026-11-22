@@ -108,6 +108,12 @@ From phase 38 on, the SNS integration tests need a standard SNS topic and an SQS
 dotnet test tests/MsgHatch.Broker.AmazonSns.Tests.Integration
 ```
 
+From phase 40 on, the RabbitMQ dispatch signal tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://localhost:5672`, into `RabbitMqIntegration:Uri` of `tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes the key. Each test uses its own auto-delete exchange, and the signals declare only exclusive queues. The tests of a lost connection need the scheme `amqp`, and are skipped with `amqps`. With no URI, each test is skipped:
+
+```bash
+dotnet test tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration
+```
+
 ## Rules for each phase
 
 - Build only what the current phase lists. Do not add code that a later phase removes or renames.
