@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 
 namespace MsgHatch.Dispatch.RabbitMq.DependencyInjection;
 
@@ -14,7 +15,8 @@ public static class RabbitMqSignalExtensions
     /// Selects the dispatch signal between the processes of one system on different machines, through a fanout exchange of
     /// RabbitMQ (D305). Each process of the system calls it with the same broker and the same
     /// <see cref="RabbitMqSignalOptions.ExchangeName"/>. The options bind from the section <c>MsgHatch:RabbitMqSignal</c>,
-    /// and a value from code wins.
+    /// and a value from code wins. The startup validation fails when <see cref="DispatchOptions.EnablePolling"/> is false
+    /// for the inbox or the outbox (D190).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -29,6 +31,8 @@ public static class RabbitMqSignalExtensions
         }
 
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RabbitMqSignalOptions>, RabbitMqSignalOptionsValidator>());
+        RequirePolling(builder.Services, "Inbox");
+        RequirePolling(builder.Services, "Outbox");
         return builder.UseDispatchSignal(
             static services => new RabbitMqDispatchSignal(
                 services.GetRequiredService<IOptions<RabbitMqSignalOptions>>().Value,
@@ -36,4 +40,11 @@ public static class RabbitMqSignalExtensions
                 services.GetService<ILogger<RabbitMqDispatchSignal>>() ?? NullLogger<RabbitMqDispatchSignal>.Instance),
             nameof(UseRabbitMqDispatchSignal));
     }
+
+    private static void RequirePolling(IServiceCollection services, string dispatcher) =>
+        services.AddOptions<DispatchOptions>(dispatcher)
+            .Validate(
+                static options => options.EnablePolling,
+                $"UseRabbitMqDispatchSignal needs EnablePolling true in the dispatch options {dispatcher}, because a lost signal then waits only until the next poll (D190).")
+            .ValidateOnStart();
 }

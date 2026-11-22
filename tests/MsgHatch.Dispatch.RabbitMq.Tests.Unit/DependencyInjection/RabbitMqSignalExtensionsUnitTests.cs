@@ -81,6 +81,27 @@ public sealed class RabbitMqSignalExtensionsUnitTests
         Assert.Null(exception);
     }
 
+    [Theory]
+    [InlineData("Inbox")]
+    [InlineData("Outbox")]
+    public async Task Validate_NoPollingForOneDispatcher_ThrowsOptionsValidationExceptionForItsOptions(string dispatcher)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddTestChannel().UseInMemoryStores().UseTransport(static _ => TestTransports.For(TestChannel.Id))
+            .UseRabbitMqDispatchSignal(static o => o.Uri = new Uri("amqp://localhost"))
+            .Services.Configure<DispatchOptions>(dispatcher, static o => o.EnablePolling = false);
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.IsType<OptionsValidationException>(exception);
+        Assert.Equal((typeof(DispatchOptions), dispatcher), (failure.OptionsType, failure.OptionsName));
+        Assert.StartsWith("UseRabbitMqDispatchSignal needs EnablePolling ", Assert.Single(failure.Failures), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Validate_NoUri_ThrowsOptionsValidationExceptionForTheSignalOptions()
     {
