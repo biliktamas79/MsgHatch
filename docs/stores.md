@@ -459,6 +459,7 @@ The outbox claim first reads the latest state row of its channel. With a down ro
 | `MsgHatchOutbox` | One document for each outgoing message | `UX_MsgHatchOutbox_Id`, unique on `delivery.id`. `IX_MsgHatchOutbox_Due` on `(channel, delivery.nextTryAtUtc.t, _id)` with the filter `delivery.status: "Pending"`. `IX_MsgHatchOutbox_Flags`, `IX_MsgHatchOutbox_Created`, `IX_MsgHatchOutbox_Target` on `(tenant, target.kind, target.id, delivery.createdAtUtc.t)`, and `IX_MsgHatchOutbox_Source` on `sourceMessageId`. |
 | `MsgHatchChannelState` | One document for each state row, with the ObjectId of `SinceUtc` as `_id`, and `channel`, `version`, `kind`, `sinceUtc`, `previousKind`, `previousDurationMs` (a 64-bit integer), `reason`, `nextCheckAtUtc`, `errorCode`, `errorName`, and `note` (D277) | `UX_MsgHatchChannelState_Version`, unique on `(channel, version)` |
 | `MsgHatchChannelEntry`, `MsgHatchMessageTypeEntry` | One document for each registry entry, with the name as `_id` (section 4.20 of the design) | Only `_id` |
+| `msghatch_signals` | One document for each notification of the dispatch signal of section 5.9, with `topic`, `sender`, and `createdAtUtc` as a BSON date (D304) | `IX_msghatch_signals_Created` on `createdAtUtc`, a TTL index of one minute |
 
 - A store creates the indexes of its collection before its first operation, one time for each database in the process. The creation is idempotent, so two processes can do it at the same time. A failed creation is tried again at the next operation.
 - The claim index has `_id` as its last key. On MongoDB 8.3.7, a claim with the index on `(channel, delivery.nextTryAtUtc.t)` only has a `SORT` stage that reads each due document, and with `_id` as the last key, the plan stops after the `LIMIT` with no sort (checked fact of phase 19).
@@ -569,7 +570,16 @@ A state row is one `insertOne`, and a duplicate key of the unique index means th
 
 - The stores share one `IMongoClient`, which pools the connections, so they are thread-safe singletons (D130).
 - A server failure gives `Errors.Unavailable`, also a server that the driver cannot select in its timeout. A field with another BSON type, a missing field, an invalid name, or invalid JSON gives `Errors.SerializationFailed`. A cancelled token gives `Errors.OperationCancelled`.
-- The stores use no transaction and no change stream, so they work on a server with no replica set. The integration tests run on MongoDB 8.3.7: on the server of `appsettings.Local.json`, for example the local container dev-mongo, a replica set with one member, or else in a container of the image `mongo:8.3` through Testcontainers (D183).
+- The stores use no transaction and no change stream, so they work on a server with no replica set. Only the dispatch signal of section 5.9 needs a replica set. The integration tests run on MongoDB 8.3.7: on the server of `appsettings.Local.json`, for example the local container dev-mongo, a replica set with one member, or else in a container of the image `mongo:8.3` through Testcontainers, also as a replica set with one member (D183).
+
+### 5.9 Dispatch signal
+
+`UseMongoDbDispatchSignal()` selects `MongoDbDispatchSignal`, which wakes the dispatch loops of each host that uses the same database, also on another machine (D303). Section 4.9 of the design describes it.
+
+- One change stream on the database of the stores sees each insert into `MsgHatchInbox`, `MsgHatchOutbox`, and `msghatch_signals`. A filter of the server gives only the inserts, and only the fields `ns.coll`, `fullDocument.channel`, and `fullDocument.topic`. The stores keep each tenant in the same database (section 5.5), so the watch sees the messages of each tenant.
+- `NotifyAsync` inserts the topic into `msghatch_signals` in the background (D304). The TTL index deletes a document about one minute later, so the collection stays small.
+- A change stream needs a replica set, for example a replica set with one member. The stores themselves work with no replica set.
+- The signal has no options. It uses the `IMongoClient` and the `DatabaseName` of `UseMongoDbStores`, so the startup validation fails with no `UseMongoDbStores`.
 
 ## 6. A store for another storage
 
