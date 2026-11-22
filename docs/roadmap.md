@@ -48,6 +48,8 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 38 Amazon SNS broker client | 6, 20 |
 | 39 MongoDB change stream signal | 19, 21 |
 | 40 RabbitMQ dispatch signal | 21 |
+| 41 Versions and NuGet packages | 39, 40 |
+| 42 Package READMEs | 41 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -3166,6 +3168,115 @@ The implementation changed the plan in these points:
 - The design also gets `RabbitMqSignalOptions` in section 4.4, the error of `NotifyAsync` in section 4.6, the event range in section 4.16, the test projects in section 5.5, and the texts of sections 6 and 7.
 
 Done when: the build has no errors and no warnings, all unit tests pass, the RabbitMQ integration tests pass or are skipped with no URI, and `pwsh ./coverage.ps1` passes.
+
+### Phase 41: Versions and NuGet packages
+
+Goal: each non-test project has one shared SemVer, and each library project is ready to be a NuGet package on nuget.org. A GitHub workflow builds and packs on each push, and publishes the packages on a version tag (D307 to D309).
+
+Starting point: the commits of phases 39 and 40. The owner asked for a SemVer for all non-test projects, a README for each library project with a version history, release notes, and code examples, and the preparation of the NuGet packages. The owner chose one shared version, the first version 0.1.0, examples that the tests compile and run, and a GitHub workflow that also publishes. The owner then split the work into this phase and phase 42, which adds the READMEs.
+
+Checked at plan time (2026-11-22), with a pack of `MsgHatch.Email.AmazonSES` and `MsgHatch.Api.Client` into a temporary folder:
+- A pack turns each `ProjectReference` into a package dependency with the version of the pack: `MsgHatch.Email.AmazonSES` 0.1.0 depends on `MsgHatch.Email` 0.1.0 or later, and `MsgHatch.Api.Client` on `MsgHatch.Api.Contracts`. The project files keep their project references.
+- The analyzer reference of `MsgHatch.Api.Client` to `MsgHatch.SourceGeneration`, with `ReferenceOutputAssembly="false"`, gives no package dependency.
+- The SDK adds Source Link with no package: the nuspec has `repository` with the GitHub URL and the commit.
+
+1. Check first, before the code:
+   - What the generator assembly adds to the compilation of a consumer that references only `MsgHatch.Templates`. The assembly holds the placeholder payload generator and also the HTTP client generator.
+   - The four admin UI packages hold their static web assets.
+   - The current major versions of `actions/checkout`, `actions/setup-dotnet`, `actions/upload-artifact`, and `actions/download-artifact`.
+   - Whether nuget.org accepts trusted publishing with the OIDC token of GitHub.
+   - `coverage.ps1` and `pack.ps1` run on Linux. The check uses a temporary container of the image `mcr.microsoft.com/dotnet/sdk` of the SDK version, not a dev container.
+2. Set one SemVer and the package metadata (D307, D308):
+   - `Directory.Build.props` sets `VersionPrefix` `0.1.0` for each project. A build with no suffix gives `0.1.0`. The workflow adds a suffix to a build with no version tag.
+   - The 6 example projects get the version, but they are not packages: `IsPackable` stays `false` for each project outside `src/`.
+   - Each project under `src/` gets `Description` and `PackageTags` in its project file.
+   - `Directory.Build.props` sets for the projects under `src/`: `PackageProjectUrl`, `Copyright`, `IncludeSymbols` with `SymbolPackageFormat` `snupkg`, `EnablePackageValidation`, and `ContinuousIntegrationBuild` when `GITHUB_ACTIONS` is `true`.
+   - `MsgHatch.SourceGeneration` sets `IsPackable` `false`, because `MsgHatch.Templates` already packs the generator into `analyzers/dotnet/cs`.
+   - `AnalyzerReleases.Shipped.md` gets the rules `MSGHATCH001` to `MSGHATCH005` under the release 0.1.0. `AnalyzerReleases.Unshipped.md` keeps only its header.
+3. Add `pack.ps1` (D308):
+   - It packs each packable project in Release into `artifacts/packages`, with an optional version suffix.
+   - It fails when a package has another version, no license expression, no description, no repository commit, no symbol package, or a dependency on `MsgHatch.SourceGeneration`.
+   - It fails when the count of packages is not the count of packable projects, and when a package comes from a project outside `src/`.
+   - It checks the generator in `MsgHatch.Templates`, and the static web assets of the admin UI packages.
+4. Add the GitHub workflow `.github/workflows/build.yml` (D309):
+   - On each push and pull request: the SDK of `global.json`, `pwsh ./coverage.ps1`, `pwsh ./pack.ps1` with the suffix `ci.<run number>`, and the packages as a build artifact.
+   - On a tag `v<version>`: the same steps with no suffix, and a check that the tag is `v` and `VersionPrefix`. Then `dotnet nuget push` sends the packages and the symbol packages to nuget.org with the secret `NUGET_API_KEY`, in the environment `nuget`. `--skip-duplicate` makes a second run safe.
+   - The workflow runs no integration test.
+5. Describe the phase in the design: a new section 5.6 for the versions and the packages, the sections 5.1 and 5.2, section 6 (the risk of a version that a phase does not raise), and section 7 (the line "The publication of NuGet packages" goes). `AGENTS.md` gets `pwsh ./pack.ps1` and the workflow in the section "Commands".
+
+Tests:
+- `pack.ps1` passes. It fails with each of these breaks: one description removed, a `Version` in one project file that differs from `VersionPrefix`, and `IsPackable` `true` in one example project.
+- The unit tests of the changed projects stay green.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phases 41 and 42: the NuGet packages and the package READMEs"
+2. "Set one SemVer for all projects and the package metadata"
+3. "Add the pack script that checks each package"
+4. "Add the GitHub workflow that builds, packs, and publishes"
+5. "Describe the versions and the packages in the design"
+6. "Record the commits and the checked facts of phase 41 in the plan"
+7. "Record phase 41 as done in README and AGENTS.md"
+
+Commit 1 holds the plans of phases 41 and 42, the decisions D307 to D311, and the new rules of `AGENTS.md`. Item 1 is a check, and its results go into the checked facts.
+
+Checks that the phase cannot do: the first run of the workflow on GitHub. The owner pushes and checks the run.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages.
+
+### Phase 42: Package READMEs
+
+Goal: each library project has its own `README.md`, with the DI setup, the options, examples that the tests compile and run, and a version history with release notes. Each package carries its README (D310, D311).
+
+Starting point: the commits of phase 41. Phase 42 changes only the READMEs, the tests, and the package content, so the version stays 0.1.0 (the rule of `AGENTS.md`). The first publish comes after this phase.
+
+1. Check first, before the code:
+   - How nuget.org shows a package README: a table, a fenced code block, an HTML comment, and a relative link. A relative link does not work there, so the READMEs use absolute GitHub links.
+2. Add the README check of the test projects (D311):
+   - The test source `tests/Shared/ReadmeCheck.cs` is linked into each unit and integration test project by `Directory.Build.props`. It reads `src/<Project>/README.md`.
+   - Each C# block of a README follows a marker `<!-- snippet: name -->`. It equals the region `#region readme:name` of a test file, with the indent removed.
+   - Each JSON block follows the same marker. It equals the test data file `Readme/name.json`, which a test binds.
+   - A marker with no source fails. A source with no marker fails.
+   - The options table of a README names each public settable property of its options class, and no other name.
+3. Add a README to each library project (D310): 37 projects in 7 commits by area. Each README has these parts, in this order:
+   - The name, and what the package does: the interfaces that it implements, and the packages that it needs.
+   - The install command `dotnet add package <Id>`.
+   - The DI setup: the `Use<Technology>` call or the setup method of the package, as a compiled example.
+   - The options: the section of the configuration, a table with each option, its type, its default, and its rule, and a JSON example of `appsettings.json`. A package with no options says so.
+   - Examples of the main uses, for example the registration of a message type for a channel, a store for each tenant, or a call of an API client.
+   - The version history: one entry for each version that changed the package, newest first. An entry has the version, the date of the commit that sets the version, and the release notes. A breaking change starts with "Breaking:". The first entry is 0.1.0, with the features of the package.
+   - `MsgHatch.SourceGeneration` gets a README that is not packed. It says which packages carry its generators.
+   - The test project of each package gets `ReadmeUnitTests`. The 4 EF Core and MongoDB store projects have only integration test projects, so they get `ReadmeIntegTests`, which need no database. Each example runs as a test, and the README check runs.
+4. Pack the README into each package (D310):
+   - `Directory.Build.props` sets `PackageReadmeFile` `README.md` for the projects under `src/`, with the file in the package root.
+   - `pack.ps1` also fails for a package with no README.
+5. Describe the phase in the design: section 5.6 (the package README), and section 5.5 (the README tests). The root `README.md` links each package README.
+
+Tests:
+- The README check: a block equal to its region passes. A changed line, a marker with no region, a region with no marker, a missing option, and an unknown option each fail.
+- The examples of each README run as tests: the DI setup resolves the main service of the package, and the JSON example binds and passes the options validation.
+- `pack.ps1` passes, and fails when one README is removed.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Add the README check of the test projects"
+2. "Add the READMEs of the core packages": `MsgHatch.Domain`, `MsgHatch.SourceGeneration`, `MsgHatch.AspNetCore`
+3. "Add the READMEs of the template packages": `MsgHatch.Templates`, `MsgHatch.Templates.Liquid`, `MsgHatch.Templates.AspNetCore`
+4. "Add the READMEs of the channel packages": `MsgHatch.Email`, `MsgHatch.Email.AmazonSES`, `MsgHatch.Email.Resend`, `MsgHatch.SignalR`, `MsgHatch.Broker`, `MsgHatch.Broker.Wolverine`, `MsgHatch.Broker.AmazonSns`
+5. "Add the READMEs of the store and signal packages": `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.MongoDb`, `MsgHatch.Dispatch.NamedPipes`, `MsgHatch.Dispatch.RabbitMq`
+6. "Add the READMEs of the subscription packages": `MsgHatch.Subscriptions`, its 4 store packages, its 2 cache packages, and `MsgHatch.Subscriptions.AspNetCore`
+7. "Add the READMEs of the API packages": the 3 contracts packages and the 3 client packages
+8. "Add the READMEs of the admin UI packages": the 4 admin UI packages
+9. "Pack the README into each package"
+10. "Describe the package READMEs in the design"
+11. "Record the commits and the checked facts of phase 42 in the plan"
+12. "Record phase 42 as done in README and AGENTS.md"
+
+The plan of this phase is in commit 1 of phase 41. Item 1 is a check, and its results go into the checked facts.
+
+Checks that the phase cannot do: a publish. The owner adds the secret `NUGET_API_KEY`, and pushes the tag `v0.1.0` when the packages are ready.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 36 packages that each carry a README, and each of the 37 READMEs passes its README tests.
 
 ### Later phases
 

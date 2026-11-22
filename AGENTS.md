@@ -33,7 +33,7 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | API clients | `MsgHatch.Api.Client`, `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
 | Admin UIs | `MsgHatch.AdminUI`, `MsgHatch.Subscriptions.AdminUI`, `MsgHatch.Templates.AdminUI`, `MsgHatch.Templates.Liquid.AdminUI` |
 
-No phase after phase 40 has a detailed plan yet. The section "Later phases" of the roadmap lists the next items.
+Phase 41 (the versions and the NuGet packages) and phase 42 (the package READMEs) have a detailed plan. No phase after phase 42 has a detailed plan yet. The section "Later phases" of the roadmap lists the next items.
 
 ## Commands
 
@@ -118,6 +118,16 @@ dotnet test tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration
 
 - Build only what the current phase lists. Do not add code that a later phase removes or renames.
 - Make one commit for each concern, with the code and its tests. Commit and push only when the owner asks. At the end of a phase, push `main` and add the annotated tag `phase-N`.
+- From phase 41 on, each library project has the SemVer `VersionPrefix` of `Directory.Build.props`. A phase that changes a library project under `src/` raises it one time:
+  - The patch for fixes only.
+  - The minor for a new feature.
+  - The major for a breaking change of the public API. Before 1.0.0, a breaking change raises the minor.
+  - A change of only tests, examples, docs, or READMEs raises nothing.
+- From phase 42 on, each library project has its own `README.md`. Keep it in sync with the code in the same commit as the code:
+  - Change the setup, the options table, and the examples when the code changes them.
+  - Add an entry for the new version to the version history of each package that the phase changes, with its release notes. Start a breaking change with "Breaking:".
+  - The README tests fail when a code block or the options table differs from the code.
+- A phase that adds a library project adds its `README.md`, its `Description`, its `PackageTags`, and its README tests.
 - Expected failures are `ErrorOr<T>` or `Error?` values. Do not add custom exception types.
 - Write each log method as a source-generated `[LoggerMessage]` extension method of `ILogger`, and call it as `logger.EventName(...)`.
 - Turn a sequence into an array or a list with a collection expression, for example `[.. items]`, not with a LINQ `ToArray()` or `ToList()`. `.editorconfig` sets IDE0305 to error.
