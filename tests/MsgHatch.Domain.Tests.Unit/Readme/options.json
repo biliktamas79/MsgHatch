@@ -1,0 +1,20 @@
+{
+  "MsgHatch": {
+    "DefaultLanguage": "en",
+    "Dispatch": {
+      "Outbox": {
+        "MaxDegreeOfParallelism": 16,
+        "PollInterval": "00:00:02"
+      }
+    },
+    "Retry": {
+      "Inbox": {
+        "MaxTryCount": 10,
+        "MaxDelay": "00:30:00"
+      }
+    },
+    "Registry": {
+      "RefreshInterval": "00:01:00"
+    }
+  }
+}
