@@ -1,0 +1,7 @@
+{
+  "MsgHatch": {
+    "TemplateApiClient": {
+      "BaseAddress": "https://api.example.com/"
+    }
+  }
+}

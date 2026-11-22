@@ -1,0 +1,11 @@
+{
+  "MsgHatch": {
+    "RegistryApiClient": {
+      "BaseAddress": "https://api.example.com/"
+    },
+    "DeliveryApiClient": {
+      "BaseAddress": "https://api.example.com/",
+      "Timeout": "00:01:00"
+    }
+  }
+}

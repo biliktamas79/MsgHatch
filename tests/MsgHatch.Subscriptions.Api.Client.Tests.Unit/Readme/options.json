@@ -1,0 +1,7 @@
+{
+  "MsgHatch": {
+    "SubscriptionApiClient": {
+      "BaseAddress": "https://api.example.com/"
+    }
+  }
+}
