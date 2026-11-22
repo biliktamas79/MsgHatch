@@ -3009,6 +3009,7 @@ Commits:
 6. "Describe the Amazon SNS broker client in the design"
 7. "Record the commits and the checked facts of phase 38 in the plan"
 8. "Record phase 38 as done in README and AGENTS.md"
+9. "Wait the time that the provider asks for after a rate limit"
 
 Commit 1 holds the plan and the decisions D299 to D302 (`8d69922`). Commit 2 holds item 2 (`f663036`), commit 3 item 3 (`0ef9c1a`), commit 4 item 4 (`3a60c5f`), commit 5 item 5 (`1442e8d`), and commit 6 item 6 (`cdef2da`). Item 1 is a check, and its results are in the checked facts. The unit test projects of the changed code passed at each commit. The phase adds the projects `MsgHatch.Broker.AmazonSns`, `MsgHatch.Broker.AmazonSns.Tests.Unit`, and `MsgHatch.Broker.AmazonSns.Tests.Integration`, and the packages `AWSSDK.SimpleNotificationService` 4.0.100.22 and `AWSSDK.SQS` 4.0.100.21.
 
@@ -3021,6 +3022,7 @@ The implementation changed the plan in these points:
 - The SNS client also refuses a header value with a surrogate, because SNS does not support it.
 - The health check calls `GetTopicAttributes` one time for each distinct topic, and stops at the first error.
 - The design also gets `AmazonSnsOptions` in section 4.4, the SNS client in the list of classifiers of section 4.12, and two risks in section 6: the delivery of SNS to the subscriptions, and the limits of the message attributes.
+- After the record, the owner asked for commit 9 (D306). `Error` gets the optional `RetryAfter`, and the next try time of the inbox and the outbox waits for it, at most `MaxDelay` after the try. The SNS client reads `x-amz-retry-after` and `Retry-After`, and gives `RateLimited` for the codes `Throttled`, `Throttling`, and `KMSThrottling` and the status 429. A real SNS client of SDK 4.0.100.22 on a fake HTTP handler showed that a throttle of `Publish` arrives as `AmazonSimpleNotificationServiceException` with the code `Throttled`, not as `ThrottledException`, so the mapping of commit 4 gave `Exception` for it. The SDK sent one request for the status 400 and for 429, with no retry of its own, and its throttle check gives false for the codes `Throttled` and `KMSThrottling`. The SDK uses `x-amz-retry-after` only when the environment variable `AWS_NEW_RETRIES_2026` is `true`. No source of this phase shows that SNS sends either header. The 10 new test rows of the SNS client and 4 of the 7 new test rows of the domain failed before the code. The other 3 rows, where the schedule wins or the error is permanent, failed with a break, and each of the 14 breaks of the code failed at least one test.
 
 Done when: the build has no errors and no warnings, all unit tests pass, the SNS integration tests pass or are skipped with no settings, and `pwsh ./coverage.ps1` passes.
 

@@ -187,7 +187,7 @@ internal sealed class OutboxChannelWork(
         var publishTry = TryOf(message, tryNumber, startedAtUtc, finishedAtUtc, sent);
         span.Finish(publishTry.Outcome, sent.Error);
         metrics.RecordSendDuration(transport.Channel, publishTry.Outcome, time.GetElapsedTime(sendStarted));
-        var result = await RecordAsync(message, publishTry, NextTryAtUtc(message, publishTry), ct);
+        var result = await RecordAsync(message, publishTry, NextTryAtUtc(message, publishTry, sent.Error?.RetryAfter), ct);
         await CountErrorsInARowAsync(publishTry, ct);
         return result;
     }
@@ -229,9 +229,10 @@ internal sealed class OutboxChannelWork(
             ErrorCode: null, ErrorName: null, ErrorMessage: null);
     }
 
-    private DateTime? NextTryAtUtc(OutgoingMessage message, PublishTry failed) =>
+    private DateTime? NextTryAtUtc(OutgoingMessage message, PublishTry failed, TimeSpan? retryAfter = null) =>
         failed.Outcome == PublishOutcome.TransientError && failed.TryNumber < message.Delivery.MaxTryCount
-            ? RetrySchedule.NextTryAtUtc(message.Delivery.Id, failed.TryNumber, failed.FinishedAtUtc, retryOptions.Get(message.ContentType))
+            ? RetrySchedule.NextTryAtUtc(
+                message.Delivery.Id, failed.TryNumber, failed.FinishedAtUtc, retryOptions.Get(message.ContentType), retryAfter)
             : null;
 
     private async ValueTask<ItemResult> RecordAsync(

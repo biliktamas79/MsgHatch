@@ -199,6 +199,23 @@ public sealed class InboxProcessorUnitTests
     }
 
     [Fact]
+    public async Task ProcessPendingAsync_TransientRouterErrorWithAWaitLongerThanTheSchedule_GivesTheNextTryTimeOfTheWait()
+    {
+        // Arrange
+        RouterGives(new Error(Errors.RateLimited) { RetryAfter = TimeSpan.FromMinutes(1) });
+        await using var provider = Build();
+        var message = await AddAsync(provider, AMessage(id: _fixedId));
+
+        // Act
+        await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
+
+        // Assert
+        Assert.Equal(
+            DateTime.Parse("2030-01-01T00:01:00Z", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal),
+            Stored(provider, message).Delivery.NextTryAtUtc);
+    }
+
+    [Fact]
     public async Task ProcessPendingAsync_PermanentRouterError_FailsTheMessagePermanently()
     {
         // Arrange

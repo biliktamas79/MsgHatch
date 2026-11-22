@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Options;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using AmazonServiceException = Amazon.Runtime.AmazonServiceException;
+using HttpErrorResponseException = Amazon.Runtime.Internal.HttpErrorResponseException;
 
 namespace MsgHatch.Broker.AmazonSns;
 
@@ -25,7 +27,10 @@ namespace MsgHatch.Broker.AmazonSns;
 /// subscription with raw message delivery, and discards a message with more attributes there with no error to the
 /// sender (D301). A header name or value that SNS does not accept gives <see cref="Errors.ValidationFailed"/> too.
 /// A missing topic, a missing permission, and an error of the KMS key give <see cref="Errors.Unavailable"/> and a
-/// Critical log, so the messages stay pending until an administrator acts (D302).
+/// Critical log, so the messages stay pending until an administrator acts (D302). A throttle of <c>Publish</c> comes
+/// from the SDK as the base exception with the code <c>Throttled</c>, so the client also reads the throttle codes and
+/// the status 429. An error has the wait of the header <c>x-amz-retry-after</c> in milliseconds, or else of the header
+/// <c>Retry-After</c> in seconds, as <see cref="Error.RetryAfter"/>, or no wait when the response has neither (D306).
 /// </remarks>
 /// <param name="sns">The SNS client of the AWS SDK.</param>
 /// <param name="options">The settings.</param>
@@ -149,7 +154,8 @@ public sealed partial class AmazonSnsBrokerClient(
     {
         OperationCanceledException when ct.IsCancellationRequested => new Error(Errors.OperationCancelled),
         _ when _classifiers.Classify(exception) is { } type => SnsError(type, exception),
-        ThrottledException or KMSThrottlingException => SnsError(Errors.RateLimited, exception),
+        ThrottledException or KMSThrottlingException or AmazonServiceException { ErrorCode: "Throttled" or "Throttling" or "KMSThrottling" }
+            or AmazonServiceException { StatusCode: HttpStatusCode.TooManyRequests } => SnsError(Errors.RateLimited, exception),
         NotFoundException or AuthorizationErrorException or KMSAccessDeniedException or KMSDisabledException or KMSInvalidStateException
             or KMSNotFoundException or KMSOptInRequiredException => AdministratorErrorOf(exception),
         InvalidParameterException or InvalidParameterValueException => SnsError(Errors.Rejected, exception),
@@ -166,7 +172,16 @@ public sealed partial class AmazonSnsBrokerClient(
     }
 
     private static Error SnsError(ErrorType type, Exception exception) =>
-        new(type, $"Amazon SNS: {exception.GetType().Name}", exception);
+        new(type, $"Amazon SNS: {exception.GetType().Name}", exception) { RetryAfter = RetryAfterOf(exception) };
+
+    private static TimeSpan? RetryAfterOf(Exception exception) =>
+        exception.InnerException is HttpErrorResponseException { Response: { } response }
+            ? CountOf(response.GetHeaderValue("x-amz-retry-after"), TimeSpan.FromMilliseconds)
+                ?? CountOf(response.GetHeaderValue("Retry-After"), TimeSpan.FromSeconds)
+            : null;
+
+    private static TimeSpan? CountOf(string? header, Func<double, TimeSpan> unit) =>
+        int.TryParse(header, NumberStyles.None, CultureInfo.InvariantCulture, out var count) ? unit(count) : null;
 
     [GeneratedRegex(@"^(?!(?i:aws|amazon)\.)(?!\.)(?!.*\.\.)[A-Za-z0-9_.-]{1,256}(?<!\.)$")]
     private static partial Regex AttributeName();

@@ -33,6 +33,16 @@ public sealed partial class OutboxDispatcherUnitTests
         { 1, 1, "2030-01-01T00:00:01.0235674Z" },
     };
 
+    public static TheoryData<string, int, int?, string?> RetryAfterRows => new()
+    {
+        { "no wait of the provider: the schedule", 429, null, "2030-01-01T00:00:05.1178373Z" },
+        { "a wait shorter than the schedule: the schedule", 429, 1, "2030-01-01T00:00:05.1178373Z" },
+        { "a wait longer than the schedule: the wait", 429, 60, "2030-01-01T00:01:00Z" },
+        { "a wait longer than MaxDelay: MaxDelay", 429, 3600, "2030-01-01T00:15:00Z" },
+        { "a wait with another transient error: the wait", 503, 60, "2030-01-01T00:01:00Z" },
+        { "a wait with a permanent error: no next try", 403, 60, null },
+    };
+
     [Fact]
     public async Task DispatchPendingAsync_TwentyMessagesWithFourWorkers_SendsEachMessageOneTimeWithAtMostFourSendsAtTheSameTime()
     {
@@ -102,6 +112,25 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(DateTime.Parse(expected, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal), (await _doubles.NextRecordAsync()).NextTryAtUtc);
+    }
+
+    [Theory]
+    [MemberData(nameof(RetryAfterRows))]
+    public async Task DispatchPendingAsync_ErrorWithAWaitOfTheProvider_RecordsTheNextTryTimeOfTheRow(
+        string row, int errorCode, int? waitSeconds, string? expected)
+    {
+        // Arrange
+        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(id: _fixedId, maxTryCount: 10)));
+        var error = new Error(Errors.Find(errorCode)!) { RetryAfter = waitSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null };
+        await using var provider = _doubles.Build(transports: TestTransports.For(TestChannel.Id, error));
+
+        // Act
+        await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
+
+        // Assert
+        Assert.Equal(
+            (row, expected is null ? (DateTime?)null : DateTime.Parse(expected, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal)),
+            (row, (await _doubles.NextRecordAsync()).NextTryAtUtc));
     }
 
     [Fact]

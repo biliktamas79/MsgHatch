@@ -47,6 +47,10 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
     {
         { "a throttled request", new ThrottledException("Rate exceeded."), 429 },
         { "a throttled request of KMS", new KMSThrottlingException("Rate exceeded."), 429 },
+        { "the code Throttled with no type of its own", AServiceError("Throttled", 400), 429 },
+        { "the code Throttling with no type of its own", AServiceError("Throttling", 400), 429 },
+        { "the code KMSThrottling with no type of its own", AServiceError("KMSThrottling", 400), 429 },
+        { "an HTTP 429 response", AServiceError("Other", 429), 429 },
         { "an invalid parameter", new InvalidParameterException("Invalid parameter."), 403 },
         { "an invalid parameter value", new InvalidParameterValueException("Invalid parameter value."), 403 },
         { "a topic that does not exist", new NotFoundException("Topic does not exist."), 503 },
@@ -63,6 +67,16 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
         { "an HTTP 501 response", AnHttpError(501), 503 },
         { "another SNS exception", new InvalidSecurityException("Invalid security."), 500 },
         { "another exception", new InvalidOperationException("Defect."), 500 },
+    };
+
+    public static TheoryData<string, string?, string?, double?> WaitHeaderRows => new()
+    {
+        { "x-amz-retry-after in milliseconds", "2500", null, 2.5 },
+        { "Retry-After in seconds", null, "3", 3 },
+        { "both headers: x-amz-retry-after", "2500", "3", 2.5 },
+        { "no header: no wait", null, null, null },
+        { "headers that are not a count: no wait", "soon", "Wed, 21 Oct 2026 07:28:00 GMT", null },
+        { "a negative count: no wait", "-5", "-3", null },
     };
 
     public static TheoryData<string, Exception> AdministratorErrorRows => new()
@@ -412,8 +426,40 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
         Assert.Equal(Errors.OperationCancelled, error?.Type);
     }
 
+    [Theory]
+    [MemberData(nameof(WaitHeaderRows))]
+    public async Task PublishAsync_ThrottleOfTheRealSdk_ReturnsRateLimitedWithTheWaitOfTheHeaders(
+        string row, string? amazonHeader, string? standardHeader, double? expectedSeconds)
+    {
+        // Arrange
+        var headers = new Dictionary<string, string>();
+        if (amazonHeader is not null)
+        {
+            headers["x-amz-retry-after"] = amazonHeader;
+        }
+
+        if (standardHeader is not null)
+        {
+            headers["Retry-After"] = standardHeader;
+        }
+
+        using var sns = FakeSnsHttp.ClientThatAnswers(HttpStatusCode.BadRequest, "Throttled", headers);
+        var client = new AmazonSnsBrokerClient(sns, Options.Create(AnOptions()));
+
+        // Act
+        var result = await client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal(
+            (row, Errors.RateLimited, expectedSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null),
+            (row, result.Error?.Type, result.Error?.RetryAfter));
+    }
+
     private static AmazonSimpleNotificationServiceException AnHttpError(int statusCode) =>
         new("HTTP error.", AwsErrorType.Receiver, "InternalFailure", "request-1", (HttpStatusCode)statusCode);
+
+    private static AmazonSimpleNotificationServiceException AServiceError(string errorCode, int statusCode) =>
+        new("Rate exceeded.", AwsErrorType.Sender, errorCode, "request-1", (HttpStatusCode)statusCode);
 
     private static AmazonSnsOptions AnOptions() => new()
     {

@@ -86,7 +86,7 @@ internal sealed class InboxWork(
     {
         var tryNumber = message.Delivery.TryCount + 1;
         return error.Type.IsTransient && tryNumber < message.Delivery.MaxTryCount
-            ? RetrySchedule.NextTryAtUtc(message.Delivery.Id, tryNumber, triedAtUtc, retryOptions.Get(OptionNames.Inbox))
+            ? RetrySchedule.NextTryAtUtc(message.Delivery.Id, tryNumber, triedAtUtc, retryOptions.Get(OptionNames.Inbox), error.RetryAfter)
             : null;
     }
 
