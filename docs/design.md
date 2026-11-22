@@ -458,7 +458,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D306 | Wait of the provider after a rate limit | Recommended | `Error` gets `TimeSpan? RetryAfter`, the wait that the provider asked for before the next try, or null when the response gives no wait. The next try time of a transient error in the inbox and in the outbox is the later of its scheduled time and the try time plus this wait, and is at most `RetryOptions.MaxDelay` after the try (section 4.14). The SNS client reads the header `x-amz-retry-after` in milliseconds, or else `Retry-After` in seconds, and gives no wait for a missing, negative, or other value. The SES client reads the same headers through the internal source `src/Shared/AwsRetryAfter.cs`, which both AWS packages compile. The Resend client reads the header `retry-after` in seconds, which Resend documents for a 429 response, and gives no wait for a date or another value. The SNS client also gives `Errors.RateLimited` for the error codes `Throttled`, `Throttling`, and `KMSThrottling`, and for the status 429, because the SDK gives a throttle of `Publish` as the base exception with the code `Throttled`, and does not retry it (checked fact of phase 38). The owner asked for it after the record of phase 38. Reason: a try before the wait of the provider fails again and uses a try, so a long throttle can use all tries of a message. | The wait with no limit, so that a wrong header can stop a message for a long time. Or a try that does not count while the provider asks to wait. |
 | D307 | One shared SemVer | Recommended | `Directory.Build.props` sets one `VersionPrefix` for each project. The first version is 0.1.0. A phase that changes a library project raises it one time: the patch for fixes only, the minor for a feature, and the major for a breaking change. Before 1.0.0, a breaking change raises the minor. Reason: the owner chose one version, as EF Core and Wolverine do. A consumer takes the same version of each MsgHatch package, and no version range between two MsgHatch packages can break. 0.x says that the API is not stable yet, and later phases still add members to interfaces. | A version for each project. Or a first version 1.0.0 or 1.0.0-preview.1. |
 | D308 | Package metadata and pack check | Recommended | The source projects get a description, tags, symbol packages, Source Link of the SDK, package validation, and a CI build flag. `MsgHatch.SourceGeneration` is not a package: `MsgHatch.Templates` carries its generator, and a pack turns each other project reference into a package dependency of the same version. `pack.ps1` packs each package and checks its content. Reason: a package with missing metadata must fail before a publish. | A separate generator package. Or no pack check. |
-| D309 | GitHub workflow | Recommended | `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1` on each push and pull request. On a tag `v<version>` that equals `VersionPrefix`, it pushes the packages to nuget.org with the secret `NUGET_API_KEY` in the environment `nuget`. Reason: the owner chose a workflow that also publishes, and a tag gives one clear release step. | Trusted publishing with the OIDC token of GitHub, if phase 41 finds it available, which needs no long-lived key. Or a publish from the owner's machine. |
+| D309 | GitHub workflow | Recommended | `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1` on each push of a branch and each pull request. On a tag `v<version>` that equals `VersionPrefix`, its job `publish` in the environment `nuget` pushes the packages to nuget.org with a temporary API key from trusted publishing: `NuGet/login` exchanges the OIDC token of GitHub for the key. Reason: the owner chose a workflow that also publishes, and a tag gives one clear release step. Since 2026-08-17, a new nuget.org API key lives at most 30 days, and Microsoft recommends trusted publishing for GitHub Actions. Phase 41 found it available, so the repository stores no API key. | An API key in the secret `NUGET_API_KEY`, which the owner replaces each 30 days. Or a publish from the owner's machine. |
 | D310 | README of each package | Recommended | Each project under `src/` has a `README.md`, which the package carries as `PackageReadmeFile`. The README is the single source of the release notes, so the project files set no `PackageReleaseNotes`. Its parts: the purpose, the install command, the DI setup, the options, the examples, and the version history. A change of a library project keeps its README in sync in the same commit. Reason: nuget.org shows the README of a package, and one source cannot disagree with itself. | Release notes in `PackageReleaseNotes`, or one changelog for all packages. |
 | D311 | README examples that the tests run | Recommended | Each C# block of a README equals a region `readme:name` of a test file, and each JSON block equals a test data file. The examples run as tests, and a linked test source compares them with the README. A test also compares the options table with the properties of the options class. Reason: the owner chose compiled and tested examples, and a README that no build reads drifts from the code. | Plain text examples. Or the tool MarkdownSnippets, which adds a tool for a check of about 100 lines. |
 
@@ -3057,7 +3057,11 @@ Example (`examples/AdminUiExample`). An Interactive Server host of both admin UI
 ├── dotnet-tools.json
 ├── coverage.ps1
 ├── coverage.runsettings
+├── pack.ps1                                            (phase 41)
 ├── MsgHatch.slnx
+├── .github/
+│   └── workflows/
+│       └── build.yml                                   (phase 41)
 ├── docs/
 │   ├── design.md
 │   ├── roadmap.md
@@ -3180,6 +3184,7 @@ Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `
 - `TargetFramework` `net10.0`. `MsgHatch.SourceGeneration` sets `netstandard2.0` in its own project file.
 - `LangVersion` `latest`, `Nullable` `enable`, `ImplicitUsings` `enable`.
 - `AnalysisLevel` `latest-recommended`.
+- `VersionPrefix` `0.1.0`, the one version of all projects (D307, section 5.6).
 - `EnforceCodeStyleInBuild` `true`, so that the rules of `.editorconfig` stop the build.
 - A `PackageReference` to `Microsoft.CodeAnalysis.BannedApiAnalyzers` with `PrivateAssets="all"`, and `<AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />` (D32 and D63).
 - For the projects under `src/`:
@@ -3188,8 +3193,8 @@ Feature folders of `MsgHatch.Domain` (D50): `Failures`, `Identity`, `Routing`, `
   - `EnableConfigurationBindingGenerator` `true` (D65).
 - The packages of the API boundary set `IsAotCompatible` `true` in their own project files (D237): `MsgHatch.Domain`, `MsgHatch.Subscriptions`, `MsgHatch.Templates`, `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts`, `MsgHatch.Subscriptions.AspNetCore`, `MsgHatch.Templates.AspNetCore`, the three client packages, and the four admin UI packages. So the trim, AOT, and single-file analyzers run in each build, and `TreatWarningsAsErrors` turns each warning into an error. The two `.AspNetCore` packages also set `EnableRequestDelegateGenerator` `true`, so each minimal API endpoint needs no code generation at run time.
   - A compile link to `src/GeneratedCodeSuppressions.cs` (D32).
-  - `IsPackable` `true`.
-  - The package metadata: `Authors` `Tamás Bilik`, `RepositoryUrl` `https://github.com/biliktamas79/MsgHatch`, and `PackageLicenseExpression` `Apache-2.0`.
+  - `IsPackable` `true`. `MsgHatch.SourceGeneration` sets `IsPackable` `false` in its own project file (D308).
+  - The package metadata (D308, section 5.6): `Authors` `Tamás Bilik`, `Copyright`, `RepositoryUrl` and `PackageProjectUrl` `https://github.com/biliktamas79/MsgHatch`, `PackageLicenseExpression` `Apache-2.0`, `IncludeSymbols` `true` with `SymbolPackageFormat` `snupkg`, `EnablePackageValidation` `true`, and `ContinuousIntegrationBuild` `true` when `GITHUB_ACTIONS` is `true`. Each project file sets its own `Description` and `PackageTags`.
 - For each project whose name ends with `.Tests.Unit`, `.Tests.Integration`, or `.Tests.Performance`:
   - `OutputType` `Exe`, and `IsTestingPlatformApplication` `false` (D52).
   - `NoWarn` for `CA1707`, because the test names have underscores.
@@ -3409,6 +3414,36 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - The test classes that listen to the spans of MsgHatch are in the one xUnit collection `Telemetry`, so they never run in parallel. An `ActivityListener` is global, and a span changes the trace context of the messages.
 - Each new test fails first (section 5.3).
 
+### 5.6 Versions and packages
+
+Versions (D307):
+- `Directory.Build.props` sets one `VersionPrefix` for each project. The first version is `0.1.0`. A build with no suffix gives this version, and the workflow adds the suffix `ci.<run number>` to each build with no version tag.
+- A phase that changes a library project under `src/` raises the version one time: the patch for fixes only, the minor for a new feature, and the major for a breaking change of the public API. Before 1.0.0, a breaking change raises the minor. A change of only tests, examples, docs, or READMEs raises nothing. `AGENTS.md` has the same rule.
+
+Packages (D308):
+- Each project under `src/` except `MsgHatch.SourceGeneration` is a package, 36 packages in all. The package id is the project name. The examples and the test projects are not packages.
+- A pack turns each project reference into a package dependency with the version of the pack. For example, `MsgHatch.Email.AmazonSES` 0.1.0 depends on `MsgHatch.Email` 0.1.0 or later. An analyzer reference with `ReferenceOutputAssembly="false"` gives no dependency.
+- `MsgHatch.Templates` carries the generator assembly in `analyzers/dotnet/cs`, so the placeholder payload generator runs in each consumer. The assembly also holds the HTTP client generator, which adds its internal attributes of the namespace `MsgHatch.Http` to each consumer compilation. A consumer does not use them, and an internal type of one assembly does not conflict with another assembly.
+- The SDK adds Source Link, so the nuspec of each package holds the repository URL and the commit. Each package has a symbol package `.snupkg`.
+
+`pwsh ./pack.ps1 [-VersionSuffix <suffix>]` packs the solution in Release into `artifacts/packages`. It fails when:
+- A package has another version, no license expression `Apache-2.0`, no description, no tags, no repository commit, or no symbol package.
+- A package depends on `MsgHatch.SourceGeneration`, or on a MsgHatch package of another version.
+- A packable project under `src/` has no package, or a package has no packable project under `src/`.
+- `MsgHatch.Templates` has no generator, or a package does not hold a file of the `wwwroot` folder of its project or the bundle of its scoped CSS.
+
+The GitHub workflow `.github/workflows/build.yml` (D309):
+- On each push of a branch and each pull request, its job `build` installs the SDK of `global.json` on a Windows runner, runs `pwsh ./coverage.ps1` and `pwsh ./pack.ps1 -VersionSuffix ci.<run number>`, and keeps the packages as the artifact `packages`. It runs no integration test.
+- The job `build` runs on Windows, because 3 unit tests failed in a run on Linux, and `coverage.ps1` stops at the first failed project. 2 tests of `MsgHatch.Templates.Tests.Unit` check that a reader that holds a template file open blocks a save and a delete, which is a file lock of Windows. 1 test of `MsgHatch.Data.FileSystem.Tests.Unit` writes two down states of a channel in parallel. Each other unit test project passed on Linux.
+- On a tag `v<version>`, it checks that the tag is `v` and the `VersionPrefix`, and packs with no suffix. Then its job `publish` in the environment `nuget` gets a temporary API key through trusted publishing: `NuGet/login` sends the OIDC token of GitHub and the nuget.org user name of the secret `NUGET_USER`. `dotnet nuget push` sends the packages and the symbol packages of the same folder, and `--skip-duplicate` makes a second run safe.
+- A tag `phase-N` starts no run.
+
+Before the first publish, the owner:
+- Creates a trusted publishing policy on nuget.org for the repository, the workflow file `build.yml`, and the environment `nuget`.
+- Adds the nuget.org user name as the repository secret `NUGET_USER`.
+- Checks that the package ids are free on nuget.org. The owner can ask nuget.org to reserve the id prefix `MsgHatch`.
+- Can add a protection rule with a required reviewer to the environment `nuget`.
+
 ## 6. Risks
 
 - **Duplicate emails.** Delivery is at-least-once. If the process stops after SES accepts an email and before `RecordTryAsync`, the email is sent again. SES has no idempotency key, so this risk stays. Resend keeps the `Idempotency-Key` of each send for 24 hours (D138), so a repeated try within that time sends no second email. The second success is a second publish try, so the history shows the duplicate.
@@ -3438,6 +3473,7 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - **MassTransit license.** MassTransit 9 and later need a commercial license for production. Version 8 stays under Apache-2.0, and its support ends on 2026-12-31 ([Massient](https://massient.com/)). The license rule of section 5.5 allows only version 8.
 - **Telemetry names.** The messaging semantic conventions have the status Development, so a new version can rename attributes. MsgHatch follows one pinned version. A change of a name breaks the dashboards of the hosts, so it comes only in its own phase (D131).
 - **Old trace context.** A message that waited a long time can link to a trace that the backend already deleted. The link then shows nothing, and the send span is still complete (D132).
+- **A version that a phase does not raise.** No test finds a change of a library project with no raise of `VersionPrefix`. Two different builds then have the same version, and nuget.org keeps the first one: `--skip-duplicate` skips the second push with no error. `AGENTS.md` makes the raise a rule of each phase (D307).
 - **Generator scope.** The generator supports top-level properties only. A template cannot read a nested property, for example `{{Customer.Name}}`.
 
 ## 7. Out of scope
@@ -3456,7 +3492,6 @@ Use cases of the store base classes. The phases add the use cases of the other b
 - An analyzer that checks the versioning rules at compile time. The golden-file tests check them instead.
 - EF Core providers other than SQL Server. A later phase adds PostgreSQL (roadmap, later phases).
 - Registry settings and transports for each tenant, for example one SES account for each tenant. The registry and the channels belong to the whole system (D114).
-- The publication of NuGet packages.
 - A `MsgHatch.OpenTelemetry` extension package. The host uses the names of `MsgHatchTelemetry` (D131).
 - Broker frameworks with their own outbox, for example Brighter and CAP (DotNetCore.CAP). They duplicate the MsgHatch outbox, its retries, and its history (D134).
 - The tenant as a metric tag. An opt-in option can come later (D133).

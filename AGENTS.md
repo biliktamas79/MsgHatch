@@ -51,6 +51,12 @@ The coverage report of the unit tests (PowerShell 7). It writes `artifacts/cover
 pwsh ./coverage.ps1
 ```
 
+From phase 41 on, the pack check (PowerShell 7). It packs the 36 packages in Release into `artifacts/packages`, and fails when a package has a wrong version, wrong metadata, or missing content (section 5.6 of the design). The GitHub workflow `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1 -VersionSuffix ci.<run number>` on each push of a branch and each pull request, and publishes to nuget.org only on a tag `v<version>`. Never push a tag `v*` unless the owner asks:
+
+```bash
+pwsh ./pack.ps1
+```
+
 From phase 4 on, the SES integration tests need an Amazon SES account. Put its settings into `tests/MsgHatch.Email.AmazonSES.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. With no account, each test is skipped:
 
 ```bash
