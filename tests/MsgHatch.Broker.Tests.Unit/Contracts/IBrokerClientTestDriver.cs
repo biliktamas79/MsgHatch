@@ -19,6 +19,9 @@ public interface IBrokerClientTestDriver
     /// <summary>Makes the library wait in the next publish until the token of the client is cancelled.</summary>
     void WaitsUntilCancelled();
 
-    /// <summary>Reads the one message that the library got: the payload, the headers, and the tenant id.</summary>
+    /// <summary>
+    /// Reads the one message that the library got: the payload, or the payload that the library reads back from its JSON,
+    /// the headers, and the tenant id, from the field of the library or from the header <c>msghatch-tenant</c>.
+    /// </summary>
     (object Payload, IReadOnlyDictionary<string, string?> Headers, string? Tenant) Published();
 }

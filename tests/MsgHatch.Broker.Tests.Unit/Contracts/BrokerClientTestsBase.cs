@@ -44,7 +44,7 @@ public abstract class BrokerClientTestsBase<TClient>(TClient client, IBrokerClie
         await Client.PublishAsync(APublish(payload: payload), Ct);
 
         // Assert
-        Assert.Same(payload, Driver.Published().Payload);
+        Assert.Equal(payload, Driver.Published().Payload);
     }
 
     [Fact]
@@ -123,6 +123,11 @@ public abstract class BrokerClientTestsBase<TClient>(TClient client, IBrokerClie
         payload ??= new TestPayload("text");
         return new(
             Guid.NewGuid(), tenant, BrokerMessages.ContentType, payload, BrokerTestJsonContext.Default.Options.GetTypeInfo(payload.GetType()),
-            headers ?? new Dictionary<string, string> { ["msghatch-id"] = "id-1" });
+            headers ?? HeadersOfTheTransport(tenant));
     }
+
+    private static Dictionary<string, string> HeadersOfTheTransport(TenantId? tenant) =>
+        tenant is { } value
+            ? new() { ["msghatch-id"] = "id-1", ["msghatch-tenant"] = value.Value }
+            : new() { ["msghatch-id"] = "id-1" };
 }

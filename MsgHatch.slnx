@@ -12,6 +12,7 @@
     <Project Path="src/MsgHatch.Api.Client/MsgHatch.Api.Client.csproj" />
     <Project Path="src/MsgHatch.Api.Contracts/MsgHatch.Api.Contracts.csproj" />
     <Project Path="src/MsgHatch.AspNetCore/MsgHatch.AspNetCore.csproj" />
+    <Project Path="src/MsgHatch.Broker.AmazonSns/MsgHatch.Broker.AmazonSns.csproj" />
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
     <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
     <Project Path="src/MsgHatch.Data.EFCore/MsgHatch.Data.EFCore.csproj" />
@@ -55,6 +56,7 @@
     <Project Path="tests/MsgHatch.Api.Client.Tests.Unit/MsgHatch.Api.Client.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Api.Contracts.Tests.Unit/MsgHatch.Api.Contracts.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.AspNetCore.Tests.Unit/MsgHatch.AspNetCore.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Broker.AmazonSns.Tests.Unit/MsgHatch.Broker.AmazonSns.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />

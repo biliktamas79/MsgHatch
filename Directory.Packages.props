@@ -33,6 +33,10 @@
     <PackageVersion Include="WolverineFx" Version="6.61.0" />
   </ItemGroup>
 
+  <ItemGroup Label="MsgHatch.Broker.AmazonSns">
+    <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.100.22" />
+  </ItemGroup>
+
   <ItemGroup Label="MsgHatch.Data.Sqlite">
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
   </ItemGroup>
