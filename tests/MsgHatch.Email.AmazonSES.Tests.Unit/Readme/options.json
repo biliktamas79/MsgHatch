@@ -1,0 +1,9 @@
+{
+  "MsgHatch": {
+    "AmazonSes": {
+      "SenderEmail": "noreply@example.com",
+      "SenderName": "Example Shop",
+      "Region": "eu-west-1"
+    }
+  }
+}

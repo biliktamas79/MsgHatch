@@ -1,0 +1,11 @@
+{
+  "MsgHatch": {
+    "AmazonSns": {
+      "Region": "eu-west-1",
+      "DefaultTopicArn": "arn:aws:sns:eu-west-1:123456789012:shop-events",
+      "Topics": {
+        "OrderShipped": "arn:aws:sns:eu-west-1:123456789012:shop-orders"
+      }
+    }
+  }
+}

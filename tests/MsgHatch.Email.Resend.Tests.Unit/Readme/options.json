@@ -1,0 +1,8 @@
+{
+  "MsgHatch": {
+    "Resend": {
+      "SenderEmail": "noreply@example.com",
+      "SenderName": "Example Shop"
+    }
+  }
+}
