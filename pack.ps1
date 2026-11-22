@@ -56,6 +56,7 @@ function Get-PackageFailures([string]$file, [string]$expectedVersion) {
     if ($metadata.license.type -ne 'expression' -or $metadata.license.InnerText -ne 'Apache-2.0') { "$id has no license expression Apache-2.0." }
     if ([string]::IsNullOrWhiteSpace($metadata.description) -or $metadata.description -eq 'Package Description') { "$id has no description." }
     if ([string]::IsNullOrWhiteSpace($metadata.tags)) { "$id has no tags." }
+    if ($metadata.readme -ne 'README.md' -or $entries -notcontains 'README.md') { "$id has no README." }
     if (-not $metadata.repository -or [string]::IsNullOrWhiteSpace($metadata.repository.commit)) { "$id has no repository commit." }
     if (-not (Test-Path (Join-Path $output "$id.$expectedVersion.snupkg"))) { "$id has no symbol package." }
 

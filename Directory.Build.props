@@ -29,10 +29,12 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EnablePackageValidation>true</EnablePackageValidation>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsSourceProject)' == 'true'">
     <Compile Include="$(MSBuildThisFileDirectory)src/GeneratedCodeSuppressions.cs" Link="GeneratedCodeSuppressions.cs" />
+    <None Include="$(MSBuildProjectDirectory)/README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(IsSourceProject)' != 'true'">
