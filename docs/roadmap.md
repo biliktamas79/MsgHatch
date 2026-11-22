@@ -3126,13 +3126,42 @@ Tests:
 - Integration tests of item 3, and a wait that returns an error after the connection closes.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-22), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| `WolverineFx.RabbitMQ` 6.61.0 needs `RabbitMQ.Client` 7.2.2 for `net10.0` and `net9.0`. So `Directory.Packages.props` pins 7.2.2, and the Wolverine integration tests and the new package resolve the same version. The license of 7.2.2 is `Apache-2.0 OR MPL-2.0`, and Apache-2.0 is allowed (section 5.5 of the design). | The nuspec files of both packages in the NuGet cache, and `project.assets.json` of both projects |
+| The broker deletes an exclusive queue when the connection that declared it closes or is lost, also at the loss of the TCP connection. Another connection gets `RESOURCE_LOCKED`. A queue with an empty name gets a name from the server, which `QueueDeclareOk.QueueName` of the client 7.2.2 gives. | The RabbitMQ documentation "Queues", section "Exclusive Queues". No broker ran in the phase. |
+| RabbitMQ does not implement the flag `no-local` of `basic.consume`, so a consumer also gets the messages of its own connection. So the signal skips its own messages by `AppId`. | The RabbitMQ documentation "Specification" |
+| The broker deletes an auto-delete exchange when its last binding is removed. It discards a message with `mandatory` false that it cannot route. | The RabbitMQ documentation "Exchanges" and "Publishers" |
+| The contract test `NotifyAsync_NoWaitingLoop_ReturnsAtOnceWithNoError` requires a `NotifyAsync` that completes at once, also before the first connect. So the connection publishes in the background. | `DispatchSignalTestsBase` |
+| `Assert.SkipUnless` in the constructor of a test class gives a skipped test in xUnit v3. So the contract subclass skips with no URI, and `DispatchSignalTestsBase` does not change. | The run of the integration project with no URI |
+| The build of the solution with `--no-incremental` has no errors and no warnings. The 37 unit test projects pass 5,682 tests and skip 1 test: the path limit test of the named pipe signal on Windows. The new `MsgHatch.Dispatch.RabbitMq.Tests.Unit` passes 26 tests, and the other projects pass the same counts as after phase 39. The line coverage of the production code is 98.4 %, 0.4 points less than after phase 39. `MsgHatch.Dispatch.RabbitMq` has 67.3 %, because only the integration tests run the path with a broker. The 10 tests of `MsgHatch.Dispatch.RabbitMq.Tests.Integration` are skipped with no URI. Each count is of the branch after the rebase onto phase 39. | `dotnet build MsgHatch.slnx --no-incremental`, `pwsh ./coverage.ps1`, and a run of each unit test project |
+| The new tests did not pass before the code of their commit, or failed with a break of the code that they cover. Commit 1: 14 of the 24 new unit tests failed against a stub, and 13 breaks failed (the length limit, the colon, and the dot of the exchange name, each of the two schemes, the configuration section, the configuration in code, the default exchange name, the name of the setup method, the one Warning of an outage, the pause, the error of `NotifyAsync`, and the error of `WaitAsync`). The pause test first passed the break of the pause by a race, so it now waits 300 ms of real time before it counts the connects. Commit 2: the 2 new test rows failed before the code. | The break runs |
+
+Checks that the phase did not do:
+- A run of the RabbitMQ integration tests against a broker. The phase started no RabbitMQ, so the 10 tests are skipped with no URI. So no test ran the path with a broker: the connect, the publish, the receive, the skip of the own messages, the connect after a lost connection, and the event 3201.
+- The SES, Resend, Wolverine, SNS, EF Core, and MongoDB integration tests. The phase changes no store and no client, and the Wolverine tests keep their client version.
+- The benchmarks. The signal is not on the path of a send.
+
 Commits:
 1. "Add the RabbitMQ dispatch signal"
-2. "Describe the RabbitMQ dispatch signal in the design"
-3. "Record the commits and the checked facts of phase 40 in the plan"
-4. "Record phase 40 as done in README and AGENTS.md"
+2. "Require polling with the RabbitMQ dispatch signal"
+3. "Describe the RabbitMQ dispatch signal in the design"
+4. "Record the commits and the checked facts of phase 40 in the plan"
+5. "Record phase 40 as done in README and AGENTS.md"
 
-The plan of this phase is in commit 1 of phase 39. The integration tests go into the commit of the code.
+The plan of this phase is in commit 1 of phase 39 (`b5d4694`). Commit 1 holds items 2 and 3 (`5660d20`), commit 2 the poll rule (`8f46fe6`), and commit 3 item 4 (`01f6ee0`). Item 1 is a check, and its results are in the checked facts. The phase adds the projects `MsgHatch.Dispatch.RabbitMq`, `MsgHatch.Dispatch.RabbitMq.Tests.Unit`, and `MsgHatch.Dispatch.RabbitMq.Tests.Integration`, and the package `RabbitMQ.Client` 7.2.2.
+
+The implementation changed the plan in these points:
+- `NotifyAsync` returns at once, as the contract requires, and the connection publishes in the background. So `NotifyAsync` does not give the error of a publish. It gives `Errors.Unavailable` in the pause after a failed connect or a lost connection. Many notifications before one publish become one message for each topic.
+- RabbitMQ does not implement `no-local`, so each message has the id of its signal instance as `AppId`, and the consumer skips its own messages. D305 records it.
+- The exchange is not durable and auto-delete, and the messages are transient. The client has no automatic recovery. The signal connects again itself after a fixed pause of 5 seconds, so `WaitAsync` returns an error for each outage.
+- A body other than `inbox`, or `outbox:{Channel}` with a valid channel name, wakes no loop. So a foreign message on the exchange adds no topic.
+- After commit 1, the owner asked for commit 2: `UseRabbitMqDispatchSignal` requires `EnablePolling` true for the inbox and the outbox (D190), as the named pipe signal and the MongoDB signal do.
+- The signal logs the events 3200, a Warning one time for each outage, and 3201, an Information at the next connect. Section 4.16 of the design gives the signal the new range 3200 to 3299.
+- The unit tests of the signal use a TCP listener in the test process that closes each connection. So they test the failed connect, the pause, and the log with no broker. The integration tests of a lost connection use a TCP forwarder to the broker in the test process, and are skipped with the scheme `amqps`.
+- The design also gets `RabbitMqSignalOptions` in section 4.4, the error of `NotifyAsync` in section 4.6, the event range in section 4.16, the test projects in section 5.5, and the texts of sections 6 and 7.
 
 Done when: the build has no errors and no warnings, all unit tests pass, the RabbitMQ integration tests pass or are skipped with no URI, and `pwsh ./coverage.ps1` passes.
 
