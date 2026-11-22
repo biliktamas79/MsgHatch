@@ -102,6 +102,12 @@ dotnet test tests/MsgHatch.Data.MongoDb.Tests.Integration
 dotnet test tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration
 ```
 
+From phase 38 on, the SNS integration tests need a standard SNS topic and an SQS queue with a raw message delivery subscription to the topic. The owner creates them, because the tests create no AWS resource. Put the access key, the region, the topic ARN, and the queue URL into `tests/MsgHatch.Broker.AmazonSns.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. The tests delete each message that they receive from the queue. With no settings, each test is skipped:
+
+```bash
+dotnet test tests/MsgHatch.Broker.AmazonSns.Tests.Integration
+```
+
 ## Rules for each phase
 
 - Build only what the current phase lists. Do not add code that a later phase removes or renames.
