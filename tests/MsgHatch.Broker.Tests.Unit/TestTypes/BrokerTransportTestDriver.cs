@@ -1,14 +1,20 @@
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.Contracts;
 using NSubstitute;
 
 namespace MsgHatch.Broker.Tests.Unit.TestTypes;
 
-/// <summary>The driver of the broker transport tests: a broker client substitute as the provider.</summary>
+/// <summary>
+/// The driver of the broker transport tests: a broker client substitute as the provider, and a registry with the entry of
+/// the content type of <see cref="BrokerMessages"/>.
+/// </summary>
 public sealed class BrokerTransportTestDriver : ITransportTestDriver
 {
     public IBrokerClient Client { get; } = Substitute.For<IBrokerClient>();
+
+    public IContentTypeRegistry Registry { get; } = BrokerMessages.ARegistry();
 
     public OutgoingMessage AMessage() => BrokerMessages.AnOutgoingMessage();
 

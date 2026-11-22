@@ -1,3 +1,4 @@
+using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
@@ -117,6 +118,11 @@ public abstract class BrokerClientTestsBase<TClient>(TClient client, IBrokerClie
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
     }
 
-    protected static BrokerPublish APublish(object? payload = null, TenantId? tenant = null, IReadOnlyDictionary<string, string>? headers = null) =>
-        new(Guid.NewGuid(), tenant, payload ?? new TestPayload("text"), headers ?? new Dictionary<string, string> { ["msghatch-id"] = "id-1" });
+    protected static BrokerPublish APublish(object? payload = null, TenantId? tenant = null, IReadOnlyDictionary<string, string>? headers = null)
+    {
+        payload ??= new TestPayload("text");
+        return new(
+            Guid.NewGuid(), tenant, BrokerMessages.ContentType, payload, BrokerTestJsonContext.Default.Options.GetTypeInfo(payload.GetType()),
+            headers ?? new Dictionary<string, string> { ["msghatch-id"] = "id-1" });
+    }
 }

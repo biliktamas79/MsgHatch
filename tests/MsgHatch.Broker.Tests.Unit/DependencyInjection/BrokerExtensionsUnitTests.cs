@@ -68,7 +68,7 @@ public sealed class BrokerExtensionsUnitTests
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatch().UseInMemoryStores().UseBrokerClient<FixedReceiptBrokerClient>();
+        services.AddMsgHatch().UseInMemoryStores().UseBrokerClient<FixedReceiptBrokerClient>().AddContentTypeOfBrokerMessages();
         await using var provider = services.Build();
         var transport = Assert.Single(provider.GetServices<ITransport>());
 
@@ -86,7 +86,8 @@ public sealed class BrokerExtensionsUnitTests
         var client = Substitute.For<IBrokerClient>();
         client.PublishAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<PublishReceipt>>(new PublishReceipt(null)));
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:TestDelivery:Broker:Mode"] = "Deliver" });
-        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseBrokerClient(_ => client);
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseBrokerClient(_ => client)
+            .AddContentTypeOfBrokerMessages();
         await using var provider = services.Build();
         await provider.GetRequiredService<IOutboxStore>().AddAsync([BrokerMessages.AnOutgoingMessage(flags: MessageFlags.Test)], Ct);
 

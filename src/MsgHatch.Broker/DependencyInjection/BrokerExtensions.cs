@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Persistence;
 
 namespace MsgHatch.Broker.DependencyInjection;
 
@@ -35,7 +36,8 @@ public static class BrokerExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(factory);
         builder.Services.AddSingleton(services => WithLogging(services, factory(services)));
-        return AddBrokerChannel(builder).UseTransport(static services => new BrokerTransport(services.GetRequiredService<IBrokerClient>()));
+        return AddBrokerChannel(builder).UseTransport(static services =>
+            new BrokerTransport(services.GetRequiredService<IBrokerClient>(), services.GetRequiredService<IContentTypeRegistry>()));
     }
 
     /// <summary>

@@ -170,7 +170,8 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
             return ValueTask.CompletedTask;
         });
         var services = TestHost.CreateServices();
-        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseBrokerClient(_ => Client);
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseBrokerClient(_ => Client)
+            .AddContentTypeOfBrokerMessages();
         await using var provider = services.Build();
         await provider.GetRequiredService<IOutboxStore>().AddAsync([BrokerMessages.AnOutgoingMessage()], Ct);
         var spans = new ConcurrentQueue<Activity>();

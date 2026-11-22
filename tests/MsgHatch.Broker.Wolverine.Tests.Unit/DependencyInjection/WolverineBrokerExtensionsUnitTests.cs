@@ -41,7 +41,7 @@ public sealed class WolverineBrokerExtensionsUnitTests
         runtime.When(static r => r.AssertHasStarted()).Do(static _ => throw new WolverineHasNotStartedException());
         var services = TestHost.CreateServices();
         services.AddSingleton(runtime);
-        services.AddMsgHatch().UseInMemoryStores().UseWolverineBroker();
+        services.AddMsgHatch().UseInMemoryStores().UseWolverineBroker().AddContentTypeOfBrokerMessages();
         await using var provider = services.Build();
 
         // Act
@@ -108,7 +108,7 @@ public sealed class WolverineBrokerExtensionsUnitTests
         var services = TestHost.CreateServices();
         services.AddSingleton(runtime);
         services.AddMsgHatch().UseInMemoryStores().UseWolverineBroker()
-            .AddExceptionClassifier<WolverineBrokerClient, ConflictClassifier<WolverineBrokerClient>>();
+            .AddExceptionClassifier<WolverineBrokerClient, ConflictClassifier<WolverineBrokerClient>>().AddContentTypeOfBrokerMessages();
         await using var provider = services.Build();
 
         // Act

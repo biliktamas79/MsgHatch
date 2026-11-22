@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MsgHatch.Broker.DependencyInjection;
+using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
@@ -181,7 +182,9 @@ public sealed class BrokerClientLoggingWrapperUnitTests
     }
 
     private static BrokerPublish APublish() =>
-        new(Guid.NewGuid(), Tenant: null, new TestPayload(_payloadText), new Dictionary<string, string> { ["x-copy-to"] = _headerValue });
+        new(
+            Guid.NewGuid(), Tenant: null, BrokerMessages.ContentType, new TestPayload(_payloadText), BrokerTestJsonContext.Default.TestPayload,
+            new Dictionary<string, string> { ["x-copy-to"] = _headerValue });
 
     private static IBrokerClient AClient(ErrorOr<PublishReceipt> result)
     {

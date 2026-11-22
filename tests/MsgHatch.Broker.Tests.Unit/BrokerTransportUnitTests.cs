@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
@@ -10,8 +11,8 @@ namespace MsgHatch.Broker.Tests.Unit;
 
 /// <summary>
 /// The broker transport: the use cases of the transport contract, and the rules that only this transport has: the
-/// headers that it builds for the broker client, and the values of the outgoing message that it gives to the client
-/// (section 4.6, section 4.8).
+/// headers that it builds for the broker client, the values of the outgoing message that it gives to the client, and the
+/// JSON type information of the payload from the content type registry (section 4.6, section 4.8, D299).
 /// </summary>
 public sealed class BrokerTransportUnitTests : TransportTestsBase<BrokerTransport>
 {
@@ -25,7 +26,7 @@ public sealed class BrokerTransportUnitTests : TransportTestsBase<BrokerTranspor
     }
 
     private BrokerTransportUnitTests(BrokerTransportTestDriver driver)
-        : base(new BrokerTransport(driver.Client), driver) => _client = driver.Client;
+        : base(new BrokerTransport(driver.Client, driver.Registry), driver) => _client = driver.Client;
 
     public static TheoryData<string, string?, MessageFlags, string?, Dictionary<string, string>?, string[]> HeaderRows => new()
     {
@@ -84,6 +85,52 @@ public sealed class BrokerTransportUnitTests : TransportTestsBase<BrokerTranspor
     }
 
     [Fact]
+    public async Task SendAsync_TwoPayloadTypes_GivesTheContentTypeAndTheJsonOfTheRunTimeTypeOfEachPayloadToTheClient()
+    {
+        // Arrange
+        var (first, second) = (BrokerMessages.AnOutgoingMessage(), BrokerMessages.AnOutgoingMessage(new OtherPayload(7)));
+
+        // Act
+        await Transport.SendAsync(first, redirectTo: null, Ct);
+        await Transport.SendAsync(second, redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(
+            [(BrokerMessages.ContentType, """{"text":"text"}"""), (BrokerMessages.ContentType, """{"number":7}""")],
+            _client.ReceivedCalls()
+                .Select(static call => (BrokerPublish)call.GetArguments()[0]!)
+                .Select(static publish => (publish.ContentType, JsonSerializer.Serialize(publish.Payload, publish.PayloadJson))));
+    }
+
+    [Fact]
+    public async Task SendAsync_ContentVersionWithNoEntry_ReturnsValidationFailedAndCallsNoClient()
+    {
+        // Arrange
+        var message = BrokerMessages.AnOutgoingMessage() with { ContentVersion = 9 };
+
+        // Act
+        var result = await Transport.SendAsync(message, redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(Errors.ValidationFailed, result.Error?.Type);
+        Assert.Empty(_client.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task SendAsync_PayloadTypeWithNoJsonTypeInformation_ReturnsValidationFailedAndCallsNoClient()
+    {
+        // Arrange
+        var message = BrokerMessages.AnOutgoingMessage(new PayloadWithNoJson(1));
+
+        // Act
+        var result = await Transport.SendAsync(message, redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal(Errors.ValidationFailed, result.Error?.Type);
+        Assert.Empty(_client.ReceivedCalls());
+    }
+
+    [Fact]
     public async Task SendAsync_ContentThatIsNotABrokerEnvelope_ReturnsValidationFailedAndCallsNoClient()
     {
         // Arrange
@@ -120,6 +167,8 @@ public sealed class BrokerTransportUnitTests : TransportTestsBase<BrokerTranspor
         // Assert
         Assert.Equal(BrokerChannel.Id, channel);
     }
+
+    private sealed record PayloadWithNoJson(int Number);
 
     private BrokerPublish Published() => (BrokerPublish)_client.ReceivedCalls().Single().GetArguments()[0]!;
 

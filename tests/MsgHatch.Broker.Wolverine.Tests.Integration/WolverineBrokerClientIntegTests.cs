@@ -1,3 +1,4 @@
+using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Broker.Wolverine.Tests.Integration.TestTypes;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -63,5 +64,7 @@ public sealed class WolverineBrokerClientIntegTests
     private static string NewName() => $"msghatch-test-{Guid.NewGuid():N}";
 
     private static BrokerPublish APublish(string messageId) =>
-        new(Guid.NewGuid(), null, new TestPayload("text"), new Dictionary<string, string> { ["msghatch-id"] = messageId });
+        new(
+            Guid.NewGuid(), null, BrokerMessages.ContentType, new TestPayload("text"), BrokerTestJsonContext.Default.TestPayload,
+            new Dictionary<string, string> { ["msghatch-id"] = messageId });
 }
