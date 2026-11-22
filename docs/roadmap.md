@@ -46,6 +46,8 @@ Each phase builds on the phases of its row. Phases with no dependency between th
 | 36 Delivery API | 27, 31 |
 | 37 Delivery pages | 35, 36 |
 | 38 Amazon SNS broker client | 6, 20 |
+| 39 MongoDB change stream signal | 19, 21 |
+| 40 RabbitMQ dispatch signal | 21 |
 
 The core comes first and works with no database (D122). Each later phase adds one channel, one storage technology, the caching, or one administration API, and ends in a tested and working state.
 
@@ -2988,6 +2990,81 @@ Commit 1 holds the plan and the decisions D299 to D302. Item 1 is a check, and i
 
 Done when: the build has no errors and no warnings, all unit tests pass, the SNS integration tests pass or are skipped with no settings, and `pwsh ./coverage.ps1` passes.
 
+### Phase 39: MongoDB change stream signal
+
+Goal: the dispatch loops of hosts on different machines wake when a message arrives, with a change stream of the MongoDB stores in place of a poll (D102, D303, D304). The signal needs no infrastructure other than the MongoDB replica set of the stores.
+
+Starting point: the plan of phase 38 (`8d69922`). The owner asked how modular the step between the inbox and the routing is. `IDispatchSignal` already separates it, with `InProcessDispatchSignal` and `NamedPipeDispatchSignal`. The owner then chose "Plan the Mongo change stream as Phase 39 and the direct RabbitMQ as Phase 40". A change stream needs a replica set, for example the local `dev-mongo` with `replicaSet=rs0`.
+
+1. Check first, before the code:
+   - The collection names of the inbox and the outbox of `MongoDbStoreOptions`, and the field of the channel of an outgoing document, so that a change gives its topic.
+   - With a store for each tenant, each tenant has its own database. A watch on the client, with a filter on the collection names, sees the changes of each tenant database.
+   - `InProcessDispatchSignal` is public, so the new signal gives each change to a local instance, and keeps the wait rules of section 4.6 with no copy.
+   - A change stream of the pinned driver on a server with no replica set gives an error that the signal can return.
+2. Add the change stream signal to `MsgHatch.Data.MongoDb` (D303):
+   - `MongoDbDispatchSignal : IDispatchSignal` watches the inserts into the inbox and the outbox. An insert into the inbox notifies `DispatchTopic.Inbox`, and an insert into the outbox notifies the topic of its channel.
+   - The watch runs in one background task from the first `WaitAsync`, and feeds a local `InProcessDispatchSignal`. `WaitAsync` waits on that local signal.
+   - A broken watch makes `WaitAsync` return an error, so a loop polls (section 4.9), and the signal starts the watch again after a pause. The signal keeps no resume token, because a missed change costs at most one poll.
+3. Notify through a signal collection (D304):
+   - `NotifyAsync` inserts a small document with the topic into the collection `msghatch_signals`, which has a TTL index of one minute. The watch also watches this collection. So a retry, a resume, or a channel check on one machine wakes the loops of each machine.
+   - An insert of a message needs no notify, because its insert is the signal. The pipeline still calls `NotifyAsync`, and the extra document costs one small write.
+4. Add the setup method (D303):
+   - `UseMongoDbDispatchSignal()` selects the signal with the client and the database of the MongoDB stores. A setup with no MongoDB stores gives a setup error.
+5. Add the integration tests: two signals on one database of the integration MongoDB, an insert through the store of the first signal, and the wake of a wait of the second signal, for the inbox, a channel, and a `NotifyAsync`.
+6. Describe the phase in the design: the sections 4.2, 4.6, 4.7, and 4.9, and `docs/stores.md`.
+
+Tests:
+- Unit tests: the mapping of a change to its topic, and the setup error with no MongoDB stores.
+- Integration tests of item 5, and a wait that returns an error when the watch breaks.
+- The dispatch signal contract tests of phase 21, with the MongoDB signal as one more implementation.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Plan phases 39 and 40: the MongoDB and RabbitMQ dispatch signals"
+2. "Add the MongoDB change stream dispatch signal"
+3. "Notify the MongoDB dispatch signal through a signal collection"
+4. "Add the setup method of the MongoDB dispatch signal"
+5. "Describe the MongoDB dispatch signal in the design"
+6. "Record the commits and the checked facts of phase 39 in the plan"
+7. "Record phase 39 as done in README and AGENTS.md"
+
+Commit 1 holds the plans of phases 39 and 40 and the decisions D303 to D305. The integration tests go into the commit of the code that they test.
+
+Done when: the build has no errors and no warnings, all unit tests pass, the MongoDB integration tests pass, and `pwsh ./coverage.ps1` passes.
+
+### Phase 40: RabbitMQ dispatch signal
+
+Goal: the dispatch loops of hosts on different machines wake through a fanout exchange of RabbitMQ, with any store (D102, D305). The package uses `RabbitMQ.Client` directly, with no Wolverine.
+
+Starting point: the commits of phase 39.
+
+1. Check first, before the code:
+   - The version of `RabbitMQ.Client` that `WolverineFx.RabbitMQ` 6.61.0 uses, so a host with both packages keeps one client version.
+   - A server-named, exclusive, auto-delete queue of the pinned client is deleted when its connection closes.
+2. Add the package `MsgHatch.Dispatch.RabbitMq` (D305):
+   - `RabbitMqDispatchSignal : IDispatchSignal` publishes the topic name as the body of a message with no persistence to the fanout exchange of `RabbitMqSignalOptions.ExchangeName`, default `msghatch.dispatch`. `NotifyAsync` does not wait for a reader, and gives an error when the publish fails.
+   - Each process declares one exclusive, auto-delete queue with a name from the server, bound to the exchange. Its consumer gives each topic to a local `InProcessDispatchSignal`, and `WaitAsync` waits on it.
+   - A lost connection makes `WaitAsync` return an error, so a loop polls, and the signal connects again after a pause.
+   - `RabbitMqSignalOptions` in the section `MsgHatch:RabbitMqSignal` holds `Uri` and `ExchangeName`, with a source-generated validator. `UseRabbitMqDispatchSignal()` selects the signal.
+3. Add the integration tests: two signals on the RabbitMQ of `appsettings.Local.json`, which git ignores, and the wake of a wait of the second signal after a notify of the first. With no URI, each test is skipped.
+4. Describe the phase in the design: the sections 4.2, 4.7, and 4.9, and `AGENTS.md` gets the command of the integration tests.
+
+Tests:
+- Unit tests: the options and their validation, and the selection of the signal.
+- The dispatch signal contract tests, with the RabbitMQ signal, skipped with no URI.
+- Integration tests of item 3, and a wait that returns an error after the connection closes.
+- Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Add the RabbitMQ dispatch signal"
+2. "Describe the RabbitMQ dispatch signal in the design"
+3. "Record the commits and the checked facts of phase 40 in the plan"
+4. "Record phase 40 as done in README and AGENTS.md"
+
+The plan of this phase is in commit 1 of phase 39. The integration tests go into the commit of the code.
+
+Done when: the build has no errors and no warnings, all unit tests pass, the RabbitMQ integration tests pass or are skipped with no URI, and `pwsh ./coverage.ps1` passes.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -3001,7 +3078,7 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
   - The edit page offers the builder and the raw editor for one part, so the extension point of D240 changes from one editor for each engine to a choice of editors.
   - The markers are needed only in the text of the template store. An email client can remove them from a sent email, because the builder never reads a sent email.
   - The phase checks the license of each JavaScript library that it uses.
-- A dispatch signal between machines, for example with a fanout exchange of RabbitMQ, or with the notifications of a store, for example MongoDB change streams or PostgreSQL `LISTEN` and `NOTIFY` (D102, D188). Phase 21 adds a signal between the processes of one machine only.
+- A dispatch signal with PostgreSQL `LISTEN` and `NOTIFY`, after the PostgreSQL provider (D102, D188). Phases 39 and 40 add the signals of MongoDB and RabbitMQ.
 - A PostgreSQL provider for the EF Core stores.
 - SMS and push channels.
 - Batched try records: one store call records the tries of several sent messages, for more throughput on one channel.
