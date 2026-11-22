@@ -9,7 +9,10 @@ using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Failures;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using SnsConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Broker.AmazonSns.AmazonSnsBrokerClient>;
 
 namespace MsgHatch.Broker.AmazonSns.Tests.Unit.DependencyInjection;
 
@@ -48,6 +51,25 @@ public sealed class AmazonSnsBrokerExtensionsUnitTests : IDisposable
         Assert.IsNotType<AmazonSnsBrokerClient>(client);
         Assert.Equal(2300, Assert.Single(provider.LogRecords()).Id.Id);
         await sns.ReceivedWithAnyArgs(1).PublishAsync(default(PublishRequest)!, Ct);
+    }
+
+    [Fact]
+    public async Task UseAmazonSnsBroker_ExceptionClassifierOfTheClient_GivesItsErrorType()
+    {
+        // Arrange
+        var sns = Substitute.For<IAmazonSimpleNotificationService>();
+        sns.PublishAsync(default(PublishRequest)!, Ct).ThrowsAsyncForAnyArgs(new HttpRequestException());
+        var services = TestHost.CreateServices();
+        services.AddSingleton(sns);
+        services.AddMsgHatch().UseAmazonSnsBroker(static o => o.DefaultTopicArn = _topic)
+            .AddExceptionClassifier<AmazonSnsBrokerClient, SnsConflictClassifier>();
+        await using var provider = services.Build();
+
+        // Act
+        var result = await provider.GetRequiredService<IBrokerClient>().PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
     }
 
     [Fact]

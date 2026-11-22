@@ -1,5 +1,8 @@
+using System.Net;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using MsgHatch.Broker.AmazonSns.Tests.Unit.TestTypes;
 using MsgHatch.Broker.Tests.Unit.Contracts;
@@ -7,12 +10,16 @@ using MsgHatch.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using AwsErrorType = Amazon.Runtime.ErrorType;
+using SnsConflictClassifier = MsgHatch.Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatch.Broker.AmazonSns.AmazonSnsBrokerClient>;
 
 namespace MsgHatch.Broker.AmazonSns.Tests.Unit;
 
 /// <summary>
 /// The Amazon SNS broker client: the use cases of the broker client contract, and the rules that only SNS has: the topic
-/// of the content type, the request, and the limits of the message attributes (D300, D301).
+/// of the content type, the request, the limits of the message attributes, the error of each SNS exception, and the
+/// health check of the topics (D300 to D302).
 /// </summary>
 public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<AmazonSnsBrokerClient>
 {
@@ -21,18 +28,53 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
     private readonly SnsTestDriver _driver;
     private readonly IAmazonSimpleNotificationService _sns;
+    private readonly FakeLogger<AmazonSnsBrokerClient> _logger;
 
     public AmazonSnsBrokerClientUnitTests()
-        : this(new SnsTestDriver())
+        : this(new SnsTestDriver(), new FakeLogger<AmazonSnsBrokerClient>())
     {
     }
 
-    private AmazonSnsBrokerClientUnitTests(SnsTestDriver driver)
-        : base(new AmazonSnsBrokerClient(driver.Sns, Options.Create(AnOptions())), driver)
+    private AmazonSnsBrokerClientUnitTests(SnsTestDriver driver, FakeLogger<AmazonSnsBrokerClient> logger)
+        : base(new AmazonSnsBrokerClient(driver.Sns, Options.Create(AnOptions()), logger), driver)
     {
         _driver = driver;
         _sns = driver.Sns;
+        _logger = logger;
     }
+
+    public static TheoryData<string, Exception, int> ExceptionRows => new()
+    {
+        { "a throttled request", new ThrottledException("Rate exceeded."), 429 },
+        { "a throttled request of KMS", new KMSThrottlingException("Rate exceeded."), 429 },
+        { "an invalid parameter", new InvalidParameterException("Invalid parameter."), 403 },
+        { "an invalid parameter value", new InvalidParameterValueException("Invalid parameter value."), 403 },
+        { "a topic that does not exist", new NotFoundException("Topic does not exist."), 503 },
+        { "no permission", new AuthorizationErrorException("Not authorized."), 503 },
+        { "no access to the KMS key", new KMSAccessDeniedException("Access denied."), 503 },
+        { "a disabled KMS key", new KMSDisabledException("Disabled."), 503 },
+        { "a KMS key in an invalid state", new KMSInvalidStateException("Invalid state."), 503 },
+        { "a KMS key that does not exist", new KMSNotFoundException("Not found."), 503 },
+        { "a KMS subscription that is missing", new KMSOptInRequiredException("Opt-in required."), 503 },
+        { "no network", new HttpRequestException("No connection."), 503 },
+        { "an internal error of SNS", new InternalErrorException("Internal error."), 503 },
+        { "an HTTP 499 response", AnHttpError(499), 500 },
+        { "an HTTP 500 response", AnHttpError(500), 503 },
+        { "an HTTP 501 response", AnHttpError(501), 503 },
+        { "another SNS exception", new InvalidSecurityException("Invalid security."), 500 },
+        { "another exception", new InvalidOperationException("Defect."), 500 },
+    };
+
+    public static TheoryData<string, Exception> AdministratorErrorRows => new()
+    {
+        { "a topic that does not exist", new NotFoundException("Topic does not exist: x-secret.") },
+        { "no permission", new AuthorizationErrorException("Not authorized: x-secret.") },
+        { "no access to the KMS key", new KMSAccessDeniedException("Access denied: x-secret.") },
+        { "a disabled KMS key", new KMSDisabledException("Disabled: x-secret.") },
+        { "a KMS key in an invalid state", new KMSInvalidStateException("Invalid state: x-secret.") },
+        { "a KMS key that does not exist", new KMSNotFoundException("Not found: x-secret.") },
+        { "a KMS subscription that is missing", new KMSOptInRequiredException("Opt-in required: x-secret.") },
+    };
 
     public static TheoryData<string, string> InvalidHeaderNameRows => new()
     {
@@ -222,6 +264,156 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
         // Assert
         Assert.DoesNotContain("x-secret", result.Error?.Message ?? "x-secret", StringComparison.Ordinal);
     }
+
+    [Theory]
+    [MemberData(nameof(ExceptionRows))]
+    public async Task PublishAsync_SnsException_ReturnsTheErrorTypeOfTheException(string row, Exception exception, int expectedCode)
+    {
+        // Arrange
+        _sns.PublishAsync(default(PublishRequest)!, Ct).ThrowsAsyncForAnyArgs(exception);
+
+        // Act
+        var result = await Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal((row, (int?)expectedCode), (row, result.Error?.Type.Code));
+    }
+
+    [Fact]
+    public async Task PublishAsync_ClassifierKnowsTheException_ReturnsItsErrorTypeBeforeTheBuiltInMapping()
+    {
+        // Arrange
+        var client = new AmazonSnsBrokerClient(_sns, Options.Create(AnOptions()), classifiers: [new SnsConflictClassifier()]);
+        _sns.PublishAsync(default(PublishRequest)!, Ct).ThrowsAsyncForAnyArgs(new HttpRequestException());
+
+        // Act
+        var result = await client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
+    }
+
+    [Fact]
+    public async Task PublishAsync_CancelledTokenAndAClassifier_ReturnsOperationCancelled()
+    {
+        // Arrange
+        var client = new AmazonSnsBrokerClient(_sns, Options.Create(AnOptions()), classifiers: [new SnsConflictClassifier()]);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        await stop.CancelAsync();
+        _sns.PublishAsync(default(PublishRequest)!, Ct).ThrowsAsyncForAnyArgs(new OperationCanceledException());
+
+        // Act
+        var result = await client.PublishAsync(APublish(), stop.Token);
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+    }
+
+    [Theory]
+    [MemberData(nameof(AdministratorErrorRows))]
+    public async Task PublishAsync_ErrorThatNeedsAnAdministrator_LogsACriticalRecordWithNoTextOfTheException(string row, Exception exception)
+    {
+        // Arrange
+        _sns.PublishAsync(default(PublishRequest)!, Ct).ThrowsAsyncForAnyArgs(exception);
+
+        // Act
+        await Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        var record = Assert.Single(_logger.Collector.GetSnapshot());
+        Assert.Equal((row, LogLevel.Critical, 2310, false), (row, record.Level, record.Id.Id, record.Message.Contains("x-secret", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task PublishAsync_RejectedMessage_LogsNothing()
+    {
+        // Arrange
+        Driver.Fails(Errors.Rejected);
+
+        // Act
+        await Client.PublishAsync(APublish(), Ct);
+
+        // Assert
+        Assert.Empty(_logger.Collector.GetSnapshot());
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_DefaultTopicAndTopicsOfRegistrations_CallsGetTopicAttributesOneTimeForEachTopic()
+    {
+        // Arrange
+        var options = AnOptions();
+        options.Topics["OtherMessage"] = _defaultTopic;
+        var client = new AmazonSnsBrokerClient(_sns, Options.Create(options));
+
+        // Act
+        await client.CheckHealthAsync(Ct);
+
+        // Assert
+        Assert.Equal(
+            [_defaultTopic, _topicOfTheTestMessage],
+            _sns.ReceivedCalls().Select(static call => ((GetTopicAttributesRequest)call.GetArguments()[0]!).TopicArn).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_EachTopicExists_ReturnsNull()
+    {
+        // Arrange
+        _sns.GetTopicAttributesAsync(default(GetTopicAttributesRequest)!, Ct).ReturnsForAnyArgs(Task.FromResult(new GetTopicAttributesResponse()));
+
+        // Act
+        var error = await Client.CheckHealthAsync(Ct);
+
+        // Assert
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_TwoTopicsFail_ReturnsTheErrorOfTheFirstTopic()
+    {
+        // Arrange
+        _sns.GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _defaultTopic), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new NotFoundException("Topic does not exist."));
+        _sns.GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new ThrottledException("Rate exceeded."));
+
+        // Act
+        var error = await Client.CheckHealthAsync(Ct);
+
+        // Assert
+        Assert.Equal(Errors.Unavailable, error?.Type);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_TopicThatDoesNotExist_LogsACriticalRecord()
+    {
+        // Arrange
+        _sns.GetTopicAttributesAsync(default(GetTopicAttributesRequest)!, Ct).ThrowsAsyncForAnyArgs(new NotFoundException("Topic does not exist."));
+
+        // Act
+        await Client.CheckHealthAsync(Ct);
+
+        // Assert
+        var record = Assert.Single(_logger.Collector.GetSnapshot());
+        Assert.Equal((LogLevel.Critical, 2310), (record.Level, record.Id.Id));
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_CancelledToken_ReturnsOperationCancelled()
+    {
+        // Arrange
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        await stop.CancelAsync();
+        _sns.GetTopicAttributesAsync(default(GetTopicAttributesRequest)!, Ct).ThrowsAsyncForAnyArgs(new OperationCanceledException());
+
+        // Act
+        var error = await Client.CheckHealthAsync(stop.Token);
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, error?.Type);
+    }
+
+    private static AmazonSimpleNotificationServiceException AnHttpError(int statusCode) =>
+        new("HTTP error.", AwsErrorType.Receiver, "InternalFailure", "request-1", (HttpStatusCode)statusCode);
 
     private static AmazonSnsOptions AnOptions() => new()
     {
