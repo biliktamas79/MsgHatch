@@ -11,10 +11,11 @@ namespace MsgHatch.Data.MongoDb.Tests.Integration.TestTypes;
 
 /// <summary>
 /// One MongoDB for the test assembly (D183): the server of <see cref="MongoDbIntegration"/>, for example the local
-/// container dev-mongo, or else MongoDB in a container through Testcontainers (D124). Each test class uses its own
-/// database. Each database name starts with the name of the test project, so the fixture touches no other database: it
-/// drops these databases at the start of a run, for example after a crashed run, and at the end of the run. MongoDB
-/// creates a database again at its first write. A machine with no image of the Ryuk container of Testcontainers sets
+/// container dev-mongo, or else MongoDB in a container through Testcontainers (D124), as a replica set with one member,
+/// because the change stream of the dispatch signal needs one (D303). Each test class uses its own database. Each
+/// database name starts with the name of the test project, so the fixture touches no other database: it drops these
+/// databases at the start of a run, for example after a crashed run, and at the end of the run. MongoDB creates a
+/// database again at its first write. A machine with no image of the Ryuk container of Testcontainers sets
 /// <c>TESTCONTAINERS_RYUK_DISABLED=true</c> for its run (D177).
 /// </summary>
 public sealed class MongoDbFixture : IAsyncLifetime
@@ -42,7 +43,7 @@ public sealed class MongoDbFixture : IAsyncLifetime
         }
         else
         {
-            _container = new MongoDbBuilder(Image).Build();
+            _container = new MongoDbBuilder(Image).WithReplicaSet().Build();
             await _container.StartAsync(Ct);
             ConnectionString = _container.GetConnectionString();
         }
