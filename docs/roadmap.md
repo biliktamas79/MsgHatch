@@ -3286,6 +3286,22 @@ Tests:
 - `pack.ps1` passes, and fails when one README is removed.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-23), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| nuget.org renders a package README as CommonMark through Markdig. Its list of features has tables, links, code spans with syntax highlighting, and images from a list of allowed domains, but no HTML. An image with a relative path is not rendered. So the READMEs use absolute GitHub links and no image, and the markers are link reference definitions. | Microsoft Learn "Package readme on NuGet.org", updated 2026-07-07 |
+| A pack with `PackageReadmeFile` puts `README.md` into the root of the package and the element `readme` into the nuspec, and gives no message "missing a readme" any more. A removed README stops the pack with `NU5019`, and an empty `PackageReadmeFile` in one project fails `pack.ps1` with `MsgHatch.Email has no README.` | The runs of `pack.ps1`, and the file list and nuspec of `MsgHatch.Data.Sqlite` 0.1.0 |
+| The 11 tests of `ReadmeCheckUnitTests` pass. With the comparison of a snippet off, 1 test fails, and with no get-only collections in the options, 4 tests fail. | The runs of the tests of `MsgHatch.Domain.Tests.Unit` |
+| The 37 README test classes pass 123 tests: 108 in unit test projects and 15 in the 4 integration test projects. A break run changed the first code line of each README, or added a C# block with no marker where the README has none, and removed the last row of the first options table: each of the 37 classes failed its snippet test, and each of the 17 classes with an options table failed its options test. | The runs of each test project, with a filter on the README test classes |
+| A second `services.AddMsgHatch()` after `AddMsgHatch(o => o.DefaultLanguage = "hu")` gives the configuration value, not the value of the code. So the domain README test calls its extra `AddMsgHatch().UseStoredRegistry()` before the snippet. The cause is not checked. | The run of the domain README test |
+| The build of the solution with `--no-incremental` has no errors and no warnings. The 37 unit test projects pass 5,801 tests and skip 1 test: 119 more than after phase 41, the 108 README tests and the 11 tests of the check. The line coverage of the production code is 98.4 %. | `dotnet build`, `pwsh ./coverage.ps1` |
+| `pack.ps1` passes with 36 packages of version 0.1.0, each with its README. | The run of `pack.ps1` |
+
+Checks that the phase did not do:
+- The view of a README on nuget.org. The owner sees it in the preview of an upload, or after the first publish.
+- The integration tests other than the README test classes. The phase changes no code of a store or a client.
+
 Commits:
 1. "Add the README check of the test projects"
 2. "Add the READMEs of the core packages": `MsgHatch.Domain`, `MsgHatch.SourceGeneration`, `MsgHatch.AspNetCore`
@@ -3300,9 +3316,19 @@ Commits:
 11. "Record the commits and the checked facts of phase 42 in the plan"
 12. "Record phase 42 as done in README and AGENTS.md"
 
-The plan of this phase is in commit 1 of phase 41. Item 1 is a check, and its results go into the checked facts.
+The plan of this phase is in commit 1 of phase 41 (`f7d4dc0`). Commit 1 holds item 2 (`7802b67`), commits 2 to 8 hold item 3 (`2e6b900` to `2b63381`), commit 9 item 4 (`cad6d96`), and commit 10 item 5 (`71ea64d`). Item 1 is a check, and its results are in the checked facts.
 
-Checks that the phase cannot do: a publish. The owner adds the secret `NUGET_API_KEY`, and pushes the tag `v0.1.0` when the packages are ready.
+The implementation changed the plan in these points:
+- The markers are link reference definitions, `[//]: # (snippet: name)` and `[//]: # (options: Type)`, not HTML comments. nuget.org lists no HTML in its Markdown features, so an HTML comment can show as text there, and a link reference definition renders as nothing in each CommonMark renderer.
+- A non-C# block equals the file `Readme/name.<language>`, so a JSON block equals `Readme/name.json`, as the plan says, and a Razor block can equal `Readme/name.razor`. No README has a Razor block yet.
+- The options table names each property that the configuration binder can fill: a property with a public setter, or a get-only collection, for example `AmazonSnsOptions.Topics`.
+- `ReadmeCheck.ReadSettings` turns a JSON file into the configuration keys of `TestHost.CreateServices`, so the test projects need no JSON configuration package.
+- The READMEs of `MsgHatch.Email`, `MsgHatch.Broker`, `MsgHatch.SignalR`, `MsgHatch.Domain`, and `MsgHatch.Subscriptions` describe the registration of a message type in text, and link to `ExampleSetup.cs` of the example app. A compiled registration needs an event, a payload, a loader, a router, and a JSON context in each test project.
+- The JSON example of `MsgHatch.Domain` uses the sections that the core binds with no message type: `Dispatch:Outbox`, `Retry:Inbox`, and `Registry`. The sections of a channel bind only for a message type of that channel.
+- The admin UI READMEs show only the setup of the pages, because their test projects do not reference the client packages. The text names the clients.
+- The test of `UseSignalR` builds the services with no validation, as a host does before it starts, because the SignalR server services need the services of a host.
+
+Before the first publish, the owner creates the trusted publishing policy on nuget.org and the secret `NUGET_USER` (section 5.6 of the design), and then pushes the tag `v0.1.0`.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 36 packages that each carry a README, and each of the 37 READMEs passes its README tests.
 
