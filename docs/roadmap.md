@@ -3209,6 +3209,25 @@ Tests:
 - The unit tests of the changed projects stay green.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-22), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| `MsgHatch.Templates` carries the generator assembly, so the placeholder payload generator runs in each consumer. The assembly also holds the HTTP client generator, whose `RegisterPostInitializationOutput` adds the internal attributes of the namespace `MsgHatch.Http` to each consumer compilation. They are internal, so they do not conflict with another assembly, and a consumer does not use them. | `HttpApiClientGenerator.Initialize` and `PlaceholderPayloadGenerator.Initialize` |
+| `MsgHatch.AdminUI`, `MsgHatch.Templates.AdminUI`, and `MsgHatch.Templates.Liquid.AdminUI` hold the bundle of their scoped CSS in `staticwebassets/`, and `MsgHatch.Templates.AdminUI` also holds `highlightedTextArea.js`. `MsgHatch.Subscriptions.AdminUI` has no `wwwroot` folder and no scoped CSS, so its package has no static web assets. So `pack.ps1` checks the assets of each project, not one rule for each admin UI package. | The file lists of the 4 packages, and the source folders |
+| The latest major versions are `actions/checkout` v7, `actions/setup-dotnet` v6, `actions/upload-artifact` v7, `actions/download-artifact` v8, and `NuGet/login` v1. `setup-dotnet` with `global-json-file` takes the highest SDK that `rollForward` `latestFeature` allows. | `gh api repos/<action>/releases/latest`, and the README of `actions/setup-dotnet` |
+| nuget.org accepts trusted publishing from GitHub Actions: `NuGet/login` exchanges the OIDC token of the job for a temporary API key, with the permission `id-token: write` and the nuget.org user name. Since 2026-08-17, a new nuget.org API key lives at most 30 days. So the workflow uses trusted publishing, and D309 records it. | Microsoft Learn "Trusted publishing", the .NET blog of 2026-08-03 on the API key lifetime, and the README of `NuGet/login` |
+| `dotnet nuget push` with `--no-symbols` absent pushes the `.snupkg` of the same folder with each `.nupkg`. | The reference of `dotnet nuget push`, and Microsoft Learn "Creating symbol packages" |
+| In a temporary container of the local image `mcr.microsoft.com/dotnet/sdk:10.0` (SDK 10.0.401), 35 of the 37 unit test projects pass. 3 tests fail: `FileSystemTemplateStoreWriterUnitTests.DeleteAsync_FileThatAReaderHoldsOpen_GivesUnavailableAndKeepsTheFile` and `SaveAsync_FileThatAReaderHoldsOpen_GivesUnavailableAndLeavesNoTemporaryFile`, which test a file lock of Windows, and `FileSystemOutboxStoreUnitTests.SetChannelDownAsync_TwoParallelCallsWithTheReasonErrors_AddOneRowWithNoError`. `coverage.ps1` stops at the first failed project. So the job `build` runs on `windows-latest`. | Two runs in the container, with the NuGet cache of the host as a read-only fallback folder |
+| `pack.ps1` in the container found no repository commit, because the copy of the source had no `.git` folder. On GitHub, `actions/checkout` gives the `.git` folder. | The run of `pack.ps1` in the container |
+| `pack.ps1` passes with 36 packages of version 0.1.0, and with `-VersionSuffix ci.1` with 36 packages of 0.1.0-ci.1. Each break fails: a description removed (`MsgHatch.Email has no description.`), a `Version` 0.2.0 in `MsgHatch.Broker` (its version, and the dependency of `MsgHatch.Broker.AmazonSns`), `IsPackable` `true` in `WolverineExample.Contracts` (no packable project under `src/`), the generator item removed from `MsgHatch.Templates`, and a `wwwroot` file and a scoped CSS file in `MsgHatch.Email`, which a package of `Microsoft.NET.Sdk` does not pack. A `Content Remove` of `highlightedTextArea.js` does not remove the static web asset, so it is no break. | The runs of `pack.ps1` |
+| The tag check of the workflow passes with `v0.1.0`, and fails with exit code 1 with `v0.2.0`. | A local run of the step in PowerShell 7 |
+| The build of the solution has no errors and no warnings. The 37 unit test projects pass 5,682 tests and skip 1 test, the same counts as after phase 40. The line coverage of the production code is 98.4 %. | `dotnet build`, `pwsh ./coverage.ps1` |
+
+Checks that the phase did not do:
+- The first run of the workflow on GitHub, which the push of the phase starts. The owner checks the run in the tab Actions of the repository.
+- A publish to nuget.org. The owner creates the trusted publishing policy and the secret `NUGET_USER` first (section 5.6 of the design).
+
 Commits:
 1. "Plan phases 41 and 42: the NuGet packages and the package READMEs"
 2. "Set one SemVer for all projects and the package metadata"
@@ -3218,9 +3237,18 @@ Commits:
 6. "Record the commits and the checked facts of phase 41 in the plan"
 7. "Record phase 41 as done in README and AGENTS.md"
 
-Commit 1 holds the plans of phases 41 and 42, the decisions D307 to D311, and the new rules of `AGENTS.md`. Item 1 is a check, and its results go into the checked facts.
+Commit 1 holds the plans of phases 41 and 42, the decisions D307 to D311, and the new rules of `AGENTS.md`.
 
-Checks that the phase cannot do: the first run of the workflow on GitHub. The owner pushes and checks the run.
+The plan of this phase is in commit 1 (`f7d4dc0`). Commit 2 holds item 2 (`7d025a4`), commit 3 item 3 (`601f850`), commit 4 item 4 (`666f1cf`), and commit 5 item 5 (`2795da3`). Item 1 is a check, and its results are in the checked facts.
+
+The implementation changed the plan in these points:
+- The generator has the 10 rules `MSGHATCH001` to `MSGHATCH010`, not 5, and all 10 move to the shipped release 0.1.0.
+- D309 uses trusted publishing, not the secret `NUGET_API_KEY`, because a nuget.org API key now lives at most 30 days. The job `publish` gets a temporary key from `NuGet/login`, with the permission `id-token: write` and the secret `NUGET_USER`, the nuget.org user name.
+- The job `build` runs on `windows-latest`, because 3 unit tests fail on Linux. Its steps use PowerShell 7 and the expressions `github.run_number` and `github.ref_name`, so they run on each runner. The job `publish` runs on `ubuntu-latest`.
+- The workflow runs on a push of a branch and on a tag `v*` only, so a tag `phase-N` starts no run.
+- `pack.ps1` checks the static web assets of each package against the `wwwroot` folder and the scoped CSS of its project, because `MsgHatch.Subscriptions.AdminUI` has none. It also checks the tags, and the version of each dependency on a MsgHatch package.
+- `MsgHatch.SourceGeneration` also gets a description and tags, because each project under `src/` has them. The copyright year is 2025, the year of the first commit.
+
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages.
 
