@@ -1,0 +1,8 @@
+{
+  "MsgHatch": {
+    "RabbitMqSignal": {
+      "Uri": "amqp://localhost:5672",
+      "ExchangeName": "msghatch.dispatch"
+    }
+  }
+}

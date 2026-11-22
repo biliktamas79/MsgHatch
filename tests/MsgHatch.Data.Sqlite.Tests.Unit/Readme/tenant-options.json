@@ -1,0 +1,8 @@
+{
+  "MsgHatch": {
+    "SqliteTenants": {
+      "TenantConnectionString": "Data Source=data/msghatch-{tenant}.db",
+      "SystemConnectionString": "Data Source=data/msghatch.db"
+    }
+  }
+}

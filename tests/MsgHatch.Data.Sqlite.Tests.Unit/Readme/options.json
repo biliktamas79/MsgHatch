@@ -1,0 +1,7 @@
+{
+  "MsgHatch": {
+    "Sqlite": {
+      "ConnectionString": "Data Source=msghatch.db"
+    }
+  }
+}

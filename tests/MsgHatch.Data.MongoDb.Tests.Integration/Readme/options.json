@@ -1,0 +1,8 @@
+{
+  "MsgHatch": {
+    "MongoDb": {
+      "ConnectionString": "mongodb://localhost:27017/?replicaSet=rs0",
+      "DatabaseName": "msghatch"
+    }
+  }
+}
