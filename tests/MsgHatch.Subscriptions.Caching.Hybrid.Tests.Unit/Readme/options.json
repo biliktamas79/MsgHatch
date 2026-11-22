@@ -1,0 +1,8 @@
+{
+  "MsgHatch": {
+    "SubscriptionCache": {
+      "Expiration": "00:01:00",
+      "KeyPrefix": "msghatch:sub"
+    }
+  }
+}
