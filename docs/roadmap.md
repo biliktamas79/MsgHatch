@@ -3057,6 +3057,28 @@ Tests:
 - The dispatch signal contract tests of phase 21, with the MongoDB signal as one more implementation.
 - Each new test fails first, or fails with a break of the code that it covers.
 
+Checked facts (2026-11-22), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| The collection names are constants of the stores, not options: `MongoDbInboxStore.CollectionName` is `MsgHatchInbox`, and `MongoDbOutboxStore.CollectionName` is `MsgHatchOutbox`. `MongoDbStoreOptions` has only `ConnectionString` and `DatabaseName`. An outgoing document has the name of its channel in the top-level field `channel`, which the claim filter and `IX_MsgHatchOutbox_Due` also use. | The source of the stores and of their options |
+| The MongoDB stores have no storage for each tenant: only the SQLite package calls `UseStorageForEachTenant`. They keep each tenant in one database, with the field `tenant`. So a watch of the database of the stores sees each tenant. A watch of a database did not see an insert into `MsgHatchInbox` of another database, and a watch of the client sees each database of the server. So the signal watches the database, not the client. | The source, section 5.5 of `docs/stores.md`, and a probe on dev-mongo |
+| `InProcessDispatchSignal` is a public sealed class of `MsgHatch.Domain`, so the signal gives each change to its own instance. | The source |
+| On a `mongo:8.3` server with no replica set, `WatchAsync` of `MongoDB.Driver` 3.14.0 throws `MongoCommandException` with the code 40573: "The $changeStream stage is only supported on replica sets or mongos." It is a `MongoException`, so the signal gives `Errors.Unavailable`. | A probe on a container of the phase, which the phase removed |
+| A watch of a database opens also when the database does not exist yet. With the filter of the signal, an update, an insert into `MsgHatchChannelState`, and a signal document of the own sender give no event. The first event came 140 ms after the open. | A probe on dev-mongo, and the tests of commits 2 and 3 |
+| A `dropDatabase` while the watch is open ends the change stream: `MoveNextAsync` returns false after one batch, with no exception. `MoveNextAsync` with a cancelled token throws `TaskCanceledException`. So the test of a broken watch drops its database. | A probe on dev-mongo, and the tests of commit 2 |
+| `WithReplicaSet()` of `MongoDbBuilder` in Testcontainers.MongoDb 4.16.0 starts a replica set with one member, and a change stream works on it. The container with no such call has no replica set, so the fixture of the MongoDB integration tests now calls it. | A probe with Testcontainers |
+| The contract test `NotifyAsync_NoWaitingLoop_ReturnsAtOnceWithNoError` requires a `NotifyAsync` that completes at once. So a writer in the background inserts the signal document. | `DispatchSignalTestsBase` |
+| A wait on `InProcessDispatchSignal` with a cancelled token returns at once and takes no notification. So `WaitAsync` needs no extra return for a broken watch: the link to the token of the watch gives the same result. A break of that return passed each test, so commit 2 removed it. | Break B6 of commit 2 |
+| The build of the solution with `--no-incremental` has no errors and no warnings. The 36 unit test projects pass 5,656 tests and skip 1 test: the path limit test of the named pipe signal on Windows. The phase changes no unit test project, so these counts are the same as after phase 38. The line coverage of the production code is 98.8 %, and it does not measure `MsgHatch.Data.MongoDb`, because no unit test project loads it. `MsgHatch.Data.MongoDb.Tests.Integration` passes 380 tests, 24 more than before: 16 tests of the signal with the 6 contract tests, and 8 tests of the setup method. `MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration` passes 50 tests. Each MongoDB run used dev-mongo, a replica set with one member. | `dotnet build MsgHatch.slnx --no-incremental`, `pwsh ./coverage.ps1`, and the two MongoDB integration projects |
+| The new tests did not pass before the code of their commit, or failed with a break of the code that they cover. Commit 2: the 6 new tests failed against a signal that notified only its own process, and 10 of 11 breaks failed (the filter of the inserts, the inbox in the filter, the topic of the inbox, the topic of a channel, the cancel of the waits at a break, the error of a waiting loop, the new token after an open, the one Warning of an outage, the Information, and its condition). Commit 3: the 4 new tests failed before the code, and 11 breaks failed (the filter of the own documents, the signal collection in the filter, the topic of a signal document, the topic of the insert, its time, the TTL, the error of the last insert, the local notify, the wake of the writer, the topic of the writer, and the TTL index). Commit 4: 7 of the 8 new tests failed against a setup method that did nothing, the test of a valid setup failed with a break, and 7 breaks failed (the check of the stores in both directions, the poll of the inbox and of the outbox, the name of the setup method, the database, and the check at the start). | The break runs |
+
+Checks that the phase did not do:
+- A run of the MongoDB integration tests with no connection string, which starts the replica set container of the fixture. A probe started the same container, and a change stream worked on it.
+- A sharded cluster, and a change of the primary of a replica set. The driver resumes a change stream itself one time after an error that it can resume.
+- The SES, Resend, Wolverine, SNS, and EF Core integration tests. The phase changes no other store and no client.
+- The benchmarks. The signal is not on the path of a send.
+
 Commits:
 1. "Plan phases 39 and 40: the MongoDB and RabbitMQ dispatch signals"
 2. "Add the MongoDB change stream dispatch signal"
@@ -3066,7 +3088,18 @@ Commits:
 6. "Record the commits and the checked facts of phase 39 in the plan"
 7. "Record phase 39 as done in README and AGENTS.md"
 
-Commit 1 holds the plans of phases 39 and 40 and the decisions D303 to D305. The integration tests go into the commit of the code that they test.
+Commit 1 holds the plans of phases 39 and 40 and the decisions D303 to D305 (`b5d4694`). Commit 2 holds item 2 (`05f900c`), commit 3 item 3 (`aa08024`), commit 4 item 4 (`7a31c58`), and commit 5 item 6 (`fa88b4b`). The integration tests of item 5 are in the commits of the code that they test. Item 1 is a check, and its results are in the checked facts. The phase adds no project and no package.
+
+The implementation changed the plan in these points:
+- The signal watches the database of the stores, not the client, because the MongoDB stores keep each tenant in one database. D303 records it.
+- `MongoDbDispatchSignal` is public, with a public constructor, as the stores of the package are. The tests of commits 2 and 3 build it directly.
+- `NotifyAsync` returns at once, as the contract requires. A writer in the background inserts the signal document, and many notifications before one insert become one document for each topic. `NotifyAsync` returns `Errors.Unavailable` while the last insert failed, so the pipeline logs it.
+- A signal document holds the id of its signal instance in `sender`, and the watch skips the own documents, so a process does not wake itself a second time.
+- `UseMongoDbDispatchSignal` requires `EnablePolling` true for the inbox and the outbox (D190), because a change between the end of a watch and the next open reaches a loop only through its poll.
+- The unit tests of the plan, the mapping of a change to its topic and the setup error, are in the integration project, as the tests of the options validator and of the setup method of the stores are. The package has no unit test project, and `coverage.ps1` measures only the unit test projects. The mapping tests use the real change events of the server.
+- The signal logs the events 2800, a Warning one time for each outage, and 2801, an Information at the next open. The pause before the next open is a fixed 5 seconds.
+- The fallback container of the integration fixture is a replica set with one member.
+- `AGENTS.md` had "Phases 0 to 37 are done" after phase 38. Commit 7 writes "Phases 0 to 39 are done".
 
 Done when: the build has no errors and no warnings, all unit tests pass, the MongoDB integration tests pass, and `pwsh ./coverage.ps1` passes.
 
