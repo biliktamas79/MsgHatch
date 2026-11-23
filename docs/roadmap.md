@@ -3554,6 +3554,24 @@ Tests (`tests/SignalRDemo.Tests.Unit`):
 
 Check for the owner: open the dashboard, add four panes (`localhost`, `eu.localhost`, a host of a one-to-one company, and a host of a shared tenant), log in two users of different companies and one user with two accounts, and send one notification at each level. Each sent notification shows no miss and no extra hit.
 
+Checked facts (2026-11-23), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| The last version of `@microsoft/signalr` for ASP.NET Core 10 is 10.0.11. The latest version is 11.0.0. The npm metadata of 10.0.11 gives the license MIT and the repository `dotnet/aspnetcore`, and the package has no license file. | The npm registry |
+| The file `dist/browser/signalr.min.js` of 10.0.11 has 47,668 bytes. Its SHA-256 is `l+m5fmQqcuWkcJFxR6K/efhsrYKaXGeGrbEGFNJIu5U=`, the same as the hash of jsDelivr, and the committed file has the same hash. The file has no license header. | The jsDelivr API, `openssl dgst` of the download and of `git show` |
+| A break of each rule makes its new test fail: the four hosts of the resolver, the three login rules, the user name of `DemoUserIdProvider`, the company of a tenant with one company, the tenant group, the query token, the two rules of the demo data, the four rules of the expected panes, the indent of a code block, and the embedded file of a code block. The demo data test fails with no user id in two tenants. | Break runs |
+| The source-generated options validator calls `IValidatableObject.Validate`, so the two rules of the demo data need no other validator. | The break runs of `DemoDataOptionsUnitTests` |
+| The hub test finds an extra hit at its assert, not by a timeout: with an anonymous session of `eu` in the group of `acme`, the row of `acme` failed after 1.4 s. A miss fails after the timeout of 10 s. | Break runs of `DemoHubUnitTests` |
+| The test server accepts the WebSocket of a SignalR client with the token in the query `access_token`. With no read of the query, the sessions with a token got no `Joined`, and the test failed. | A break run of `DemoTokens` |
+| A run in the browser pane of the desktop app: four panes (`localhost` with the choice `eu`, `eu.localhost`, `globex.localhost`, and `acme.localhost`), the logins of `bela`, of `anna` with the account `initech` after `ValidationFailed`, of `dora`, and of `anna` with the account of `acme.localhost`, 8 notifications at the three levels, and 10 notifications of the automatic producer. Each row of the sent log showed OK. `http://acme.localhost:5091/session` passed the host filter, and the login of `cecil` there gave `Rejected`. The browser console showed no script error, only the 400 and the 403 of the two refused logins. | The browser pane, `dotnet run --project examples/SignalRDemo` |
+| The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 38 unit test projects pass 5,849 tests and skip 1, the path limit test of the named pipe signal: 24 more than after phase 45. The line coverage is 98.4 %. The coverage counts only the assemblies `MsgHatch.*`, so the demo does not change it. `pwsh ./pack.ps1` passes with 36 packages of version 0.2.0. | `dotnet build`, `pwsh ./coverage.ps1`, `pwsh ./pack.ps1`, `coverage.runsettings` |
+
+Checks that the phase did not do:
+- The owner check of the dashboard.
+- A run on Linux before the push. The workflow run of the push builds and tests on Linux.
+- A test of the publish endpoint and of the JavaScript. The run in the browser pane covers them.
+
 Commits:
 1. "Plan phase 46: SignalR demo dashboard"
 2. "Add the SignalR demo project with its demo data"
@@ -3565,6 +3583,24 @@ Commits:
 8. "Record phase 46 as done in README and AGENTS.md"
 
 Commit 1 holds the plan of this phase and the decision D316.
+
+The plan of this phase is in commit 1 (`6489056`). Commit 2 holds item 2 and the project of item 1 (`ac2d52e`), commit 3 item 3 (`b71f6f6`), commit 4 item 4 with the pages and the SignalR client of item 1 (`844d7fd`), commit 5 item 5 (`966a2c4`), and commit 6 items 6 and 7 (`a88e0ed`).
+
+The implementation changed the plan in these points:
+- The user name of a connection comes from `SignalRUsers.ForUser`, and the groups from `SignalRGroups.ForTenant` and `SignalRGroups.ForCompany`. So the names get the escape of `%` and `:` of D114, and the demo uses the names that the transport sends to.
+- A company id is unique only inside its tenant (D114), but the host `{company}.localhost` names a company with no tenant. So the validation of the demo data refuses a host label that names more than one company, or a tenant and a company.
+- The test of the expected panes needs the computation in C#. So the dashboard sends the state of each pane with the publish request, and the server gives the expected panes (`ExpectedPanes`). The automatic producer runs in the page, because only the page knows the state of the panes.
+- The panes use the hosts `*.localhost`, and a real tab of `/session` comes from such a host. So `AllowedHosts` is `localhost;*.localhost`, and the app listens only on `http://localhost:5091`.
+- A browser sends no header with a WebSocket. So the JWT bearer handler reads the token of the hub from the query `access_token`, as the JavaScript client sends it. The hub test sends the token in the same way.
+- The app signs its tokens with a random key that it makes at each start, so it needs no setup and keeps no secret in a file. A token does not survive a restart.
+- The login request also carries the tenant of the page. An account is the company of the account. A page with a company from its domain sends that company as the account.
+- The tests of a user target need one user id in two tenants, so the demo data has the user `anna` in `eu` and in `us`.
+- The hub tells each connection its tenant, company, user, and groups with the client method `Joined`, after the join of a token and after `JoinTenant`. The pane shows them, and the dashboard sends them as the state of the pane.
+- The JavaScript client is `signalr.min.js` of `@microsoft/signalr` 10.0.11, the last version for ASP.NET Core 10, under the MIT license. The package has no license file and the file has no license header, so the README of the demo names the package, the version, the source, and the license. The repository gets no source map.
+- The code panel reads its blocks from the source files that the app embeds as resources, between `#region` and `#endregion` in C# and `//#region` and `//#endregion` in JavaScript. The test compares each block with the region of the file on the disk.
+- Commit 3 holds the message type with its router and payload loader, because the hub test sends each notification through the router and the outbox. Commit 4 holds the publish endpoint.
+- The tests also check the demo data of the plan, the two rules of the demo data, and the message `Joined` of each kind of session, because the expected panes come from `Joined`. The login and the resolver tests call their HTTP endpoints.
+- A pane can get a notification before the answer of the publish endpoint arrives. So the dashboard keeps such a hit, and adds it to the row of the notification.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 36 packages of 0.2.0, and the owner check of the dashboard shows no miss and no extra hit.
 
