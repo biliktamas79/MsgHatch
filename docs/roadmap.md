@@ -3511,6 +3511,63 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.2.0.
 
+### Phase 46: SignalR demo dashboard for tenants, companies, and users
+
+Goal: an example app that shows on one screen how a web page finds its tenant, its company, and its user, which SignalR groups it joins at each step, and which open session gets each published notification (D316). The phase changes no library project, so the version stays 0.2.0.
+
+Starting point: the commits of phase 45. The SignalR transport sends to a user, to the group of a company, and to the group of a tenant. The hub of `WolverineExample.Consumer` and its `TenantUserIdProvider` show a hub that joins the groups of its tenant and its company. The owner described the flow of a page:
+1. The page maps its domain to a tenant, to a company, or to both. A tenant can be a hosting region or a logical split, for example `testing`. When neither is clear, the page asks the user to choose a tenant.
+2. With a tenant, the page subscribes to the notifications of the tenant. A tenant that maps one-to-one to a company also gives the company, so the page also subscribes to the notifications of the company.
+3. The login identifies the company when the tenant did not. A user with accounts in more than one company of the tenant chooses one account.
+4. After the login, the page subscribes to the notifications of the company and of the user.
+
+In production, the same flow supports a subdomain for each company, a subdomain for each tenant, or a landing page with drop-downs before the login page.
+
+1. Add the project `examples/SignalRDemo`: an ASP.NET Core app with Razor pages and plain JavaScript, with the `@microsoft/signalr` client in `wwwroot/lib`, no CDN, and no build step for the front end. It uses the in-memory stores of MsgHatch and the SignalR channel, and needs no database, no broker, and no network. It listens only on `http://localhost:5091`. It is not packable.
+2. The demo data in `demo-data.json`, read through a typed options class:
+   - The tenants `eu`, `us`, and `testing`.
+   - Companies: at least one that maps one-to-one to its tenant, and at least two that share a tenant.
+   - Users: at least one user with accounts in two companies of one tenant, and one user in another tenant.
+   - The domain map: `{company}.localhost` gives a company and its tenant, `{tenant}.localhost` gives only a tenant, and `localhost` gives nothing.
+3. The resolution and the hub:
+   - `DomainResolver` maps a host to a tenant, a company, both, or nothing.
+   - The anonymous connection of a page with a tenant joins the group of the tenant, and also the group of the company of a one-to-one tenant. The hub method `JoinTenant(tenant)` checks the tenant against the demo data.
+   - The demo login with no password: `POST /demo/login` takes a user and an account, and gives a token of the app with the tenant, the company, and the user. A user with more than one account in the tenant must choose one account.
+   - With a token, the connection joins the groups of its tenant and its company, and `IUserIdProvider` gives `{TenantId}:{UserId}`.
+4. The dashboard page `/`:
+   - A grid of session panes. "Add session" adds a pane. Each pane has a host field, for example `acme.localhost`, and runs the flow of the page: domain, tenant choice, login, and account choice. Each pane has its own `HubConnection`, and keeps its token in memory, so two panes can be two users of one tenant or of two tenants.
+   - Each pane shows its tenant, company, user, connection state, its groups, and its log of received notifications, with the time, the target level, and the payload. A pane flashes when it gets a notification.
+   - The publish panel: the target level (tenant, company, or user), the tenant, the company, or the user, the payload text, a Send button, and an automatic producer that sends a random notification at an interval. A notification goes through a router of the host and the real outbox, not directly through the hub.
+   - The sent log shows each notification with its expected panes and the panes that got it. The dashboard computes the expected panes from the state of each pane, and marks a miss or an extra hit in red.
+   - The page `/session?host=...` shows one pane alone, for a demo in real browser tabs.
+5. The code panel: it shows the JavaScript of each step (connect, join a tenant, log in, and connect again with the token) and the C# of the hub, the `IUserIdProvider`, and the router. Each block comes from a region marker in a source file, so it equals the code that runs.
+6. `examples/SignalRDemo/README.md`: the start command, the flow, the meaning of each pane, and the production layouts: a subdomain for each company, a subdomain for each tenant, or a landing page with drop-downs before the login page.
+7. Describe the phase in the design: D316, the project in sections 4.2 and 5.1, and the root `README.md` with a link to the demo.
+
+Tests (`tests/SignalRDemo.Tests.Unit`):
+- `DomainResolver`: a company host, a tenant host, `localhost`, and an unknown host.
+- The demo login: a user with one account in the tenant gets a token, a user with two accounts and no choice gets a validation error, and an account of another tenant is refused.
+- The hub on a test server with SignalR clients of two tenants: a tenant notification reaches only the clients of its tenant, a company notification only its company, and a user notification only its user, also when the same user id is in two tenants.
+- The computation of the expected panes for a tenant, a company, and a user target.
+- Each code block of the code panel equals its source region.
+- Each new test fails first.
+
+Check for the owner: open the dashboard, add four panes (`localhost`, `eu.localhost`, a host of a one-to-one company, and a host of a shared tenant), log in two users of different companies and one user with two accounts, and send one notification at each level. Each sent notification shows no miss and no extra hit.
+
+Commits:
+1. "Plan phase 46: SignalR demo dashboard"
+2. "Add the SignalR demo project with its demo data"
+3. "Resolve the tenant, the company, and the user in the demo hub"
+4. "Add the dashboard with the session panes and the publish panel"
+5. "Add the code panel of the SignalR demo"
+6. "Describe the SignalR demo in its README and in the design"
+7. "Record the commits and the checked facts of phase 46 in the plan"
+8. "Record phase 46 as done in README and AGENTS.md"
+
+Commit 1 holds the plan of this phase and the decision D316.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 36 packages of 0.2.0, and the owner check of the dashboard shows no miss and no extra hit.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
