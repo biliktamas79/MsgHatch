@@ -113,6 +113,10 @@ The sections of a channel, for example `MsgHatch:Retry:Email`, `MsgHatch:Channel
 
 ## Version history
 
+### 0.2.0 (2026-11-23)
+
+- The delivery target kind `Tenant`: a target for all users of the tenant of the message, with an empty target id. A router of the host can return it, for example for a SignalR message to a whole tenant. The deterministic id of a tenant target differs from the id of a user target and of a company target.
+
 ### 0.1.2 (2026-11-23)
 
 - Fix: a second call of `AddMsgHatch` bound the section `MsgHatch` again, so a value of the configuration replaced a value from code of an earlier call. Now only the first call binds the options, and a value from code wins in each order of the calls.

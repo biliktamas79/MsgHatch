@@ -107,6 +107,19 @@ public sealed class DeterministicIdUnitTests
     }
 
     [Fact]
+    public void Create_TenantTargetAndOtherKindsWithTheSameId_GiveDifferentValues()
+    {
+        // Arrange
+        DeliveryTargetKind[] kinds = [DeliveryTargetKind.User, DeliveryTargetKind.Company, DeliveryTargetKind.Tenant];
+
+        // Act
+        Guid[] ids = [.. kinds.Select(kind => DeterministicId.Create(_messageId, new TenantId("t1"), new DeliveryTarget(kind, ""), _email))];
+
+        // Assert
+        Assert.Equal(3, ids.Distinct().Count());
+    }
+
+    [Fact]
     public void Create_LongTargetId_GivesTheSameValueEachTime()
     {
         // Arrange

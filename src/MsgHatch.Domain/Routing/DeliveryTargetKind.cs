@@ -8,4 +8,7 @@ public enum DeliveryTargetKind
 
     /// <summary>A company. The target id is the text of a <see cref="Identity.CompanyId"/>.</summary>
     Company,
+
+    /// <summary>All users of the tenant of the message (D315). The target id is empty.</summary>
+    Tenant,
 }

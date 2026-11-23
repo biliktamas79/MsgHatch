@@ -62,11 +62,18 @@ public static class DeterministicId
             buffer[position++] = 0;
         }
 
-        buffer[position++] = target.Kind == DeliveryTargetKind.User ? (byte)'u' : (byte)'c';
+        buffer[position++] = KindByteOf(target.Kind);
         position += Encoding.UTF8.GetBytes(target.Id, buffer[position..]);
         buffer[position++] = 0;
         Encoding.UTF8.GetBytes(channel.Name, buffer[position..]);
     }
+
+    private static byte KindByteOf(DeliveryTargetKind kind) => kind switch
+    {
+        DeliveryTargetKind.User => (byte)'u',
+        DeliveryTargetKind.Tenant => (byte)'a',
+        _ => (byte)'c',
+    };
 
     [SuppressMessage("Security", "CA5350", Justification = "RFC 9562 defines UUID version 5 on SHA-1. The hash is an id, not a security check.")]
     private static Guid ToVersion5Uuid(ReadOnlySpan<byte> hashInput)
