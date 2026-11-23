@@ -28,6 +28,10 @@ app.MapMsgHatchRegistry()
 
 ## Version history
 
+### 0.2.0 (2026-11-23)
+
+- The outbox filter of the query and of the bodies of a retry and a cancel accepts the target kind `Tenant` with no `targetId` or an empty one. A tenant target with a `targetId`, and each other target with no `targetId`, give 400.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the HTTP endpoints of the delivery management API with `MapMsgHatchDelivery` and `MapMsgHatchDeliveryContent`, and of the registry administration with `MapMsgHatchRegistry`.

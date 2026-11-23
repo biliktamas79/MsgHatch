@@ -80,6 +80,19 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
             Arg.Is<OutboxQuery>(query => SameQuery(query, expected, ids)), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData("/delivery/outbox?targetKind=Tenant")]
+    [InlineData("/delivery/outbox?targetKind=Tenant&targetId=")]
+    public async Task GetOutgoingMessages_TenantTargetWithNoId_GivesTheQueryOfTheTenantTarget(string path)
+    {
+        // Act
+        await _host.Client.GetAsync(new Uri(path, UriKind.Relative), Ct);
+
+        // Assert
+        await _host.Queries.Received(1).GetOutgoingMessagesAsync(
+            new OutboxQuery(Target: new DeliveryTarget(DeliveryTargetKind.Tenant, "")), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task GetReceivedMessages_EachQueryParameter_GivesTheMatchingQuery()
     {
@@ -159,6 +172,21 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
                 CreatedFromUtc: _time.AddHours(-10), IncludeTest: true),
             Arg.Any<CancellationToken>());
         Assert.Equal("""{"matched":5,"changed":4}""", await response.Content.ReadAsStringAsync(Ct));
+    }
+
+    [Fact]
+    public async Task CancelOutgoing_BodyWithATenantTargetAndNoId_CallsTheCancelWithTheTenantTarget()
+    {
+        // Arrange
+        _host.Commands.CancelOutgoingAsync(default!, Ct)
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<DeliveryActionResult>.ForValue(new DeliveryActionResult(1, 1))));
+
+        // Act
+        await _host.Client.SendAsync(RequestOf("POST", "/delivery/outbox/cancel", """{"targetKind":"Tenant"}"""), Ct);
+
+        // Assert
+        await _host.Commands.Received(1).CancelOutgoingAsync(
+            new OutboxQuery(Target: new DeliveryTarget(DeliveryTargetKind.Tenant, "")), Arg.Any<CancellationToken>());
     }
 
     [Fact]

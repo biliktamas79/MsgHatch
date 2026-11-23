@@ -125,6 +125,26 @@ public abstract class DeliveryQueriesTestsBase<T>
     }
 
     [Fact]
+    public async Task GetOutgoingMessagesAsync_TenantTarget_GivesThePageOfTheStoreWithTheTenantTarget()
+    {
+        // Arrange
+        await using var host = await StartHostAsync();
+        var tenantTarget = new DeliveryTarget(DeliveryTargetKind.Tenant, "");
+        var query = new OutboxQuery(Target: tenantTarget);
+        var summary = OutgoingMessageSummary.Of(TestMessages.AnOutgoingMessage(tenant: DeliveryTestServices.T1.Tenant)) with { Target = tenantTarget };
+        _services.Outbox.QueryAsync(default!, Ct).ReturnsForAnyArgs(DeliveryTestServices.Page(null, summary));
+
+        // Act
+        var page = await host.Service(DeliveryTestServices.T1).GetOutgoingMessagesAsync(query, Ct);
+
+        // Assert
+        Assert.Equal([summary], page.Value.Items);
+        await _services.Outbox.Received(1).QueryAsync(
+            Arg.Is<OutboxQuery>(received => DeliveryTestServices.SameQuery(received, query)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task GetReceivedMessagesAsync_EachFilter_GivesThePageOfTheStoreWithItsNextCursor()
     {
         // Arrange

@@ -115,6 +115,7 @@ public sealed partial class DeliveryEndpointsUnitTests
     [InlineData("/delivery/outbox?limit=ten")]
     [InlineData("/delivery/outbox?after=2030-01-01_x")]
     [InlineData("/delivery/outbox?targetKind=User")]
+    [InlineData("/delivery/outbox?targetKind=Tenant&targetId=1")]
     [InlineData("/delivery/outbox?ids=not-a-guid")]
     [InlineData("/delivery/inbox?createdFrom=yesterday")]
     [InlineData("/delivery/traffic?includeTest=yes")]

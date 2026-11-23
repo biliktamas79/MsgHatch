@@ -188,6 +188,31 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
     }
 
     [Fact]
+    public void ChangeTargetKind_TenantWithNoId_ReadsTheFirstPageWithTheTenantTarget()
+    {
+        var cut = Render<OutboxListPage>();
+
+        cut.Find("#msghatch-outbox-target-kind").Change("Tenant");
+
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(
+            new OutboxQuery(Target: new DeliveryTarget(DeliveryTargetKind.Tenant, "")), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void InputTargetId_TenantTargetWithAnId_ShowsValidationFailedAndReadsNothing()
+    {
+        var cut = Render<OutboxListPage>();
+        cut.Find("#msghatch-outbox-target-kind").Change("Tenant");
+        DeliveryQueries.ClearReceivedCalls();
+
+        cut.Find("#msghatch-outbox-target-id").Input("1");
+        Time.Advance(TimeSpan.FromMilliseconds(500));
+
+        cut.WaitForAssertion(() => Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code")));
+        DeliveryQueries.DidNotReceiveWithAnyArgs().GetOutgoingMessagesAsync(default!, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public void InputSource_NotAnId_ShowsValidationFailedAndReadsNothing()
     {
         var cut = Render<OutboxListPage>();

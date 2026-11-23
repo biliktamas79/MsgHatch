@@ -92,9 +92,10 @@ internal sealed class DeliveryFilters
             return ErrorOr<DeliveryTarget?>.ForValue(null);
         }
 
-        return kind.Length == 0 || id.Length == 0 ? Invalid("A target needs a kind and an id.")
-            : Enum.TryParse<DeliveryTargetKind>(kind, out var valid) && Enum.IsDefined(valid) ? new DeliveryTarget(valid, id)
-            : Invalid($"The target kind {kind} is not known.");
+        return kind.Length == 0 ? Invalid("A target needs a kind.")
+            : !Enum.TryParse<DeliveryTargetKind>(kind, out var valid) || !Enum.IsDefined(valid) ? Invalid($"The target kind {kind} is not known.")
+            : (valid == DeliveryTargetKind.Tenant) == (id.Length == 0) ? new DeliveryTarget(valid, id)
+            : Invalid("A tenant target has no id, and each other target needs one.");
     }
 
     private static ErrorOr<DeliveryStatus> StatusOf(string text) =>

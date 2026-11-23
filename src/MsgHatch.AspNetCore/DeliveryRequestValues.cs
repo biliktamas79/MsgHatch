@@ -117,9 +117,16 @@ internal static class DeliveryRequestValues
         (kind, id) switch
         {
             (null, null) => (DeliveryTarget?)null,
-            ({ } kindText, { Length: > 0 } idText) => EnumOf<DeliveryTargetKind>(kindText)
-                .ThenIfSuccess(valid => ErrorOr<DeliveryTarget?>.ForValue(new DeliveryTarget(valid, idText))),
+            ({ } kindText, _) => EnumOf<DeliveryTargetKind>(kindText).ThenIfSuccess(valid => TargetOf(valid, id)),
             _ => Invalid("A target needs both targetKind and targetId."),
+        };
+
+    private static ErrorOr<DeliveryTarget?> TargetOf(DeliveryTargetKind kind, string? id) =>
+        (kind, id) switch
+        {
+            (DeliveryTargetKind.Tenant, null or "") => new DeliveryTarget(kind, ""),
+            (not DeliveryTargetKind.Tenant, { Length: > 0 }) => new DeliveryTarget(kind, id),
+            _ => Invalid("A tenant target has no targetId, and each other target needs one."),
         };
 
     private static ErrorOr<T?> Optional<T>(StringValues values, Func<string, ErrorOr<T>> parse)

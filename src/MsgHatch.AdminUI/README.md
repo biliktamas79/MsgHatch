@@ -27,6 +27,10 @@ The admin UI example of the repository shows a complete host: [`AdminUiApplicati
 
 ## Version history
 
+### 0.2.0 (2026-11-23)
+
+- The outbox page lists the target kind `Tenant`, and filters by a tenant target with an empty target id. A tenant target with an id gives a validation error.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the pages of the channels, the message types, and the delivery with `AddMsgHatchAdminUI`, and the shared layout of the admin pages.
