@@ -201,7 +201,8 @@ The file holds the message as `MsgHatchJson` writes it. Section 4.5 of the desig
 - A rename is atomic. The first caller that moves a file wins, and the others skip that file. The claims of one store instance take turns.
 - On Windows, a rename goes through a handle of the source. So two processes on one folder can rarely claim one file in the same lease.
 - A claimed file that the code cannot read stays out of the claim. A file with a newer version stays in `claimed` for a newer instance. A file with a permanent error moves to `failed`.
-- Each state row of a channel is the file `{channel}/states/{version:D10}.json` (D277). `MessageFiles.TryCreate` writes the whole row to a temporary file, and moves it to the path of its version with no overwrite. So of two parallel inserts of one version, only the first succeeds, and a reader never sees half a file. The file with the highest version is the current state.
+- Each state row of a channel is the file `{channel}/states/{version:D10}.json` (D277). `MessageFiles.TryCreate` writes the whole row to a temporary file, and gives it the path of its version with a call that fails when the file exists: `link()` on Linux and macOS, and `File.Move` with no overwrite on Windows (D312). So of two parallel inserts of one version, only the first succeeds, and a reader never sees half a file. The file with the highest version is the current state.
+- On Unix, `File.Move` with no overwrite is not enough. .NET does it as `lstat` of the target and then `rename`, and `rename` replaces a file that another caller created between the two calls. An error of `link()` other than `EEXIST`, for example on a file system with no hard links, gives `Errors.Unavailable`.
 - `TryStartChannelCheckAsync` moves the next check time of the latest file while it holds the file open with no sharing. So of two parallel callers, only one starts the health check of the channel.
 - A golden-file sample `ChannelState.v1.json` of the file store tests keeps the row format, with camelCase names, enum values as strings, and `previousDuration` as a `TimeSpan` text.
 
@@ -235,7 +236,7 @@ The file holds the message as `MsgHatchJson` writes it. Section 4.5 of the desig
 ### 2.8 Versioning and limits
 
 - Each message document has `schemaVersion` and `contentVersion`, and each subscription file has `schemaVersion` and `settingsVersion`.
-- The folder must allow an atomic rename. A network share often does not (section 6 of the design).
+- The folder must allow an atomic rename, and on Linux and macOS also hard links. A network share often does not (section 6 of the design).
 - The file stores suit a small volume and one machine. The file subscription store has the comment `ponytail: one file for each subscription and a folder lock suit small subscription sets, use a database store for many owners`.
 
 ## 3. SQLite stores
