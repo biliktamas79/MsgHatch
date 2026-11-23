@@ -27,13 +27,13 @@ public sealed class ReadmeUnitTests
     {
         // Arrange
         var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
-        services.AddMsgHatch().UseStoredRegistry();
 
         // Act
         #region readme:setup
         services.AddMsgHatch(o => o.DefaultLanguage = "hu")
             .UseInMemoryStores();
         #endregion
+        services.AddMsgHatch().UseStoredRegistry();
         await using var provider = services.Build();
 
         // Assert
