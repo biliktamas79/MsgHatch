@@ -124,8 +124,9 @@ internal sealed class MessageFiles
     }
 
     /// <summary>
-    /// Creates a file with its whole content through a temporary file and a move that does not overwrite. So of two parallel
-    /// creators of one path only the first succeeds, and a reader never sees half a file.
+    /// Creates a file with its whole content through a temporary file and a new name that fails when the file exists (D312): a
+    /// hard link on Linux and macOS, and a move with no overwrite on Windows. So of two parallel creators of one path only the
+    /// first succeeds, and a reader never sees half a file.
     /// </summary>
     /// <returns>True when it created the file, or false when the file exists.</returns>
     public static bool TryCreate(string path, byte[] content)
@@ -133,13 +134,11 @@ internal sealed class MessageFiles
         var temporary = WriteTemporary(path, content);
         try
         {
-            File.Move(temporary, path, overwrite: false);
-            return true;
+            return OperatingSystem.IsWindows() ? TryMoveToNew(temporary, path) : UnixFiles.TryLink(temporary, path);
         }
-        catch (IOException) when (File.Exists(path))
+        finally
         {
             File.Delete(temporary);
-            return false;
         }
     }
 
@@ -243,6 +242,19 @@ internal sealed class MessageFiles
     /// </summary>
     private static bool IsLostRace(Exception exception, string path) =>
         exception is IOException || (exception is UnauthorizedAccessException && !File.Exists(path));
+
+    private static bool TryMoveToNew(string temporary, string path)
+    {
+        try
+        {
+            File.Move(temporary, path, overwrite: false);
+            return true;
+        }
+        catch (IOException) when (File.Exists(path))
+        {
+            return false;
+        }
+    }
 
     private static bool TryCreateMarker(string path)
     {

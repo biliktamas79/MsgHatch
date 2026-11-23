@@ -3,6 +3,7 @@
   <PropertyGroup>
     <Description>The JSON file stores of MsgHatch: the inbox, the outbox, and the registry settings in a folder.</Description>
     <PackageTags>messaging;outbox;inbox;json</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

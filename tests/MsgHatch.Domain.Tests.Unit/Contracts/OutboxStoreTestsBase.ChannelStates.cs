@@ -1,4 +1,5 @@
 using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Domain.Tests.Unit.Contracts;
@@ -254,6 +255,43 @@ public abstract partial class OutboxStoreTestsBase<TStore>
         // Assert
         Assert.Equal((1, 0, "1"), (added.Count(static result => result.Value), added.Count(static result => result.IsError), await VersionsAsync()));
     }
+
+    [Fact]
+    public async Task SetChannelDownAsync_PauseAndErrorsInParallelOnAnUpChannel_KeepThePause()
+    {
+        // Arrange
+        const int rounds = 50;
+        using var start = new Barrier(2);
+        var lostPauses = 0;
+        var errors = 0;
+
+        // Act
+        for (var round = 0; round < rounds; round++)
+        {
+            var added = await Task.WhenAll(
+                SetChannelDownWith(start, ADown(ChannelDownReason.Operator)),
+                SetChannelDownWith(start, ADown(ChannelDownReason.Errors)));
+            errors += added.Count(static result => result.IsError);
+            if ((await Store.GetDownChannelsAsync(Ct)).Value is not [{ Reason: ChannelDownReason.Operator }])
+            {
+                lostPauses++;
+            }
+
+            await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now, Ct);
+        }
+
+        // Assert
+        Assert.Equal((0, 0), (lostPauses, errors));
+    }
+
+    private Task<ErrorOr<bool>> SetChannelDownWith(Barrier start, ChannelDown down) =>
+        Task.Run(
+            () =>
+            {
+                start.SignalAndWait(Ct);
+                return Store.SetChannelDownAsync(down, Ct).AsTask();
+            },
+            Ct);
 
     [Fact]
     public async Task SetChannelUpAsync_TwoParallelCalls_AddOneUpRowWithNoError()
