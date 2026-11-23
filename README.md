@@ -85,6 +85,11 @@ The setup, the tokens, and the start of the app are in [examples/ExampleApp/READ
 
 The steps to run it are in the section [Start the admin UI](examples/ExampleApp/README.md#start-the-admin-ui) of the README of the example app.
 
+## SignalR demo
+`examples/SignalRDemo` shows on one dashboard how a web page finds its tenant, its company, and its user, which SignalR groups it joins at each step, and which open session gets each notification. Each session pane has its own SignalR connection and a host field, for example `acme.localhost`. The publish panel sends a notification to a tenant, a company, or a user, and the sent log marks a miss or an extra hit in red. The demo needs no database, no broker, and no network, and listens only on `http://localhost:5091`.
+
+The start command, the flow, and the production layouts are in [examples/SignalRDemo/README.md](examples/SignalRDemo/README.md).
+
 ## Commands
 Build, and run the unit tests of one project:
 
