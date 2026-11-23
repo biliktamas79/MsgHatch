@@ -3362,9 +3362,23 @@ Tests:
 - On Windows, the build has no warnings, and `coverage.ps1` and `pack.ps1` pass.
 - The integration tests of the EF Core and MongoDB outbox stores pass on the dev containers.
 
-Checks that the phase cannot do:
+Checked facts (2026-11-23). The Linux runs used a temporary container of the local image `mcr.microsoft.com/dotnet/sdk:10.0` (SDK 10.0.401) on a clone of the commits, with the NuGet cache of the host as a read-only fallback folder. The Windows runs used Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| .NET 10 has no API for a hard link: `System.IO.File` has only `CreateSymbolicLink` and `ResolveLinkTarget`. A `LibraryImport` of `link` with `StringMarshalling.Utf8` builds with no warning when the project sets `AllowUnsafeBlocks`. | The methods of `System.IO.File` on the runtime 10.0.15, and the build |
+| A read-back of the file after the move does not close the race. In a probe with two threads at a barrier, both callers got true in 1,606 of 2,000 rounds with a read-back at once. With a wait of 50 ms before the read-back, no round of 200 failed, but two writers of equal rows cannot see the difference. | A probe in the container |
+| Before the fix, the new contract test failed on Linux in each of 3 runs, with 4, 5, and 4 lost pauses in 50 rounds. The test of two parallel downs failed in 2 of the 3 runs. On Windows, the new test passed. | Runs of the file store tests |
+| With no barrier, a break run with the old move failed in only 2 of 3 runs. With the barrier, the break run failed in each of 3 runs, with 6, 9, and 6 lost pauses. | Break runs on Linux |
+| With the fix, the 4 parallel state tests of the file store pass in each of 10 runs on Linux, and the 345 tests of `MsgHatch.Data.FileSystem.Tests.Unit` pass in each of 3 runs. | Runs on Linux |
+| The new test passes for the in-memory store, the tenant store, SQLite in 8 seconds, EF Core in 4 seconds, and MongoDB in 1 second. `MsgHatch.Data.EFCore.Tests.Integration` passes 343 tests on dev-mssql, and `MsgHatch.Data.MongoDb.Tests.Integration` passes 386 tests on dev-mongo. | The runs of the 4 test projects on Windows |
+| On Linux at `15fc945`, the build of the solution has no errors and no warnings. `pwsh ./coverage.ps1` passes from start to end with the report step: the 37 unit test projects pass 5,803 tests and skip 3, the 2 file lock tests and the ACL test of `FileSystemTemplateStoreWriterUnitTests`. The line coverage is 98.4 %. `pwsh ./pack.ps1` passes with 36 packages of version 0.1.1. | The run in the container |
+| On Windows, the build of the solution with `--no-incremental` has no errors and no warnings. The 37 unit test projects pass 5,805 tests and skip 1, the path limit test of the named pipe signal. This is 4 more than after phase 42: the new test for 4 stores. The line coverage is 98.4 %. `pwsh ./pack.ps1` passes with 36 packages of version 0.1.1. | `dotnet build`, `pwsh ./coverage.ps1`, `pwsh ./pack.ps1` |
+
+Checks that the phase did not do:
 - A run on macOS.
 - The error path of `link()` other than `EEXIST`, because no test has a file system with no hard links.
+- The first run of the workflow on `ubuntu-latest`, which the push of the phase starts.
 
 Commits:
 1. "Plan phase 43: atomic state rows of the file store, and the build on Linux"
@@ -3376,6 +3390,13 @@ Commits:
 7. "Record phase 43 as done in README and AGENTS.md"
 
 Commit 1 holds the plan of this phase and the decisions D312 and D313.
+
+The plan of this phase is in commit 1 (`6e8395b`). Commit 2 holds item 2 (`0aaac67`), commit 3 item 3 (`224c911`), commit 4 item 4 (`2e6eb21`), and commit 5 item 5 (`15fc945`). Item 1 is a check, and its results are in the checked facts.
+
+The implementation changed the plan in these points:
+- The new test starts the two calls of each round at a `Barrier`, because with no barrier the old move failed in only 2 of 3 runs. It reads the current state with `GetDownChannelsAsync`, so a round does not read the whole history.
+- `TryCreate` deletes the temporary file in a `finally` block. So the move on Windows also deletes it when it fails with an error other than an existing file.
+- The README of `MsgHatch.Data.FileSystem` and section 6 of the design also name the hard links as a need of the file stores on Linux and macOS.
 
 Done when: the build has no errors and no warnings, all unit tests pass on Windows and on Linux, `pwsh ./coverage.ps1` passes on both, `pwsh ./pack.ps1` passes with 36 packages of 0.1.1, and the integration tests of the EF Core and MongoDB outbox stores pass.
 
