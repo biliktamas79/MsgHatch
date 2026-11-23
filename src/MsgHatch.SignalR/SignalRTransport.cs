@@ -9,8 +9,8 @@ namespace MsgHatch.SignalR;
 
 /// <summary>
 /// The transport of the SignalR channel (D129). It sends the payload of each <see cref="ISignalREnvelope"/>, with the
-/// message type name as the method name, to the SignalR user or company group of the target (<see cref="SignalRUsers"/>,
-/// <see cref="SignalRGroups"/>), or to the group of a redirect (section 4.8). SignalR has no delivery guarantee, so a
+/// message type name as the method name, to the SignalR user, company group, or tenant group of the target
+/// (<see cref="SignalRUsers"/>, <see cref="SignalRGroups"/>), or to the group of a redirect (section 4.8). SignalR has no delivery guarantee, so a
 /// receipt means that SignalR accepted the message, and it has no provider id.
 /// </summary>
 /// <typeparam name="THub">The hub of the host.</typeparam>
@@ -66,6 +66,9 @@ public sealed class SignalRTransport<THub>(
             .ThenIfSuccess(user => ErrorOr<IClientProxy>.ForValue(hub.Clients.User(SignalRUsers.ForUser(tenant, user)))),
         DeliveryTargetKind.Company => CompanyId.Create(target.Id)
             .ThenIfSuccess(company => ErrorOr<IClientProxy>.ForValue(hub.Clients.Group(SignalRGroups.ForCompany(tenant, company)))),
+        DeliveryTargetKind.Tenant => target.Id.Length == 0
+            ? ErrorOr<IClientProxy>.ForValue(hub.Clients.Group(SignalRGroups.ForTenant(tenant)))
+            : new Error(Errors.ValidationFailed, "A tenant target has no id."),
         _ => new Error(Errors.ValidationFailed, $"The target kind {target.Kind} is not known."),
     };
 

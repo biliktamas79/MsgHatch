@@ -38,6 +38,12 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
         { "a tenant", "t1", "msghatch:t1:company:c1" },
     };
 
+    public static TheoryData<string, string?, string> TenantRows => new()
+    {
+        { "no tenant", null, "msghatch:all" },
+        { "a tenant", "t1", "msghatch:tenant:t1" },
+    };
+
     public static TheoryData<string, string?, DeliveryTarget> RedirectRows => new()
     {
         { "a user with no tenant", null, new DeliveryTarget(DeliveryTargetKind.User, "u1") },
@@ -48,6 +54,7 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
     {
         { "a user id that is empty", new DeliveryTarget(DeliveryTargetKind.User, "") },
         { "a company id with a control character", new DeliveryTarget(DeliveryTargetKind.Company, "c\n1") },
+        { "a tenant target with an id", new DeliveryTarget(DeliveryTargetKind.Tenant, "t2") },
         { "an unknown target kind", new DeliveryTarget((DeliveryTargetKind)7, "u1") },
     };
 
@@ -81,6 +88,21 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
     {
         // Arrange
         var message = SignalRMessages.AnOutgoingMessage(tenant: TenantOf(tenant), target: new DeliveryTarget(DeliveryTargetKind.Company, "c1"));
+
+        // Act
+        await Transport.SendAsync(message, redirectTo: null, Ct);
+
+        // Assert
+        Assert.Equal((row, "Group", expectedGroup), (row, _hub.SingleName().Method, _hub.SingleName().Name));
+        await _hub.Proxy.Received(1).SendCoreAsync("TestEvent", Arg.Is<object?[]>(arguments => arguments.Length == 1 && ReferenceEquals(arguments[0], message.Envelope.Payload)), Ct);
+    }
+
+    [Theory]
+    [MemberData(nameof(TenantRows))]
+    public async Task SendAsync_TenantTarget_SendsThePayloadWithTheMessageTypeNameOnlyToTheGroupOfItsTenant(string row, string? tenant, string expectedGroup)
+    {
+        // Arrange
+        var message = SignalRMessages.AnOutgoingMessage(tenant: TenantOf(tenant), target: new DeliveryTarget(DeliveryTargetKind.Tenant, ""));
 
         // Act
         await Transport.SendAsync(message, redirectTo: null, Ct);

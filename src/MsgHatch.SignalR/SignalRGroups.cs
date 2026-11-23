@@ -3,8 +3,9 @@ using MsgHatch.Domain.Identity;
 namespace MsgHatch.SignalR;
 
 /// <summary>
-/// The SignalR group names of the companies (D74, D114). The host's hub must add each connection to the group of the
-/// company of its user, for example in <c>OnConnectedAsync</c>, because the transport sends a company message to that group.
+/// The SignalR group names of the companies and the tenants (D74, D114, D315). The host's hub must add each connection to
+/// the group of the company of its user and to the group of its tenant, for example in <c>OnConnectedAsync</c>, because
+/// the transport sends a company message and a tenant message to these groups.
 /// </summary>
 public static class SignalRGroups
 {
@@ -20,4 +21,14 @@ public static class SignalRGroups
         tenant is { } id
             ? $"msghatch:{SignalRNames.Escape(id.Value)}:company:{SignalRNames.Escape(company.Value)}"
             : $"msghatch:company:{SignalRNames.Escape(company.Value)}";
+
+    /// <summary>
+    /// Gives the SignalR group name of all users of a tenant: <c>msghatch:tenant:{TenantId}</c>, or <c>msghatch:all</c>
+    /// with no tenant. In the id, <c>%</c> becomes <c>%25</c> and <c>:</c> becomes <c>%3A</c>, so that the group of a
+    /// tenant is never the group of another tenant or of a company.
+    /// </summary>
+    /// <param name="tenant">The tenant, or null for no tenant.</param>
+    /// <returns>The group name.</returns>
+    public static string ForTenant(TenantId? tenant) =>
+        tenant is { } id ? $"msghatch:tenant:{SignalRNames.Escape(id.Value)}" : "msghatch:all";
 }

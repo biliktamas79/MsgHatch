@@ -2,7 +2,10 @@ using MsgHatch.Domain.Identity;
 
 namespace MsgHatch.SignalR.Tests.Unit;
 
-/// <summary>The SignalR group names of the companies (D114): unique for each tenant and company, also when an id contains <c>:</c> or <c>%</c>.</summary>
+/// <summary>
+/// The SignalR group names of the companies and the tenants (D114, D315): unique for each tenant and company, also when an
+/// id contains <c>:</c> or <c>%</c>.
+/// </summary>
 public sealed class SignalRGroupsUnitTests
 {
     public static TheoryData<string, string?, string, string> NameRows => new()
@@ -15,6 +18,14 @@ public sealed class SignalRGroupsUnitTests
         { "ids with '%'", "50%", "c%3A1", "msghatch:50%25:company:c%253A1" },
     };
 
+    public static TheoryData<string, string?, string> TenantRows => new()
+    {
+        { "no tenant", null, "msghatch:all" },
+        { "a tenant", "t1", "msghatch:tenant:t1" },
+        { "a tenant id with ':'", "a:b", "msghatch:tenant:a%3Ab" },
+        { "a tenant id with '%'", "50%3A", "msghatch:tenant:50%253A" },
+    };
+
     [Theory]
     [MemberData(nameof(NameRows))]
     public void ForCompany_TenantAndCompany_GivesTheNameOfTheRow(string row, string? tenant, string company, string expectedName)
@@ -24,5 +35,26 @@ public sealed class SignalRGroupsUnitTests
 
         // Assert
         Assert.Equal((row, expectedName), (row, name));
+    }
+
+    [Theory]
+    [MemberData(nameof(TenantRows))]
+    public void ForTenant_Tenant_GivesTheNameOfTheRow(string row, string? tenant, string expectedName)
+    {
+        // Act
+        var name = SignalRGroups.ForTenant(tenant is null ? null : new TenantId(tenant));
+
+        // Assert
+        Assert.Equal((row, expectedName), (row, name));
+    }
+
+    [Fact]
+    public void ForTenant_TenantCompany_IsNotTheGroupOfTheCompanyTenantWithNoTenant()
+    {
+        // Act
+        var tenantGroup = SignalRGroups.ForTenant(new TenantId("company"));
+
+        // Assert
+        Assert.NotEqual(SignalRGroups.ForCompany(null, new CompanyId("tenant")), tenantGroup);
     }
 }
