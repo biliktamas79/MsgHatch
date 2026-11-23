@@ -1,0 +1,30 @@
+{
+  "Demo": {
+    "Tenants": [
+      {
+        "Id": "eu",
+        "Companies": [ "acme", "initech" ],
+        "Users": [
+          { "Id": "anna", "Accounts": [ "acme", "initech" ] },
+          { "Id": "bela", "Accounts": [ "acme" ] },
+          { "Id": "cecil", "Accounts": [ "initech" ] }
+        ]
+      },
+      {
+        "Id": "us",
+        "Companies": [ "globex" ],
+        "Users": [
+          { "Id": "anna", "Accounts": [ "globex" ] },
+          { "Id": "dora", "Accounts": [ "globex" ] }
+        ]
+      },
+      {
+        "Id": "testing",
+        "Companies": [ "sandbox" ],
+        "Users": [
+          { "Id": "tess", "Accounts": [ "sandbox" ] }
+        ]
+      }
+    ]
+  }
+}
