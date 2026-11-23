@@ -12,4 +12,11 @@
     <Content Update="demo-data.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup Label="The source files of the code panel">
+    <EmbeddedResource Include="wwwroot\js\session.js" LogicalName="wwwroot/js/session.js" />
+    <EmbeddedResource Include="Sessions\DemoHub.cs" LogicalName="Sessions/DemoHub.cs" />
+    <EmbeddedResource Include="Sessions\DemoUserIdProvider.cs" LogicalName="Sessions/DemoUserIdProvider.cs" />
+    <EmbeddedResource Include="Notices\DemoRouter.cs" LogicalName="Notices/DemoRouter.cs" />
+  </ItemGroup>
+
 </Project>

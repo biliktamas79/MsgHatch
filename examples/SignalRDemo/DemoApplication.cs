@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.SignalR.DependencyInjection;
+using SignalRDemo.CodePanel;
 using SignalRDemo.Notices;
 using SignalRDemo.Sessions;
 using SignalRDemo.Tenants;
@@ -51,6 +52,7 @@ public static class DemoApplication
         builder.Services.AddHostedService<OutboxWorker>();
         builder.Services.ConfigureHttpJsonOptions(static o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         builder.Services.AddRazorPages();
+        builder.Services.AddSingleton<CodeBlocks>();
 
         var app = builder.Build();
         app.UseStaticFiles();

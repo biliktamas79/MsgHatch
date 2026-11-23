@@ -3,6 +3,7 @@ using MsgHatch.SignalR;
 
 namespace SignalRDemo.Sessions;
 
+#region user-id-provider
 /// <summary>
 /// Gives each connection with a token the user name of <see cref="SignalRUsers"/>, <c>{TenantId}:{UserId}</c>, because
 /// the SignalR transport sends a user message to that name (D114). So the user <c>anna</c> of <c>eu</c> never gets a
@@ -17,3 +18,4 @@ public sealed class DemoUserIdProvider : IUserIdProvider
         return DemoAccount.Of(connection.User) is { } account ? SignalRUsers.ForUser(account.Tenant, account.User) : null;
     }
 }
+#endregion

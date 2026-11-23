@@ -5,6 +5,7 @@ using MsgHatch.SignalR;
 
 namespace SignalRDemo.Notices;
 
+#region router
 /// <summary>
 /// The router of the host for <see cref="DemoNotice"/> (D315): one SignalR route to the target of the notification. The
 /// SignalR transport sends a tenant target to the group of the tenant, a company target to the group of the company, and a
@@ -21,3 +22,4 @@ public sealed class DemoRouter : IMessageRouter<DemoNotice>
         return ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageRoute>>.ForValue([route]));
     }
 }
+#endregion

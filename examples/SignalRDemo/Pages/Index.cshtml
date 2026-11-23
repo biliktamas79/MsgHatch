@@ -1,4 +1,5 @@
 @page
+@inject SignalRDemo.CodePanel.CodeBlocks Code
 @{
     ViewData["Title"] = "Dashboard";
 }
@@ -37,5 +38,14 @@
         <tbody id="sent-log"></tbody>
     </table>
 </section>
+
+<details class="code-panel">
+    <summary>The code of each step</summary>
+    @foreach (var block in Code.Blocks)
+    {
+        <h3>@block.Title <small>@block.File</small></h3>
+        <pre><code class="language-@block.Language">@block.Code</code></pre>
+    }
+</details>
 
 <script type="module" src="~/js/dashboard.js" asp-append-version="true"></script>

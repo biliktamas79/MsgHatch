@@ -55,6 +55,7 @@ export class SessionPane {
     this.element.remove();
   }
 
+  //#region connect
   async #connectAnonymously() {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("/hubs/demo")
@@ -62,14 +63,18 @@ export class SessionPane {
       .build();
     await this.#start(connection);
   }
+  //#endregion
 
+  //#region join-tenant
   async #joinTenant(tenant) {
     await this.#connectAnonymously();
     this.#tenant = tenant;
     await this.#connection.invoke("JoinTenant", tenant);
     this.#showLogin();
   }
+  //#endregion
 
+  //#region login
   async #logIn(user, account) {
     const response = await fetch("/demo/login", {
       method: "POST",
@@ -85,7 +90,9 @@ export class SessionPane {
     await this.#connectWithToken();
     return null;
   }
+  //#endregion
 
+  //#region connect-with-token
   async #connectWithToken() {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("/hubs/demo", { accessTokenFactory: () => this.#token })
@@ -93,6 +100,7 @@ export class SessionPane {
       .build();
     await this.#start(connection);
   }
+  //#endregion
 
   async #start(connection) {
     await this.#stop();

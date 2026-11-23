@@ -24,6 +24,7 @@ public sealed class DemoHub(IOptions<DemoDataOptions> data) : Hub
     /// <summary>The client method that gets the <see cref="JoinedSession"/> of a join.</summary>
     public const string JoinedMethod = "Joined";
 
+    #region hub
     /// <inheritdoc/>
     public override async Task OnConnectedAsync()
     {
@@ -64,6 +65,7 @@ public sealed class DemoHub(IOptions<DemoDataOptions> data) : Hub
             tenant.Value, company?.Value, user?.Value, user is { } name ? SignalRUsers.ForUser(tenant, name) : null, groups);
         await Clients.Caller.SendAsync(JoinedMethod, session, Context.ConnectionAborted);
     }
+    #endregion
 }
 
 /// <summary>What a connection joined: the data of its pane.</summary>
