@@ -3332,6 +3332,53 @@ Before the first publish, the owner creates the trusted publishing policy on nug
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 36 packages that each carry a README, and each of the 37 READMEs passes its README tests.
 
+### Phase 43: Atomic state rows of the file store, and the build on Linux
+
+Goal: of two parallel inserts of one version of a channel state row, only the first succeeds on each OS, and the job `build` of the GitHub workflow runs on `ubuntu-latest` (D312, D313).
+
+Starting point: the commits of phase 42 and `ebcbc47`. In a temporary Linux container, 3 unit tests fail (phase 41). The owner asked for the reasons:
+- The test of two parallel downs of the file store shows a race of the product. On Unix, .NET does `File.Move` with no overwrite as `lstat` of the target and then `rename`, and `rename` replaces a file that another caller created between the two calls. So both callers get true, and the second row replaces the first. In a probe with two threads at a barrier, both moves succeeded in 1,878 of 2,000 rounds. A read-back of the file after the move does not close the race.
+- The 2 tests of the template store check a file lock that only Windows has.
+
+The owner chose the fix with `link()`, and the version 0.1.1.
+
+1. Check first, before the code:
+   - The new contract test fails on Linux with the current `MessageFiles.TryCreate`. The check uses a temporary container of the image `mcr.microsoft.com/dotnet/sdk:10.0`, not a dev container.
+   - A `LibraryImport` of `link` from `libc` builds with no warning.
+2. Make `MessageFiles.TryCreate` atomic on each OS (D312):
+   - On Linux and macOS, it writes the temporary file, and calls `link(temporary, path)`. 0 gives true, `EEXIST` gives false, and each other error throws an `IOException`, which `FileFailures.Run` maps as before. It deletes the temporary file in each case.
+   - On Windows, it keeps `File.Move` with no overwrite, which is atomic there.
+   - The internal class `UnixFiles` holds the `LibraryImport`. `MsgHatch.Data.FileSystem.csproj` sets `AllowUnsafeBlocks`.
+   - There is no fallback to the move on Unix. A file system with no hard links gives `Errors.Unavailable`, not a silent race.
+   - `VersionPrefix` becomes `0.1.1`, and the README of `MsgHatch.Data.FileSystem` gets the entry 0.1.1.
+3. Skip the 2 file lock tests of `FileSystemTemplateStoreWriterUnitTests` unless the OS is Windows, with `Assert.SkipUnless`, as the ACL test does (D313). On Linux, a save or a delete over a file that a reader holds open succeeds, and the reader keeps the old content, so the store code does not change.
+4. The job `build` of `.github/workflows/build.yml` runs on `ubuntu-latest` (D313). Its steps do not change.
+5. Describe the phase in the design: section 5.6 (the runner), and section 2.4 of `docs/stores.md` (the hard link, and the file system that it needs).
+
+Tests:
+- The contract test `SetChannelDownAsync_PauseAndErrorsInParallelOnAnUpChannel_KeepThePause` runs 50 rounds. Each round runs a pause and an errors down of one up channel in parallel. Then the latest row is a down with the reason Operator, and a resume makes the channel up for the next round. It runs for each of the 6 outbox stores.
+- The new test fails on Linux before item 2, and passes after it. A break run with the old move makes it fail again. On Windows, it passes before and after item 2, because the move is atomic there.
+- On Linux in the container, `pwsh ./coverage.ps1` passes from start to end, and `pwsh ./pack.ps1` passes with 36 packages of 0.1.1.
+- On Windows, the build has no warnings, and `coverage.ps1` and `pack.ps1` pass.
+- The integration tests of the EF Core and MongoDB outbox stores pass on the dev containers.
+
+Checks that the phase cannot do:
+- A run on macOS.
+- The error path of `link()` other than `EEXIST`, because no test has a file system with no hard links.
+
+Commits:
+1. "Plan phase 43: atomic state rows of the file store, and the build on Linux"
+2. "Create the state rows of the file store with a hard link on Unix"
+3. "Skip the file lock tests of the template store unless Windows"
+4. "Run the build job on Linux"
+5. "Describe the atomic state rows and the Linux build in the design"
+6. "Record the commits and the checked facts of phase 43 in the plan"
+7. "Record phase 43 as done in README and AGENTS.md"
+
+Commit 1 holds the plan of this phase and the decisions D312 and D313.
+
+Done when: the build has no errors and no warnings, all unit tests pass on Windows and on Linux, `pwsh ./coverage.ps1` passes on both, `pwsh ./pack.ps1` passes with 36 packages of 0.1.1, and the integration tests of the EF Core and MongoDB outbox stores pass.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
