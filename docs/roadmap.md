@@ -3400,6 +3400,37 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass on Windows and on Linux, `pwsh ./coverage.ps1` passes on both, `pwsh ./pack.ps1` passes with 36 packages of 0.1.1, and the integration tests of the EF Core and MongoDB outbox stores pass.
 
+### Phase 44: One bind of the core options in AddMsgHatch
+
+Goal: a value from code of `AddMsgHatch` wins over the configuration in each order of the calls (D314).
+
+Starting point: the commits of phase 43. Phase 42 found that a second `services.AddMsgHatch()` after `AddMsgHatch(o => o.DefaultLanguage = "hu")` gives the configuration value. The owner asked for the cause:
+- Each call of `AddMsgHatch` runs `BindConfiguration("MsgHatch")` again, and the options run their configure steps in the order of registration. So the bind of the second call overwrites the value from code of the first call.
+- The binder sets only the keys that the configuration has, so the effect needs the same key in the configuration.
+- A probe gave `de` for the configuration value `de`, `hu` from code, and then a call with no action. A call with no action and then `hu` from code gave `hu`.
+
+1. `AddMsgHatch` registers the core options, their binds, and their validators only on its first call, when it creates the setup, as `AddChannelOptions` does for a channel (D314). Each call applies its action from code.
+2. `VersionPrefix` becomes `0.1.2`, and the README of `MsgHatch.Domain` gets the entry 0.1.2.
+3. Describe the second call in the design: the row of `AddMsgHatch` in section 4.7.
+
+Tests:
+- `AddMsgHatch_PlainCallAfterACallWithACodeValue_KeepsTheCodeValue`: the configuration has `MsgHatch:DefaultLanguage` `de`, the first call sets `hu` in code, and a second call has no action. The options have `hu`. The test fails first.
+- The unit tests stay green, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.1.2.
+
+Checks that the phase did not do:
+- A run on Linux before the push. The workflow run of the push builds and tests on Linux.
+
+Commits:
+1. "Plan phase 44: one bind of the core options in AddMsgHatch"
+2. "Bind the core options one time in AddMsgHatch"
+3. "Describe the second call of AddMsgHatch in the design"
+4. "Record the commits and the checked facts of phase 44 in the plan"
+5. "Record phase 44 as done in README and AGENTS.md"
+
+Commit 1 holds the plan of this phase and the decision D314.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.1.2.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
