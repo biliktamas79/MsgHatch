@@ -9,10 +9,11 @@ using WolverineExample.Contracts;
 namespace WolverineExample.Consumer.Channels;
 
 /// <summary>
-/// The SignalR hub of the UI notifications. It adds each connection to the group of the company of its user, from the
-/// directory of its tenant, because the SignalR transport sends a company message to that group. The transport sends
-/// through its hub context. A client calls <see cref="GetMissedNotificationsAsync"/> after each connect, for the
-/// notifications that the hub sent while the client had no connection.
+/// The SignalR hub of the UI notifications. It adds each connection to the group of its tenant, and to the group of the
+/// company of its user, from the directory of its tenant, because the SignalR transport sends a tenant message and a
+/// company message to these groups (D315). The transport sends through its hub context. A client calls
+/// <see cref="GetMissedNotificationsAsync"/> after each connect, for the notifications that the hub sent while the client
+/// had no connection.
 /// </summary>
 /// <param name="services">The services of the hub call.</param>
 [Authorize]
@@ -21,9 +22,13 @@ public sealed class NotificationHub(IServiceProvider services) : Hub
     /// <inheritdoc/>
     public override async Task OnConnectedAsync()
     {
-        if (HubCaller.Of(Context.User) is { } caller && await CompanyOfAsync(caller) is { } company)
+        if (HubCaller.Of(Context.User) is { } caller)
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, SignalRGroups.ForCompany(caller.Tenant, company), Context.ConnectionAborted);
+            await Groups.AddToGroupAsync(Context.ConnectionId, SignalRGroups.ForTenant(caller.Tenant), Context.ConnectionAborted);
+            if (await CompanyOfAsync(caller) is { } company)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, SignalRGroups.ForCompany(caller.Tenant, company), Context.ConnectionAborted);
+            }
         }
 
         await base.OnConnectedAsync();
