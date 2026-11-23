@@ -3,8 +3,12 @@ using Microsoft.Extensions.Options;
 
 namespace SignalRDemo.Tenants;
 
-/// <summary>The tenants, the companies, and the users of the demo, from the section <c>Demo</c> of <c>demo-data.json</c>.</summary>
-public sealed class DemoDataOptions
+/// <summary>
+/// The tenants, the companies, and the users of the demo, from the section <c>Demo</c> of <c>demo-data.json</c>. The
+/// host <c>{label}.localhost</c> of a page names a tenant or a company (<see cref="DomainResolver"/>), so each label
+/// names one tenant or one company only. Each account of a user is a company of its tenant.
+/// </summary>
+public sealed class DemoDataOptions : IValidatableObject
 {
     /// <summary>The configuration section of the options.</summary>
     public const string SectionName = "Demo";
@@ -19,6 +23,29 @@ public sealed class DemoDataOptions
     /// <param name="id">The id of the tenant.</param>
     /// <returns>The tenant, or null when the demo has no such tenant.</returns>
     public DemoTenant? FindTenant(string? id) => Tenants.Find(tenant => tenant.Id == id);
+
+    /// <summary>Gives the tenant of a company.</summary>
+    /// <param name="company">The id of the company.</param>
+    /// <returns>The tenant, or null when no tenant has the company.</returns>
+    public DemoTenant? FindTenantOfCompany(string company) => Tenants.Find(tenant => tenant.Companies.Contains(company));
+
+    /// <inheritdoc/>
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var labels = Tenants.Select(static tenant => tenant.Id).Concat(Tenants.SelectMany(static tenant => tenant.Companies));
+        foreach (var label in labels.CountBy(static label => label, StringComparer.Ordinal).Where(static label => label.Value > 1))
+        {
+            yield return new ValidationResult($"The host {label.Key}.localhost names more than one tenant or company.", [nameof(Tenants)]);
+        }
+
+        foreach (var tenant in Tenants)
+        {
+            foreach (var user in tenant.Users.Where(user => !user.Accounts.TrueForAll(tenant.Companies.Contains)))
+            {
+                yield return new ValidationResult($"The user {user.Id} of the tenant {tenant.Id} has an account in a company of another tenant.", [nameof(Tenants)]);
+            }
+        }
+    }
 }
 
 /// <summary>One tenant of the demo. User ids and company ids are unique only inside one tenant (D114).</summary>
