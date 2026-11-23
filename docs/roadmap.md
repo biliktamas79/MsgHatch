@@ -3417,6 +3417,15 @@ Tests:
 - `AddMsgHatch_PlainCallAfterACallWithACodeValue_KeepsTheCodeValue`: the configuration has `MsgHatch:DefaultLanguage` `de`, the first call sets `hu` in code, and a second call has no action. The options have `hu`. The test fails first.
 - The unit tests stay green, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.1.2.
 
+Checked facts (2026-11-23), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| Before the fix, a second call with no action gave `de`, the configuration value, after `hu` from code. The options had 2 change token sources of `MsgHatchOptions`, one for each bind. A call with no action and then `hu` from code gave `hu`. With no `DefaultLanguage` in the configuration, both orders gave `hu`. | A probe in a scratch folder that references `MsgHatch.Domain` |
+| The new test failed before the fix with Expected `"hu"` and Actual `"de"`, and passes after it. | The runs of the test |
+| `MsgHatch.Domain.Tests.Unit` passes 1,705 tests, and its 14 README tests pass. | `dotnet test` |
+| The build of the solution with `--no-incremental` has no errors and no warnings. The 37 unit test projects pass 5,806 tests and skip 1, the path limit test of the named pipe signal: 1 more than after phase 43. The line coverage is 98.4 %. `pwsh ./pack.ps1` passes with 36 packages of version 0.1.2. | `dotnet build`, `pwsh ./coverage.ps1`, `pwsh ./pack.ps1` |
+
 Checks that the phase did not do:
 - A run on Linux before the push. The workflow run of the push builds and tests on Linux.
 
@@ -3428,6 +3437,12 @@ Commits:
 5. "Record phase 44 as done in README and AGENTS.md"
 
 Commit 1 holds the plan of this phase and the decision D314.
+
+The plan of this phase is in commit 1 (`d453470`). Commit 2 holds items 1 and 2 (`94ec5f9`), and commit 3 item 3 (`8ca57e9`).
+
+The implementation changed the plan in these points:
+- The README of `MsgHatch.Domain` also says in its setup text that a value from code wins when the host calls `AddMsgHatch` more than one time.
+- The domain README test keeps its extra `AddMsgHatch().UseStoredRegistry()` before the snippet, which phase 42 added because of the order effect. The owner did not ask to remove it.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.1.2.
 
