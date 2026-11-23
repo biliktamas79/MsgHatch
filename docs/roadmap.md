@@ -3470,16 +3470,44 @@ Tests:
 - The contract mappings accept `Tenant`.
 - Each new test fails first.
 
+Checked facts (2026-11-23), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| Before the change, `DeterministicId` wrote the byte `c` for each kind other than `User`, so a tenant target got the id of a company target with the same id. The new test failed with this, and passes with the byte `a`. The 2 golden tests keep their fixed values. | The runs of `DeterministicIdUnitTests` |
+| Before the change, the HTTP endpoints and the outbox page refused a target with an empty id. The HTTP client sends an empty `targetId` as `targetId=`. The new tests of the client, the endpoints, and the page failed before the change, and pass after it. | The runs of the tests, `HttpApiSource.AppendQuery` |
+| The planned group `msghatch:{TenantId}:tenant` of the tenant `company` is `msghatch:company:tenant`. That is also the group of the company `tenant` with no tenant. The new test of this conflict fails with the planned name, and passes with `msghatch:tenant:{TenantId}`. | A break run of `SignalRGroupsUnitTests` |
+| A break of each new rule makes its test fail: a null id of a tenant target in the endpoint parser, the id check of a tenant target in the transport, and the tenant line of the hub snippet of the README. | Break runs |
+| The stores need no change. SQLite, EF Core, MongoDB, and the files keep the target kind as text with no check of the values. Only EF Core limits it, to 32 characters. | `SqliteSchema`, `StoreModel.IsEnum`, `MongoDbOutboxStore`, `MsgHatchJson` |
+| SignalR creates a hub in a DI scope, and the directory of the Wolverine example is a scoped service. So the hub test gives the hub the services of a scope. | The first run of `NotificationHubUnitTests` |
+| The build of the solution has no errors and no warnings. The 37 unit test projects pass 5,825 tests and skip 1, the path limit test of the named pipe signal: 19 more than after phase 44. The line coverage is 98.3 %. `pwsh ./pack.ps1` passes with 36 packages of version 0.2.0. | `dotnet build`, `pwsh ./coverage.ps1`, `pwsh ./pack.ps1` |
+
+Checks that the phase did not do:
+- A run on Linux before the push. The workflow run of the push builds and tests on Linux.
+- A run of the Wolverine example with a SignalR client. The hub test uses substitutes of the hub context and of the groups.
+
 Commits:
 1. "Plan phase 45: tenant-wide SignalR messages"
 2. "Add the tenant delivery target"
-3. "Send a tenant target to the tenant group of SignalR"
-4. "Join the tenant group in the hub of the example app"
-5. "Describe the tenant target in the design"
-6. "Record the commits and the checked facts of phase 45 in the plan"
-7. "Record phase 45 as done in README and AGENTS.md"
+3. "Accept a tenant target in the outbox filters"
+4. "Send a tenant target to the tenant group of SignalR"
+5. "Join the tenant group in the hub of the Wolverine example"
+6. "Describe the tenant target in the design"
+7. "Record the commits and the checked facts of phase 45 in the plan"
+8. "Record phase 45 as done in README and AGENTS.md"
 
 Commit 1 holds the plan of this phase and the decision D315.
+
+The plan of this phase is in commit 1 (`7c34534`). Commit 2 holds item 1 and the version of item 6 (`2adc5af`), commit 3 item 4 (`3062a55`), commit 4 item 2 (`eab6b7a`), commit 5 item 5 (`50565f5`), and commit 6 item 7 (`50c2452`).
+
+The implementation changed the plan in these points:
+- The tenant group is `msghatch:tenant:{TenantId}`, not `msghatch:{TenantId}:tenant`, because the planned name of the tenant `company` is the group of the company `tenant` with no tenant. D315 names the planned group as a rejected alternative.
+- The plan said that the contracts already carry a tenant target. The bodies do, but the HTTP endpoints and the outbox page refused a target with an empty id. Commit 3 makes them accept a tenant target with no id or an empty one, and refuse a tenant target with an id. So the READMEs of `MsgHatch.AspNetCore` and `MsgHatch.AdminUI` also get the entry 0.2.0.
+- A test of `DeliveryQueriesTestsBase` sends a tenant target through the HTTP client, the endpoint, and the mapping of the response. The routing verification response does not change, because the subscription router never gives a tenant target.
+- The SignalR transport gives `Errors.ValidationFailed` for a tenant target with an id.
+- The hub of `ExampleApp` has no tenant and joins no group. The hub of `WolverineExample.Consumer` knows the tenant of each connection, so it joins the tenant group, and a new test checks its groups.
+- The test of `DeterministicId` compares a tenant target with a user target and with a company target. A comparison with only a user target passes also before the change.
+- The README of `MsgHatch.SignalR` shows a hub that joins the groups of its tenant and of its company, as a snippet that a test runs.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.2.0.
 
