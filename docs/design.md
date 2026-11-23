@@ -464,7 +464,7 @@ Subscription example, with the router of `MsgHatch.Subscriptions`. The tests and
 | D312 | Atomic state rows of the file store | Recommended | `MessageFiles.TryCreate` writes a state row to a temporary file, and gives it the path of its version with `link()` on Linux and macOS, and with `File.Move` with no overwrite on Windows. So of two parallel inserts of one version, only the first succeeds, and a reader never sees half a row. Reason: on Unix, .NET does `File.Move` with no overwrite as `lstat` of the target and then `rename`, and `rename` replaces a file that another caller created between the two calls. Then both callers get true, and a lost row can lose the pause of an operator. Each error of `link()` other than `EEXIST` is an `IOException`, so a file system with no hard links gives `Errors.Unavailable`, not a silent race. | A read-back of the file after a wait, which only makes the window smaller, and cannot tell two equal rows apart. A unique file name for each writer, which needs a rule that picks one of two rows of one version. A lock file with `FileShare.None`. `FileMode.CreateNew` on the path of the version, which lets a reader see half a row. |
 | D313 | Build on Linux | Recommended | The job `build` of the GitHub workflow runs on `ubuntu-latest`. The 3 unit tests that check a file lock or an ACL of Windows are skipped on the other OSes, and run on a Windows machine of a developer. Reason: the owner asked for a build on Linux, and after D312 each other unit test passes on Linux. | The job on `windows-latest`. A matrix of Windows and Linux, which runs each test two times. |
 | D314 | One bind of the core options | Recommended | `AddMsgHatch` binds `MsgHatchOptions`, the inbox `RetryOptions`, and the inbox and outbox `DispatchOptions`, and adds their validators, only on its first call, when it creates the shared setup. Each call applies its own action from code. So a value from code wins over the configuration in each order of the calls, and a later value from code wins over an earlier one. Reason: a second call bound the section `MsgHatch` again after the action of the first call, so a second call with no action gave the configuration value. `AddChannelOptions` binds the options of a channel one time in the same way. | `PostConfigure` for the action from code, which keeps the second bind, and also runs after each `Configure` of the host. |
-| D315 | Tenant-wide SignalR messages | Recommended | `DeliveryTargetKind` gets `Tenant`, a target for all users of one tenant. Its target id is empty, and the tenant comes from the message. The SignalR transport sends a tenant target to the group `msghatch:{TenantId}:tenant`, or `msghatch:all` with no tenant, which `SignalRGroups.ForTenant` gives. The hub of the host adds each connection to the group of its tenant, as it does for the group of its company. Only a router of the host returns a tenant target. The subscription router has no tenant target, because the owner wants no tenant level in the subscriptions. Reason: a multi-tenant UI needs messages for a whole tenant. | A message to each company of the tenant, which misses a user with no company, and sends one message for each company. |
+| D315 | Tenant-wide SignalR messages | Recommended | `DeliveryTargetKind` gets `Tenant`, a target for all users of one tenant. Its target id is empty, and the tenant comes from the message. The SignalR transport sends a tenant target to the group `msghatch:tenant:{TenantId}`, or `msghatch:all` with no tenant, which `SignalRGroups.ForTenant` gives. A tenant target with an id gives `Errors.ValidationFailed`. The hub of the host adds each connection to the group of its tenant, as it does for the group of its company. The deterministic id gives the tenant kind its own byte `a`. The outbox filters of the HTTP endpoints and of the admin page accept a tenant target with no id. They refuse a tenant target with an id. Only a router of the host returns a tenant target. The subscription router has no tenant target, because the owner wants no tenant level in the subscriptions. Reason: a multi-tenant UI needs messages for a whole tenant. | A message to each company of the tenant, which misses a user with no company, and sends one message for each company. The group `msghatch:{TenantId}:tenant`: with the tenant id `company`, it is the same name as the group of the company `tenant` with no tenant. |
 
 The field name `LastTryAtUtc` follows the naming rule for UTC times (section 5.3).
 
@@ -651,7 +651,7 @@ User ids, company ids, and tenant ids (D73, D114):
 Routing (`MsgHatch.Domain.Routing`, D95):
 
 ```csharp
-public enum DeliveryTargetKind { User, Company }
+public enum DeliveryTargetKind { User, Company, Tenant }
 
 public readonly record struct DeliveryTarget(DeliveryTargetKind Kind, string Id);
 
@@ -692,7 +692,7 @@ public sealed record MessageTypeDescriptor(
 ```
 
 Route rules (D95, D98):
-- A route is one delivery target on one channel. A delivery target is a user or a company. Its `Id` is the text of the `UserId` or of the `CompanyId`.
+- A route is one delivery target on one channel. A delivery target is a user, a company, or all users of the tenant of the message. Its `Id` is the text of the `UserId` or of the `CompanyId`, or empty for a tenant target (D315).
 - The settings have the settings type of the channel (D77).
 - The language is a culture name that `CultureInfo.GetCultureInfo` knows. The composers use it for the template and for the formats.
 - The address is the channel address of the target, or null. The composer of a channel that needs an address, for example email, fails a route with no address (section 4.8).
@@ -1029,14 +1029,14 @@ public sealed record BrokerEnvelope<TPayload>(TPayload Payload, IReadOnlyDiction
 }
 ```
 
-The SignalR transport sends `ISignalREnvelope.Payload` with the message type name as the method name, to the target of `OutgoingMessage.Target`. The broker transport gives `IBrokerEnvelope.Payload` and the headers to `IBrokerClient`, which publishes the payload with its run-time type (D134). So no envelope copies the target or the method (D17).
+The SignalR transport sends `ISignalREnvelope.Payload` with the message type name as the method name, to the target of `OutgoingMessage.Target`. A user target goes to the SignalR user of `SignalRUsers.ForUser`, a company target to the group of `SignalRGroups.ForCompany`, and a tenant target to the group of `SignalRGroups.ForTenant` (D315). The broker transport gives `IBrokerEnvelope.Payload` and the headers to `IBrokerClient`, which publishes the payload with its run-time type (D134). So no envelope copies the target or the method (D17).
 
 Channel features (D77):
 
 | Channel | Languages | Rich text | Raw data | Group delivery |
 |---|---|---|---|---|
 | Email | yes | yes, `EmailFormat.Html` | no | no |
-| UI notification (SignalR) | yes | no | yes, the payload as JSON | yes, one message to the SignalR group of a company |
+| UI notification (SignalR) | yes | no | yes, the payload as JSON | yes, one message to the SignalR group of a company or of a tenant (D315) |
 | Broker message | no | no | yes, the payload as it is | yes, one message with the company target |
 
 A null language in channel settings means the UI language of the user, or the default language of the company for a company target. The language of channel settings is `ILanguageSettings.Language`. Settings that do not implement `ILanguageSettings`, for example `BrokerChannelSettings`, have no language (D145).
@@ -1909,7 +1909,7 @@ Processing of one claimed received message: the inbox processor makes one DI sco
 
 `DeterministicId.Create(Guid messageId, TenantId? tenant, DeliveryTarget target, ChannelId channel)` is a UUID version 5:
 1. The namespace is the fixed id `77b46874-bae1-4fa7-a7d9-baec996f4fc6`. This value never changes.
-2. The name is the 16 bytes of `messageId` in big-endian order. With a tenant, the byte `t`, the UTF-8 bytes of the tenant id, and one `0x00` byte follow. With no tenant, nothing follows, so a setup with no tenant keeps the same ids. Then come one byte for the target kind (`u` for a user, `c` for a company), then the UTF-8 bytes of the target id, then one `0x00` byte, then the UTF-8 bytes of the channel name. A `stackalloc` buffer holds it, or a pooled array for a long input.
+2. The name is the 16 bytes of `messageId` in big-endian order. With a tenant, the byte `t`, the UTF-8 bytes of the tenant id, and one `0x00` byte follow. With no tenant, nothing follows, so a setup with no tenant keeps the same ids. Then come one byte for the target kind (`u` for a user, `c` for a company, `a` for a tenant, D315), then the UTF-8 bytes of the target id, then one `0x00` byte, then the UTF-8 bytes of the channel name. A `stackalloc` buffer holds it, or a pooled array for a long input.
 3. The hash is `SHA1.HashData` of the namespace bytes in big-endian order, followed by the name.
 4. The id is the first 16 bytes of the hash. Byte 6 is `(b & 0x0F) | 0x50`, and byte 8 is `(b & 0x3F) | 0x80`. `new Guid(bytes, bigEndian: true)` creates it.
 
@@ -2561,6 +2561,7 @@ HTTP endpoints (D54, D109). `MsgHatch.AspNetCore` maps two route groups, so that
 | Content | GET | `{prefix}/outbox/{id}/content` | none | 200 with the outgoing message and its envelope |
 
 - `ids` can repeat in a query string. Each route takes the optional query parameter `tenantId`. It selects the `IDeliveryQueries` or the `IDeliveryCommands` of `TenantKey.For(tenantId)`, or of `TenantKey.None` with no parameter (D126, D289). The pause, resume, purge, and test data routes act on all tenants, so they take no `tenantId`, and a `tenantId` gives 400. A cursor is the text `{CreatedAtUtc}_{Id}`, with the time in the ISO 8601 format of D57.
+- A target filter of the outbox has a `targetKind`. A tenant target has no `targetId` or an empty one, and each other target has a `targetId` (D315). Each other form, for example a `targetId` with no `targetKind`, gives 400.
 - The internal source `src/Shared/DeliveryApiRoutes.cs` holds the route paths, the names of the query values, and the text and the parse of a cursor (D291). `MsgHatch.AspNetCore` and `MsgHatch.Api.Client` compile it, so the routes and the client use one format.
 - The bodies and their JSON context `DeliveryEndpointJson` are in `MsgHatch.Api.Contracts`, with public `From` methods and mappings back to the domain types (D228, D291). A name or a tenant that is not valid in a response body gives `Errors.SerializationFailed`. The JSON uses camelCase names and enum values as strings. A content route writes the JSON text of `MessageContent`, and the detail writes the JSON text of the trace as a JSON value.
 - Each route writes its errors with `ErrorProblems` (D233, D291): the status of `ErrorProblems.StatusCodeOf`, the error name as the title, the message as `detail`, and the member `errorType`. So `Errors.ValidationFailed` gives 400, `Errors.NotFound` gives 404, and `Errors.Unavailable` gives 503. Before phase 36, each other error type gave 500 with no `errorType`. A body that is not valid JSON, a query value that is not valid, and a `tenantId` of a global route give 400 with the error type `ValidationFailed`.
@@ -3008,7 +3009,7 @@ Registry pages (D272, D273, D287):
 - The verification page sends the test users, one user id on each line, the languages, one on each line, and an optional message type to `IRoutingVerifier` (D163), and shows the totals and a row for each check.
 
 Delivery pages (D295 to D298):
-- The outbox list and the inbox list put their filters into `OutboxQuery` and `InboxQuery`, because an outbox can hold millions of messages. The outbox filters are the status, the message type, the channel, the target kind and id, the source message, the created times in UTC, and the test flag. The inbox filters are the status, the message type, the created times, and the test flag. A select, a time, and the test flag apply at once, and a text field 500 ms after the last character. A value that is not valid, for example a source message that is not an id, gives `ValidationFailed` in place of the rows, with no call.
+- The outbox list and the inbox list put their filters into `OutboxQuery` and `InboxQuery`, because an outbox can hold millions of messages. The outbox filters are the status, the message type, the channel, the target kind and id, the source message, the created times in UTC, and the test flag. The inbox filters are the status, the message type, the created times, and the test flag. A select, a time, and the test flag apply at once, and a text field 500 ms after the last character. A value that is not valid, for example a source message that is not an id, gives `ValidationFailed` in place of the rows, with no call. A tenant target with an id, or another target with no id, is not valid (D315).
 - A list starts with the filters of the address of `DeliveryAdminRoutes.OutboxOf` or `InboxOf`. A value of the address goes into its field, and a value that is not valid gives `ValidationFailed`, so the user sees the field to correct. A time of the address is UTC to the second, as the value of an input `datetime-local`.
 - A list reads 50 messages at a time. `AdminList` shows each item that it gets, and shows its parameter `Pager` in place of the page numbers, also under an empty page. `CursorPager` has Newer and Older. Older reads the page after the `Next` cursor of the server, and Newer goes back to the cursor of the page before, which `DeliveryListState` keeps. A change of a filter reads the first page. Only the answer of the last read shows.
 - A row shows the created time, the status as a badge with the badge "Test" for a test message, the message type, the channel and the target of an outgoing message, the tries as "3 / 8", the last error, and View.
@@ -3470,7 +3471,7 @@ Before the first publish, the owner:
 - **Stale subscriptions.** With the cache on, a change that does not go through the subscription store, for example a direct database update, takes effect only after `InvalidateAsync` or after the expiration. With many instances, an invalidation reaches the other instances only through a FusionCache backplane. With HybridCache, the local level of another instance keeps its entry until its local expiration. Keep the expiration short.
 - **SQLite limits.** SQLite allows one writer at a time, so the claims and the try records of all dispatchers wait for each other. This suits one machine and a moderate volume. The database file must be on a local disk.
 - **Management authorization.** The HTTP endpoints accept each company id and user id in their filters and drafts. The consumer must protect them with an authorization policy, or give end users only the `/me` routes.
-- **SignalR group membership.** The host's hub must add each connection to the group of the company of its user. A connection that is in no group gets no company notification.
+- **SignalR group membership.** The host's hub must add each connection to the group of the company of its user, and to the group of its tenant (D315). A connection that is in no group gets no company notification and no tenant notification.
 - **Large company scopes.** A company scope on a channel without group delivery, for example email, sends one message to each user of the company. A very large company gives a large fan-out in one event (D43).
 - **Claim atomicity.** The consumer's store must claim messages atomically. The example app and the file stores show correct implementations. The library cannot check a consumer's store.
 - **File store limits.** The file stores depend on an atomic rename, and on Linux and macOS also on hard links (D312). Some network file systems do not guarantee them. Use a database store there.
