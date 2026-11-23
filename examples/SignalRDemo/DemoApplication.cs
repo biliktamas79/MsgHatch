@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,9 @@ public static class DemoApplication
 {
     /// <summary>The file of the demo data, in the content root.</summary>
     public const string DemoDataFile = "demo-data.json";
+
+    /// <summary>The route of the demo data, for the drop-downs of the dashboard.</summary>
+    public const string DataRoute = "/demo/data";
 
     /// <summary>Registers the services of the demo, and maps its endpoints.</summary>
     /// <param name="builder">The builder of the web app.</param>
@@ -45,13 +49,19 @@ public static class DemoApplication
                 .WithPayload<DemoPayload, DemoPayloadLoader>(static payload => payload
                     .AsSignalR(DemoNotice.TypeName, 1, DemoJson.Default.SignalREnvelopeDemoPayload)));
         builder.Services.AddHostedService<OutboxWorker>();
+        builder.Services.ConfigureHttpJsonOptions(static o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        builder.Services.AddRazorPages();
 
         var app = builder.Build();
+        app.UseStaticFiles();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.MapRazorPages();
         app.MapHub<DemoHub>(DemoHub.Route);
+        app.MapGet(DataRoute, static (IOptions<DemoDataOptions> data) => data.Value);
         app.MapGet(DomainResolver.Route, static (string? host, DomainResolver resolver) => resolver.Resolve(host));
         app.MapPost(DemoLogin.Route, DemoLogin.Handle);
+        app.MapPost(DemoPublisher.Route, DemoPublisher.HandleAsync);
         return app;
     }
 }

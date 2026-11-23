@@ -1,0 +1,41 @@
+@page
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<section class="toolbar">
+    <button type="button" id="add-session">Add session</button>
+    <span class="hint">Hosts: <code>localhost</code>, <code>eu.localhost</code>, <code>us.localhost</code>, <code>testing.localhost</code>, <code>acme.localhost</code>, <code>initech.localhost</code>, <code>globex.localhost</code>, <code>sandbox.localhost</code></span>
+</section>
+
+<section id="panes" class="panes"></section>
+
+<section class="publish">
+    <h2>Publish</h2>
+    <form id="publish-form">
+        <label>Level
+            <select name="level">
+                <option>Tenant</option>
+                <option>Company</option>
+                <option>User</option>
+            </select>
+        </label>
+        <label>Tenant <select name="tenant"></select></label>
+        <label>Company or user <select name="target"></select></label>
+        <label>Text <input name="text" value="Hello" /></label>
+        <button type="submit">Send</button>
+        <label class="producer"><input type="checkbox" name="auto" /> Send a random notification every <input type="number" name="interval" value="3" min="1" max="60" /> s</label>
+    </form>
+</section>
+
+<section class="sent">
+    <h2>Sent</h2>
+    <table>
+        <thead>
+            <tr><th>Time</th><th>Level</th><th>Tenant</th><th>Target</th><th>Text</th><th>Panes</th><th>Result</th></tr>
+        </thead>
+        <tbody id="sent-log"></tbody>
+    </table>
+</section>
+
+<script type="module" src="~/js/dashboard.js" asp-append-version="true"></script>

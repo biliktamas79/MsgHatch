@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - MsgHatch SignalR demo</title>
+    <link rel="stylesheet" href="~/css/demo.css" asp-append-version="true" />
+    <script src="~/lib/signalr.min.js"></script>
+</head>
+<body>
+    <header class="top">
+        <h1>MsgHatch SignalR demo</h1>
+        <nav><a href="/">Dashboard</a> <a href="/session">One session</a></nav>
+    </header>
+    <main>
+        @RenderBody()
+    </main>
+</body>
+</html>
