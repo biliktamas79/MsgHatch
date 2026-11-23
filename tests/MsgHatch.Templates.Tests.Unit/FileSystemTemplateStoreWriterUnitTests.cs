@@ -70,6 +70,7 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     public async Task SaveAsync_FileThatAReaderHoldsOpen_GivesUnavailableAndLeavesNoTemporaryFile()
     {
         // Arrange
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows blocks a replace of a file that a reader holds open.");
         var first = await Store.SaveAsync(ALookup(scope: "open"), "First", 0, Ct);
         ErrorOr<TemplateEntry> result;
 
@@ -110,6 +111,7 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     public async Task DeleteAsync_FileThatAReaderHoldsOpen_GivesUnavailableAndKeepsTheFile()
     {
         // Arrange
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows blocks a delete of a file that a reader holds open.");
         await Store.SaveAsync(ALookup(scope: "held"), "First", 0, Ct);
         Error? error;
 
