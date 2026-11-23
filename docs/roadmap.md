@@ -3565,10 +3565,10 @@ Checked facts (2026-11-23), on Windows 11 build 26300 with the .NET SDK 10.0.404
 | The hub test finds an extra hit at its assert, not by a timeout: with an anonymous session of `eu` in the group of `acme`, the row of `acme` failed after 1.4 s. A miss fails after the timeout of 10 s. | Break runs of `DemoHubUnitTests` |
 | The test server accepts the WebSocket of a SignalR client with the token in the query `access_token`. With no read of the query, the sessions with a token got no `Joined`, and the test failed. | A break run of `DemoTokens` |
 | A run in the browser pane of the desktop app: four panes (`localhost` with the choice `eu`, `eu.localhost`, `globex.localhost`, and `acme.localhost`), the logins of `bela`, of `anna` with the account `initech` after `ValidationFailed`, of `dora`, and of `anna` with the account of `acme.localhost`, 8 notifications at the three levels, and 10 notifications of the automatic producer. Each row of the sent log showed OK. `http://acme.localhost:5091/session` passed the host filter, and the login of `cecil` there gave `Rejected`. The browser console showed no script error, only the 400 and the 403 of the two refused logins. | The browser pane, `dotnet run --project examples/SignalRDemo` |
+| The owner tested the dashboard before the push of the phase. | The owner |
 | The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 38 unit test projects pass 5,849 tests and skip 1, the path limit test of the named pipe signal: 24 more than after phase 45. The line coverage is 98.4 %. The coverage counts only the assemblies `MsgHatch.*`, so the demo does not change it. `pwsh ./pack.ps1` passes with 36 packages of version 0.2.0. | `dotnet build`, `pwsh ./coverage.ps1`, `pwsh ./pack.ps1`, `coverage.runsettings` |
 
 Checks that the phase did not do:
-- The owner check of the dashboard.
 - A run on Linux before the push. The workflow run of the push builds and tests on Linux.
 - A test of the publish endpoint and of the JavaScript. The run in the browser pane covers them.
 
