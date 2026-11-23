@@ -3446,6 +3446,43 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.1.2.
 
+### Phase 45: Tenant-wide SignalR messages
+
+Goal: a message can go through SignalR to all connected users of one tenant (D315).
+
+Starting point: the commits of phase 44. The owner asked whether the SignalR package supports messages for a tenant, a company, and a user in a multi-tenant UI. It supports a user (`Clients.User("{TenantId}:{UserId}")`) and a company (the group `msghatch:{TenantId}:company:{CompanyId}`). `DeliveryTargetKind` has only `User` and `Company`, and `SignalRTransport.ClientsOf` gives `Errors.ValidationFailed` for each other kind. Only `SignalRTransport`, `DeterministicId`, and the subscription router use the kinds. The owner wants no tenant level in the subscriptions.
+
+1. Add `DeliveryTargetKind.Tenant` to `MsgHatch.Domain`. Its target id is empty, and the tenant comes from the message. `DeterministicId` includes the new kind in its input, so a tenant target gets its own id.
+2. SignalR (D315):
+   - `SignalRGroups.ForTenant(TenantId?)` gives `msghatch:{TenantId}:tenant`, or `msghatch:all` with no tenant. The tenant id gets the same escaping as in `ForCompany`.
+   - `SignalRTransport` sends a tenant target to that group.
+   - The README of `MsgHatch.SignalR` says that the hub adds each connection to the group of its tenant, and shows `SignalRGroups.ForTenant`.
+3. The subscription router does not change. A router of the host can return a tenant target.
+4. The contracts: the delivery query filter and the routing verification response already carry `DeliveryTargetKind`. Their mapping tests get a row with `Tenant`.
+5. The example app: its hub adds each connection to the group of its tenant.
+6. `VersionPrefix` becomes `0.2.0`, because a new feature before 1.0.0 raises the minor. The READMEs of `MsgHatch.Domain` and `MsgHatch.SignalR` get the entry 0.2.0.
+7. Describe the phase in the design: the SignalR section, and the table of `DeliveryTargetKind`.
+
+Tests:
+- `SignalRGroups.ForTenant` with a tenant and with no tenant, and with `%` and `:` in the tenant id.
+- The transport sends a tenant target to the tenant group, and a user in the group of another tenant gets nothing.
+- `DeterministicId` gives different ids for a tenant target and a user target with the same message.
+- The contract mappings accept `Tenant`.
+- Each new test fails first.
+
+Commits:
+1. "Plan phase 45: tenant-wide SignalR messages"
+2. "Add the tenant delivery target"
+3. "Send a tenant target to the tenant group of SignalR"
+4. "Join the tenant group in the hub of the example app"
+5. "Describe the tenant target in the design"
+6. "Record the commits and the checked facts of phase 45 in the plan"
+7. "Record phase 45 as done in README and AGENTS.md"
+
+Commit 1 holds the plan of this phase and the decision D315.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.2.0.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
