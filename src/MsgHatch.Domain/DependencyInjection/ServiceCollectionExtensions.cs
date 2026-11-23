@@ -28,33 +28,24 @@ public static class ServiceCollectionExtensions
     /// <see cref="IDeliveryCommands"/> as the defaults of <see cref="MsgHatchBuilder.UseDeliveryQueries"/> and
     /// <see cref="MsgHatchBuilder.UseDeliveryCommands"/> (D289), and <see cref="TimeProvider.System"/>
     /// if the host has registered no <see cref="TimeProvider"/>. The options bind from the section <c>MsgHatch</c>
-    /// of the <c>IConfiguration</c> of the host.
+    /// of the <c>IConfiguration</c> of the host. Only the first call binds the options, and a later call reuses the
+    /// setup of the first call (D314).
     /// </summary>
     /// <param name="services">The service collection.</param>
-    /// <param name="configure">An optional change of the options in code. A value from code wins.</param>
+    /// <param name="configure">
+    /// An optional change of the options in code. A value from code wins over the configuration in each order of the
+    /// calls, and the value of a later call wins over the value of an earlier call.
+    /// </param>
     /// <returns>The builder for the other setup methods.</returns>
     public static MsgHatchBuilder AddMsgHatch(this IServiceCollection services, Action<MsgHatchOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         var setup = ExistingSetup(services) ?? AddSetup(services);
-        var options = services.AddOptions<MsgHatchOptions>().BindConfiguration(MsgHatchOptions.SectionName);
         if (configure is not null)
         {
-            options.Configure(configure);
+            services.AddOptions<MsgHatchOptions>().Configure(configure);
         }
 
-        options.ValidateOnStart();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchOptions>, MsgHatchOptionsValidator>());
-        services.AddOptions<RetryOptions>(OptionNames.Inbox)
-            .BindConfiguration($"{RetryOptions.SectionName}:{OptionNames.Inbox}")
-            .Validate(static options => options.Expiry is null, _inboxHasNoExpiry)
-            .ValidateOnStart();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RetryOptions>, RetryOptionsValidator>());
-        AddDispatchOptions(services, OptionNames.Inbox);
-        AddDispatchOptions(services, OptionNames.Outbox);
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
-        services.AddOptions<MsgHatchSetupCheck>().ValidateOnStart();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchSetupCheck>, MsgHatchSetupValidator>());
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IMessageRegistry>(_ =>
             new InMemoryMessageRegistry(setup.Channels, setup.Messages.Select(static message => message.Descriptor)));
@@ -87,6 +78,22 @@ public static class ServiceCollectionExtensions
                 ServiceLifetime.Scoped, static (tenantServices, key) => DeliveryManager.Create(tenantServices, key), DeliveryCommandsLoggingWrapper.Wrap);
     }
 
+    private static void AddCoreOptions(IServiceCollection services)
+    {
+        services.AddOptions<MsgHatchOptions>().BindConfiguration(MsgHatchOptions.SectionName).ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchOptions>, MsgHatchOptionsValidator>());
+        services.AddOptions<RetryOptions>(OptionNames.Inbox)
+            .BindConfiguration($"{RetryOptions.SectionName}:{OptionNames.Inbox}")
+            .Validate(static options => options.Expiry is null, _inboxHasNoExpiry)
+            .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RetryOptions>, RetryOptionsValidator>());
+        AddDispatchOptions(services, OptionNames.Inbox);
+        AddDispatchOptions(services, OptionNames.Outbox);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
+        services.AddOptions<MsgHatchSetupCheck>().ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchSetupCheck>, MsgHatchSetupValidator>());
+    }
+
     private static void AddDispatchOptions(IServiceCollection services, string name) =>
         services.AddOptions<DispatchOptions>(name).BindConfiguration($"{DispatchOptions.SectionName}:{name}").ValidateOnStart();
 
@@ -98,6 +105,7 @@ public static class ServiceCollectionExtensions
     {
         var setup = new MsgHatchSetup();
         services.AddSingleton(setup);
+        AddCoreOptions(services);
         return setup;
     }
 }

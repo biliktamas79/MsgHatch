@@ -24,7 +24,7 @@ services.AddMsgHatch(o => o.DefaultLanguage = "hu")
     .UseInMemoryStores();
 ```
 
-`AddMsgHatch` binds `MsgHatchOptions` from the section `MsgHatch`, and validates all options at the start of the host. A value from code wins over the configuration. The in-memory stores are not durable: a restart loses each message in the inbox or the outbox, so use them only for tests and demos.
+`AddMsgHatch` binds `MsgHatchOptions` from the section `MsgHatch`, and validates all options at the start of the host. A value from code wins over the configuration, also when the host calls `AddMsgHatch` more than one time. The in-memory stores are not durable: a restart loses each message in the inbox or the outbox, so use them only for tests and demos.
 
 A host with only one role sets `Roles`: a consumer host takes the events into the inbox and routes them, and a publisher host sends the outgoing messages. A host that only calls the API clients sets `MsgHatchRoles.None`.
 
@@ -112,6 +112,10 @@ The stored registry, of `UseStoredRegistry`, reads its settings again after an i
 The sections of a channel, for example `MsgHatch:Retry:Email`, `MsgHatch:ChannelDown:Email`, and `MsgHatch:TestDelivery:Email`, bind for each message type that the host registers on that channel.
 
 ## Version history
+
+### 0.1.2 (2026-11-23)
+
+- Fix: a second call of `AddMsgHatch` bound the section `MsgHatch` again, so a value of the configuration replaced a value from code of an earlier call. Now only the first call binds the options, and a value from code wins in each order of the calls.
 
 ### 0.1.0 (2026-11-22)
 

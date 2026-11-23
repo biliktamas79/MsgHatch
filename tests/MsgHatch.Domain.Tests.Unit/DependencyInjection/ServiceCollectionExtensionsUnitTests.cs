@@ -27,6 +27,22 @@ public sealed class ServiceCollectionExtensionsUnitTests
     }
 
     [Fact]
+    public async Task AddMsgHatch_PlainCallAfterACallWithACodeValue_KeepsTheCodeValue()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:DefaultLanguage"] = "de" });
+        services.AddMsgHatch(static options => options.DefaultLanguage = "hu");
+        services.AddMsgHatch();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<MsgHatchOptions>>().Value;
+
+        // Assert
+        Assert.Equal("hu", options.DefaultLanguage);
+    }
+
+    [Fact]
     public async Task AddMsgHatch_NoSignalSelection_RegistersTheInProcessDispatchSignalAsASingleton()
     {
         // Arrange
