@@ -1,17 +1,21 @@
+using System.Data.Common;
 using MsgHatch.Data.EFCore.Providers;
+using MsgHatch.Domain.Failures;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 
 /// <summary>
 /// A dialect of the EF Core SQLite provider for the tests of the dialect contract (D318): a claim statement with
 /// <c>UPDATE ... RETURNING</c>, which SQLite runs in one write, and an optional default collation. It counts its claim
-/// statements.
+/// statements, and gives one error type for each database exception.
 /// </summary>
 /// <param name="providerName">The provider that the dialect serves.</param>
 /// <param name="textCollation">The default collation, or null.</param>
 /// <param name="hasClaimStatement">Whether the dialect gives a claim statement.</param>
+/// <param name="errorType">The error type of each database exception, or null for the built-in mapping.</param>
 public sealed class SqliteTestDialect(
-    string providerName = SqliteTestDialect.SqliteProvider, string? textCollation = null, bool hasClaimStatement = true) : IEntityFrameworkStoreDialect
+    string providerName = SqliteTestDialect.SqliteProvider, string? textCollation = null, bool hasClaimStatement = true, ErrorType? errorType = null)
+    : IEntityFrameworkStoreDialect
 {
     public const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
 
@@ -22,6 +26,8 @@ public sealed class SqliteTestDialect(
     public string? TextCollation { get; } = textCollation;
 
     public int ClaimStatements => _claimStatements;
+
+    public ErrorType? ErrorTypeOf(DbException exception) => errorType;
 
     public string? ClaimStatement(ClaimStatementNames names)
     {

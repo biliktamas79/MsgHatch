@@ -34,6 +34,26 @@ services.AddMsgHatch()
         npgsql => npgsql.EnableRetryOnFailure());
 ```
 
+## Errors
+
+The dialect gives `Errors.Rejected` for a missing permission or a failed login (the states `42501`, `28000`, and `28P01`), and `Errors.ValidationFailed` for a missing table or column and for a value that is too long (`42P01`, `42703`, and `22001`). So the dispatcher does not retry these errors. Each other database failure stays `Errors.Unavailable`. A classifier of the host comes before the dialect, for example a classifier that rejects a write to a read-only database:
+
+[//]: # (snippet: classifier)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkPostgreSqlStores(connectionString)
+    .AddExceptionClassifier<MsgHatchDbContext, PostgreSqlReadOnlyClassifier>();
+```
+
+[//]: # (snippet: classifier-type)
+```csharp
+public sealed class PostgreSqlReadOnlyClassifier : IExceptionClassifier<MsgHatchDbContext>
+{
+    public ErrorType? Classify(Exception exception) =>
+        exception.GetBaseException() is PostgresException { SqlState: PostgresErrorCodes.ReadOnlySqlTransaction } ? Errors.Rejected : null;
+}
+```
+
 ## Schema migrations
 
 The package creates the schema only in the migration step. `MigrateMsgHatchAsync` applies the migrations of the package in the schema of the options, with the history table `__StoreMigrations` in that schema:
@@ -74,6 +94,7 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ### 0.5.0 (2026-11-24)
 
+- Breaking: the dialect gives `Errors.Rejected` for a missing permission or a failed login, and `Errors.ValidationFailed` for a missing table or column and for a value that is too long, not `Errors.Unavailable`. So the dispatcher does not retry these errors.
 - Breaking: the tables, the indexes, and the history table drop the prefix `MsgHatch`, because the schema of the options keeps them apart from the tables of the host: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, `MessageTypeEntry`, `IX_Outbox_Due`, and `__StoreMigrations`. The SQLite and MongoDB stores keep the prefix. The `Initial` migration of the package creates the new names.
 
 ### 0.4.0 (2026-11-24)

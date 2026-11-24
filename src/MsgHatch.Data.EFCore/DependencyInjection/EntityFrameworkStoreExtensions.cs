@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Persistence;
 
 namespace MsgHatch.Data.EFCore.DependencyInjection;
@@ -33,9 +34,11 @@ public static class EntityFrameworkStoreExtensions
         ArgumentNullException.ThrowIfNull(configure);
         AddOptions(builder, nameof(UseEntityFrameworkStores), configureOptions);
         AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure, "__StoreMigrations");
-        builder.Services.TryAddSingleton(static services => new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
-        builder.Services.TryAddSingleton(static services => new EntityFrameworkOutboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
-        builder.Services.TryAddSingleton(static services => new EntityFrameworkRegistrySettingsStore(ContextsOf(services)));
+        builder.Services.TryAddSingleton(static services =>
+            new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>(), ClassifiersOf(services)));
+        builder.Services.TryAddSingleton(static services =>
+            new EntityFrameworkOutboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>(), ClassifiersOf(services)));
+        builder.Services.TryAddSingleton(static services => new EntityFrameworkRegistrySettingsStore(ContextsOf(services), ClassifiersOf(services)));
         return builder
             .UseRegistrySettingsStore(static services => services.GetRequiredService<EntityFrameworkRegistrySettingsStore>(), nameof(UseEntityFrameworkStores))
             .UseInboxStore(static (services, key) => services.GetRequiredService<EntityFrameworkInboxStore>().For(key), nameof(UseEntityFrameworkStores))
@@ -80,4 +83,7 @@ public static class EntityFrameworkStoreExtensions
 
     private static IDbContextFactory<MsgHatchDbContext> ContextsOf(IServiceProvider services) =>
         services.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>();
+
+    private static IEnumerable<IExceptionClassifier<MsgHatchDbContext>> ClassifiersOf(IServiceProvider services) =>
+        services.GetServices<IExceptionClassifier<MsgHatchDbContext>>();
 }

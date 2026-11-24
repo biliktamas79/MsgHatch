@@ -7,6 +7,7 @@ using MsgHatch.Data.EFCore;
 using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Data.EFCore.DependencyInjection;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
@@ -112,6 +113,24 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
         // Assert
         Assert.Equal([$"{schema}.Subscription", $"{schema}.__SubscriptionMigrations"], tables);
         Assert.Equal(["PK_Subscription", "UX_Subscription_Owner"], names);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkSubscriptionStore_ClassifierOfTheSubscriptionContext_ClassifiesTheExceptionsOfTheStore()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().AddScenarioMessages()
+            .UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(_database.ConnectionString))
+            .AddExceptionClassifier<MsgHatchSubscriptionDbContext, Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatchSubscriptionDbContext>>();
+        await using var provider = services.Build();
+        var store = provider.GetRequiredKeyedService<ISubscriptionStore>(TenantKey.For(new TenantId("t1")));
+
+        // Act
+        var result = await store.FindForDeliveryAsync(Scenario.S6.Type, [], [], Ct);
+
+        // Assert
+        Assert.Equal(Errors.Conflict, result.Error?.Type);
     }
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure)

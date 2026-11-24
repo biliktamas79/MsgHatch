@@ -55,6 +55,30 @@ services.AddMsgHatch()
     .UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString);
 ```
 
+## Errors
+
+The store classifies an exception in the order of the EF Core stores of `MsgHatch.Data.EFCore`: a cancelled token, the classifiers of the host, the dialect of the provider package, and then the built-in mapping. The client of a classifier is the subscription context, so `IExceptionClassifier<MsgHatchSubscriptionDbContext>` serves only the subscription store:
+
+[//]: # (snippet: classifier)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkStores(o => o.UseSqlite(connectionString))
+    .UseSubscriptions()
+    .UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString))
+    .AddExceptionClassifier<MsgHatchSubscriptionDbContext, SqliteReadOnlySubscriptionsClassifier>();
+```
+
+[//]: # (snippet: classifier-type)
+```csharp
+public sealed class SqliteReadOnlySubscriptionsClassifier : IExceptionClassifier<MsgHatchSubscriptionDbContext>
+{
+    private const int _readOnly = 8;
+
+    public ErrorType? Classify(Exception exception) =>
+        exception.GetBaseException() is SqliteException { SqliteErrorCode: _readOnly } ? Errors.Rejected : null;
+}
+```
+
 ## Schema migrations
 
 `MigrateMsgHatchAsync` of `MsgHatch.Data.EFCore` applies the migrations of each registered MsgHatch context, and only it changes the schema. The subscription context has the history table `__SubscriptionMigrations` in the schema of the options:
@@ -85,6 +109,7 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 
 ### 0.5.0 (2026-11-24)
 
+- The store asks the classifiers `IExceptionClassifier<MsgHatchSubscriptionDbContext>` of the host, then the dialect, and then the built-in mapping. Its constructor gets the optional parameter `classifiers`, and the setup method gives it the registered classifiers.
 - Breaking: the table, the index, and the history table drop the prefix `MsgHatch`: `Subscription`, `UX_Subscription_Owner`, and `__SubscriptionMigrations`. The SQLite and MongoDB stores keep the prefix. A host with migrations of its own makes them again.
 
 ### 0.4.0 (2026-11-24)

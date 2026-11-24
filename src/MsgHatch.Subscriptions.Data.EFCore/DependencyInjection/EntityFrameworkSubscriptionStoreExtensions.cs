@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Data.EFCore;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Subscriptions.DependencyInjection;
 
 namespace MsgHatch.Subscriptions.Data.EFCore.DependencyInjection;
@@ -32,7 +33,8 @@ public static class EntityFrameworkSubscriptionStoreExtensions
             builder.Services, nameof(UseEntityFrameworkSubscriptionStore), configure, "__SubscriptionMigrations");
         return builder.UseSubscriptionStore(
             static (services, key) => new EntityFrameworkSubscriptionStore(
-                services.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>(), key, services.GetRequiredService<ChannelSettingsJson>()),
+                services.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>(), key, services.GetRequiredService<ChannelSettingsJson>(),
+                services.GetServices<IExceptionClassifier<MsgHatchSubscriptionDbContext>>()),
             nameof(UseEntityFrameworkSubscriptionStore));
     }
 }

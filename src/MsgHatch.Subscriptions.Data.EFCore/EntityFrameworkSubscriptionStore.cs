@@ -32,12 +32,17 @@ public sealed class EntityFrameworkSubscriptionStore : ISubscriptionStore
     /// <param name="contexts">The pooled factory of the contexts.</param>
     /// <param name="key">The tenant key of the store.</param>
     /// <param name="settingsJson">The JSON of the channel settings.</param>
+    /// <param name="classifiers">
+    /// The exception classifiers of the host (D141, D322). The store asks them before the dialect and its built-in mapping.
+    /// Null means none.
+    /// </param>
     public EntityFrameworkSubscriptionStore(
-        IDbContextFactory<MsgHatchSubscriptionDbContext> contexts, TenantKey key, ChannelSettingsJson settingsJson)
+        IDbContextFactory<MsgHatchSubscriptionDbContext> contexts, TenantKey key, ChannelSettingsJson settingsJson,
+        IEnumerable<IExceptionClassifier<MsgHatchSubscriptionDbContext>>? classifiers = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(settingsJson);
-        _contexts = new StoreContexts<MsgHatchSubscriptionDbContext>(contexts);
+        _contexts = new StoreContexts<MsgHatchSubscriptionDbContext>(contexts, classifiers);
         _tenant = key.Tenant?.Value ?? string.Empty;
         _settingsJson = settingsJson;
     }

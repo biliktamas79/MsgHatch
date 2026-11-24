@@ -6,8 +6,10 @@ using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.TestTypes;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
+using Npgsql;
 
 namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration;
 
@@ -24,6 +26,29 @@ public sealed class ReadmeIntegTests(PostgreSqlFixture server)
 
     [Fact]
     public void Readme_OptionsTables_NameEachOption() => ReadmeCheck.AssertOptionsTables();
+
+    [Fact]
+    public async Task AddExceptionClassifier_ClassifierOfTheReadme_RejectsAReadOnlyTransaction()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = server.Database("readme").ConnectionString;
+
+        // Act
+        #region readme:classifier
+        services.AddMsgHatch()
+            .UseEntityFrameworkPostgreSqlStores(connectionString)
+            .AddExceptionClassifier<MsgHatchDbContext, PostgreSqlReadOnlyClassifier>();
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        var classifier = Assert.Single(provider.GetServices<IExceptionClassifier<MsgHatchDbContext>>());
+        Assert.Equal(
+            (Errors.Rejected, (ErrorType?)null),
+            (classifier.Classify(new DbUpdateException("update", new PostgresException("read-only", "ERROR", "ERROR", "25006"))),
+                classifier.Classify(new PostgresException("serialization", "ERROR", "ERROR", "40001"))));
+    }
 
     [Fact]
     public async Task UseEntityFrameworkPostgreSqlStores_SettingsOfTheReadme_RequiresTheCurrentSchema()

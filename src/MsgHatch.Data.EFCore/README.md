@@ -65,6 +65,35 @@ A claim takes the due messages in the order of their due time, and then in the o
 
 An id of a tenant, a company, or a user is case-sensitive, so `t1` and `T1` are two tenants. Use a case-sensitive collation of the text columns: the option `TextCollation` sets it, or else the dialect of a provider package, or else the database. The default collation of SQLite, `BINARY`, is case-sensitive.
 
+## Errors
+
+A store gives each failure as an `Error` value. It classifies an exception in this order, and the first result that is not null wins:
+
+1. A cancelled token gives `Errors.OperationCancelled`.
+2. The exception classifiers of the host, in the order of their registration.
+3. The dialect of the provider package. The SQL Server and PostgreSQL packages give `Errors.Rejected` for a missing permission or a failed login, and `Errors.ValidationFailed` for a missing table or column and for a value that is too long.
+4. The built-in mapping: `Errors.Unavailable` for each other database failure, and `Errors.SerializationFailed` for a stored value that a person changed into an invalid value.
+
+The client of a classifier is the context of the stores, so `IExceptionClassifier<MsgHatchDbContext>` serves the inbox, the outbox, and the registry settings. A type that is not transient stops the retries of the message. For example, a classifier that rejects a write to a read-only SQLite file:
+
+[//]: # (snippet: classifier)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkStores(o => o.UseSqlite(connectionString))
+    .AddExceptionClassifier<MsgHatchDbContext, SqliteReadOnlyClassifier>();
+```
+
+[//]: # (snippet: classifier-type)
+```csharp
+public sealed class SqliteReadOnlyClassifier : IExceptionClassifier<MsgHatchDbContext>
+{
+    private const int _readOnly = 8;
+
+    public ErrorType? Classify(Exception exception) =>
+        exception.GetBaseException() is SqliteException { SqliteErrorCode: _readOnly } ? Errors.Rejected : null;
+}
+```
+
 ## Schema migrations
 
 Only `MigrateMsgHatchAsync` changes the schema. It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and the subscription context. Each context has a history table of its own in the schema of the options, `__StoreMigrations` and `__SubscriptionMigrations`, so the migration history of the host does not change. EF Core locks the database during the migration, so two hosts that start at the same time apply each migration one time.
@@ -82,7 +111,7 @@ await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
 
 ## Provider packages
 
-A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF Core provider that it serves, the default collation, and an optional claim statement. Its migrations derive from `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot`, so each migration takes the schema and the collation of the options at run time. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context.
+A provider package implements `IEntityFrameworkStoreDialect` of the namespace `MsgHatch.Data.EFCore.Providers`: the name of the EF Core provider that it serves, the default collation, the error type of a database exception, and an optional claim statement. Its migrations derive from `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` of the namespace `MsgHatch.Data.EFCore.Migrations`, so each migration takes the schema and the collation of the options at run time. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context.
 
 ## Options
 
@@ -109,6 +138,7 @@ A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF
 
 ### 0.5.0 (2026-11-24)
 
+- Breaking: `IEntityFrameworkStoreDialect` gets the default method `ErrorTypeOf`. The stores ask the classifiers `IExceptionClassifier<MsgHatchDbContext>` of the host, then the dialect, and then the built-in mapping. The constructors of the stores get the optional parameter `classifiers`, and the setup method gives them the registered classifiers.
 - Breaking: the tables, the indexes, and the history table drop the prefix `MsgHatch`, because the schema of the options keeps them apart from the tables of the host: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, `MessageTypeEntry`, `IX_Outbox_Due`, and `__StoreMigrations`. The SQLite and MongoDB stores keep the prefix. A host with migrations of its own makes them again.
 - Breaking: the API of a provider package moves into its own namespaces. `IEntityFrameworkStoreDialect`, `EntityFrameworkStoreDialectExtensions`, and `ClaimStatementNames` are in `MsgHatch.Data.EFCore.Providers`, and `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` are in `MsgHatch.Data.EFCore.Migrations`. A host that uses only the stores, the options, and `MsgHatchDbContext` needs no change.
 

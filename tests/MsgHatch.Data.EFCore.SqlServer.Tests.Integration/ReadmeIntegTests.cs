@@ -6,6 +6,7 @@ using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.Tests.Integration.TestTypes;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
 
@@ -24,6 +25,26 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
 
     [Fact]
     public void Readme_OptionsTables_NameEachOption() => ReadmeCheck.AssertOptionsTables();
+
+    [Fact]
+    public async Task AddExceptionClassifier_ClassifierOfTheReadme_IsTheClassifierOfTheStores()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = server.Database("readme").ConnectionString;
+
+        // Act
+        #region readme:classifier
+        services.AddMsgHatch()
+            .UseEntityFrameworkSqlServerStores(connectionString)
+            .AddExceptionClassifier<MsgHatchDbContext, SqlServerReadOnlyClassifier>();
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        var classifier = Assert.Single(provider.GetServices<IExceptionClassifier<MsgHatchDbContext>>());
+        Assert.Null(classifier.Classify(new DbUpdateException("update", new InvalidOperationException())));
+    }
 
     [Fact]
     public async Task UseEntityFrameworkSqlServerStores_SettingsOfTheReadme_RequiresTheCurrentSchema()

@@ -25,11 +25,16 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
     /// <summary>Makes the store on the contexts of a factory.</summary>
     /// <param name="contexts">The pooled factory of the contexts.</param>
     /// <param name="json">The serializer of the messages.</param>
-    public EntityFrameworkInboxStore(IDbContextFactory<MsgHatchDbContext> contexts, MsgHatchJson json)
+    /// <param name="classifiers">
+    /// The exception classifiers of the host (D141, D322). The store asks them before the dialect and its built-in mapping.
+    /// Null means none.
+    /// </param>
+    public EntityFrameworkInboxStore(
+        IDbContextFactory<MsgHatchDbContext> contexts, MsgHatchJson json, IEnumerable<IExceptionClassifier<MsgHatchDbContext>>? classifiers = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(json);
-        _contexts = new StoreContexts<MsgHatchDbContext>(contexts);
+        _contexts = new StoreContexts<MsgHatchDbContext>(contexts, classifiers);
         _json = json;
     }
 

@@ -20,10 +20,15 @@ public sealed class EntityFrameworkRegistrySettingsStore : IRegistrySettingsStor
 
     /// <summary>Makes the store on the contexts of a factory.</summary>
     /// <param name="contexts">The pooled factory of the contexts.</param>
-    public EntityFrameworkRegistrySettingsStore(IDbContextFactory<MsgHatchDbContext> contexts)
+    /// <param name="classifiers">
+    /// The exception classifiers of the host (D141, D322). The store asks them before the dialect and its built-in mapping.
+    /// Null means none.
+    /// </param>
+    public EntityFrameworkRegistrySettingsStore(
+        IDbContextFactory<MsgHatchDbContext> contexts, IEnumerable<IExceptionClassifier<MsgHatchDbContext>>? classifiers = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
-        _contexts = new StoreContexts<MsgHatchDbContext>(contexts);
+        _contexts = new StoreContexts<MsgHatchDbContext>(contexts, classifiers);
     }
 
     /// <inheritdoc />

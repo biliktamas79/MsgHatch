@@ -1,3 +1,6 @@
+using System.Data.Common;
+using MsgHatch.Domain.Failures;
+
 namespace MsgHatch.Data.EFCore.Providers;
 
 /// <summary>
@@ -29,4 +32,14 @@ public interface IEntityFrameworkStoreDialect
     /// <param name="names">The quoted names of the table, the columns, and the parameters of the statement.</param>
     /// <returns>The SQL text, or null.</returns>
     string? ClaimStatement(ClaimStatementNames names);
+
+    /// <summary>
+    /// Gives the error type of a database exception of the provider, or null for the built-in mapping of the stores
+    /// (D322). The stores ask the classifiers of the host first, and give the dialect the <see cref="DbException"/> also
+    /// when EF Core wraps it, for example in a <c>DbUpdateException</c>. A non-transient type stops the retries of the
+    /// message. The default gives null, so a dialect of a host still compiles.
+    /// </summary>
+    /// <param name="exception">The database exception.</param>
+    /// <returns>The error type, or null.</returns>
+    ErrorType? ErrorTypeOf(DbException exception) => null;
 }

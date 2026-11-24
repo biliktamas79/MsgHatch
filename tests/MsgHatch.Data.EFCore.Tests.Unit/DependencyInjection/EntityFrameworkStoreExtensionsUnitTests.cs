@@ -26,6 +26,13 @@ public sealed class EntityFrameworkStoreExtensionsUnitTests
 
     private readonly SqliteTestDatabase _database = new();
 
+    public static TheoryData<string, bool, int?, int> ClassifierRows => new()
+    {
+        { "the classifier of the host over the dialect", true, 403, 409 },
+        { "the dialect after a classifier with no result", false, 403, 403 },
+        { "the built-in mapping after a classifier and a dialect with no result", false, null, 503 },
+    };
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static DateTime Now => TestHost.Start.UtcDateTime;
@@ -116,10 +123,51 @@ public sealed class EntityFrameworkStoreExtensionsUnitTests
         Assert.Equal([Errors.NotFound, Errors.NotFound], [inbox.Error?.Type, outbox.Error?.Type]);
     }
 
-    private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure)
+    [Theory]
+    [MemberData(nameof(ClassifierRows))]
+    public async Task Stores_TableThatDoesNotExist_GiveTheErrorTypeOfTheFirstStepThatKnowsTheException(
+        string row, bool hostKnowsIt, int? dialectCode, int expected)
+    {
+        // Arrange
+        var dialect = new SqliteTestDialect(errorType: dialectCode is { } code ? Errors.Find(code) : null);
+        await using var provider = Build(
+            o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(dialect),
+            builder => _ = hostKnowsIt
+                ? builder.AddExceptionClassifier<MsgHatchDbContext, ConflictClassifier<MsgHatchDbContext>>()
+                : builder.AddExceptionClassifier<MsgHatchDbContext, UnknownClassifier<MsgHatchDbContext>>());
+
+        // Act
+        var inbox = await provider.GetRequiredService<IInboxDispatchStore>().ClaimDueAsync(10, Now, TimeSpan.FromSeconds(30), Ct);
+        var outbox = await provider.GetRequiredService<IOutboxDispatchStore>().ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
+        var registry = await provider.GetRequiredService<IRegistrySettingsStore>().GetEntriesAsync(Ct);
+
+        // Assert
+        Assert.Equal((row, $"{expected},{expected},{expected}"), (row, $"{inbox.Error?.Type.Code},{outbox.Error?.Type.Code},{registry.Error?.Type.Code}"));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_CancelledToken_GivesOperationCancelledAndAsksNoClassifier()
+    {
+        // Arrange
+        var classifier = Substitute.For<IExceptionClassifier<MsgHatchDbContext>>();
+        classifier.Classify(Arg.Any<Exception>()).Returns(Errors.Conflict);
+        await using var provider = Build(o => o.UseSqlite(_database.ConnectionString), builder => builder.Services.AddSingleton(classifier));
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        // Act
+        var result = await provider.GetRequiredService<EntityFrameworkInboxStore>().ClaimDueAsync(10, Now, TimeSpan.FromSeconds(30), cancelled.Token);
+
+        // Assert
+        Assert.Equal((Errors.OperationCancelled, 0), (result.Error?.Type, classifier.ReceivedCalls().Count()));
+    }
+
+    private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure, Action<MsgHatchBuilder>? setup = null)
     {
         var services = TestHost.CreateServices();
-        services.AddMsgHatch(static o => (o.EnableLogging, o.Roles) = (false, MsgHatchRoles.Consumer))
+        var builder = services.AddMsgHatch(static o => (o.EnableLogging, o.Roles) = (false, MsgHatchRoles.Consumer));
+        setup?.Invoke(builder);
+        builder
             .AddTestChannel()
             .UseEntityFrameworkStores(configure)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m

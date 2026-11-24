@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -6,6 +7,7 @@ using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
@@ -29,6 +31,28 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
 
     [Fact]
     public void Readme_OptionsTables_NameEachOption() => ReadmeCheck.AssertOptionsTables(typeof(EntityFrameworkStoreOptions));
+
+    [Fact]
+    public async Task AddExceptionClassifier_ClassifierOfTheReadme_RejectsAReadOnlyDatabase()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = _testConnectionString;
+
+        // Act
+        #region readme:classifier
+        services.AddMsgHatch()
+            .UseEntityFrameworkStores(o => o.UseSqlite(connectionString))
+            .AddExceptionClassifier<MsgHatchDbContext, SqliteReadOnlyClassifier>();
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        var classifier = Assert.Single(provider.GetServices<IExceptionClassifier<MsgHatchDbContext>>());
+        Assert.Equal(
+            (Errors.Rejected, (ErrorType?)null),
+            (classifier.Classify(new DbUpdateException("update", new SqliteException("read-only", 8))), classifier.Classify(new SqliteException("busy", 5))));
+    }
 
     [Fact]
     public async Task UseEntityFrameworkStores_SettingsOfTheReadme_ResolvesTheOutboxStore()

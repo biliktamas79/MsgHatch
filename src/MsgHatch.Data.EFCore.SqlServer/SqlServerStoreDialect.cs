@@ -1,4 +1,7 @@
+using System.Data.Common;
+using Microsoft.Data.SqlClient;
 using MsgHatch.Data.EFCore.Providers;
+using MsgHatch.Domain.Failures;
 
 namespace MsgHatch.Data.EFCore.SqlServer;
 
@@ -8,10 +11,20 @@ namespace MsgHatch.Data.EFCore.SqlServer;
 /// <c>OUTPUT</c> clause of the rows of a <c>TOP</c> subquery with <c>ROWLOCK, READPAST, UPDLOCK</c> in the claim order
 /// (D144): a parallel claim skips the rows that another claim locked, and takes the next due rows. An <c>UPDATE</c> of a
 /// CTE with the <c>TOP</c> puts a sort for the Halloween protection under the <c>TOP</c>, so it locks each due row, and a
-/// parallel claim gets fewer rows (checked fact of phase 18).
+/// parallel claim gets fewer rows (checked fact of phase 18). A missing permission or a failed login is rejected, and a
+/// missing table or column or a value that is too long fails the validation, so the dispatcher does not retry them (D322).
 /// </summary>
 public sealed class SqlServerStoreDialect : IEntityFrameworkStoreDialect
 {
+    private const int _invalidColumnName = 207;
+    private const int _invalidObjectName = 208;
+    private const int _objectPermissionDenied = 229;
+    private const int _columnPermissionDenied = 230;
+    private const int _databasePermissionDenied = 262;
+    private const int _valueTruncatedInColumn = 2628;
+    private const int _valueTruncated = 8152;
+    private const int _loginFailed = 18456;
+
     private SqlServerStoreDialect()
     {
     }
@@ -39,6 +52,14 @@ public sealed class SqlServerStoreDialect : IEntityFrameworkStoreDialect
                 ORDER BY due.{names.NextTryAtUtc}, due.{names.Sequence})
             """;
     }
+
+    /// <inheritdoc />
+    public ErrorType? ErrorTypeOf(DbException exception) => (exception as SqlException)?.Number switch
+    {
+        _objectPermissionDenied or _columnPermissionDenied or _databasePermissionDenied or _loginFailed => Errors.Rejected,
+        _invalidColumnName or _invalidObjectName or _valueTruncatedInColumn or _valueTruncated => Errors.ValidationFailed,
+        _ => null,
+    };
 
     private static string ChannelCondition(ClaimStatementNames names) =>
         names.Channel is null ? string.Empty : $" AND due.{names.Channel} = {names.ChannelParameter}";

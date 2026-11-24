@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -7,9 +8,11 @@ using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Subscriptions.Data.EFCore.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.SqlServer.DependencyInjection;
+using MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Subscriptions.DependencyInjection;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
@@ -33,6 +36,31 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
 
     [Fact]
     public void Readme_OptionsTables_NameEachOption() => ReadmeCheck.AssertOptionsTables();
+
+    [Fact]
+    public async Task AddExceptionClassifier_ClassifierOfTheReadme_RejectsAReadOnlyDatabase()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = _testConnectionString;
+
+        // Act
+        #region readme:classifier
+        services.AddMsgHatch()
+            .UseEntityFrameworkStores(o => o.UseSqlite(connectionString))
+            .UseSubscriptions()
+            .UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString))
+            .AddExceptionClassifier<MsgHatchSubscriptionDbContext, SqliteReadOnlySubscriptionsClassifier>();
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        var classifier = Assert.Single(provider.GetServices<IExceptionClassifier<MsgHatchSubscriptionDbContext>>());
+        Assert.Equal(
+            (Errors.Rejected, 0),
+            (classifier.Classify(new DbUpdateException("update", new SqliteException("read-only", 8))),
+                provider.GetServices<IExceptionClassifier<MsgHatchDbContext>>().Count()));
+    }
 
     [Fact]
     public async Task UseEntityFrameworkSubscriptionStore_SettingsOfTheReadme_SharesTheSchemaOfTheStores()

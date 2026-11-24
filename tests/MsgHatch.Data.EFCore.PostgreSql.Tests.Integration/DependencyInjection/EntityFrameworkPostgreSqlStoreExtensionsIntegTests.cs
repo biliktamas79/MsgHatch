@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.TestTypes;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
+using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -164,6 +165,42 @@ public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSq
 
         // Assert
         Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Stores_DatabaseWithNoMigrations_GiveValidationFailed()
+    {
+        // Arrange
+        var database = server.Database("unmigrated");
+        await database.CreateEmptyAsync(Ct);
+        await using var provider = MigratedStores.Build(database.ConnectionString);
+        var contexts = provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>();
+        var json = new MsgHatchJson(TestContentTypes.ARegistry());
+        var now = TestHost.Start.UtcDateTime;
+
+        // Act
+        var inbox = await new EntityFrameworkInboxStore(contexts, json).ClaimDueAsync(10, now, TimeSpan.FromSeconds(30), Ct);
+        var outbox = await new EntityFrameworkOutboxStore(contexts, json).ClaimDueAsync(TestChannel.Id, 10, now, TimeSpan.FromSeconds(30), Ct);
+        var registry = await new EntityFrameworkRegistrySettingsStore(contexts).GetEntriesAsync(Ct);
+
+        // Assert
+        Assert.Equal([Errors.ValidationFailed, Errors.ValidationFailed, Errors.ValidationFailed], [inbox.Error?.Type, outbox.Error?.Type, registry.Error?.Type]);
+    }
+
+    [Fact]
+    public async Task AddAsync_TargetIdLongerThanItsColumn_GivesValidationFailed()
+    {
+        // Arrange
+        var database = MigratedStores.Of(server, "truncation");
+        await database.ResetAsync(Ct);
+        var store = new EntityFrameworkOutboxStore(MigratedStores.ContextsOf(database), new MsgHatchJson(TestContentTypes.ARegistry()));
+        var message = TestMessages.AnOutgoingMessage(targetId: new string('u', 300));
+
+        // Act
+        var error = await store.For(TenantKey.None).AddAsync([message], Ct);
+
+        // Assert
+        Assert.Equal(Errors.ValidationFailed, error?.Type);
     }
 
     [Fact]
