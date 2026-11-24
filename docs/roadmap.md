@@ -3929,6 +3929,44 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 40 packages of 0.4.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
 
+### Phase 50: EF Core tables in their schema with no prefix
+
+Goal: the EF Core stores keep their tables in the schema of `EntityFrameworkStoreOptions.Schema` with no prefix `MsgHatch`, because the schema already keeps them apart from the tables of the host. SQLite and MongoDB keep the prefix, because their databases have no schemas (D321).
+
+Starting point: the commits of phase 49. `MsgHatchDbContext` maps `MsgHatchInbox`, `MsgHatchOutbox`, `MsgHatchChannelState`, `MsgHatchChannelEntry`, and `MsgHatchMessageTypeEntry` in the schema of the option, default `msghatch`, so a name such as `msghatch.MsgHatchOutbox` repeats the schema. `MsgHatchSubscriptionDbContext` maps `MsgHatchSubscription`. The indexes have the names of the model, for example `IX_MsgHatchInbox_Due`. The history tables are `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`. The 4 provider packages of phases 48 and 49 hold the `Initial` migrations with these names. No package is on nuget.org.
+
+1. `MsgHatchDbContext` maps `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, and `MessageTypeEntry`. `MsgHatchSubscriptionDbContext` maps `Subscription`. The names of the indexes drop the prefix, for example `IX_Inbox_Due` and `IX_Outbox_Due`.
+2. The history tables are `__StoreMigrations` and `__SubscriptionMigrations`. A history table that the host set in the provider setup stays.
+3. The EF Core tools make the `Initial` migrations of `MsgHatch.Data.EFCore.SqlServer`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer`, `MsgHatch.Data.EFCore.PostgreSql`, and `MsgHatch.Subscriptions.Data.EFCore.PostgreSql` again, with the same steps as phases 48 and 49. The phase adds no rename migration, because no database of a consumer has the old names.
+4. The SQL text and the test data of the EF Core tests, and the tests of `examples/SchemaMigrator`, use the new names.
+5. The SQLite and MongoDB stores do not change.
+6. `VersionPrefix` becomes `0.5.0`, because the schema of the EF Core stores changes, and before 1.0.0 a breaking change raises the minor. The READMEs of `MsgHatch.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore`, and the 4 provider packages get the entry 0.5.0, which starts with "Breaking:".
+7. Describe the phase: the EF Core text of section 4.5 of the design, the EF Core section of `docs/stores.md`, and `AGENTS.md`.
+
+Checks before the code:
+- The migrations that the tools make again have no literal schema and no literal collation, as in phases 48 and 49.
+- Each place that names an old table, index, or history table, in `src`, `tests`, `examples`, and `docs`.
+
+Tests:
+- Each table of both contexts is in the schema of the option, and no name of a table, an index, or a history table starts with `MsgHatch`.
+- A host with the schema `other` gets `other.Outbox` and `other.__StoreMigrations`.
+- The model of each context has no pending change against the migrations of each provider package.
+- The EF Core integration projects pass on dev-mssql and on dev-postgres.
+- The tests of the SQLite and MongoDB stores pass with no change.
+- Each new test fails first.
+
+Check for the owner: run the EF Core integration projects on SQL Server and on PostgreSQL.
+
+Commits:
+1. "Keep the EF Core tables in their schema with no prefix"
+2. "Describe the table names of the EF Core stores in the design and the store guide"
+3. "Record the commits and the checked facts of phase 50 in the plan"
+4. "Record phase 50 as done in README and AGENTS.md"
+
+The plan of this phase and D321 are in their own commit before commit 1.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 40 packages of 0.5.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -3942,6 +3980,11 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
   - The edit page offers the builder and the raw editor for one part, so the extension point of D240 changes from one editor for each engine to a choice of editors.
   - The markers are needed only in the text of the template store. An email client can remove them from a sent email, because the builder never reads a sent email.
   - The phase checks the license of each JavaScript library that it uses.
+- A host-context mode of the EF Core stores, next to the current mode with a context of their own. The host maps the MsgHatch tables in its own `DbContext` with a model builder extension, for example `modelBuilder.MapMsgHatch()`, and registers the stores with `UseEntityFrameworkStores<AppDbContext>()`. This is composition, as in the EF Core outbox of MassTransit, not a subclass as in `IdentityDbContext`, because a class has only one base class:
+  - Gain: an add to the inbox can join the transaction of the host, which is the transactional outbox pattern.
+  - Cost: the host owns the migrations, so the migrations of the provider packages (D320) do not apply in this mode.
+  - Cost: the stores are singletons, so they need `IDbContextFactory<AppDbContext>`.
+  - Cost: the phase changes D11, which needs no shared transaction.
 - A dispatch signal with PostgreSQL `LISTEN` and `NOTIFY`, after the PostgreSQL package of phase 49 (D102, D188). Phases 39 and 40 add the signals of MongoDB and RabbitMQ.
 - SMS and push channels.
 - Batched try records: one store call records the tries of several sent messages, for more throughput on one channel.
