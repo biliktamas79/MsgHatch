@@ -1,0 +1,3 @@
+# The EF Core tools generate the migrations of this folder, so the analyzers and the code style skip them.
+[*.cs]
+generated_code = true

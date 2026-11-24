@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The PostgreSQL package of the EF Core stores of MsgHatch: the claim with SKIP LOCKED, the collation C, the schema migrations, and a setup with one call.</Description>
+    <PackageTags>messaging;outbox;inbox;efcore;postgresql;npgsql;migrations</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Data.EFCore\MsgHatch.Data.EFCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MsgHatch.Subscriptions.Data.EFCore.PostgreSql" />
+  </ItemGroup>
+
+</Project>

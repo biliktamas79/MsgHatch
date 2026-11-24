@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations.Design;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using MsgHatch.Data.EFCore.PostgreSql;
 using MsgHatch.Data.EFCore.SqlServer;
 
 namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
@@ -16,7 +17,8 @@ public sealed class StoreMigrationsCodeGenerator(
     MigrationsCodeGeneratorDependencies dependencies, CSharpMigrationsGeneratorDependencies csharpDependencies)
     : CSharpMigrationsGenerator(dependencies, csharpDependencies)
 {
-    private static readonly string[] _dialectCollations = [SqlServerStoreDialect.Instance.TextCollation!];
+    private static readonly string[] _dialectCollations =
+        [SqlServerStoreDialect.Instance.TextCollation!, PostgreSqlStoreDialect.Instance.TextCollation!];
 
     public override string GenerateMigration(
         string? migrationNamespace, string migrationName, IReadOnlyList<MigrationOperation> upOperations,

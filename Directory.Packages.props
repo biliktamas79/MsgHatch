@@ -99,12 +99,17 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.*" />
   </ItemGroup>
 
+  <ItemGroup Label="MsgHatch.Data.EFCore.PostgreSql">
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
+  </ItemGroup>
+
   <ItemGroup Label="EF Core tests">
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.*" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.*" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.*" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.*" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.*" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup Label="MongoDB integration tests">

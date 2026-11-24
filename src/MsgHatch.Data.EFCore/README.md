@@ -2,7 +2,7 @@
 
 The EF Core stores of [MsgHatch](https://github.com/biliktamas79/MsgHatch), on each relational EF Core provider. The package implements `IInboxStore`, `IOutboxStore`, and `IRegistrySettingsStore` of `MsgHatch.Domain` on the tables of `MsgHatchDbContext`, through a pooled `IDbContextFactory`. It has no SQL text and no provider name: the claim, the adds, and the writes of the publish tries are LINQ queries and EF Core writes.
 
-For SQL Server, use the package `MsgHatch.Data.EFCore.SqlServer`. It adds the claim with `READPAST`, the binary collation, the schema migrations, and a setup with one call. For another provider, add the EF Core provider and the migrations of the host.
+For SQL Server, use the package `MsgHatch.Data.EFCore.SqlServer`. It adds the claim with `READPAST`, the binary collation, the schema migrations, and a setup with one call. For PostgreSQL, use the package `MsgHatch.Data.EFCore.PostgreSql`, with the claim with `SKIP LOCKED` and the collation `C`. For another provider, add the EF Core provider and the migrations of the host.
 
 ## Install
 
@@ -15,6 +15,12 @@ For SQL Server:
 
 ```shell
 dotnet add package MsgHatch.Data.EFCore.SqlServer
+```
+
+For PostgreSQL:
+
+```shell
+dotnet add package MsgHatch.Data.EFCore.PostgreSql
 ```
 
 ## Setup
@@ -41,6 +47,14 @@ With the SQL Server package, one call selects the stores, the dialect of SQL Ser
 ```csharp
 services.AddMsgHatch()
     .UseEntityFrameworkSqlServerStores(connectionString);
+```
+
+The PostgreSQL package does the same with the dialect of PostgreSQL. Each time is a `timestamptz` there, which keeps microseconds, so a time comes back cut down to the microsecond:
+
+[//]: # (snippet: setup-postgresql)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkPostgreSqlStores(connectionString);
 ```
 
 ## Claim
@@ -92,6 +106,10 @@ A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF
 ```
 
 ## Version history
+
+### 0.4.0 (2026-11-24)
+
+- The new package `MsgHatch.Data.EFCore.PostgreSql` ships the dialect and the migrations for PostgreSQL. This package does not change.
 
 ### 0.3.0 (2026-11-24)
 

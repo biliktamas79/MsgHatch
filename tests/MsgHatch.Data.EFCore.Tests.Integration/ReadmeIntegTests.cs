@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
@@ -18,6 +19,8 @@ namespace MsgHatch.Data.EFCore.Tests.Integration;
 public sealed class ReadmeIntegTests(SqlServerFixture server)
 {
     private const string _testConnectionString = "Data Source=msghatch.db";
+
+    private const string _postgreSqlConnectionString = "Host=localhost;Database=msghatch";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -86,6 +89,25 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
         // Assert
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
         Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", context.Database.ProviderName);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkPostgreSqlStores_SetupOfTheReadme_GivesTheContextsTheDialectOfPostgreSql()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = _postgreSqlConnectionString;
+
+        // Act
+        #region readme:setup-postgresql
+        services.AddMsgHatch()
+            .UseEntityFrameworkPostgreSqlStores(connectionString);
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+        Assert.Equal("Npgsql.EntityFrameworkCore.PostgreSQL", context.Database.ProviderName);
     }
 
     [Fact]
