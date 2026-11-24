@@ -14,23 +14,29 @@
     <Project Path="src/MsgHatch.Api.Client/MsgHatch.Api.Client.csproj" />
     <Project Path="src/MsgHatch.Api.Contracts/MsgHatch.Api.Contracts.csproj" />
     <Project Path="src/MsgHatch.AspNetCore/MsgHatch.AspNetCore.csproj" />
+    <Project Path="src/MsgHatch.Domain/MsgHatch.Domain.csproj" />
+    <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
+  </Folder>
+  <Folder Name="/src/Channels/">
+    <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
     <Project Path="src/MsgHatch.Broker.AmazonSns/MsgHatch.Broker.AmazonSns.csproj" />
     <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
-    <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
+    <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
+    <Project Path="src/MsgHatch.Email.AmazonSES/MsgHatch.Email.AmazonSES.csproj" />
+    <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
+    <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
+  </Folder>
+  <Folder Name="/src/Data/">
     <Project Path="src/MsgHatch.Data.EFCore/MsgHatch.Data.EFCore.csproj" />
     <Project Path="src/MsgHatch.Data.EFCore.PostgreSql/MsgHatch.Data.EFCore.PostgreSql.csproj" />
     <Project Path="src/MsgHatch.Data.EFCore.SqlServer/MsgHatch.Data.EFCore.SqlServer.csproj" />
-    <Project Path="src/MsgHatch.Dispatch.NamedPipes/MsgHatch.Dispatch.NamedPipes.csproj" />
-    <Project Path="src/MsgHatch.Dispatch.RabbitMq/MsgHatch.Dispatch.RabbitMq.csproj" />
     <Project Path="src/MsgHatch.Data.FileSystem/MsgHatch.Data.FileSystem.csproj" />
     <Project Path="src/MsgHatch.Data.MongoDb/MsgHatch.Data.MongoDb.csproj" />
     <Project Path="src/MsgHatch.Data.Sqlite/MsgHatch.Data.Sqlite.csproj" />
-    <Project Path="src/MsgHatch.Domain/MsgHatch.Domain.csproj" />
-    <Project Path="src/MsgHatch.Email.AmazonSES/MsgHatch.Email.AmazonSES.csproj" />
-    <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
-    <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
-    <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
-    <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
+  </Folder>
+  <Folder Name="/src/Dispatch/">
+    <Project Path="src/MsgHatch.Dispatch.NamedPipes/MsgHatch.Dispatch.NamedPipes.csproj" />
+    <Project Path="src/MsgHatch.Dispatch.RabbitMq/MsgHatch.Dispatch.RabbitMq.csproj" />
   </Folder>
   <Folder Name="/src/Subscriptions/">
     <Project Path="src/MsgHatch.Subscriptions/MsgHatch.Subscriptions.csproj" />
@@ -63,23 +69,20 @@
     <Project Path="tests/MsgHatch.Api.Client.Tests.Unit/MsgHatch.Api.Client.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Api.Contracts.Tests.Unit/MsgHatch.Api.Contracts.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.AspNetCore.Tests.Unit/MsgHatch.AspNetCore.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Domain.Tests.Performance/MsgHatch.Domain.Tests.Performance.csproj" />
+    <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
+    <Project Path="tests/SchemaMigrator.Tests.Integration/SchemaMigrator.Tests.Integration.csproj" />
+    <Project Path="tests/SignalRDemo.Tests.Unit/SignalRDemo.Tests.Unit.csproj" />
+    <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />
+    <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/tests/Channels/">
     <Project Path="tests/MsgHatch.Broker.AmazonSns.Tests.Integration/MsgHatch.Broker.AmazonSns.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.AmazonSns.Tests.Unit/MsgHatch.Broker.AmazonSns.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration/MsgHatch.Data.EFCore.SqlServer.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Data.EFCore.Tests.Integration/MsgHatch.Data.EFCore.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Data.EFCore.Tests.Unit/MsgHatch.Data.EFCore.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Data.MongoDb.Tests.Integration/MsgHatch.Data.MongoDb.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Data.Sqlite.Tests.Unit/MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Dispatch.NamedPipes.Tests.Unit/MsgHatch.Dispatch.NamedPipes.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration/MsgHatch.Dispatch.RabbitMq.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Dispatch.RabbitMq.Tests.Unit/MsgHatch.Dispatch.RabbitMq.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Domain.Tests.Performance/MsgHatch.Domain.Tests.Performance.csproj" />
-    <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Integration/MsgHatch.Email.AmazonSES.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Unit/MsgHatch.Email.AmazonSES.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Email.Resend.Tests.Integration/MsgHatch.Email.Resend.Tests.Integration.csproj" />
@@ -87,7 +90,22 @@
     <Project Path="tests/MsgHatch.Email.Tests.Performance/MsgHatch.Email.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Email.Tests.Unit/MsgHatch.Email.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SignalR.Tests.Unit/MsgHatch.SignalR.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/tests/Data/">
+    <Project Path="tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration/MsgHatch.Data.EFCore.SqlServer.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.Tests.Integration/MsgHatch.Data.EFCore.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.Tests.Unit/MsgHatch.Data.EFCore.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Data.MongoDb.Tests.Integration/MsgHatch.Data.MongoDb.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.Sqlite.Tests.Unit/MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/tests/Dispatch/">
+    <Project Path="tests/MsgHatch.Dispatch.NamedPipes.Tests.Unit/MsgHatch.Dispatch.NamedPipes.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration/MsgHatch.Dispatch.RabbitMq.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Dispatch.RabbitMq.Tests.Unit/MsgHatch.Dispatch.RabbitMq.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/tests/Subscriptions/">
     <Project Path="tests/MsgHatch.Subscriptions.AdminUI.Tests.Unit/MsgHatch.Subscriptions.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Api.Client.Tests.Unit/MsgHatch.Subscriptions.Api.Client.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Api.Contracts.Tests.Unit/MsgHatch.Subscriptions.Api.Contracts.Tests.Unit.csproj" />
@@ -103,6 +121,8 @@
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Performance/MsgHatch.Subscriptions.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/tests/Templates/">
     <Project Path="tests/MsgHatch.Templates.AdminUI.Tests.Unit/MsgHatch.Templates.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Api.Client.Tests.Unit/MsgHatch.Templates.Api.Client.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Api.Contracts.Tests.Unit/MsgHatch.Templates.Api.Contracts.Tests.Unit.csproj" />
@@ -110,9 +130,5 @@
     <Project Path="tests/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Liquid.Tests.Unit/MsgHatch.Templates.Liquid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Tests.Unit/MsgHatch.Templates.Tests.Unit.csproj" />
-    <Project Path="tests/SchemaMigrator.Tests.Integration/SchemaMigrator.Tests.Integration.csproj" />
-    <Project Path="tests/SignalRDemo.Tests.Unit/SignalRDemo.Tests.Unit.csproj" />
-    <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />
-    <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />
   </Folder>
 </Solution>
