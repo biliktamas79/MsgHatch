@@ -70,7 +70,7 @@ public static class EntityFrameworkStoreExtensions
         services.AddPooledDbContextFactory<TContext>((provider, options) =>
         {
             configure(options);
-            SchemaOptionsExtension.Use(options, provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.Schema);
+            StoreOptionsExtension.UseOptions(options, provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value);
         });
         services.AddOptions<EntityFrameworkSetupCheck<TContext>>().Configure(check => check.SetupMethod = setupMethod).ValidateOnStart();
         services.TryAddEnumerable(

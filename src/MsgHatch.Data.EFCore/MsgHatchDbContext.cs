@@ -14,12 +14,16 @@ public sealed class MsgHatchDbContext : DbContext
 {
     private readonly string _schema;
 
+    private readonly string? _textCollation;
+
     /// <summary>Makes the context. <c>UseEntityFrameworkStores</c> registers a pooled factory of it.</summary>
     /// <param name="options">The options of the context.</param>
     public MsgHatchDbContext(DbContextOptions<MsgHatchDbContext> options)
         : base(options)
     {
-        _schema = SchemaOptionsExtension.SchemaOf(options);
+        var storeOptions = StoreOptionsExtension.Of(options);
+        _schema = storeOptions.Schema;
+        _textCollation = storeOptions.TextCollation;
     }
 
     internal DbSet<InboxRow> Inbox => Set<InboxRow>();
@@ -34,7 +38,7 @@ public sealed class MsgHatchDbContext : DbContext
 
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
-        StoreModel.ConfigureConventions(configurationBuilder, Database.ProviderName);
+        StoreModel.ConfigureConventions(configurationBuilder, _textCollation);
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

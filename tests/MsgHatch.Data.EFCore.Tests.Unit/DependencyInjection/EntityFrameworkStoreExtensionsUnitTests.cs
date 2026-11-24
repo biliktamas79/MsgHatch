@@ -69,6 +69,37 @@ public sealed class EntityFrameworkStoreExtensionsUnitTests
     }
 
     [Fact]
+    public async Task UseEntityFrameworkStores_SqliteWithADialectOfSqlite_PassesTheStartupValidation()
+    {
+        // Arrange
+        await using var provider = Build(o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect()));
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkStores_DialectOfAnotherProvider_FailsTheStartupValidationAndNamesBothProviders()
+    {
+        // Arrange
+        await using var provider = Build(
+            o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(providerName: "Other.Provider")));
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.Equal(
+            (true, true, true),
+            (failure.Contains("UseEntityFrameworkStores", StringComparison.Ordinal), failure.Contains("Other.Provider", StringComparison.Ordinal),
+                failure.Contains(SqliteTestDialect.SqliteProvider, StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_ProviderThatIsNotRelational_GivesNotFoundForTheInboxAndTheOutbox()
     {
         // Arrange

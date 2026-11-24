@@ -16,7 +16,7 @@ internal sealed record ClaimArguments(int MaxCount, DateTime NowUtc, DateTime Le
 }
 
 /// <summary>
-/// The two claims of a message table (D318). A provider with a claim statement claims in that one statement, with the
+/// The two claims of a message table (D318). A dialect with a claim statement claims in that one statement, with the
 /// quoted names of the model and the parameters in the types of their columns. Else a LINQ query reads the due candidates
 /// in the claim order (D144), and one <c>ExecuteUpdate</c> claims those that are still pending and due. When another
 /// dispatcher took a candidate first, the claim reads the next candidates, until it has the maximum count or no due row is
@@ -34,8 +34,8 @@ internal static class MessageClaims
     public static Task<List<TRow>> ClaimAsync<TRow>(
         DbContext context, DbSet<TRow> table, IQueryable<TRow> rows, string? channel, ClaimArguments claim, CancellationToken ct)
         where TRow : MessageRow =>
-        SqlServerClaim.IsFor(context)
-            ? StatementOf(context, table, channel, claim).AsNoTracking().ToListAsync(ct)
+        StatementOf(context, table, channel, claim) is { } statement
+            ? statement.AsNoTracking().ToListAsync(ct)
             : ClaimWithLinqAsync(rows, claim, ct);
 
     private static async Task<List<TRow>> ClaimWithLinqAsync<TRow>(IQueryable<TRow> rows, ClaimArguments claim, CancellationToken ct)
@@ -75,9 +75,16 @@ internal static class MessageClaims
             : await rows.AsNoTracking().Where(row => candidates.Contains(row.Sequence) && row.ClaimToken == token).ToListAsync(ct);
     }
 
-    private static IQueryable<TRow> StatementOf<TRow>(DbContext context, DbSet<TRow> table, string? channel, ClaimArguments claim)
+    /// <summary>The claim statement of the dialect of the context, or null when the dialect gives none.</summary>
+    private static IQueryable<TRow>? StatementOf<TRow>(DbContext context, DbSet<TRow> table, string? channel, ClaimArguments claim)
         where TRow : MessageRow
     {
+        var dialect = StoreOptionsExtension.Of(context).Dialect;
+        if (dialect is null && !SqlServerClaim.IsFor(context))
+        {
+            return null;
+        }
+
         var entity = context.Model.FindEntityType(typeof(TRow))!;
         var storeObject = StoreObjectIdentifier.Table(entity.GetTableName()!, entity.GetSchema());
         var sql = context.GetService<ISqlGenerationHelper>();
@@ -111,6 +118,7 @@ internal static class MessageClaims
             PendingParameter = Parameter("pending", MappingOf(nameof(MessageRow.Status)), MessageQueries.Pending),
             ChannelParameter = channel is null ? null : Parameter("channel", MappingOf(nameof(OutboxRow.Channel)), channel),
         };
-        return table.FromSqlRaw(SqlServerClaim.Statement(names), [.. parameters]);
+        var statement = dialect is null ? SqlServerClaim.Statement(names) : dialect.ClaimStatement(names);
+        return statement is null ? null : table.FromSqlRaw(statement, [.. parameters]);
     }
 }

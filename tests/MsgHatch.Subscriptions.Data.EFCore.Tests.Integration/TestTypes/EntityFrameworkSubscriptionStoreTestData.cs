@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+using MsgHatch.Subscriptions.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Tests.Unit.Contracts;
@@ -12,7 +12,8 @@ namespace MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.TestTypes;
 
 /// <summary>
 /// The test data of the EF Core subscription store: one database of the SQL Server of the fixture, with the default
-/// schema <c>msghatch</c>. The first reset creates it with <c>EnsureCreatedAsync</c>, and each reset deletes the rows.
+/// schema <c>msghatch</c> and the collation of the option (D318). The first reset creates it with
+/// <c>EnsureCreatedAsync</c>, and each reset deletes the rows.
 /// </summary>
 public sealed class EntityFrameworkSubscriptionStoreTestData : ISubscriptionStoreTestData
 {
@@ -23,8 +24,8 @@ public sealed class EntityFrameworkSubscriptionStoreTestData : ISubscriptionStor
     private EntityFrameworkSubscriptionStoreTestData(TestDatabase raw)
     {
         Raw = raw;
-        Contexts = new PooledDbContextFactory<MsgHatchSubscriptionDbContext>(
-            new DbContextOptionsBuilder<MsgHatchSubscriptionDbContext>().UseSqlServer(raw.ConnectionString).Options);
+        Contexts = TestDatabase.ContextsOf<MsgHatchSubscriptionDbContext>(
+            builder => builder.UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(raw.ConnectionString)));
     }
 
     /// <summary>The raw reads and writes of the database.</summary>

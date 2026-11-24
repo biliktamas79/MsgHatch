@@ -86,6 +86,23 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
     }
 
     [Fact]
+    public async Task AddAsync_TimesWithNoKind_SendsEachTimeWithTheKindUtc()
+    {
+        // Arrange
+        var interceptor = new TimeParameterInterceptor();
+        var store = new EntityFrameworkInboxStore(
+            _database.ContextsOf<MsgHatchDbContext>(o => o.AddInterceptors(interceptor)), new MsgHatchJson(TestContentTypes.ARegistry()));
+        var message = AMessage(T1);
+        var noKind = DateTime.SpecifyKind(Now, DateTimeKind.Unspecified);
+
+        // Act
+        await store.For(T1).AddAsync(message with { Delivery = message.Delivery with { CreatedAtUtc = noKind, NextTryAtUtc = noKind } }, Ct);
+
+        // Assert
+        Assert.Equal([DateTimeKind.Utc], interceptor.Kinds.Distinct());
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_CancelledToken_GivesOperationCancelled()
     {
         // Arrange

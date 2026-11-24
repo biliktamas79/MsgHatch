@@ -21,7 +21,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString));
 ```
 
-The argument sets the provider and the connection of the contexts. The startup validation fails for a provider that is not relational. `UseEntityFrameworkSubscriptionStore` shares `EntityFrameworkStoreOptions` with `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore`: the options bind from the section `MsgHatch:EntityFramework`.
+The argument sets the provider and the connection of the contexts. The startup validation fails for a provider that is not relational. Use a case-sensitive collation of the text columns, so that two tenants that differ only in case stay apart: the option `TextCollation` sets it, or else the dialect of a provider package, or else the database. `UseEntityFrameworkSubscriptionStore` shares `EntityFrameworkStoreOptions` with `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore`: the options bind from the section `MsgHatch:EntityFramework`.
 
 ## Options
 
@@ -42,6 +42,7 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 
 ### 0.3.0 (2026-11-24)
 
+- Breaking: the package no longer gives the text columns the collation `Latin1_General_100_BIN2` on SQL Server. The collation comes from the option `TextCollation` of `EntityFrameworkStoreOptions`, or else from the dialect of a provider package, or else from the database.
 - The store runs on each relational EF Core provider, for example SQLite. The startup validation fails only for a provider that is not relational.
 
 ### 0.1.0 (2026-11-22)

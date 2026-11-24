@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MsgHatch.Data.EFCore;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
@@ -47,6 +50,24 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
         // Assert
         Assert.Null(error);
         Assert.Equal([["t1", Scenario.S6.Id.ToString("D")]], _database.Rows("SELECT TenantId, Id FROM MsgHatchSubscription"));
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkSubscriptionStore_TextCollationOfTheSharedOptions_IsTheCollationOfEachTextColumn()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM" });
+        services.AddMsgHatch().UseEntityFrameworkSubscriptionStore(
+            o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(textCollation: "NOCASE")));
+        await using var provider = services.Build();
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
+
+        // Act
+        var collations = context.GetService<IDesignTimeModel>().Model.GetEntityTypes().SelectMany(static type => type.GetProperties())
+            .Where(static property => property.ClrType == typeof(string)).Select(static property => property.GetCollation()).Distinct();
+
+        // Assert
+        Assert.Equal("RTRIM", Assert.Single(collations));
     }
 
     [Fact]

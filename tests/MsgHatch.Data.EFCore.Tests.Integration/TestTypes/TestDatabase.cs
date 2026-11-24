@@ -1,26 +1,43 @@
 using System.Globalization;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 
 /// <summary>
-/// One database of a test class on the SQL Server of the fixture, with the default schema <c>msghatch</c>. The first
-/// reset creates it with <c>EnsureCreatedAsync</c>, and each reset deletes the rows of each table. The raw reads use
-/// their own connection.
+/// One database of a test class on the SQL Server of the fixture, with the default schema <c>msghatch</c> and the
+/// collation <see cref="TextCollation"/> of the option, because the tests use no dialect (D318). The first reset creates
+/// it with <c>EnsureCreatedAsync</c>, and each reset deletes the rows of each table. The raw reads use their own
+/// connection.
 /// </summary>
 public sealed class TestDatabase(string connectionString)
 {
     private const string _tables = "MsgHatchInbox,MsgHatchOutbox,MsgHatchChannelState,MsgHatchChannelEntry,MsgHatchMessageTypeEntry";
 
+    /// <summary>The binary collation of the option, so an id is case-sensitive and sorts in ordinal order.</summary>
+    public const string TextCollation = "Latin1_General_100_BIN2";
+
     private bool _created;
 
     public string ConnectionString { get; } = connectionString;
 
-    /// <summary>A pooled factory of the contexts of the stores, as a host with no MsgHatch options makes it.</summary>
+    /// <summary>A pooled factory of the contexts of the stores from <c>UseEntityFrameworkStores</c> with no dialect.</summary>
     public IDbContextFactory<MsgHatchDbContext> Contexts { get; } =
-        new PooledDbContextFactory<MsgHatchDbContext>(new DbContextOptionsBuilder<MsgHatchDbContext>().UseSqlServer(connectionString).Options);
+        ContextsOf<MsgHatchDbContext>(builder => builder.UseEntityFrameworkStores(o => o.UseSqlServer(connectionString)));
+
+    /// <summary>A pooled factory of a MsgHatch context from the setup method of its package, with the collation of the option.</summary>
+    public static IDbContextFactory<TContext> ContextsOf<TContext>(Action<MsgHatchBuilder> setup)
+        where TContext : DbContext
+    {
+        var services = TestHost.CreateServices(
+            configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:TextCollation"] = TextCollation });
+        setup(services.AddMsgHatch());
+        return services.Build().GetRequiredService<IDbContextFactory<TContext>>();
+    }
 
     public async ValueTask ResetAsync(CancellationToken ct)
     {

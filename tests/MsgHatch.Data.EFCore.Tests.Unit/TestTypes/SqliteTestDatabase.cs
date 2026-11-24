@@ -16,7 +16,7 @@ public sealed class SqliteTestDatabase
     {
         var folder = Path.Combine(Path.GetTempPath(), "msghatch-tests");
         Directory.CreateDirectory(folder);
-        ConnectionString = $"Data Source={Path.Combine(folder, $"{Guid.NewGuid():N}.db")};Default Timeout=5";
+        ConnectionString = $"Data Source={Path.Combine(folder, $"{Guid.NewGuid():N}.db")}";
         Contexts = ContextsOf<MsgHatchDbContext>();
     }
 

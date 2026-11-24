@@ -14,19 +14,23 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
 {
     private readonly string _schema;
 
+    private readonly string? _textCollation;
+
     /// <summary>Makes the context. <c>UseEntityFrameworkSubscriptionStore</c> registers a pooled factory of it.</summary>
     /// <param name="options">The options of the context.</param>
     public MsgHatchSubscriptionDbContext(DbContextOptions<MsgHatchSubscriptionDbContext> options)
         : base(options)
     {
-        _schema = SchemaOptionsExtension.SchemaOf(options);
+        var storeOptions = StoreOptionsExtension.Of(options);
+        _schema = storeOptions.Schema;
+        _textCollation = storeOptions.TextCollation;
     }
 
     internal DbSet<SubscriptionRow> Subscriptions => Set<SubscriptionRow>();
 
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
-        StoreModel.ConfigureConventions(configurationBuilder, Database.ProviderName);
+        StoreModel.ConfigureConventions(configurationBuilder, _textCollation);
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)

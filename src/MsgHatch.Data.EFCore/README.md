@@ -33,12 +33,21 @@ services.AddMsgHatch()
 
 A claim takes the due messages in the order of their due time, and then in the order of their add. The store reads the due candidates with a LINQ query, and claims those that are still pending and due with one `ExecuteUpdate` and a new claim token. When another dispatcher took a candidate first, the store reads the next candidates, until it has the maximum count or no due message is left.
 
+## Collation
+
+An id of a tenant, a company, or a user is case-sensitive, so `t1` and `T1` are two tenants. Use a case-sensitive collation of the text columns: the option `TextCollation` sets it, or else the dialect of a provider package, or else the database. The default collation of SQLite, `BINARY`, is case-sensitive.
+
+## Provider packages
+
+A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF Core provider that it serves, the default collation, and an optional claim statement. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context.
+
 ## Options
 
 [//]: # (options: EntityFrameworkStoreOptions)
 | Option | Type | Default | Rule |
 |---|---|---|---|
 | `Schema` | `string` | `msghatch` | Required. The database schema of the tables. It starts with an ASCII letter or `_`, and contains only ASCII letters, digits, and `_`. |
+| `TextCollation` | `string?` | the collation of the dialect, or else of the database | The collation of each text column, so of each id and name, for example `Latin1_General_100_BIN2`. Only ASCII letters, digits, `_`, `.`, and `-`. |
 
 [//]: # (snippet: options)
 ```json
@@ -56,7 +65,10 @@ A claim takes the due messages in the order of their due time, and then in the o
 ### 0.3.0 (2026-11-24)
 
 - Breaking: the schema changes. Each message table gets the columns `ClaimToken` and `ClaimedDueAtUtc`. The due indexes have no filter: `IX_MsgHatchInbox_Due` is on `(Status, NextTryAtUtc, Sequence)`, and `IX_MsgHatchOutbox_Due` is on `(Channel, Status, NextTryAtUtc, Sequence)`. A host with its own migrations adds a migration of `MsgHatchDbContext`.
+- Breaking: the package no longer gives the text columns the collation `Latin1_General_100_BIN2` on SQL Server. The collation comes from the new option `TextCollation`, or else from the dialect of a provider package, or else from the database.
 - The stores run on each relational EF Core provider, for example SQLite. The claim, the adds, and the writes of the publish tries have no SQL text. The startup validation fails only for a provider that is not relational.
+- The contract `IEntityFrameworkStoreDialect` of a provider package, with `ClaimStatementNames` and `UseEntityFrameworkStoreDialect`. The startup validation fails for a dialect of another provider.
+- Each time gets the kind UTC also on a write, because a provider can refuse a time with no kind.
 
 ### 0.2.1 (2026-11-24)
 

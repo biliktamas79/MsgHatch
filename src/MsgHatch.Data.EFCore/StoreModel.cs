@@ -5,25 +5,24 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The column rules of the EF Core stores (section 4.5, D178), which the subscription store shares: each time is UTC,
-/// each text compares with a binary collation, so an id or a name is case-sensitive and sorts in ordinal order, an id is
-/// <c>nvarchar(256)</c>, a name is <c>varchar(256)</c>, a <see cref="Guid"/> is <c>char(36)</c> in the format <c>D</c>,
-/// and an enum value is <c>varchar(32)</c>. Only a provider with the SQL statements of the stores gets the collation.
+/// The column rules of the EF Core stores (section 4.5, D178, D318, D319), which the subscription store shares: each
+/// time is a UTC <see cref="DateTime"/> in the time type of the provider, each text column has the collation of the
+/// options, or else of the dialect, or else of the database, an id is <c>nvarchar(256)</c>, a name is
+/// <c>varchar(256)</c>, a <see cref="Guid"/> is <c>char(36)</c> in the format <c>D</c>, and an enum value is
+/// <c>varchar(32)</c>. The model has no provider name.
 /// </summary>
 internal static class StoreModel
 {
-    public const string SqlServerProvider = "Microsoft.EntityFrameworkCore.SqlServer";
-
-    private const string _binaryCollation = "Latin1_General_100_BIN2";
-
     private const int _maxLength = 256;
 
-    public static void ConfigureConventions(ModelConfigurationBuilder builder, string? providerName)
+    /// <param name="builder">The conventions of a context.</param>
+    /// <param name="textCollation">The collation of each text column, or null for the collation of the database.</param>
+    public static void ConfigureConventions(ModelConfigurationBuilder builder, string? textCollation)
     {
         builder.Properties<DateTime>().HaveConversion<UtcTimeConverter>();
-        if (providerName == SqlServerProvider)
+        if (textCollation is not null)
         {
-            builder.Properties<string>().UseCollation(_binaryCollation);
+            builder.Properties<string>().UseCollation(textCollation);
         }
     }
 
@@ -37,7 +36,10 @@ internal static class StoreModel
 
     public static PropertyBuilder<string> IsEnum(this PropertyBuilder<string> property) => property.HasMaxLength(32).IsUnicode(false);
 
-    /// <summary>The database keeps no kind of a time, so a time that the store reads gets the kind UTC (section 4.14).</summary>
+    /// <summary>
+    /// A provider can refuse a time with no kind, and a database keeps no kind of a time. So each time gets the kind UTC on
+    /// a write and on a read (section 4.14, D319).
+    /// </summary>
     private sealed class UtcTimeConverter() : ValueConverter<DateTime, DateTime>(
-        static time => time, static time => DateTime.SpecifyKind(time, DateTimeKind.Utc));
+        static time => DateTime.SpecifyKind(time, DateTimeKind.Utc), static time => DateTime.SpecifyKind(time, DateTimeKind.Utc));
 }

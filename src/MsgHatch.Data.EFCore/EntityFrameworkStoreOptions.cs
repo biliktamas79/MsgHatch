@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MsgHatch.Data.EFCore;
 
-/// <summary>The settings of the EF Core stores (section 4.4, D120).</summary>
+/// <summary>The settings of the EF Core stores (section 4.4, D120, D318).</summary>
 public sealed class EntityFrameworkStoreOptions
 {
     /// <summary>The configuration section.</summary>
@@ -18,4 +18,13 @@ public sealed class EntityFrameworkStoreOptions
     [Required]
     [RegularExpression("^[A-Za-z_][A-Za-z0-9_]*$")]
     public string Schema { get; set; } = DefaultSchema;
+
+    /// <summary>
+    /// The collation of each text column, so of each id and name, for example <c>Latin1_General_100_BIN2</c>. With no
+    /// value, the collation comes from the dialect of the provider package, or else from the database. It contains only
+    /// ASCII letters, digits, <c>_</c>, <c>.</c>, and <c>-</c>.
+    /// </summary>
+    [MinLength(1)]
+    [RegularExpression("^[A-Za-z0-9_.-]+$")]
+    public string? TextCollation { get; set; }
 }

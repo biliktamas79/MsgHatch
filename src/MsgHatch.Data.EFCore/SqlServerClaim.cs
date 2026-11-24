@@ -10,7 +10,9 @@ namespace MsgHatch.Data.EFCore;
 /// </summary>
 internal static class SqlServerClaim
 {
-    public static bool IsFor(DbContext context) => context.Database.ProviderName == StoreModel.SqlServerProvider;
+    private const string _providerName = "Microsoft.EntityFrameworkCore.SqlServer";
+
+    public static bool IsFor(DbContext context) => context.Database.ProviderName == _providerName;
 
     public static string Statement(ClaimStatementNames names) => $"""
         UPDATE {names.Table} SET {names.ClaimedDueAtUtc} = {names.NextTryAtUtc}, {names.ClaimToken} = {names.ClaimTokenParameter},
