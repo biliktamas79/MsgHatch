@@ -1,0 +1,40 @@
+# Local MongoDB for the MongoDB integration tests, as a replica set with one member, with mongo-express.
+# The tests of the change stream signal need a replica set. Run from the repository root:
+#   docker compose -f docker/mongodb.compose.yml up -d
+# Connection string: mongodb://localhost:27017/?replicaSet=rs0
+# mongo-express: http://localhost:8081 (no login).
+name: msghatch-mongodb
+
+services:
+  dev-mongodb:
+    image: mongo:8.3
+    container_name: dev-mongodb
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - dev-mongodb-data:/data/db
+    healthcheck:
+      # The first check starts the replica set. Its member is localhost:27017, so a client on the host reaches it.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+  dev-mongodb-express:
+    image: mongo-express:1.0
+    container_name: dev-mongodb-express
+    environment:
+      # A direct connection, because the member name localhost means the mongo-express container itself.
+      ME_CONFIG_MONGODB_URL: mongodb://dev-mongodb:27017/?directConnection=true
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      dev-mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  dev-mongodb-data:

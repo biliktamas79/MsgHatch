@@ -1,0 +1,22 @@
+# Local RabbitMQ for the Wolverine and the RabbitMQ dispatch signal integration tests, with the management UI.
+# Run from the repository root:
+#   docker compose -f docker/rabbitmq.compose.yml up -d
+# URI: amqp://localhost:5672, with the default user guest, which the image allows from outside the container.
+# Management UI: http://localhost:15672 (guest / guest).
+name: msghatch-rabbitmq
+
+services:
+  dev-rabbitmq:
+    image: rabbitmq:4.3-management
+    container_name: dev-rabbitmq
+    # RabbitMQ keeps its data under its node name, which contains the host name, so the host name stays fixed.
+    hostname: dev-rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - dev-rabbitmq-data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+volumes:
+  dev-rabbitmq-data:

@@ -1,0 +1,24 @@
+# Local SQL Server for the EF Core integration tests.
+# Put MSSQL_SA_PASSWORD=<password> into docker/.env (git ignores it), then run from the repository root:
+#   docker compose -f docker/sqlserver.compose.yml up -d
+# The password needs at least 8 characters from 3 of these sets: upper case, lower case, digits, and symbols.
+# ACCEPT_EULA=Y accepts the license of SQL Server. The Developer edition is free only for development and tests.
+# Connection string: Server=localhost,1433;User Id=sa;Password=<password>;TrustServerCertificate=True
+name: msghatch-sqlserver
+
+services:
+  dev-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04
+    container_name: dev-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in docker/.env}
+    ports:
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - dev-sqlserver-data:/var/opt/mssql
+    restart: unless-stopped
+
+volumes:
+  dev-sqlserver-data:
