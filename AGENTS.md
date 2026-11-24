@@ -125,6 +125,8 @@ dotnet test tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration
 dotnet test tests/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration
 ```
 
+From phase 50 on, the EF Core tables are in the schema of the options with no prefix `MsgHatch`, for example `msghatch.Outbox` and `msghatch.__StoreMigrations` (D321). The SQLite and MongoDB stores keep the prefix. The provider integration projects also run the contract bases with the option `JsonColumnType`: `jsonb` on PostgreSQL, and `json` on SQL Server, which needs SQL Server 2025 or Azure SQL (D323). Keep the name of a PostgreSQL test database short, for example `subs_jsonb`, because the prefix of the subscription project has 47 bytes. The design-time contexts of the EF Core tools set `JsonColumnType` to `json`, and the generator writes `JsonColumnType` in its place, as it does for the schema and the collation.
+
 From phase 19 on, the MongoDB integration tests use the MongoDB of `MongoDbIntegration:ConnectionString` in `appsettings.Local.json` of each MongoDB integration project, which git ignores, for example the local container dev-mongo with `mongodb://localhost:27017/?replicaSet=rs0`. `appsettings.json` next to it describes the key. The tests drop only the databases whose names start with the name of their project, at the start and at the end of a run (D183). MongoDB allows at most 63 characters in a database name, so the name of a test database adds at most 9 characters to the 54 of the subscription project. The server must be a replica set, because the tests of the MongoDB dispatch signal open a change stream. With no connection string, Testcontainers starts MongoDB from the image `mongo:8.3` as a replica set with one member:
 
 ```bash

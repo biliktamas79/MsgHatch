@@ -349,24 +349,42 @@ A state row is one `INSERT OR IGNORE`, and a changed row count of 0 means that a
 
 `MsgHatch.Data.EFCore` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in a database through EF Core, on each relational EF Core provider (D120, D318). The package has no SQL text and no provider name. `UseEntityFrameworkStores(o => o.UseSqlite(connectionString))` selects the stores on a provider with no MsgHatch package. The SQL Server package `MsgHatch.Data.EFCore.SqlServer` selects them with `UseEntityFrameworkSqlServerStores(connectionString)`, and the PostgreSQL package `MsgHatch.Data.EFCore.PostgreSql` with `UseEntityFrameworkPostgreSqlStores(connectionString)`. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString))`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer` with `UseEntityFrameworkSqlServerSubscriptionStore(connectionString)`, and `MsgHatch.Subscriptions.Data.EFCore.PostgreSql` with `UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString)`.
 
+The base package has feature folders, and the path of each folder is its namespace (D50):
+
+| Folder | Types |
+|---|---|
+| The root | The types that a host uses: the three stores, `EntityFrameworkStoreOptions` with its validator, and `MsgHatchDbContext` |
+| `DependencyInjection` | The setup methods and the migration step |
+| `Messages` | The rows of the inbox, the outbox, and the channel states, with the queries, the claims, the documents, and the publish tries |
+| `Registry` | The rows of the registry settings |
+| `Model` | The column rules, the options of a context, and the error boundary of the operations |
+| `Providers` | The API of a provider package: `IEntityFrameworkStoreDialect`, `EntityFrameworkStoreDialectExtensions`, and `ClaimStatementNames` |
+| `Migrations` | The base classes of the migrations of a provider package, and the migrations assembly of the contexts |
+
 ### 4.1 Model and tables
 
-`MsgHatchDbContext` maps the tables of section 3.1 with the same table and column names, in the schema of `EntityFrameworkStoreOptions.Schema`. The options bind from the section `MsgHatch:EntityFramework`, and the default schema is `msghatch`. There is no table `MsgHatchSchema`: the history table of the migrations of each context keeps the version of its schema (section 4.9). SQLite has no schemas, so EF Core ignores the schema there.
+`MsgHatchDbContext` maps the tables of section 3.1 with the same column names, in the schema of `EntityFrameworkStoreOptions.Schema`. The options bind from the section `MsgHatch:EntityFramework`, and the default schema is `msghatch`. The schema keeps the tables apart from the tables of the host, so the table names have no prefix `MsgHatch`: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, and `MessageTypeEntry` (D321). A name such as `msghatch.MsgHatchOutbox` repeats the schema. The names keep PascalCase on each provider. The SQLite and MongoDB stores keep the prefix, because their databases have no schemas. There is no table `MsgHatchSchema`: the history table of the migrations of each context keeps the version of its schema (section 4.9). SQLite has no schemas, so EF Core ignores the schema there.
 
 | Value | Column | Rule |
 |---|---|---|
 | `Sequence` | `bigint` identity, the primary key of a message table (`INTEGER PRIMARY KEY AUTOINCREMENT` on SQLite) | It keeps the add order (D144). |
 | A tenant, company, user, or target id | `nvarchar(256)` (`character varying(256)` on PostgreSQL) | An empty text means no tenant. An id must be case-sensitive, so two tenants that differ only in case stay apart (D178). |
 | A message id | `char(36)` in the format `D` (`character(36)` on PostgreSQL) | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. EF Core gives each parameter the type of its column, so a parameter of a message id is a fixed ANSI text on SQL Server too. With an `nvarchar` parameter, SQL Server converts the column, and parallel adds of one id got the deadlock 1205 (checked fact after phase 18). |
-| A message type, channel, content type, or trace type name | `varchar(256)` | A longer name gives `Errors.Unavailable` on SQL Server (D178). |
+| A message type, channel, content type, or trace type name | `varchar(256)` | A longer name gives `Errors.ValidationFailed` with the dialect of SQL Server or PostgreSQL, and `Errors.Unavailable` with no dialect (D178, D322). |
 | An enum value | `varchar(32)` | The name of the value, for example `Pending`. |
 | A time | A UTC `DateTime` in the time type of the provider: `datetime2(7)` on SQL Server, text on SQLite, `timestamptz` on PostgreSQL | SQL Server and SQLite keep 100 ns. PostgreSQL keeps microseconds, and Npgsql cuts a time down to the microsecond with an integer division, so a time never comes back later than it was. The store gives each time the kind UTC on a write and on a read, because a provider can refuse a time with no kind (D319). |
 | The claim token and the due time before the claim | `ClaimToken` as `char(36)`, and `ClaimedDueAtUtc` | The values of the last claim of a message (section 4.4). |
-| JSON | `nvarchar(max)` (`text` on PostgreSQL) | `Content`, `Trace`, `Tries`, `DisabledChannels`, `Settings`, and `NamedUsers`. |
+| JSON | The option `JsonColumnType`, or else the JSON type of the dialect, or else the text type of the provider: `json` on PostgreSQL, `nvarchar(max)` on SQL Server, `TEXT` on SQLite | `Content`, `Trace`, `Tries`, `DisabledChannels`, `Settings`, and `NamedUsers`. The property stays a `string`, and the store keeps its JSON work in C# (D176, D323). |
 
-The collation of each text column comes from the option `TextCollation`, or else from the dialect of a provider package, or else from the database. The SQL Server package gives `Latin1_General_100_BIN2`, and the PostgreSQL package gives `C`, so an id or a name is case-sensitive and sorts in ordinal order. The default collation of SQLite, `BINARY`, is case-sensitive. A deterministic collation of PostgreSQL is case-sensitive too, but it can sort in another order than the ordinal order. A database with a case-insensitive default, for example SQL Server with `SQL_Latin1_General_CP1_CI_AS`, needs the option or a dialect.
+The collation of each text column comes from the option `TextCollation`, or else from the dialect of a provider package, or else from the database. The SQL Server package gives `Latin1_General_100_BIN2`, and the PostgreSQL package gives `C`, so an id or a name is case-sensitive and sorts in ordinal order. The default collation of SQLite, `BINARY`, is case-sensitive. A deterministic collation of PostgreSQL is case-sensitive too, but it can sort in another order than the ordinal order. A database with a case-insensitive default, for example SQL Server with `SQL_Latin1_General_CP1_CI_AS`, needs the option or a dialect. A JSON column has no collation, because no query compares or sorts a document, and PostgreSQL refuses a collation on `json` with the error 42804 (checked fact of phase 50).
 
-The indexes have the names of the model. The due indexes have no filter, so each provider can use them: `IX_MsgHatchInbox_Due` on `(Status, NextTryAtUtc, Sequence)` and `IX_MsgHatchOutbox_Due` on `(Channel, Status, NextTryAtUtc, Sequence)` (D104). `Sequence` is the last column, so the index gives the claim order. The other indexes are the indexes of section 3.1: the unique `(TenantId, Id)` of the inbox and `Id` of the outbox, `Flags`, `(TenantId, CreatedAtUtc, Id)`, `(TenantId, TargetKind, TargetId, CreatedAtUtc)`, and `SourceMessageId`.
+The JSON type of the column is a choice between the check of each write and the speed (D323):
+
+- PostgreSQL: the dialect gives `json`, which checks each write and keeps the text unchanged. `jsonb` changes the order of the keys and drops duplicate keys, so an event type of a host that needs `$type` as the first key can fail to read. A host selects `jsonb` only with the option.
+- SQL Server: the dialect gives no JSON type, so the columns stay `nvarchar(max)`. The type `json` needs SQL Server 2025 or Azure SQL, and a host on such a server selects it with the option.
+- The stores write a document one time and read it whole, so a text type is faster: `json` parses each write, and `jsonb` also converts each read.
+
+The indexes have the names of the model with no prefix. The due indexes have no filter, so each provider can use them: `IX_Inbox_Due` on `(Status, NextTryAtUtc, Sequence)` and `IX_Outbox_Due` on `(Channel, Status, NextTryAtUtc, Sequence)` (D104). `Sequence` is the last column, so the index gives the claim order. The other indexes are the indexes of section 3.1: the unique `(TenantId, Id)` of the inbox and `Id` of the outbox, `Flags`, `(TenantId, CreatedAtUtc, Id)`, `(TenantId, TargetKind, TargetId, CreatedAtUtc)`, and `SourceMessageId`.
 
 ### 4.2 Message format
 
@@ -399,11 +417,11 @@ The claim of the base package, with no claim statement:
 The claim of a dialect is one statement with the quoted names of the model (section 4.8). On SQL Server:
 
 ```sql
-UPDATE [msghatch].[MsgHatchOutbox] SET [ClaimedDueAtUtc] = [NextTryAtUtc], [ClaimToken] = @claimToken,
+UPDATE [msghatch].[Outbox] SET [ClaimedDueAtUtc] = [NextTryAtUtc], [ClaimToken] = @claimToken,
     [NextTryAtUtc] = @leaseUntilUtc, [LeaseUntilUtc] = @leaseUntilUtc
 OUTPUT inserted.*
 WHERE [Sequence] IN (
-    SELECT TOP (@maxCount) due.[Sequence] FROM [msghatch].[MsgHatchOutbox] AS due WITH (ROWLOCK, READPAST, UPDLOCK)
+    SELECT TOP (@maxCount) due.[Sequence] FROM [msghatch].[Outbox] AS due WITH (ROWLOCK, READPAST, UPDLOCK)
     WHERE due.[Status] = @pending AND due.[Channel] = @channel AND due.[NextTryAtUtc] <= @nowUtc
     ORDER BY due.[NextTryAtUtc], due.[Sequence])
 ```
@@ -415,10 +433,10 @@ WHERE [Sequence] IN (
 On PostgreSQL:
 
 ```sql
-UPDATE "msghatch"."MsgHatchOutbox" AS claimed SET "ClaimedDueAtUtc" = due."NextTryAtUtc", "ClaimToken" = @claimToken,
+UPDATE "msghatch"."Outbox" AS claimed SET "ClaimedDueAtUtc" = due."NextTryAtUtc", "ClaimToken" = @claimToken,
     "NextTryAtUtc" = @leaseUntilUtc, "LeaseUntilUtc" = @leaseUntilUtc
 FROM (
-    SELECT "Sequence", "NextTryAtUtc" FROM "msghatch"."MsgHatchOutbox"
+    SELECT "Sequence", "NextTryAtUtc" FROM "msghatch"."Outbox"
     WHERE "Status" = @pending AND "Channel" = @channel AND "NextTryAtUtc" <= @nowUtc
     ORDER BY "NextTryAtUtc", "Sequence"
     LIMIT @maxCount
@@ -448,9 +466,9 @@ The outbox claim first reads the latest state row of its channel. With a down ro
 
 ### 4.6 Subscription store
 
-`MsgHatchSubscriptionDbContext` maps the table `MsgHatchSubscription` with the columns of section 3.6, in the same schema and with the same column rules and collation. It is a context of its own, because the core packages never reference `MsgHatch.Subscriptions`.
+`MsgHatchSubscriptionDbContext` maps the table `Subscription` with the columns of section 3.6, in the same schema and with the same column rules and collation. It is a context of its own, because the core packages never reference `MsgHatch.Subscriptions`.
 
-- The unique index `UX_MsgHatchSubscription_Owner` on `(TenantId, MessageType, Level, CompanyId, UserId, Channel, Recipients)` stops a duplicate, and also serves `FindForDeliveryAsync`. The store writes an empty text for a missing tenant, company, user, or channel.
+- The unique index `UX_Subscription_Owner` on `(TenantId, MessageType, Level, CompanyId, UserId, Channel, Recipients)` stops a duplicate, and also serves `FindForDeliveryAsync`. The store writes an empty text for a missing tenant, company, user, or channel.
 - The declared size of this index is more than 1,700 bytes, so SQL Server creates it with a warning. A real row has a company id or a user id, never both, so its key stays below the limit (D178).
 - `AddAsync` inserts the row with EF Core. A failed insert gives `Errors.Conflict` when another row has the id or the same owner, message type, channel, and recipient kind.
 - `UpdateAsync` is one `ExecuteUpdateAsync` with the id and the expected revision. A changed row count of 0 gives `Errors.Conflict` for a stored id, and `Errors.NotFound` else. A change into the key of another row gives `Errors.Conflict`.
@@ -458,7 +476,7 @@ The outbox claim first reads the latest state row of its channel. With a down ro
 
 ### 4.7 Registry settings store
 
-`EntityFrameworkRegistrySettingsStore` keeps the registry settings in `MsgHatchChannelEntry` and `MsgHatchMessageTypeEntry` (section 4.20 of the design). `UseEntityFrameworkStores` registers it.
+`EntityFrameworkRegistrySettingsStore` keeps the registry settings in `ChannelEntry` and `MessageTypeEntry` (section 4.20 of the design). `UseEntityFrameworkStores` registers it.
 
 - A new entry, with the revision 1, is an EF Core insert. A failed insert of a stored name gives `Errors.Conflict`.
 - A change is one `ExecuteUpdateAsync` with the condition `Revision = @revision - 1`. A changed row count of 0 gives `Errors.Conflict`.
@@ -466,11 +484,13 @@ The outbox claim first reads the latest state row of its channel. With a down ro
 
 ### 4.8 Dialect contract
 
-A provider package implements `IEntityFrameworkStoreDialect` of the base package, and gives it to the contexts with `UseEntityFrameworkStoreDialect` in the provider setup of its setup method (D318):
+A provider package implements `IEntityFrameworkStoreDialect` of the namespace `MsgHatch.Data.EFCore.Providers`, and gives it to the contexts with `UseEntityFrameworkStoreDialect` in the provider setup of its setup method (D318):
 
 - `ProviderName`: the name of the EF Core provider that it serves, for example `Microsoft.EntityFrameworkCore.SqlServer` or `Npgsql.EntityFrameworkCore.PostgreSQL`. The startup validation fails when the provider of a context has another name.
 - `TextCollation`: the default collation of the text columns, or null. The option `TextCollation` wins over it.
 - `ClaimStatement(ClaimStatementNames names)`: the claim statement of one message table, or null for the claim of the base package. `ClaimStatementNames` has the table with its schema, the columns, and the placeholders of the parameters, each quoted with the names of the EF Core model and `ISqlGenerationHelper`. The base package gives each parameter the type of its column, and runs the statement with `FromSqlRaw`. The statement sets the same columns as the claim of the base package, and returns each column of each claimed row with its values after the claim.
+- `JsonColumnType`: the type of each JSON column, or null for the text type of the provider. The option `JsonColumnType` wins over it (D323). It is a default property that gives null, so the dialect of a host still compiles.
+- `ErrorTypeOf(DbException exception)`: the error type of a database exception of the provider, or null for the built-in mapping (D322). It is a default method that gives null. The store gives it the `DbException` also when EF Core wraps it, for example in `DbUpdateException`.
 
 The contract does not expose the row types of the stores. The dialect object travels in the options of each context, so the stores and the subscription store of one host can use two providers.
 
@@ -478,7 +498,7 @@ The contract does not expose the row types of the stores. The dialect object tra
 
 Only `MigrateMsgHatchAsync` of the base package changes the schema (D320). It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and `MsgHatchSubscriptionDbContext`:
 
-- Each context has a history table of its own in the schema of the options, `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`, so the history of the host does not change. A history table that the host set in the provider setup stays.
+- Each context has a history table of its own in the schema of the options, `__StoreMigrations` and `__SubscriptionMigrations`, so the history of the host does not change. A history table that the host set in the provider setup stays.
 - EF Core 10 locks the database during `MigrateAsync`, so two hosts that start at the same time apply each migration one time. A second call changes nothing.
 - An optional `Action<DbContextOptionsBuilder>` runs on top of the setup of the stores, for example `o => o.UseSqlServer(migrationConnectionString)`. The migration then uses that connection, and the stores keep theirs. MsgHatch never logs a connection string.
 - `ScriptMsgHatchMigrationsAsync` gives an idempotent script of the migrations of each context. EF Core writes no idempotent script for SQLite. The script of PostgreSQL has no batch separator, and one command runs it.
@@ -486,8 +506,8 @@ Only `MigrateMsgHatchAsync` of the base package changes the schema (D320). It ap
 
 A provider package ships the migrations of its context, which the EF Core tools generate. A migration takes the schema and the collation of the options at run time:
 
-- The migrations derive from `EntityFrameworkStoreMigration`, and the snapshot from `EntityFrameworkStoreModelSnapshot`. Their code has `Schema` and `TextCollation` in place of the schema and the collation of the design time, and their classes are internal.
-- The base package replaces `IMigrationsAssembly` of each context. It finds the migrations and the snapshot of the context in the migrations assembly, and gives them the schema and the collation of the options. So a context with another schema or collation has no pending model change, and `MigrateAsync` of EF Core 10 does not refuse it.
+- The migrations derive from `EntityFrameworkStoreMigration`, and the snapshot from `EntityFrameworkStoreModelSnapshot`, of the namespace `MsgHatch.Data.EFCore.Migrations`. Their code has `Schema`, `TextCollation`, and `JsonColumnType` in place of the schema, the collation, and the JSON type of the design time, and their classes are internal.
+- The base package replaces `IMigrationsAssembly` of each context. It finds the migrations and the snapshot of the context in the migrations assembly, and gives them the schema, the collation, and the JSON type of the options. With no JSON type in the options or the dialect, the migrations get the type of a `string` with no length of the provider. So a context with another schema, collation, or JSON type has no pending model change, and `MigrateAsync` of EF Core 10 does not refuse it.
 - The generator `StoreMigrationsCodeGenerator` of `tests/MsgHatch.Data.EFCore.Tests.Integration` writes this code. The test project of each provider package is the startup project of the EF Core tools, with an `IDesignTimeDbContextFactory` and a `DesignTimeServicesReference` to the generator. A new migration of the SQL Server package:
 
 ```powershell
@@ -502,7 +522,7 @@ dotnet ef migrations add Name --context MsgHatchDbContext --project src/MsgHatch
 dotnet ef migrations add Name --context MsgHatchSubscriptionDbContext --project src/MsgHatch.Subscriptions.Data.EFCore.PostgreSql --startup-project tests/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration --output-dir Migrations
 ```
 
-The generator replaces each text literal of a dialect collation, `"Latin1_General_100_BIN2"` and `"C"`, with `TextCollation`. A generated migration has no other literal with one of these texts.
+The generator replaces each text literal of a dialect collation, `"Latin1_General_100_BIN2"` and `"C"`, with `TextCollation`. A generated migration has no other literal with one of these texts. The design-time contexts set the option `JsonColumnType` to `json`, and the generator replaces the literal `"json"` with `JsonColumnType`. No other column has this type, so the literal marks only the JSON columns.
 
 - A file `.editorconfig` with `generated_code = true` in each folder `Migrations` stops the analyzers on the generated code.
 - The test "no pending model change" of each package fails when the model changes with no new migration.
@@ -513,9 +533,13 @@ For a provider with no MsgHatch package, the host generates the migrations of th
 
 - Each operation makes its own context through the pooled `IDbContextFactory` of its context, so the stores are thread-safe singletons (D130).
 - A provider that is not relational fails the startup validation of `UseEntityFrameworkStores` and of `UseEntityFrameworkSubscriptionStore` with an `OptionsValidationException` that names the setup method and the provider, and each store call gives `Errors.NotFound` (D175, D182).
-- A database failure gives `Errors.Unavailable`, a stored value that a person changed into an invalid value gives `Errors.SerializationFailed`, and a cancelled token gives `Errors.OperationCancelled`.
+- A store classifies an exception in the order of D141 and D322:
+  1. A cancelled token gives `Errors.OperationCancelled`.
+  2. The classifiers of the host, `IExceptionClassifier<TContext>` with the context of the store as the client, in the order of their registration. `IExceptionClassifier<MsgHatchDbContext>` serves the inbox, the outbox, and the registry settings, and `IExceptionClassifier<MsgHatchSubscriptionDbContext>` serves the subscription store. A host adds one with `AddExceptionClassifier<MsgHatchDbContext, TClassifier>()`.
+  3. `ErrorTypeOf` of the dialect. The SQL Server dialect gives `Errors.Rejected` for the numbers 229, 230, 262, and 18456, a missing permission or a failed login, and `Errors.ValidationFailed` for 207, 208, 2628, and 8152, a missing column or table and a value that is too long. The PostgreSQL dialect gives `Errors.Rejected` for the states `42501`, `28000`, and `28P01`, and `Errors.ValidationFailed` for `42P01`, `42703`, and `22001`. So these errors are not transient.
+  4. The built-in mapping: each other database failure gives `Errors.Unavailable`, and a stored value that a person changed into an invalid value gives `Errors.SerializationFailed`.
 - The base package references only `Microsoft.EntityFrameworkCore.Relational`, so the host adds the provider. The SQL Server package references `Microsoft.EntityFrameworkCore.SqlServer`. With version 10.0.15, it brings `Microsoft.Data.SqlClient` 6.1.7 and `System.Security.Cryptography.Pkcs` 10.0.13, which has no advisory (checked fact of phase 48). The PostgreSQL package references `Npgsql.EntityFrameworkCore.PostgreSQL`, 10.0.4 with Npgsql 10.0.4 in phase 49.
-- The tests run the contract bases on SQLite (unit tests), on SQL Server with no dialect and the binary collation of the option, on SQL Server with the dialect on a database of the migrations, on PostgreSQL with no dialect and the collation of the database, and on PostgreSQL with the dialect on a database of the migrations. The integration tests run on SQL Server 2025 CU7 and on PostgreSQL 18.7: on the servers of `appsettings.Local.json`, for example the local containers dev-mssql and dev-postgres, or else in containers through Testcontainers (D180).
+- The tests run the contract bases on SQLite (unit tests), on SQL Server with no dialect and the binary collation of the option, on SQL Server with the dialect on a database of the migrations, on PostgreSQL with no dialect and the collation of the database, and on PostgreSQL with the dialect on a database of the migrations. The contract bases also run with the option `JsonColumnType`: `jsonb` on PostgreSQL, and `json` on SQL Server 2025 (D323). The integration tests run on SQL Server 2025 CU7 and on PostgreSQL 18.7: on the servers of `appsettings.Local.json`, for example the local containers dev-mssql and dev-postgres, or else in containers through Testcontainers (D180).
 - PostgreSQL allows 100 connections by default, and Npgsql keeps a pool of up to 100 connections for each connection string. The test fixture gives each test database a pool of at most 10 connections. With the default pool, the parallel tests failed with the error 53300, "too many clients already" (checked fact of phase 49). A host with many connection strings on one server sets `Maximum Pool Size` in the same way.
 - The schema and the collation are a part of the options of each context. So two hosts with two schemas in one process get two models.
 
