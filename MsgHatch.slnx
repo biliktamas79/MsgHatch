@@ -2,6 +2,7 @@
   <Folder Name="/examples/">
     <Project Path="examples/AdminUiExample/AdminUiExample.csproj" />
     <Project Path="examples/ExampleApp/ExampleApp.csproj" />
+    <Project Path="examples/SchemaMigrator/SchemaMigrator.csproj" />
     <Project Path="examples/SignalRDemo/SignalRDemo.csproj" />
     <Project Path="examples/WolverineExample.Consumer/WolverineExample.Consumer.csproj" />
     <Project Path="examples/WolverineExample.Contracts/WolverineExample.Contracts.csproj" />
@@ -105,6 +106,7 @@
     <Project Path="tests/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit/MsgHatch.Templates.Liquid.AdminUI.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Liquid.Tests.Unit/MsgHatch.Templates.Liquid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Templates.Tests.Unit/MsgHatch.Templates.Tests.Unit.csproj" />
+    <Project Path="tests/SchemaMigrator.Tests.Integration/SchemaMigrator.Tests.Integration.csproj" />
     <Project Path="tests/SignalRDemo.Tests.Unit/SignalRDemo.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />
