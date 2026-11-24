@@ -46,7 +46,7 @@ A step that writes the script as an artifact, for a database administrator:
 
 ## The setup of the service
 
-The service uses a connection string with only the rights to read and write rows. It calls no migration. With `RequireCurrentSchema`, its start fails when a MsgHatch migration is not applied, with a message that names the context and the migration. The check reads only the history tables `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`:
+The service uses a connection string with only the rights to read and write rows. It calls no migration. With `RequireCurrentSchema`, its start fails when a MsgHatch migration is not applied, with a message that names the context and the migration. The check reads only the history tables `__StoreMigrations` and `__SubscriptionMigrations`:
 
 ```csharp
 services.AddMsgHatch()

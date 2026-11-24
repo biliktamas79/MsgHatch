@@ -41,7 +41,7 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
         // Assert
         Assert.Equal(
             [["1", "", id, "Pending", "2030-01-01 00:00:00", "None"], ["2", "t1", id, "Pending", "2030-01-01 00:00:00", "Test"]],
-            _database.Rows("SELECT Sequence, TenantId, Id, Status, NextTryAtUtc, Flags FROM MsgHatchInbox ORDER BY Sequence"));
+            _database.Rows("SELECT Sequence, TenantId, Id, Status, NextTryAtUtc, Flags FROM Inbox ORDER BY Sequence"));
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
         // Arrange
         var unreadable = await AddAsync(AMessage(T1));
         var message = await AddAsync(AMessage(T1));
-        _database.Execute($"UPDATE MsgHatchInbox SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'");
+        _database.Execute($"UPDATE Inbox SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'");
 
         // Act
         var result = await ClaimAsync();
@@ -60,14 +60,14 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
         Assert.Equal(
             ["Failed", "SerializationFailed", null],
             Assert.Single(_database.Rows(
-                $"SELECT Status, substr(LastError, 1, instr(LastError, ':') - 1), LeaseUntilUtc FROM MsgHatchInbox WHERE Id = '{unreadable.Delivery.Id:D}'")));
+                $"SELECT Status, substr(LastError, 1, instr(LastError, ':') - 1), LeaseUntilUtc FROM Inbox WHERE Id = '{unreadable.Delivery.Id:D}'")));
     }
 
     [Fact]
     public async Task ClaimDueAsync_FirstCandidatesThatAnotherDispatcherTookFirst_ClaimsTheNextDueMessages()
     {
         // Arrange
-        var interceptor = new FirstClaimUpdateInterceptor(_database, "UPDATE MsgHatchInbox SET NextTryAtUtc = '2030-01-01 00:00:30' WHERE Sequence <= 2");
+        var interceptor = new FirstClaimUpdateInterceptor(_database, "UPDATE Inbox SET NextTryAtUtc = '2030-01-01 00:00:30' WHERE Sequence <= 2");
         var store = new EntityFrameworkInboxStore(
             _database.ContextsOf<MsgHatchDbContext>(o => o.AddInterceptors(interceptor)), new MsgHatchJson(TestContentTypes.ARegistry()));
         var messages = new[] { AMessage(T1), AMessage(T1), AMessage(T1), AMessage(T1) };
@@ -134,7 +134,7 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
     public async Task AddAsync_TableThatDoesNotExist_ReturnsUnavailable()
     {
         // Arrange
-        _database.Execute("DROP TABLE MsgHatchInbox");
+        _database.Execute("DROP TABLE Inbox");
 
         // Act
         var error = await TenantStore(T1).AddAsync(AMessage(T1), Ct);

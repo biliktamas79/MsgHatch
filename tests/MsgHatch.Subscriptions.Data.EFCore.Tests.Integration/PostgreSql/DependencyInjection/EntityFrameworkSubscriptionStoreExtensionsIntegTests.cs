@@ -33,7 +33,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(Postgre
         // Assert
         Assert.Equal(
             [["t1", Scenario.S6.Id.ToString("D")]],
-            await database.RowsAsync("""SELECT "TenantId", "Id" FROM "msghatch"."MsgHatchSubscription" """, Ct));
+            await database.RowsAsync("""SELECT "TenantId", "Id" FROM "msghatch"."Subscription" """, Ct));
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(Postgre
         await provider.GetRequiredService<ISubscriptionStore>().AddAsync(Scenario.S6, Ct);
 
         // Assert
-        Assert.Equal([[Scenario.S6.Id.ToString("D")]], await database.RowsAsync("""SELECT "Id" FROM "shared"."MsgHatchSubscription" """, Ct));
+        Assert.Equal([[Scenario.S6.Id.ToString("D")]], await database.RowsAsync("""SELECT "Id" FROM "shared"."Subscription" """, Ct));
     }
 
     private static async Task CreateTablesAsync(ServiceProvider provider)

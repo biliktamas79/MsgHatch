@@ -51,8 +51,8 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
 
         // Assert
         Assert.Equal(
-            [["other", "__MsgHatchMigrations"], ["other", "MsgHatchChannelEntry"], ["other", "MsgHatchChannelState"], ["other", "MsgHatchInbox"],
-                ["other", "MsgHatchMessageTypeEntry"], ["other", "MsgHatchOutbox"]],
+            [["other", "__StoreMigrations"], ["other", "ChannelEntry"], ["other", "ChannelState"], ["other", "Inbox"],
+                ["other", "MessageTypeEntry"], ["other", "Outbox"]],
             await database.RowsAsync("SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_SCHEMA, TABLE_NAME", Ct));
     }
 
@@ -185,12 +185,12 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
             [["t1", "Latin1_General_100_CS_AS"], ["T1", "Latin1_General_100_CS_AS"]],
             await database.RowsAsync(
                 """
-                SELECT TenantId, (SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'MsgHatchInbox' AND COLUMN_NAME = 'TenantId')
-                FROM [msghatch].[MsgHatchInbox] ORDER BY Sequence
+                SELECT TenantId, (SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Inbox' AND COLUMN_NAME = 'TenantId')
+                FROM [msghatch].[Inbox] ORDER BY Sequence
                 """,
                 Ct));
     }
 
     private static Task<List<string?[]>> SchemaOfAsync(TestDatabase database) =>
-        SqlServerSchema.OfAsync(database, Ct, "[msghatch].[__MsgHatchMigrations]");
+        SqlServerSchema.OfAsync(database, Ct, "[msghatch].[__StoreMigrations]");
 }

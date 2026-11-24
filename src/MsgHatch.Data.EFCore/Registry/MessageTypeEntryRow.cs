@@ -1,7 +1,7 @@
 namespace MsgHatch.Data.EFCore.Registry;
 
 /// <summary>
-/// A row of the table <c>MsgHatchMessageTypeEntry</c>: the stored settings of one message type, with its disabled
+/// A row of the table <c>MessageTypeEntry</c>: the stored settings of one message type, with its disabled
 /// channels as a JSON array of channel names (section 4.20).
 /// </summary>
 internal sealed class MessageTypeEntryRow

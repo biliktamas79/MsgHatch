@@ -21,7 +21,7 @@ public sealed class EntityFrameworkInboxStoreTestData(TestDatabase database) : I
                 LastError AS [delivery.lastError], NULLIF(TenantId, '') AS tenant, ContentType AS type, ContentVersion AS contentVersion,
                 Flags AS flags, TraceParent AS traceParent, JSON_QUERY(Content) AS event
             FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)
-        FROM [msghatch].[MsgHatchInbox] ORDER BY Sequence
+        FROM [msghatch].[Inbox] ORDER BY Sequence
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());

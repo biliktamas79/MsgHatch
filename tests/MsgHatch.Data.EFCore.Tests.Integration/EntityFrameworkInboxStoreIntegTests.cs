@@ -33,7 +33,7 @@ public sealed class EntityFrameworkInboxStoreIntegTests(SqlServerFixture server)
         // Assert
         Assert.Equal(
             [["", id, "Pending", _isoTime, "None"], ["t1", id, "Pending", _isoTime, "Test"]],
-            await Database.RowsAsync("SELECT TenantId, Id, Status, NextTryAtUtc, Flags FROM [msghatch].[MsgHatchInbox] ORDER BY Sequence", Ct));
+            await Database.RowsAsync("SELECT TenantId, Id, Status, NextTryAtUtc, Flags FROM [msghatch].[Inbox] ORDER BY Sequence", Ct));
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public sealed class EntityFrameworkInboxStoreIntegTests(SqlServerFixture server)
         // Arrange
         var unreadable = await AddAsync(AMessage(T1));
         var message = await AddAsync(AMessage(T1));
-        await Database.ExecuteAsync($"UPDATE [msghatch].[MsgHatchInbox] SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'", Ct);
+        await Database.ExecuteAsync($"UPDATE [msghatch].[Inbox] SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'", Ct);
 
         // Act
         var result = await ClaimAsync();
@@ -93,7 +93,7 @@ public sealed class EntityFrameworkInboxStoreIntegTests(SqlServerFixture server)
         Assert.Equal(
             ["Failed", "SerializationFailed", null],
             Assert.Single(await Database.RowsAsync(
-                $"SELECT Status, LEFT(LastError, CHARINDEX(':', LastError) - 1), LeaseUntilUtc FROM [msghatch].[MsgHatchInbox] WHERE Id = '{unreadable.Delivery.Id:D}'",
+                $"SELECT Status, LEFT(LastError, CHARINDEX(':', LastError) - 1), LeaseUntilUtc FROM [msghatch].[Inbox] WHERE Id = '{unreadable.Delivery.Id:D}'",
                 Ct)));
     }
 
@@ -103,14 +103,14 @@ public sealed class EntityFrameworkInboxStoreIntegTests(SqlServerFixture server)
         // Arrange
         var unreadable = await AddAsync(AMessage(T1));
         await Database.ExecuteAsync(
-            $$"""UPDATE [msghatch].[MsgHatchInbox] SET Content = '{"text":"x"}, "tenant": "t2"' WHERE Id = '{{unreadable.Delivery.Id:D}}'""", Ct);
+            $$"""UPDATE [msghatch].[Inbox] SET Content = '{"text":"x"}, "tenant": "t2"' WHERE Id = '{{unreadable.Delivery.Id:D}}'""", Ct);
 
         // Act
         var result = await ClaimAsync();
 
         // Assert
         Assert.Empty(result.Value.Messages);
-        Assert.Equal(["t1", "Failed"], Assert.Single(await Database.RowsAsync("SELECT TenantId, Status FROM [msghatch].[MsgHatchInbox]", Ct)));
+        Assert.Equal(["t1", "Failed"], Assert.Single(await Database.RowsAsync("SELECT TenantId, Status FROM [msghatch].[Inbox]", Ct)));
     }
 
     [Fact]

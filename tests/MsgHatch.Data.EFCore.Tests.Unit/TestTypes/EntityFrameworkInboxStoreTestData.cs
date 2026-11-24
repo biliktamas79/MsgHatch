@@ -22,7 +22,7 @@ public sealed class EntityFrameworkInboxStoreTestData(SqliteTestDatabase databas
                 'leaseUntilUtc', {IsoTime("LeaseUntilUtc")}, 'expiresAtUtc', {IsoTime("ExpiresAtUtc")}, 'lastError', LastError),
             'tenant', NULLIF(TenantId, ''), 'type', ContentType, 'contentVersion', ContentVersion, 'flags', Flags,
             'traceParent', TraceParent, 'event', json(Content))
-        FROM MsgHatchInbox ORDER BY Sequence
+        FROM Inbox ORDER BY Sequence
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());

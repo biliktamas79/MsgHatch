@@ -14,9 +14,9 @@ using MsgHatch.Domain.Routing;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The outbox on EF Core (section 4.5, D120, D318): one row of the table <c>MsgHatchOutbox</c> for each outgoing message,
+/// The outbox on EF Core (section 4.5, D120, D318): one row of the table <c>Outbox</c> for each outgoing message,
 /// with the columns of its delivery state, its channel envelope and its route trace as JSON (D143), and its publish tries
-/// as the JSON array <c>Tries</c> (D27), which the store writes in C#. The table <c>MsgHatchChannelState</c> has the
+/// as the JSON array <c>Tries</c> (D27), which the store writes in C#. The table <c>ChannelState</c> has the
 /// insert-only state rows of each channel, with the key <c>(Channel, Version)</c> (D106, D277).
 /// Each operation makes its own context through the pooled factory (D130). It is the dispatch store of all tenants,
 /// and <see cref="For"/> gives the tenant store of one key.

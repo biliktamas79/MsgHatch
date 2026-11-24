@@ -18,7 +18,7 @@ namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 /// <param name="create">The create step of the database, or null for <c>EnsureCreatedAsync</c> with <see cref="Contexts"/>.</param>
 public sealed class TestDatabase(string connectionString, Func<TestDatabase, CancellationToken, Task>? create = null)
 {
-    private const string _tables = "MsgHatchInbox,MsgHatchOutbox,MsgHatchChannelState,MsgHatchChannelEntry,MsgHatchMessageTypeEntry";
+    private const string _tables = "Inbox,Outbox,ChannelState,ChannelEntry,MessageTypeEntry";
 
     /// <summary>The binary collation of the option, so an id is case-sensitive and sorts in ordinal order.</summary>
     public const string TextCollation = "Latin1_General_100_BIN2";

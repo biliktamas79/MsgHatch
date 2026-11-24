@@ -26,7 +26,7 @@ public sealed class EntityFrameworkOutboxStoreTestData(SqliteTestDatabase databa
             'target', json_object('kind', TargetKind, 'id', TargetId), 'contentType', ContentType,
             'contentVersion', ContentVersion, 'flags', Flags, 'traceParent', TraceParent, 'trace', json(Trace),
             'envelope', json(Content))
-        FROM MsgHatchOutbox ORDER BY Sequence
+        FROM Outbox ORDER BY Sequence
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());
@@ -39,7 +39,7 @@ public sealed class EntityFrameworkOutboxStoreTestData(SqliteTestDatabase databa
 
     public ValueTask<IReadOnlyList<PublishTry>> GetTriesAsync(Guid outgoingMessageId, CancellationToken ct)
     {
-        using var array = JsonDocument.Parse(Assert.Single(database.Rows($"SELECT Tries FROM MsgHatchOutbox WHERE Id = '{outgoingMessageId:D}'"))[0]!);
+        using var array = JsonDocument.Parse(Assert.Single(database.Rows($"SELECT Tries FROM Outbox WHERE Id = '{outgoingMessageId:D}'"))[0]!);
         return ValueTask.FromResult<IReadOnlyList<PublishTry>>([.. array.RootElement.EnumerateArray().Select(element => TryOf(outgoingMessageId, element))]);
     }
 

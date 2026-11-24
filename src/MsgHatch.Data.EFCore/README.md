@@ -67,7 +67,7 @@ An id of a tenant, a company, or a user is case-sensitive, so `t1` and `T1` are 
 
 ## Schema migrations
 
-Only `MigrateMsgHatchAsync` changes the schema. It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and the subscription context. Each context has a history table of its own in the schema of the options, `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`, so the migration history of the host does not change. EF Core locks the database during the migration, so two hosts that start at the same time apply each migration one time.
+Only `MigrateMsgHatchAsync` changes the schema. It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and the subscription context. Each context has a history table of its own in the schema of the options, `__StoreMigrations` and `__SubscriptionMigrations`, so the migration history of the host does not change. EF Core locks the database during the migration, so two hosts that start at the same time apply each migration one time.
 
 [//]: # (snippet: migrate)
 ```csharp
@@ -109,6 +109,7 @@ A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF
 
 ### 0.5.0 (2026-11-24)
 
+- Breaking: the tables, the indexes, and the history table drop the prefix `MsgHatch`, because the schema of the options keeps them apart from the tables of the host: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, `MessageTypeEntry`, `IX_Outbox_Due`, and `__StoreMigrations`. The SQLite and MongoDB stores keep the prefix. A host with migrations of its own makes them again.
 - Breaking: the API of a provider package moves into its own namespaces. `IEntityFrameworkStoreDialect`, `EntityFrameworkStoreDialectExtensions`, and `ClaimStatementNames` are in `MsgHatch.Data.EFCore.Providers`, and `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` are in `MsgHatch.Data.EFCore.Migrations`. A host that uses only the stores, the options, and `MsgHatchDbContext` needs no change.
 
 ### 0.4.0 (2026-11-24)

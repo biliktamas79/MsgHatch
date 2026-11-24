@@ -88,9 +88,9 @@ public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture se
         // Assert
         Assert.Null(error);
         Assert.Equal(
-            [["other", "MsgHatchInbox", "1"]],
+            [["other", "Inbox", "1"]],
             await database.RowsAsync(
-                "SELECT TABLE_SCHEMA, TABLE_NAME, (SELECT COUNT(*) FROM [other].[MsgHatchInbox]) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'MsgHatchInbox'",
+                "SELECT TABLE_SCHEMA, TABLE_NAME, (SELECT COUNT(*) FROM [other].[Inbox]) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Inbox'",
                 Ct));
     }
 

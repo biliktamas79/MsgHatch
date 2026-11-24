@@ -1,7 +1,7 @@
 namespace MsgHatch.Subscriptions.Data.EFCore;
 
 /// <summary>
-/// A row of the table <c>MsgHatchSubscription</c>: one subscription with its fields as columns, and its channel
+/// A row of the table <c>Subscription</c>: one subscription with its fields as columns, and its channel
 /// settings as JSON with their content type and version (D149). A missing tenant, company, user, or channel is an empty
 /// text, as in the SQLite store, so the unique index of the owner treats it as one value.
 /// </summary>

@@ -18,9 +18,9 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration.Depend
 /// </summary>
 public sealed class EntityFrameworkPostgreSqlSubscriptionStoreExtensionsIntegTests(PostgreSqlFixture server)
 {
-    private const string _history = "\"msghatch\".\"__MsgHatchMigrations\"";
+    private const string _history = "\"msghatch\".\"__StoreMigrations\"";
 
-    private const string _subscriptionHistory = "\"msghatch\".\"__MsgHatchSubscriptionMigrations\"";
+    private const string _subscriptionHistory = "\"msghatch\".\"__SubscriptionMigrations\"";
 
     public static TheoryData<string, string?> ModelRows => new()
     {
@@ -59,9 +59,9 @@ public sealed class EntityFrameworkPostgreSqlSubscriptionStoreExtensionsIntegTes
 
         // Assert
         Assert.Equal(
-            [["other", "MsgHatchChannelEntry"], ["other", "MsgHatchChannelState"], ["other", "MsgHatchInbox"], ["other", "MsgHatchMessageTypeEntry"],
-                ["other", "MsgHatchOutbox"], ["other", "MsgHatchSubscription"], ["other", "__MsgHatchMigrations"],
-                ["other", "__MsgHatchSubscriptionMigrations"]],
+            [["other", "ChannelEntry"], ["other", "ChannelState"], ["other", "Inbox"], ["other", "MessageTypeEntry"],
+                ["other", "Outbox"], ["other", "Subscription"], ["other", "__StoreMigrations"],
+                ["other", "__SubscriptionMigrations"]],
             await PostgreSqlSchema.TablesOfAsync(database, Ct));
     }
 

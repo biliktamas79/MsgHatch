@@ -10,7 +10,7 @@ using MsgHatch.Domain.Routing;
 namespace MsgHatch.Subscriptions.Data.EFCore;
 
 /// <summary>
-/// The subscription store on EF Core (section 4.5, D78, D120): one row of the table <c>MsgHatchSubscription</c> for
+/// The subscription store on EF Core (section 4.5, D78, D120): one row of the table <c>Subscription</c> for
 /// each subscription, with its fields as columns and its channel settings as JSON (D149). The store of one tenant key
 /// reads and writes only the rows of its tenant. A second subscription with the same owner, message type, channel, and
 /// recipient kind, or with a stored id, gives <see cref="Errors.Conflict"/>. Each operation makes its own context through

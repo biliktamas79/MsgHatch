@@ -2,17 +2,19 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MsgHatch.Data.EFCore;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+
+using MsgHatch.Data.EFCore.Migrations;
 
 #nullable disable
 
-namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
+namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 {
     [DbContext(typeof(MsgHatchDbContext))]
-    [Migration("20261124144401_Initial")]
+    [Migration("20261124171335_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -22,75 +24,43 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
             modelBuilder
                 .HasDefaultSchema(Schema)
                 .HasAnnotation("ProductVersion", "10.0.15")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.ChannelEntryRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.ChannelStateRow", b =>
                 {
                     b.Property<string>("Channel")
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("LastModifiedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Revision")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Channel");
-
-                    b.ToTable("MsgHatchChannelEntry", Schema);
-                });
-
-            modelBuilder.Entity("MsgHatch.Data.EFCore.ChannelStateRow", b =>
-                {
-                    b.Property<string>("Channel")
-                        .HasMaxLength(256)
-                        .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<int>("Version")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("ErrorCode")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("ErrorName")
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime?>("NextCheckAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Note")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasColumnType("nvarchar(500)")
                         .UseCollation(TextCollation);
 
                     b.Property<long?>("PreviousDurationMs")
@@ -99,261 +69,225 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                     b.Property<string>("PreviousKind")
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Reason")
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime>("SinceUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Channel", "Version");
 
-                    b.ToTable("MsgHatchChannelState", Schema);
+                    b.ToTable("ChannelState", Schema);
                 });
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.InboxRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.InboxRow", b =>
                 {
                     b.Property<long>("Sequence")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Sequence"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Sequence"));
 
                     b.Property<string>("ClaimToken")
                         .HasMaxLength(36)
                         .IsUnicode(false)
-                        .HasColumnType("character(36)")
+                        .HasColumnType("char(36)")
                         .IsFixedLength()
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime?>("ClaimedDueAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<int>("ContentVersion")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ExpiresAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Flags")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Id")
                         .HasMaxLength(36)
                         .IsUnicode(false)
-                        .HasColumnType("character(36)")
+                        .HasColumnType("char(36)")
                         .IsFixedLength()
                         .UseCollation(TextCollation);
 
                     b.Property<string>("LastError")
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime?>("LastTryAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("LeaseUntilUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("MaxTryCount")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("NextTryAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("SchemaVersion")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("nvarchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("TraceParent")
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<int>("TryCount")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Sequence");
 
                     b.HasIndex("Flags")
-                        .HasDatabaseName("IX_MsgHatchInbox_Flags");
+                        .HasDatabaseName("IX_Inbox_Flags");
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchInbox_Key");
+                        .HasDatabaseName("UX_Inbox_Key")
+                        .HasFilter("[Id] IS NOT NULL");
 
                     b.HasIndex("Status", "NextTryAtUtc", "Sequence")
-                        .HasDatabaseName("IX_MsgHatchInbox_Due");
+                        .HasDatabaseName("IX_Inbox_Due");
 
                     b.HasIndex("TenantId", "CreatedAtUtc", "Id")
-                        .HasDatabaseName("IX_MsgHatchInbox_Created");
+                        .HasDatabaseName("IX_Inbox_Created");
 
-                    b.ToTable("MsgHatchInbox", Schema);
+                    b.ToTable("Inbox", Schema);
                 });
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.MessageTypeEntryRow", b =>
-                {
-                    b.Property<string>("Type")
-                        .HasMaxLength(256)
-                        .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("DisabledChannels")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("LastModifiedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Revision")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Type");
-
-                    b.ToTable("MsgHatchMessageTypeEntry", Schema);
-                });
-
-            modelBuilder.Entity("MsgHatch.Data.EFCore.OutboxRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.OutboxRow", b =>
                 {
                     b.Property<long>("Sequence")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Sequence"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Sequence"));
 
                     b.Property<string>("Channel")
                         .IsRequired()
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("ClaimToken")
                         .HasMaxLength(36)
                         .IsUnicode(false)
-                        .HasColumnType("character(36)")
+                        .HasColumnType("char(36)")
                         .IsFixedLength()
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime?>("ClaimedDueAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<int>("ContentVersion")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ExpiresAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Flags")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Id")
                         .HasMaxLength(36)
                         .IsUnicode(false)
-                        .HasColumnType("character(36)")
+                        .HasColumnType("char(36)")
                         .IsFixedLength()
                         .UseCollation(TextCollation);
 
                     b.Property<string>("LastError")
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime?>("LastTryAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("LeaseUntilUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("MaxTryCount")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("MessageType")
                         .IsRequired()
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime>("NextTryAtUtc")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("SchemaVersion")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("SourceMessageId")
                         .IsRequired()
                         .HasMaxLength(36)
                         .IsUnicode(false)
-                        .HasColumnType("character(36)")
+                        .HasColumnType("char(36)")
                         .IsFixedLength()
                         .UseCollation(TextCollation);
 
@@ -361,72 +295,142 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("TargetId")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("nvarchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("TargetKind")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(32)")
+                        .HasColumnType("varchar(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("nvarchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Trace")
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("TraceParent")
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("TraceType")
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("character varying(256)")
+                        .HasColumnType("varchar(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Tries")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasColumnType("nvarchar(max)")
                         .UseCollation(TextCollation);
 
                     b.Property<int>("TryCount")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Sequence");
 
                     b.HasIndex("Flags")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Flags");
+                        .HasDatabaseName("IX_Outbox_Flags");
 
                     b.HasIndex("Id")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchOutbox_Id");
+                        .HasDatabaseName("UX_Outbox_Id")
+                        .HasFilter("[Id] IS NOT NULL");
 
                     b.HasIndex("SourceMessageId")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Source");
+                        .HasDatabaseName("IX_Outbox_Source");
 
                     b.HasIndex("TenantId", "CreatedAtUtc", "Id")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Created");
+                        .HasDatabaseName("IX_Outbox_Created");
 
                     b.HasIndex("Channel", "Status", "NextTryAtUtc", "Sequence")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Due");
+                        .HasDatabaseName("IX_Outbox_Due");
 
                     b.HasIndex("TenantId", "TargetKind", "TargetId", "CreatedAtUtc")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Target");
+                        .HasDatabaseName("IX_Outbox_Target");
 
-                    b.ToTable("MsgHatchOutbox", Schema);
+                    b.ToTable("Outbox", Schema);
+                });
+
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Registry.ChannelEntryRow", b =>
+                {
+                    b.Property<string>("Channel")
+                        .HasMaxLength(256)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(256)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastModifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.HasKey("Channel");
+
+                    b.ToTable("ChannelEntry", Schema);
+                });
+
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Registry.MessageTypeEntryRow", b =>
+                {
+                    b.Property<string>("Type")
+                        .HasMaxLength(256)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(256)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("DisabledChannels")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastModifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.HasKey("Type");
+
+                    b.ToTable("MessageTypeEntry", Schema);
                 });
 #pragma warning restore 612, 618
         }

@@ -3,11 +3,10 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using MsgHatch.Data.EFCore.Migrations;
 using MsgHatch.Subscriptions.Data.EFCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
-using MsgHatch.Data.EFCore;
+using MsgHatch.Data.EFCore.Migrations;
 
 #nullable disable
 
@@ -121,9 +120,9 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
 
                     b.HasIndex("TenantId", "MessageType", "Level", "CompanyId", "UserId", "Channel", "Recipients")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchSubscription_Owner");
+                        .HasDatabaseName("UX_Subscription_Owner");
 
-                    b.ToTable("MsgHatchSubscription", Schema);
+                    b.ToTable("Subscription", Schema);
                 });
 #pragma warning restore 612, 618
         }

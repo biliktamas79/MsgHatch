@@ -14,11 +14,11 @@ public sealed class EntityFrameworkSubscriptionStoreUnitTests(EntityFrameworkAcm
 {
     public static TheoryData<string, string, int> BrokenRowRows => new()
     {
-        { "unknown level", "UPDATE MsgHatchSubscription SET Level = 'Team'", 415 },
-        { "owner that does not match its level", "UPDATE MsgHatchSubscription SET Level = 'User'", 415 },
-        { "invalid settings JSON", "UPDATE MsgHatchSubscription SET Settings = '{'", 415 },
-        { "newer settings version", "UPDATE MsgHatchSubscription SET SettingsVersion = 2", 426 },
-        { "named users that are not a JSON array", "UPDATE MsgHatchSubscription SET NamedUsers = '{'", 415 },
+        { "unknown level", "UPDATE Subscription SET Level = 'Team'", 415 },
+        { "owner that does not match its level", "UPDATE Subscription SET Level = 'User'", 415 },
+        { "invalid settings JSON", "UPDATE Subscription SET Settings = '{'", 415 },
+        { "newer settings version", "UPDATE Subscription SET SettingsVersion = 2", 426 },
+        { "named users that are not a JSON array", "UPDATE Subscription SET NamedUsers = '{'", 415 },
     };
 
     private EntityFrameworkSubscriptionStoreTestData Data => EntityFrameworkSubscriptionStoreTestData.Of(Store);
@@ -33,7 +33,7 @@ public sealed class EntityFrameworkSubscriptionStoreUnitTests(EntityFrameworkAcm
         Assert.Equal(
             ["", "Company", "100", "", "D", "Channel", "Email", "NamedUsers", "[\"2\"]", "0", "2030-01-01 00:00:00"],
             Assert.Single(Data.Database.Rows(
-                "SELECT TenantId, Level, CompanyId, UserId, MessageType, Kind, Channel, Recipients, NamedUsers, CAST(Mandatory AS TEXT), CreatedAtUtc FROM MsgHatchSubscription")));
+                "SELECT TenantId, Level, CompanyId, UserId, MessageType, Kind, Channel, Recipients, NamedUsers, CAST(Mandatory AS TEXT), CreatedAtUtc FROM Subscription")));
     }
 
     [Theory]
@@ -55,7 +55,7 @@ public sealed class EntityFrameworkSubscriptionStoreUnitTests(EntityFrameworkAcm
     public async Task AddAsync_TableThatDoesNotExist_GivesUnavailable()
     {
         // Arrange
-        Data.Database.Execute("DROP TABLE MsgHatchSubscription");
+        Data.Database.Execute("DROP TABLE Subscription");
 
         // Act
         var error = await Store.AddAsync(Scenario.S6, Ct);

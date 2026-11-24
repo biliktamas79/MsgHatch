@@ -25,7 +25,7 @@ public sealed class EntityFrameworkOutboxStoreTestData(TestDatabase database) : 
                 ContentVersion AS contentVersion, Flags AS flags, TraceParent AS traceParent, JSON_QUERY(Trace) AS trace,
                 JSON_QUERY(Content) AS envelope
             FOR JSON PATH, INCLUDE_NULL_VALUES, WITHOUT_ARRAY_WRAPPER)
-        FROM [msghatch].[MsgHatchOutbox] ORDER BY Sequence
+        FROM [msghatch].[Outbox] ORDER BY Sequence
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());
@@ -37,7 +37,7 @@ public sealed class EntityFrameworkOutboxStoreTestData(TestDatabase database) : 
 
     public async ValueTask<IReadOnlyList<PublishTry>> GetTriesAsync(Guid outgoingMessageId, CancellationToken ct)
     {
-        var rows = await database.RowsAsync($"SELECT Tries FROM [msghatch].[MsgHatchOutbox] WHERE Id = '{outgoingMessageId:D}'", ct);
+        var rows = await database.RowsAsync($"SELECT Tries FROM [msghatch].[Outbox] WHERE Id = '{outgoingMessageId:D}'", ct);
         using var array = JsonDocument.Parse(Assert.Single(rows)[0]!);
         return [.. array.RootElement.EnumerateArray().Select(element => TryOf(outgoingMessageId, element))];
     }

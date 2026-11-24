@@ -113,7 +113,7 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
 
         // Assert
         Assert.Equal(
-            [["MsgHatchSubscription"], ["__MsgHatchSubscriptionMigrations"]],
+            [["Subscription"], ["__SubscriptionMigrations"]],
             await database.RowsAsync("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_NAME DESC", Ct));
     }
 }

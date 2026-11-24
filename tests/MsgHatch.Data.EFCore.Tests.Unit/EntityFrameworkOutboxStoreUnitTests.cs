@@ -41,7 +41,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         Assert.Equal(
             ["", "Pending", "2030-01-01 00:00:00", null, "User", "None", "Trace:Test@1", "[]", null, null],
             Assert.Single(_database.Rows(
-                "SELECT TenantId, Status, NextTryAtUtc, LeaseUntilUtc, TargetKind, Flags, TraceType, Tries, ClaimToken, ClaimedDueAtUtc FROM MsgHatchOutbox")));
+                "SELECT TenantId, Status, NextTryAtUtc, LeaseUntilUtc, TargetKind, Flags, TraceType, Tries, ClaimToken, ClaimedDueAtUtc FROM Outbox")));
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         Assert.Null(error);
         Assert.Equal(
             [[stored.Delivery.Id.ToString("D")], [batch[0].Delivery.Id.ToString("D")], [batch[2].Delivery.Id.ToString("D")]],
-            _database.Rows("SELECT Id FROM MsgHatchOutbox ORDER BY Sequence"));
+            _database.Rows("SELECT Id FROM Outbox ORDER BY Sequence"));
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         await ClaimAsync();
 
         // Assert
-        var row = Assert.Single(_database.Rows($"SELECT ClaimToken, ClaimedDueAtUtc, NextTryAtUtc, LeaseUntilUtc FROM MsgHatchOutbox WHERE Id = '{message.Delivery.Id:D}'"));
+        var row = Assert.Single(_database.Rows($"SELECT ClaimToken, ClaimedDueAtUtc, NextTryAtUtc, LeaseUntilUtc FROM Outbox WHERE Id = '{message.Delivery.Id:D}'"));
         Assert.Equal(
             (36, "2029-12-31 23:59:55", "2030-01-01 00:00:30", "2030-01-01 00:00:30"),
             (row[0]!.Length, row[1], row[2], row[3]));
@@ -81,7 +81,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
     public async Task ClaimDueAsync_FirstCandidatesThatAnotherDispatcherTookFirst_ClaimsTheNextDueMessagesOfTheChannel()
     {
         // Arrange
-        var interceptor = new FirstClaimUpdateInterceptor(_database, "UPDATE MsgHatchOutbox SET NextTryAtUtc = '2030-01-01 00:00:30' WHERE Sequence <= 2");
+        var interceptor = new FirstClaimUpdateInterceptor(_database, "UPDATE Outbox SET NextTryAtUtc = '2030-01-01 00:00:30' WHERE Sequence <= 2");
         var store = new EntityFrameworkOutboxStore(
             _database.ContextsOf<MsgHatchDbContext>(o => o.AddInterceptors(interceptor)), new MsgHatchJson(TestContentTypes.ARegistry()));
         OutgoingMessage[] messages = [AMessage(T1), AMessage(T1), AMessage(T1), AMessage(T1)];
@@ -101,7 +101,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
     {
         // Arrange
         var message = await AddAsync(AMessage(T1));
-        _database.Execute($"UPDATE MsgHatchOutbox SET Tries = '[not json' WHERE Id = '{message.Delivery.Id:D}'");
+        _database.Execute($"UPDATE Outbox SET Tries = '[not json' WHERE Id = '{message.Delivery.Id:D}'");
         var publishTry = new PublishTry(message.Delivery.Id, 1, Now, Now, PublishOutcome.Succeeded, "provider-1", null, null, null);
 
         // Act
@@ -117,7 +117,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         // Arrange
         var unreadable = await AddAsync(AMessage(T1));
         var message = await AddAsync(AMessage(T1));
-        _database.Execute($"UPDATE MsgHatchOutbox SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'");
+        _database.Execute($"UPDATE Outbox SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'");
 
         // Act
         var result = await ClaimAsync();
@@ -126,7 +126,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         Assert.Equal(message.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
         Assert.Equal(
             ["Failed", null],
-            Assert.Single(_database.Rows($"SELECT Status, LeaseUntilUtc FROM MsgHatchOutbox WHERE Id = '{unreadable.Delivery.Id:D}'")));
+            Assert.Single(_database.Rows($"SELECT Status, LeaseUntilUtc FROM Outbox WHERE Id = '{unreadable.Delivery.Id:D}'")));
     }
 
     [Fact]
@@ -134,14 +134,14 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
     {
         // Arrange
         var message = await AddAsync(AMessage(T1));
-        _database.Execute($"UPDATE MsgHatchOutbox SET ContentVersion = 2 WHERE Id = '{message.Delivery.Id:D}'");
+        _database.Execute($"UPDATE Outbox SET ContentVersion = 2 WHERE Id = '{message.Delivery.Id:D}'");
 
         // Act
         var result = await ClaimAsync();
 
         // Assert
         Assert.Equal((0, (DateTime?)Now.AddSeconds(30)), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
-        Assert.Equal(["Pending", "2030-01-01 00:00:30"], Assert.Single(_database.Rows("SELECT Status, NextTryAtUtc FROM MsgHatchOutbox")));
+        Assert.Equal(["Pending", "2030-01-01 00:00:30"], Assert.Single(_database.Rows("SELECT Status, NextTryAtUtc FROM Outbox")));
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         await AddAsync(AMessage(T1));
         await Store.SetChannelDownAsync(
             new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance"), Ct);
-        _database.Execute("UPDATE MsgHatchChannelState SET Reason = 'Unknown'");
+        _database.Execute("UPDATE ChannelState SET Reason = 'Unknown'");
 
         // Act
         var result = await ClaimAsync();
@@ -172,14 +172,14 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         // Assert
         Assert.Equal(
             ["2", "Up", "Down", "5400000", null, null],
-            Assert.Single(_database.Rows("SELECT Version, Kind, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc FROM MsgHatchChannelState WHERE Version = 2")));
+            Assert.Single(_database.Rows("SELECT Version, Kind, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc FROM ChannelState WHERE Version = 2")));
     }
 
     [Fact]
     public async Task ClaimDueAsync_TableThatDoesNotExist_ReturnsUnavailable()
     {
         // Arrange
-        _database.Execute("DROP TABLE MsgHatchOutbox");
+        _database.Execute("DROP TABLE Outbox");
 
         // Act
         var result = await ClaimAsync();

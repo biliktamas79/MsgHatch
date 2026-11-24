@@ -2,19 +2,19 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MsgHatch.Subscriptions.Data.EFCore;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
-using MsgHatch.Data.EFCore;
+using MsgHatch.Data.EFCore.Migrations;
 
 #nullable disable
 
-namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
+namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
 {
     [DbContext(typeof(MsgHatchSubscriptionDbContext))]
-    [Migration("20261124113510_Initial")]
+    [Migration("20261124171355_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -24,16 +24,16 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
             modelBuilder
                 .HasDefaultSchema(Schema)
                 .HasAnnotation("ProductVersion", "10.0.15")
-                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("MsgHatch.Subscriptions.Data.EFCore.SubscriptionRow", b =>
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(36)
                         .IsUnicode(false)
-                        .HasColumnType("char(36)")
+                        .HasColumnType("character(36)")
                         .IsFixedLength()
                         .UseCollation(TextCollation);
 
@@ -41,91 +41,91 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(256)")
+                        .HasColumnType("character varying(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("CompanyId")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(32)")
+                        .HasColumnType("character varying(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<DateTime>("LastModifiedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Level")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(32)")
+                        .HasColumnType("character varying(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<bool>("Mandatory")
-                        .HasColumnType("bit");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("MessageType")
                         .IsRequired()
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(256)")
+                        .HasColumnType("character varying(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("NamedUsers")
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Recipients")
                         .IsRequired()
                         .HasMaxLength(32)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(32)")
+                        .HasColumnType("character varying(32)")
                         .UseCollation(TextCollation);
 
                     b.Property<int>("Revision")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Settings")
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("SettingsType")
                         .HasMaxLength(256)
                         .IsUnicode(false)
-                        .HasColumnType("varchar(256)")
+                        .HasColumnType("character varying(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<int?>("SettingsVersion")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .UseCollation(TextCollation);
 
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .UseCollation(TextCollation);
 
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "MessageType", "Level", "CompanyId", "UserId", "Channel", "Recipients")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchSubscription_Owner");
+                        .HasDatabaseName("UX_Subscription_Owner");
 
-                    b.ToTable("MsgHatchSubscription", Schema);
+                    b.ToTable("Subscription", Schema);
                 });
 #pragma warning restore 612, 618
         }

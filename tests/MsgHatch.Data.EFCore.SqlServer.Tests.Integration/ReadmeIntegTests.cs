@@ -91,6 +91,6 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
             (6, 6, true),
             ((await database.RowsAsync("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", Ct)).Count,
                 (await migrationDatabase.RowsAsync("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", Ct)).Count,
-                script.Contains("__MsgHatchMigrations", StringComparison.Ordinal)));
+                script.Contains("__StoreMigrations", StringComparison.Ordinal)));
     }
 }

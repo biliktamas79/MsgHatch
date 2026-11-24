@@ -1,7 +1,7 @@
 namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>
-/// A row of the table <c>MsgHatchOutbox</c>: one outgoing message, with its channel envelope as JSON in
+/// A row of the table <c>Outbox</c>: one outgoing message, with its channel envelope as JSON in
 /// <c>Content</c>, its route trace as JSON, and its publish tries as a JSON array (D27).
 /// </summary>
 internal sealed class OutboxRow : MessageRow

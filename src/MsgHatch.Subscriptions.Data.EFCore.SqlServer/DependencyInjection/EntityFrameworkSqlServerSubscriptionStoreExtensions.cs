@@ -12,7 +12,7 @@ public static class EntityFrameworkSqlServerSubscriptionStoreExtensions
     /// Selects the EF Core subscription store on SQL Server in one call: <c>UseEntityFrameworkSubscriptionStore</c> with
     /// <c>UseSqlServer</c>, the dialect of <c>MsgHatch.Data.EFCore.SqlServer</c>, and the migrations of
     /// <see cref="MsgHatchSubscriptionDbContext"/> in this package. <c>MigrateMsgHatchAsync</c> applies them, with the
-    /// history table <c>__MsgHatchSubscriptionMigrations</c>. The store shares <c>EntityFrameworkStoreOptions</c> with the
+    /// history table <c>__SubscriptionMigrations</c>. The store shares <c>EntityFrameworkStoreOptions</c> with the
     /// EF Core stores (D59).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>

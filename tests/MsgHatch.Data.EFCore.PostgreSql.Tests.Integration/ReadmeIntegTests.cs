@@ -90,6 +90,6 @@ public sealed class ReadmeIntegTests(PostgreSqlFixture server)
         Assert.Equal(
             (6, 6, true),
             ((await PostgreSqlSchema.TablesOfAsync(database, Ct)).Count, (await PostgreSqlSchema.TablesOfAsync(migrationDatabase, Ct)).Count,
-                script.Contains("__MsgHatchMigrations", StringComparison.Ordinal)));
+                script.Contains("__StoreMigrations", StringComparison.Ordinal)));
     }
 }

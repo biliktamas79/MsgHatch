@@ -50,7 +50,7 @@ public static class MigratedSubscriptionStores
         public async ValueTask ResetAsync(CancellationToken ct)
         {
             await database.ResetAsync(ct);
-            await database.ExecuteAsync("DELETE FROM [msghatch].[MsgHatchSubscription]", ct);
+            await database.ExecuteAsync("DELETE FROM [msghatch].[Subscription]", ct);
         }
     }
 }

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MsgHatch.Data.EFCore;
+
 using MsgHatch.Data.EFCore.Migrations;
 
 #nullable disable
@@ -24,39 +25,7 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.ChannelEntryRow", b =>
-                {
-                    b.Property<string>("Channel")
-                        .HasMaxLength(256)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(256)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("LastModifiedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Revision")
-                        .HasColumnType("int");
-
-                    b.HasKey("Channel");
-
-                    b.ToTable("MsgHatchChannelEntry", Schema);
-                });
-
-            modelBuilder.Entity("MsgHatch.Data.EFCore.ChannelStateRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.ChannelStateRow", b =>
                 {
                     b.Property<string>("Channel")
                         .HasMaxLength(256)
@@ -111,10 +80,10 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 
                     b.HasKey("Channel", "Version");
 
-                    b.ToTable("MsgHatchChannelState", Schema);
+                    b.ToTable("ChannelState", Schema);
                 });
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.InboxRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.InboxRow", b =>
                 {
                     b.Property<long>("Sequence")
                         .ValueGeneratedOnAdd()
@@ -209,60 +178,23 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                     b.HasKey("Sequence");
 
                     b.HasIndex("Flags")
-                        .HasDatabaseName("IX_MsgHatchInbox_Flags");
+                        .HasDatabaseName("IX_Inbox_Flags");
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchInbox_Key")
+                        .HasDatabaseName("UX_Inbox_Key")
                         .HasFilter("[Id] IS NOT NULL");
 
                     b.HasIndex("Status", "NextTryAtUtc", "Sequence")
-                        .HasDatabaseName("IX_MsgHatchInbox_Due");
+                        .HasDatabaseName("IX_Inbox_Due");
 
                     b.HasIndex("TenantId", "CreatedAtUtc", "Id")
-                        .HasDatabaseName("IX_MsgHatchInbox_Created");
+                        .HasDatabaseName("IX_Inbox_Created");
 
-                    b.ToTable("MsgHatchInbox", Schema);
+                    b.ToTable("Inbox", Schema);
                 });
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.MessageTypeEntryRow", b =>
-                {
-                    b.Property<string>("Type")
-                        .HasMaxLength(256)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(256)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("DisabledChannels")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
-                        .UseCollation(TextCollation);
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("LastModifiedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Revision")
-                        .HasColumnType("int");
-
-                    b.HasKey("Type");
-
-                    b.ToTable("MsgHatchMessageTypeEntry", Schema);
-                });
-
-            modelBuilder.Entity("MsgHatch.Data.EFCore.OutboxRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.OutboxRow", b =>
                 {
                     b.Property<long>("Sequence")
                         .ValueGeneratedOnAdd()
@@ -407,26 +339,95 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                     b.HasKey("Sequence");
 
                     b.HasIndex("Flags")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Flags");
+                        .HasDatabaseName("IX_Outbox_Flags");
 
                     b.HasIndex("Id")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchOutbox_Id")
+                        .HasDatabaseName("UX_Outbox_Id")
                         .HasFilter("[Id] IS NOT NULL");
 
                     b.HasIndex("SourceMessageId")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Source");
+                        .HasDatabaseName("IX_Outbox_Source");
 
                     b.HasIndex("TenantId", "CreatedAtUtc", "Id")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Created");
+                        .HasDatabaseName("IX_Outbox_Created");
 
                     b.HasIndex("Channel", "Status", "NextTryAtUtc", "Sequence")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Due");
+                        .HasDatabaseName("IX_Outbox_Due");
 
                     b.HasIndex("TenantId", "TargetKind", "TargetId", "CreatedAtUtc")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Target");
+                        .HasDatabaseName("IX_Outbox_Target");
 
-                    b.ToTable("MsgHatchOutbox", Schema);
+                    b.ToTable("Outbox", Schema);
+                });
+
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Registry.ChannelEntryRow", b =>
+                {
+                    b.Property<string>("Channel")
+                        .HasMaxLength(256)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(256)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastModifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.HasKey("Channel");
+
+                    b.ToTable("ChannelEntry", Schema);
+                });
+
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Registry.MessageTypeEntryRow", b =>
+                {
+                    b.Property<string>("Type")
+                        .HasMaxLength(256)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(256)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("DisabledChannels")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .UseCollation(TextCollation);
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastModifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.HasKey("Type");
+
+                    b.ToTable("MessageTypeEntry", Schema);
                 });
 #pragma warning restore 612, 618
         }

@@ -12,7 +12,7 @@ using MsgHatch.Domain.Persistence;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The inbox on EF Core (section 4.5, D120, D318): one row of the table <c>MsgHatchInbox</c> for each received message,
+/// The inbox on EF Core (section 4.5, D120, D318): one row of the table <c>Inbox</c> for each received message,
 /// with the columns of its delivery state, and its event as JSON in the column <c>Content</c> (D143). The key of a row is
 /// the tenant and the id, so an add of a stored key changes nothing. Each operation makes its own context through the
 /// pooled factory (D130). It is the dispatch store of all tenants, and <see cref="For"/> gives the tenant store of one key.

@@ -19,13 +19,13 @@ public sealed class EntityFrameworkSubscriptionStoreIntegTests(SqlServerFixture 
 
     public static TheoryData<string, string, int> BrokenRowRows => new()
     {
-        { "unknown level", "UPDATE [msghatch].[MsgHatchSubscription] SET Level = 'Team'", 415 },
-        { "owner that does not match its level", "UPDATE [msghatch].[MsgHatchSubscription] SET Level = 'User'", 415 },
-        { "invalid message type name", "UPDATE [msghatch].[MsgHatchSubscription] SET MessageType = 'not a name!'", 415 },
-        { "invalid settings JSON", "UPDATE [msghatch].[MsgHatchSubscription] SET Settings = '{'", 415 },
-        { "newer settings version", "UPDATE [msghatch].[MsgHatchSubscription] SET SettingsVersion = 2", 426 },
-        { "named users that are not a JSON array", "UPDATE [msghatch].[MsgHatchSubscription] SET NamedUsers = '{'", 415 },
-        { "named users that are NULL", "UPDATE [msghatch].[MsgHatchSubscription] SET NamedUsers = NULL", 415 },
+        { "unknown level", "UPDATE [msghatch].[Subscription] SET Level = 'Team'", 415 },
+        { "owner that does not match its level", "UPDATE [msghatch].[Subscription] SET Level = 'User'", 415 },
+        { "invalid message type name", "UPDATE [msghatch].[Subscription] SET MessageType = 'not a name!'", 415 },
+        { "invalid settings JSON", "UPDATE [msghatch].[Subscription] SET Settings = '{'", 415 },
+        { "newer settings version", "UPDATE [msghatch].[Subscription] SET SettingsVersion = 2", 426 },
+        { "named users that are not a JSON array", "UPDATE [msghatch].[Subscription] SET NamedUsers = '{'", 415 },
+        { "named users that are NULL", "UPDATE [msghatch].[Subscription] SET NamedUsers = NULL", 415 },
     };
 
     private TestDatabase Database => EntityFrameworkSubscriptionStoreTestData.Of(server, "subscriptions").Raw;
@@ -85,7 +85,7 @@ public sealed class EntityFrameworkSubscriptionStoreIntegTests(SqlServerFixture 
                 """
                 SELECT TenantId, Level, CompanyId, UserId, MessageType, Kind, Channel, SettingsType, SettingsVersion, Settings,
                     Recipients, NamedUsers, Mandatory, CreatedAtUtc, LastModifiedAtUtc
-                FROM [msghatch].[MsgHatchSubscription]
+                FROM [msghatch].[Subscription]
                 """,
                 Ct)));
     }
@@ -110,7 +110,7 @@ public sealed class EntityFrameworkSubscriptionStoreIntegTests(SqlServerFixture 
     {
         // Arrange
         await Store.AddAsync(Scenario.S6, Ct);
-        await Database.ExecuteAsync("UPDATE [msghatch].[MsgHatchSubscription] SET SettingsVersion = 2", Ct);
+        await Database.ExecuteAsync("UPDATE [msghatch].[Subscription] SET SettingsVersion = 2", Ct);
 
         // Act
         var found = await Store.FindForDeliveryAsync(Scenario.S6.Type, [], [new UserId("1")], Ct);

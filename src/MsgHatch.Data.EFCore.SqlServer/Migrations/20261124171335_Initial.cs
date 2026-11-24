@@ -1,7 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-using MsgHatch.Data.EFCore;
 using MsgHatch.Data.EFCore.Migrations;
 
 #nullable disable
@@ -18,7 +17,7 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                 name: Schema);
 
             migrationBuilder.CreateTable(
-                name: "MsgHatchChannelEntry",
+                name: "ChannelEntry",
                 schema: Schema,
                 columns: table => new
                 {
@@ -31,11 +30,11 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MsgHatchChannelEntry", x => x.Channel);
+                    table.PrimaryKey("PK_ChannelEntry", x => x.Channel);
                 });
 
             migrationBuilder.CreateTable(
-                name: "MsgHatchChannelState",
+                name: "ChannelState",
                 schema: Schema,
                 columns: table => new
                 {
@@ -53,11 +52,11 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MsgHatchChannelState", x => new { x.Channel, x.Version });
+                    table.PrimaryKey("PK_ChannelState", x => new { x.Channel, x.Version });
                 });
 
             migrationBuilder.CreateTable(
-                name: "MsgHatchInbox",
+                name: "Inbox",
                 schema: Schema,
                 columns: table => new
                 {
@@ -85,11 +84,11 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MsgHatchInbox", x => x.Sequence);
+                    table.PrimaryKey("PK_Inbox", x => x.Sequence);
                 });
 
             migrationBuilder.CreateTable(
-                name: "MsgHatchMessageTypeEntry",
+                name: "MessageTypeEntry",
                 schema: Schema,
                 columns: table => new
                 {
@@ -103,11 +102,11 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MsgHatchMessageTypeEntry", x => x.Type);
+                    table.PrimaryKey("PK_MessageTypeEntry", x => x.Type);
                 });
 
             migrationBuilder.CreateTable(
-                name: "MsgHatchOutbox",
+                name: "Outbox",
                 schema: Schema,
                 columns: table => new
                 {
@@ -143,69 +142,69 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MsgHatchOutbox", x => x.Sequence);
+                    table.PrimaryKey("PK_Outbox", x => x.Sequence);
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchInbox_Created",
+                name: "IX_Inbox_Created",
                 schema: Schema,
-                table: "MsgHatchInbox",
+                table: "Inbox",
                 columns: new[] { "TenantId", "CreatedAtUtc", "Id" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchInbox_Due",
+                name: "IX_Inbox_Due",
                 schema: Schema,
-                table: "MsgHatchInbox",
+                table: "Inbox",
                 columns: new[] { "Status", "NextTryAtUtc", "Sequence" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchInbox_Flags",
+                name: "IX_Inbox_Flags",
                 schema: Schema,
-                table: "MsgHatchInbox",
+                table: "Inbox",
                 column: "Flags");
 
             migrationBuilder.CreateIndex(
-                name: "UX_MsgHatchInbox_Key",
+                name: "UX_Inbox_Key",
                 schema: Schema,
-                table: "MsgHatchInbox",
+                table: "Inbox",
                 columns: new[] { "TenantId", "Id" },
                 unique: true,
                 filter: "[Id] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchOutbox_Created",
+                name: "IX_Outbox_Created",
                 schema: Schema,
-                table: "MsgHatchOutbox",
+                table: "Outbox",
                 columns: new[] { "TenantId", "CreatedAtUtc", "Id" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchOutbox_Due",
+                name: "IX_Outbox_Due",
                 schema: Schema,
-                table: "MsgHatchOutbox",
+                table: "Outbox",
                 columns: new[] { "Channel", "Status", "NextTryAtUtc", "Sequence" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchOutbox_Flags",
+                name: "IX_Outbox_Flags",
                 schema: Schema,
-                table: "MsgHatchOutbox",
+                table: "Outbox",
                 column: "Flags");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchOutbox_Source",
+                name: "IX_Outbox_Source",
                 schema: Schema,
-                table: "MsgHatchOutbox",
+                table: "Outbox",
                 column: "SourceMessageId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MsgHatchOutbox_Target",
+                name: "IX_Outbox_Target",
                 schema: Schema,
-                table: "MsgHatchOutbox",
+                table: "Outbox",
                 columns: new[] { "TenantId", "TargetKind", "TargetId", "CreatedAtUtc" });
 
             migrationBuilder.CreateIndex(
-                name: "UX_MsgHatchOutbox_Id",
+                name: "UX_Outbox_Id",
                 schema: Schema,
-                table: "MsgHatchOutbox",
+                table: "Outbox",
                 column: "Id",
                 unique: true,
                 filter: "[Id] IS NOT NULL");
@@ -215,23 +214,23 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "MsgHatchChannelEntry",
+                name: "ChannelEntry",
                 schema: Schema);
 
             migrationBuilder.DropTable(
-                name: "MsgHatchChannelState",
+                name: "ChannelState",
                 schema: Schema);
 
             migrationBuilder.DropTable(
-                name: "MsgHatchInbox",
+                name: "Inbox",
                 schema: Schema);
 
             migrationBuilder.DropTable(
-                name: "MsgHatchMessageTypeEntry",
+                name: "MessageTypeEntry",
                 schema: Schema);
 
             migrationBuilder.DropTable(
-                name: "MsgHatchOutbox",
+                name: "Outbox",
                 schema: Schema);
         }
     }

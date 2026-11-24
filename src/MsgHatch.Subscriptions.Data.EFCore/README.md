@@ -57,7 +57,7 @@ services.AddMsgHatch()
 
 ## Schema migrations
 
-`MigrateMsgHatchAsync` of `MsgHatch.Data.EFCore` applies the migrations of each registered MsgHatch context, and only it changes the schema. The subscription context has the history table `__MsgHatchSubscriptionMigrations` in the schema of the options:
+`MigrateMsgHatchAsync` of `MsgHatch.Data.EFCore` applies the migrations of each registered MsgHatch context, and only it changes the schema. The subscription context has the history table `__SubscriptionMigrations` in the schema of the options:
 
 [//]: # (snippet: migrate)
 ```csharp
@@ -82,6 +82,10 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 ```
 
 ## Version history
+
+### 0.5.0 (2026-11-24)
+
+- Breaking: the table, the index, and the history table drop the prefix `MsgHatch`: `Subscription`, `UX_Subscription_Owner`, and `__SubscriptionMigrations`. The SQLite and MongoDB stores keep the prefix. A host with migrations of its own makes them again.
 
 ### 0.4.0 (2026-11-24)
 

@@ -1,7 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
-using MsgHatch.Data.EFCore;
 using MsgHatch.Data.EFCore.Migrations;
 
 #nullable disable
@@ -18,7 +17,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
                 name: Schema);
 
             migrationBuilder.CreateTable(
-                name: "MsgHatchSubscription",
+                name: "Subscription",
                 schema: Schema,
                 columns: table => new
                 {
@@ -42,13 +41,13 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MsgHatchSubscription", x => x.Id);
+                    table.PrimaryKey("PK_Subscription", x => x.Id);
                 });
 
             migrationBuilder.CreateIndex(
-                name: "UX_MsgHatchSubscription_Owner",
+                name: "UX_Subscription_Owner",
                 schema: Schema,
-                table: "MsgHatchSubscription",
+                table: "Subscription",
                 columns: new[] { "TenantId", "MessageType", "Level", "CompanyId", "UserId", "Channel", "Recipients" },
                 unique: true);
         }
@@ -57,7 +56,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "MsgHatchSubscription",
+                name: "Subscription",
                 schema: Schema);
         }
     }

@@ -49,6 +49,6 @@ public sealed class PostgreSqlSubscriptionStoreTestData : ISubscriptionStoreTest
             _created = true;
         }
 
-        await Raw.ExecuteAsync("""DELETE FROM "msghatch"."MsgHatchSubscription" """, ct);
+        await Raw.ExecuteAsync("""DELETE FROM "msghatch"."Subscription" """, ct);
     }
 }

@@ -34,7 +34,7 @@ services.AddMsgHatch()
 
 ## Schema migrations
 
-The package creates the schema only in the migration step. `MigrateMsgHatchAsync` applies the migrations of the package in the schema of the options, with the history table `__MsgHatchMigrations` in that schema:
+The package creates the schema only in the migration step. `MigrateMsgHatchAsync` applies the migrations of the package in the schema of the options, with the history table `__StoreMigrations` in that schema:
 
 [//]: # (snippet: migrate)
 ```csharp
@@ -69,6 +69,10 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 ```
 
 ## Version history
+
+### 0.5.0 (2026-11-24)
+
+- Breaking: the tables, the indexes, and the history table drop the prefix `MsgHatch`, because the schema of the options keeps them apart from the tables of the host: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, `MessageTypeEntry`, `IX_Outbox_Due`, and `__StoreMigrations`. The SQLite and MongoDB stores keep the prefix. The `Initial` migration of the package creates the new names.
 
 ### 0.3.0 (2026-11-24)
 

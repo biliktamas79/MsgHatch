@@ -19,7 +19,7 @@ namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 public sealed class PostgreSqlTestDatabase(string connectionString, Func<PostgreSqlTestDatabase, CancellationToken, Task>? create = null)
 {
     private static readonly string[] _tables =
-        ["MsgHatchInbox", "MsgHatchOutbox", "MsgHatchChannelState", "MsgHatchChannelEntry", "MsgHatchMessageTypeEntry"];
+        ["Inbox", "Outbox", "ChannelState", "ChannelEntry", "MessageTypeEntry"];
 
     private bool _created;
 

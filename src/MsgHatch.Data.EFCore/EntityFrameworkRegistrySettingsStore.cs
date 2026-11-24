@@ -9,8 +9,8 @@ using MsgHatch.Domain.Routing;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The registry settings on EF Core (section 4.20): one row of <c>MsgHatchChannelEntry</c> for each channel entry, and
-/// one row of <c>MsgHatchMessageTypeEntry</c> for each message type entry, with <c>DisabledChannels</c> as a JSON array.
+/// The registry settings on EF Core (section 4.20): one row of <c>ChannelEntry</c> for each channel entry, and
+/// one row of <c>MessageTypeEntry</c> for each message type entry, with <c>DisabledChannels</c> as a JSON array.
 /// A new entry is an insert, and a key that is already stored gives <see cref="Errors.Conflict"/>. A change is an
 /// update with the expected revision, and a changed row count of 0 gives <see cref="Errors.Conflict"/>.
 /// </summary>

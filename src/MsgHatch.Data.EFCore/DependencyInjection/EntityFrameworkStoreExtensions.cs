@@ -18,7 +18,7 @@ public static class EntityFrameworkStoreExtensions
     /// <see cref="EntityFrameworkOutboxStore"/>, each with its two parts and their logging wrappers, and
     /// <see cref="EntityFrameworkRegistrySettingsStore"/> with its logging wrapper (D130). Only
     /// <see cref="EntityFrameworkMigrationExtensions.MigrateMsgHatchAsync"/> changes the schema, with the migrations of a
-    /// provider package or of the host, and the history table <c>__MsgHatchMigrations</c> (D320). The options bind from the
+    /// provider package or of the host, and the history table <c>__StoreMigrations</c> (D320). The options bind from the
     /// section <c>MsgHatch:EntityFramework</c>, and a value from code wins. The startup validation fails for a provider
     /// that is not relational (D175).
     /// </summary>
@@ -32,7 +32,7 @@ public static class EntityFrameworkStoreExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
         AddOptions(builder, nameof(UseEntityFrameworkStores), configureOptions);
-        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure, "__MsgHatchMigrations");
+        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure, "__StoreMigrations");
         builder.Services.TryAddSingleton(static services => new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new EntityFrameworkOutboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new EntityFrameworkRegistrySettingsStore(ContextsOf(services)));

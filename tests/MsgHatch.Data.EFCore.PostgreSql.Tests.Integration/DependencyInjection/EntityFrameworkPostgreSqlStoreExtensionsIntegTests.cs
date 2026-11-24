@@ -18,7 +18,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.DependencyInjection;
 /// </summary>
 public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSqlFixture server)
 {
-    private const string _history = "\"msghatch\".\"__MsgHatchMigrations\"";
+    private const string _history = "\"msghatch\".\"__StoreMigrations\"";
 
     public static TheoryData<string, string?> ModelRows => new()
     {
@@ -53,8 +53,8 @@ public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSq
 
         // Assert
         Assert.Equal(
-            [["other", "MsgHatchChannelEntry"], ["other", "MsgHatchChannelState"], ["other", "MsgHatchInbox"], ["other", "MsgHatchMessageTypeEntry"],
-                ["other", "MsgHatchOutbox"], ["other", "__MsgHatchMigrations"]],
+            [["other", "ChannelEntry"], ["other", "ChannelState"], ["other", "Inbox"], ["other", "MessageTypeEntry"],
+                ["other", "Outbox"], ["other", "__StoreMigrations"]],
             await PostgreSqlSchema.TablesOfAsync(database, Ct));
     }
 
@@ -187,8 +187,8 @@ public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSq
             [["t1", "C"], ["T1", "C"]],
             await database.RowsAsync(
                 """
-                SELECT "TenantId", (SELECT collation_name FROM information_schema.columns WHERE table_name = 'MsgHatchInbox' AND column_name = 'TenantId')
-                FROM "msghatch"."MsgHatchInbox" ORDER BY "Sequence"
+                SELECT "TenantId", (SELECT collation_name FROM information_schema.columns WHERE table_name = 'Inbox' AND column_name = 'TenantId')
+                FROM "msghatch"."Inbox" ORDER BY "Sequence"
                 """,
                 Ct));
     }

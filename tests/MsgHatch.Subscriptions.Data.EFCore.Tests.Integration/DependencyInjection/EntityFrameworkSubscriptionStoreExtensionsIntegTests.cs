@@ -34,7 +34,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(SqlServ
         Assert.Equal(1106, Assert.Single(MsgHatchLogRecords(provider)).Id.Id);
         Assert.Equal(
             [["t1", Scenario.S6.Id.ToString("D")]],
-            await database.RowsAsync("SELECT TenantId, Id FROM [msghatch].[MsgHatchSubscription]", Ct));
+            await database.RowsAsync("SELECT TenantId, Id FROM [msghatch].[Subscription]", Ct));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(SqlServ
         await provider.GetRequiredService<ISubscriptionStore>().AddAsync(Scenario.S6, Ct);
 
         // Assert
-        Assert.Equal([[Scenario.S6.Id.ToString("D")]], await database.RowsAsync("SELECT Id FROM [shared].[MsgHatchSubscription]", Ct));
+        Assert.Equal([[Scenario.S6.Id.ToString("D")]], await database.RowsAsync("SELECT Id FROM [shared].[Subscription]", Ct));
     }
 
     private static async Task CreateTablesAsync(ServiceProvider provider)

@@ -13,10 +13,10 @@ public sealed class EntityFrameworkRegistrySettingsStoreIntegTests(SqlServerFixt
 
     public static TheoryData<string, string> InvalidRowRows => new()
     {
-        { "invalid JSON", "INSERT INTO [msghatch].[MsgHatchMessageTypeEntry] VALUES ('A', NULL, NULL, 1, '[not json', 1, '2030-01-01')" },
-        { "invalid channel name", """INSERT INTO [msghatch].[MsgHatchMessageTypeEntry] VALUES ('A', NULL, NULL, 1, '["not a name!"]', 1, '2030-01-01')""" },
-        { "invalid message type name", "INSERT INTO [msghatch].[MsgHatchMessageTypeEntry] VALUES ('not a name!', NULL, NULL, 1, '[]', 1, '2030-01-01')" },
-        { "invalid channel entry name", "INSERT INTO [msghatch].[MsgHatchChannelEntry] VALUES ('not a name!', NULL, NULL, 1, 1, '2030-01-01')" },
+        { "invalid JSON", "INSERT INTO [msghatch].[MessageTypeEntry] VALUES ('A', NULL, NULL, 1, '[not json', 1, '2030-01-01')" },
+        { "invalid channel name", """INSERT INTO [msghatch].[MessageTypeEntry] VALUES ('A', NULL, NULL, 1, '["not a name!"]', 1, '2030-01-01')""" },
+        { "invalid message type name", "INSERT INTO [msghatch].[MessageTypeEntry] VALUES ('not a name!', NULL, NULL, 1, '[]', 1, '2030-01-01')" },
+        { "invalid channel entry name", "INSERT INTO [msghatch].[ChannelEntry] VALUES ('not a name!', NULL, NULL, 1, 1, '2030-01-01')" },
     };
 
     private TestDatabase Database => server.Database("registry");
@@ -34,7 +34,7 @@ public sealed class EntityFrameworkRegistrySettingsStoreIntegTests(SqlServerFixt
         Assert.Equal(
             ["Email", "Shop email", null, "0", "1", _isoTime],
             Assert.Single(await Database.RowsAsync(
-                "SELECT Channel, DisplayName, Description, Enabled, Revision, LastModifiedAtUtc FROM [msghatch].[MsgHatchChannelEntry]", Ct)));
+                "SELECT Channel, DisplayName, Description, Enabled, Revision, LastModifiedAtUtc FROM [msghatch].[ChannelEntry]", Ct)));
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class EntityFrameworkRegistrySettingsStoreIntegTests(SqlServerFixt
         // Assert
         Assert.Equal(
             ["A", "1", """["SignalR","Email"]"""],
-            Assert.Single(await Database.RowsAsync("SELECT Type, Enabled, DisabledChannels FROM [msghatch].[MsgHatchMessageTypeEntry]", Ct)));
+            Assert.Single(await Database.RowsAsync("SELECT Type, Enabled, DisabledChannels FROM [msghatch].[MessageTypeEntry]", Ct)));
     }
 
     [Theory]

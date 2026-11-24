@@ -5,8 +5,9 @@ using MsgHatch.Data.EFCore.Model;
 namespace MsgHatch.Subscriptions.Data.EFCore;
 
 /// <summary>
-/// The EF Core model of the subscriptions (section 4.5, D120): the table <c>MsgHatchSubscription</c> in the schema of
-/// <see cref="EntityFrameworkStoreOptions.Schema"/>, with the column rules of the core EF Core stores (D178). The unique
+/// The EF Core model of the subscriptions (section 4.5, D120): the table <c>Subscription</c> in the schema of
+/// <see cref="EntityFrameworkStoreOptions.Schema"/>, with no prefix <c>MsgHatch</c> (D321), and with the column rules of
+/// the core EF Core stores (D178). The unique
 /// index of the owner stops a second subscription with the same owner, message type, channel, and recipient kind, and
 /// also serves <c>FindForDeliveryAsync</c>. The package creates no schema: the host creates it with its own EF Core
 /// migrations of this context.
@@ -40,7 +41,7 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
         modelBuilder.HasDefaultSchema(_schema);
         modelBuilder.Entity<SubscriptionRow>(static subscription =>
         {
-            subscription.ToTable("MsgHatchSubscription");
+            subscription.ToTable("Subscription");
             subscription.HasKey(static row => row.Id);
             subscription.Property(static row => row.Id).IsGuid();
             subscription.Property(static row => row.TenantId).IsId();
@@ -54,7 +55,7 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
             subscription.Property(static row => row.Recipients).IsEnum();
             subscription.HasIndex(static row => new { row.TenantId, row.MessageType, row.Level, row.CompanyId, row.UserId, row.Channel, row.Recipients })
                 .IsUnique()
-                .HasDatabaseName("UX_MsgHatchSubscription_Owner");
+                .HasDatabaseName("UX_Subscription_Owner");
         });
     }
 }

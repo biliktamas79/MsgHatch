@@ -22,9 +22,9 @@ public sealed class EntityFrameworkRegistrySettingsStoreUnitTests : RegistrySett
 
     public static TheoryData<string, string> InvalidRowRows => new()
     {
-        { "invalid JSON", "INSERT INTO MsgHatchMessageTypeEntry VALUES ('A', NULL, NULL, 1, '[not json', 1, '2030-01-01 00:00:00')" },
-        { "invalid channel name", """INSERT INTO MsgHatchMessageTypeEntry VALUES ('A', NULL, NULL, 1, '["not a name!"]', 1, '2030-01-01 00:00:00')""" },
-        { "invalid channel entry name", "INSERT INTO MsgHatchChannelEntry VALUES ('not a name!', NULL, NULL, 1, 1, '2030-01-01 00:00:00')" },
+        { "invalid JSON", "INSERT INTO MessageTypeEntry VALUES ('A', NULL, NULL, 1, '[not json', 1, '2030-01-01 00:00:00')" },
+        { "invalid channel name", """INSERT INTO MessageTypeEntry VALUES ('A', NULL, NULL, 1, '["not a name!"]', 1, '2030-01-01 00:00:00')""" },
+        { "invalid channel entry name", "INSERT INTO ChannelEntry VALUES ('not a name!', NULL, NULL, 1, 1, '2030-01-01 00:00:00')" },
     };
 
     [Theory]
@@ -45,7 +45,7 @@ public sealed class EntityFrameworkRegistrySettingsStoreUnitTests : RegistrySett
     public async Task SaveChannelEntryAsync_TableThatDoesNotExist_GivesUnavailable()
     {
         // Arrange
-        _database.Execute("DROP TABLE MsgHatchChannelEntry");
+        _database.Execute("DROP TABLE ChannelEntry");
 
         // Act
         var error = await Store.SaveChannelEntryAsync(AChannelEntry(), Ct);

@@ -40,9 +40,9 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
 
         // Assert
         Assert.Equal(
-            [["MsgHatchChannelEntry"], ["MsgHatchChannelState"], ["MsgHatchInbox"], ["MsgHatchMessageTypeEntry"], ["MsgHatchOutbox"], ["__MsgHatchMigrations"]],
+            [["ChannelEntry"], ["ChannelState"], ["Inbox"], ["MessageTypeEntry"], ["Outbox"], ["__StoreMigrations"]],
             _database.Rows(_tables).Where(static row => row[0] != "__EFMigrationsLock"));
-        Assert.Equal([MigrationId()], _database.Rows("SELECT MigrationId FROM __MsgHatchMigrations").Select(static row => row[0]));
+        Assert.Equal([MigrationId()], _database.Rows("SELECT MigrationId FROM __StoreMigrations").Select(static row => row[0]));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
         Assert.Equal(
             (6, 0, _database.ConnectionString),
-            (_other.Rows(_tables).Count(static row => row[0]!.StartsWith("MsgHatch", StringComparison.Ordinal) || row[0] == "__MsgHatchMigrations"),
+            (_other.Rows(_tables).Count(static row => row[0] != "__EFMigrationsLock"),
                 _database.Rows(_tables).Count, context.Database.GetConnectionString()));
     }
 
@@ -143,7 +143,7 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
             .Single();
 
     private static List<string?[]> SchemaOf(SqliteTestDatabase database) =>
-        [.. database.Rows("SELECT type, name, sql FROM sqlite_master ORDER BY type, name"), .. database.Rows("SELECT * FROM __MsgHatchMigrations")];
+        [.. database.Rows("SELECT type, name, sql FROM sqlite_master ORDER BY type, name"), .. database.Rows("SELECT * FROM __StoreMigrations")];
 
     private static ServiceProvider Build(string connectionString, bool requireCurrentSchema = false)
     {

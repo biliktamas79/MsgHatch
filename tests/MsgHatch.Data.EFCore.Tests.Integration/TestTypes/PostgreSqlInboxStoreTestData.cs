@@ -22,7 +22,7 @@ public sealed class PostgreSqlInboxStoreTestData(PostgreSqlTestDatabase database
                 'leaseUntilUtc', {IsoTime("LeaseUntilUtc")}, 'expiresAtUtc', {IsoTime("ExpiresAtUtc")}, 'lastError', "LastError"),
             'tenant', NULLIF("TenantId", ''), 'type', "ContentType", 'contentVersion', "ContentVersion", 'flags', "Flags",
             'traceParent', "TraceParent", 'event', "Content"::json)::text
-        FROM "msghatch"."MsgHatchInbox" ORDER BY "Sequence"
+        FROM "msghatch"."Inbox" ORDER BY "Sequence"
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());

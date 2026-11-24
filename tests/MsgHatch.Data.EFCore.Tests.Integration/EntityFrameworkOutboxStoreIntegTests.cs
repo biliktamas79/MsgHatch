@@ -33,7 +33,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal(
             ["", "Pending", _isoTime, _isoTime, null, "User", "None", "Trace:Test@1", "[]"],
             Assert.Single(await Database.RowsAsync(
-                "SELECT TenantId, Status, CreatedAtUtc, NextTryAtUtc, LeaseUntilUtc, TargetKind, Flags, TraceType, Tries FROM [msghatch].[MsgHatchOutbox]", Ct)));
+                "SELECT TenantId, Status, CreatedAtUtc, NextTryAtUtc, LeaseUntilUtc, TargetKind, Flags, TraceType, Tries FROM [msghatch].[Outbox]", Ct)));
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         // Assert
         Assert.Equal(
             batch.Select(static message => new[] { message.Delivery.Id.ToString("D") }),
-            await Database.RowsAsync("SELECT Id FROM [msghatch].[MsgHatchOutbox] ORDER BY Sequence", Ct));
+            await Database.RowsAsync("SELECT Id FROM [msghatch].[Outbox] ORDER BY Sequence", Ct));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal(
             ["Test", "1", "Down", _isoTime, null, null, "Errors", _isoTime, "503", "Unavailable", null],
             Assert.Single(await Database.RowsAsync(
-                "SELECT Channel, Version, Kind, SinceUtc, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note FROM [msghatch].[MsgHatchChannelState]",
+                "SELECT Channel, Version, Kind, SinceUtc, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note FROM [msghatch].[ChannelState]",
                 Ct)));
     }
 
@@ -92,7 +92,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal(
             ["2", "Up", "Down", "5400000", null, null],
             Assert.Single(await Database.RowsAsync(
-                "SELECT Version, Kind, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc FROM [msghatch].[MsgHatchChannelState] WHERE Version = 2", Ct)));
+                "SELECT Version, Kind, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc FROM [msghatch].[ChannelState] WHERE Version = 2", Ct)));
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal(row, await RowOfAsync(message));
         Assert.Equal(
             ["1", "1"],
-            Assert.Single(await Database.RowsAsync("SELECT ISJSON(Tries), (SELECT COUNT(*) FROM OPENJSON(Tries)) FROM [msghatch].[MsgHatchOutbox]", Ct)));
+            Assert.Single(await Database.RowsAsync("SELECT ISJSON(Tries), (SELECT COUNT(*) FROM OPENJSON(Tries)) FROM [msghatch].[Outbox]", Ct)));
     }
 
     [Fact]
@@ -164,7 +164,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         // Arrange
         var unreadable = await AddAsync(AMessage(T1));
         var message = await AddAsync(AMessage(T1));
-        await Database.ExecuteAsync($"UPDATE [msghatch].[MsgHatchOutbox] SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'", Ct);
+        await Database.ExecuteAsync($"UPDATE [msghatch].[Outbox] SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'", Ct);
 
         // Act
         var result = await ClaimAsync();
@@ -174,7 +174,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal(
             ["Failed", "SerializationFailed", null],
             Assert.Single(await Database.RowsAsync(
-                $"SELECT Status, LEFT(LastError, CHARINDEX(':', LastError) - 1), LeaseUntilUtc FROM [msghatch].[MsgHatchOutbox] WHERE Id = '{unreadable.Delivery.Id:D}'",
+                $"SELECT Status, LEFT(LastError, CHARINDEX(':', LastError) - 1), LeaseUntilUtc FROM [msghatch].[Outbox] WHERE Id = '{unreadable.Delivery.Id:D}'",
                 Ct)));
     }
 
@@ -183,7 +183,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
     {
         // Arrange
         var message = await AddAsync(AMessage(T1));
-        await Database.ExecuteAsync($"UPDATE [msghatch].[MsgHatchOutbox] SET ContentVersion = 2 WHERE Id = '{message.Delivery.Id:D}'", Ct);
+        await Database.ExecuteAsync($"UPDATE [msghatch].[Outbox] SET ContentVersion = 2 WHERE Id = '{message.Delivery.Id:D}'", Ct);
 
         // Act
         var result = await ClaimAsync();
@@ -192,7 +192,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal((0, (DateTime?)Now.AddSeconds(30)), (result.Value.Messages.Count, result.Value.NextDueAtUtc));
         Assert.Equal(
             ["Pending", "2030-01-01T00:00:30.0000000Z"],
-            Assert.Single(await Database.RowsAsync("SELECT Status, NextTryAtUtc FROM [msghatch].[MsgHatchOutbox]", Ct)));
+            Assert.Single(await Database.RowsAsync("SELECT Status, NextTryAtUtc FROM [msghatch].[Outbox]", Ct)));
     }
 
     [Fact]
@@ -202,7 +202,7 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         await AddAsync(AMessage(T1));
         await Store.SetChannelDownAsync(
             new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance"), Ct);
-        await Database.ExecuteAsync("UPDATE [msghatch].[MsgHatchChannelState] SET Reason = 'Unknown'", Ct);
+        await Database.ExecuteAsync("UPDATE [msghatch].[ChannelState] SET Reason = 'Unknown'", Ct);
 
         // Act
         var result = await ClaimAsync();
@@ -240,5 +240,5 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
     }
 
     private async Task<string?[]> RowOfAsync(OutgoingMessage message) =>
-        Assert.Single(await Database.RowsAsync($"SELECT * FROM [msghatch].[MsgHatchOutbox] WHERE Id = '{message.Delivery.Id:D}'", Ct));
+        Assert.Single(await Database.RowsAsync($"SELECT * FROM [msghatch].[Outbox] WHERE Id = '{message.Delivery.Id:D}'", Ct));
 }

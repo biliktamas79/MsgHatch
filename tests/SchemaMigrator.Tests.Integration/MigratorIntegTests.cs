@@ -65,8 +65,8 @@ public sealed class MigratorIntegTests(SqlServerFixture server, PostgreSqlFixtur
         File.Delete(path);
         Assert.Equal(
             (Migrator.Success, true, true, 0),
-            (exitCode, script.Contains("[__MsgHatchMigrations]", StringComparison.Ordinal),
-                script.Contains("[__MsgHatchSubscriptionMigrations]", StringComparison.Ordinal),
+            (exitCode, script.Contains("[__StoreMigrations]", StringComparison.Ordinal),
+                script.Contains("[__SubscriptionMigrations]", StringComparison.Ordinal),
                 (await database.RowsAsync("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", Ct)).Count));
     }
 
@@ -108,8 +108,8 @@ public sealed class MigratorIntegTests(SqlServerFixture server, PostgreSqlFixtur
         File.Delete(path);
         Assert.Equal(
             (Migrator.Success, true, true, 0),
-            (exitCode, script.Contains("\"__MsgHatchMigrations\"", StringComparison.Ordinal),
-                script.Contains("\"__MsgHatchSubscriptionMigrations\"", StringComparison.Ordinal),
+            (exitCode, script.Contains("\"__StoreMigrations\"", StringComparison.Ordinal),
+                script.Contains("\"__SubscriptionMigrations\"", StringComparison.Ordinal),
                 (await PostgreSqlSchema.TablesOfAsync(database, Ct)).Count));
     }
 

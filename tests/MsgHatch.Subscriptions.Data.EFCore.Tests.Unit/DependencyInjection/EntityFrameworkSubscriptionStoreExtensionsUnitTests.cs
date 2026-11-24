@@ -50,7 +50,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
 
         // Assert
         Assert.Null(error);
-        Assert.Equal([["t1", Scenario.S6.Id.ToString("D")]], _database.Rows("SELECT TenantId, Id FROM MsgHatchSubscription"));
+        Assert.Equal([["t1", Scenario.S6.Id.ToString("D")]], _database.Rows("SELECT TenantId, Id FROM Subscription"));
     }
 
     [Fact]
@@ -86,6 +86,32 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
             (true, true),
             (failure.Contains("UseEntityFrameworkSubscriptionStore", StringComparison.Ordinal),
                 failure.Contains("Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal)));
+    }
+
+    [Theory]
+    [InlineData(null, "msghatch")]
+    [InlineData("other", "other")]
+    public async Task UseEntityFrameworkSubscriptionStore_Schema_HoldsTheTableAndTheHistoryTableWithNoPrefix(string? option, string schema)
+    {
+        // Arrange
+        var services = TestHost.CreateServices(
+            configuration: option is null ? null : new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = option });
+        services.AddMsgHatch().UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(_database.ConnectionString));
+        await using var provider = services.Build();
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
+        var model = context.GetService<IDesignTimeModel>().Model;
+        var history = RelationalOptionsExtension.Extract(context.GetService<IDbContextOptions>());
+
+        // Act
+        string[] tables = [.. model.GetEntityTypes().Select(static type => $"{type.GetSchema()}.{type.GetTableName()}"),
+            $"{history.MigrationsHistoryTableSchema}.{history.MigrationsHistoryTableName}"];
+        var names = model.GetEntityTypes()
+            .SelectMany(static type => type.GetIndexes().Select(static index => index.GetDatabaseName()).Concat(type.GetKeys().Select(static key => key.GetName())))
+            .Order(StringComparer.Ordinal);
+
+        // Assert
+        Assert.Equal([$"{schema}.Subscription", $"{schema}.__SubscriptionMigrations"], tables);
+        Assert.Equal(["PK_Subscription", "UX_Subscription_Owner"], names);
     }
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure)

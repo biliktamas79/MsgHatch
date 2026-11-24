@@ -18,9 +18,9 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration.Depende
 /// </summary>
 public sealed class EntityFrameworkSqlServerSubscriptionStoreExtensionsIntegTests(SqlServerFixture server)
 {
-    private const string _histories = "[msghatch].[__MsgHatchMigrations]";
+    private const string _histories = "[msghatch].[__StoreMigrations]";
 
-    private const string _subscriptionHistory = "[msghatch].[__MsgHatchSubscriptionMigrations]";
+    private const string _subscriptionHistory = "[msghatch].[__SubscriptionMigrations]";
 
     public static TheoryData<string, string?> ModelRows => new()
     {
@@ -59,9 +59,9 @@ public sealed class EntityFrameworkSqlServerSubscriptionStoreExtensionsIntegTest
 
         // Assert
         Assert.Equal(
-            [["other", "__MsgHatchMigrations"], ["other", "__MsgHatchSubscriptionMigrations"], ["other", "MsgHatchChannelEntry"],
-                ["other", "MsgHatchChannelState"], ["other", "MsgHatchInbox"], ["other", "MsgHatchMessageTypeEntry"], ["other", "MsgHatchOutbox"],
-                ["other", "MsgHatchSubscription"]],
+            [["other", "__StoreMigrations"], ["other", "__SubscriptionMigrations"], ["other", "ChannelEntry"],
+                ["other", "ChannelState"], ["other", "Inbox"], ["other", "MessageTypeEntry"], ["other", "Outbox"],
+                ["other", "Subscription"]],
             await database.RowsAsync("SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_SCHEMA, TABLE_NAME", Ct));
     }
 

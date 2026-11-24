@@ -11,7 +11,7 @@ using MsgHatch.Data.EFCore;
 namespace MsgHatch.Data.EFCore.Tests.Unit.SqliteMigrations
 {
     [DbContext(typeof(MsgHatchDbContext))]
-    [Migration("20261124111553_Initial")]
+    [Migration("20261124171400_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -22,36 +22,7 @@ namespace MsgHatch.Data.EFCore.Tests.Unit.SqliteMigrations
                 .HasDefaultSchema("msghatch")
                 .HasAnnotation("ProductVersion", "10.0.15");
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.ChannelEntryRow", b =>
-                {
-                    b.Property<string>("Channel")
-                        .HasMaxLength(256)
-                        .IsUnicode(false)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("LastModifiedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Revision")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Channel");
-
-                    b.ToTable("MsgHatchChannelEntry", "msghatch");
-                });
-
-            modelBuilder.Entity("MsgHatch.Data.EFCore.ChannelStateRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.ChannelStateRow", b =>
                 {
                     b.Property<string>("Channel")
                         .HasMaxLength(256)
@@ -100,10 +71,10 @@ namespace MsgHatch.Data.EFCore.Tests.Unit.SqliteMigrations
 
                     b.HasKey("Channel", "Version");
 
-                    b.ToTable("MsgHatchChannelState", "msghatch");
+                    b.ToTable("ChannelState", "msghatch");
                 });
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.InboxRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.InboxRow", b =>
                 {
                     b.Property<long>("Sequence")
                         .ValueGeneratedOnAdd()
@@ -187,55 +158,22 @@ namespace MsgHatch.Data.EFCore.Tests.Unit.SqliteMigrations
                     b.HasKey("Sequence");
 
                     b.HasIndex("Flags")
-                        .HasDatabaseName("IX_MsgHatchInbox_Flags");
+                        .HasDatabaseName("IX_Inbox_Flags");
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchInbox_Key");
+                        .HasDatabaseName("UX_Inbox_Key");
 
                     b.HasIndex("Status", "NextTryAtUtc", "Sequence")
-                        .HasDatabaseName("IX_MsgHatchInbox_Due");
+                        .HasDatabaseName("IX_Inbox_Due");
 
                     b.HasIndex("TenantId", "CreatedAtUtc", "Id")
-                        .HasDatabaseName("IX_MsgHatchInbox_Created");
+                        .HasDatabaseName("IX_Inbox_Created");
 
-                    b.ToTable("MsgHatchInbox", "msghatch");
+                    b.ToTable("Inbox", "msghatch");
                 });
 
-            modelBuilder.Entity("MsgHatch.Data.EFCore.MessageTypeEntryRow", b =>
-                {
-                    b.Property<string>("Type")
-                        .HasMaxLength(256)
-                        .IsUnicode(false)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisabledChannels")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("LastModifiedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Revision")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Type");
-
-                    b.ToTable("MsgHatchMessageTypeEntry", "msghatch");
-                });
-
-            modelBuilder.Entity("MsgHatch.Data.EFCore.OutboxRow", b =>
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Messages.OutboxRow", b =>
                 {
                     b.Property<long>("Sequence")
                         .ValueGeneratedOnAdd()
@@ -361,25 +299,87 @@ namespace MsgHatch.Data.EFCore.Tests.Unit.SqliteMigrations
                     b.HasKey("Sequence");
 
                     b.HasIndex("Flags")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Flags");
+                        .HasDatabaseName("IX_Outbox_Flags");
 
                     b.HasIndex("Id")
                         .IsUnique()
-                        .HasDatabaseName("UX_MsgHatchOutbox_Id");
+                        .HasDatabaseName("UX_Outbox_Id");
 
                     b.HasIndex("SourceMessageId")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Source");
+                        .HasDatabaseName("IX_Outbox_Source");
 
                     b.HasIndex("TenantId", "CreatedAtUtc", "Id")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Created");
+                        .HasDatabaseName("IX_Outbox_Created");
 
                     b.HasIndex("Channel", "Status", "NextTryAtUtc", "Sequence")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Due");
+                        .HasDatabaseName("IX_Outbox_Due");
 
                     b.HasIndex("TenantId", "TargetKind", "TargetId", "CreatedAtUtc")
-                        .HasDatabaseName("IX_MsgHatchOutbox_Target");
+                        .HasDatabaseName("IX_Outbox_Target");
 
-                    b.ToTable("MsgHatchOutbox", "msghatch");
+                    b.ToTable("Outbox", "msghatch");
+                });
+
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Registry.ChannelEntryRow", b =>
+                {
+                    b.Property<string>("Channel")
+                        .HasMaxLength(256)
+                        .IsUnicode(false)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastModifiedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Channel");
+
+                    b.ToTable("ChannelEntry", "msghatch");
+                });
+
+            modelBuilder.Entity("MsgHatch.Data.EFCore.Registry.MessageTypeEntryRow", b =>
+                {
+                    b.Property<string>("Type")
+                        .HasMaxLength(256)
+                        .IsUnicode(false)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisabledChannels")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("LastModifiedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Type");
+
+                    b.ToTable("MessageTypeEntry", "msghatch");
                 });
 #pragma warning restore 612, 618
         }

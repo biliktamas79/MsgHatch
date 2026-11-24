@@ -26,7 +26,7 @@ public sealed class PostgreSqlOutboxStoreTestData(PostgreSqlTestDatabase databas
             'target', json_build_object('kind', "TargetKind", 'id', "TargetId"), 'contentType', "ContentType",
             'contentVersion', "ContentVersion", 'flags', "Flags", 'traceParent', "TraceParent", 'trace', "Trace"::json,
             'envelope', "Content"::json)::text
-        FROM "msghatch"."MsgHatchOutbox" ORDER BY "Sequence"
+        FROM "msghatch"."Outbox" ORDER BY "Sequence"
         """;
 
     private readonly MsgHatchJson _json = new(TestContentTypes.ARegistry());
@@ -38,7 +38,7 @@ public sealed class PostgreSqlOutboxStoreTestData(PostgreSqlTestDatabase databas
 
     public async ValueTask<IReadOnlyList<PublishTry>> GetTriesAsync(Guid outgoingMessageId, CancellationToken ct)
     {
-        var rows = await database.RowsAsync($"""SELECT "Tries" FROM "msghatch"."MsgHatchOutbox" WHERE "Id" = '{outgoingMessageId:D}'""", ct);
+        var rows = await database.RowsAsync($"""SELECT "Tries" FROM "msghatch"."Outbox" WHERE "Id" = '{outgoingMessageId:D}'""", ct);
         using var array = JsonDocument.Parse(Assert.Single(rows)[0]!);
         return [.. array.RootElement.EnumerateArray().Select(element => TryOf(outgoingMessageId, element))];
     }
