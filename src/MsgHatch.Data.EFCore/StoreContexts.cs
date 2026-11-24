@@ -11,7 +11,7 @@ namespace MsgHatch.Data.EFCore;
 /// factory (D130), and returns an <see cref="Error"/> in place of an exception. A database failure gives
 /// <see cref="Errors.Unavailable"/>, a stored value that a person changed into an invalid value gives
 /// <see cref="Errors.SerializationFailed"/>, a cancelled token gives <see cref="Errors.OperationCancelled"/>, and a
-/// provider with no SQL statements of the stores gives <see cref="Errors.NotFound"/> (D175).
+/// provider that is not relational gives <see cref="Errors.NotFound"/> (D175, D318).
 /// </summary>
 /// <typeparam name="TContext">The context of the store.</typeparam>
 /// <param name="factory">The pooled factory of the contexts.</param>
@@ -23,9 +23,9 @@ internal sealed class StoreContexts<TContext>(IDbContextFactory<TContext> factor
         try
         {
             await using var context = await factory.CreateDbContextAsync(ct);
-            return StoreModel.HasStatements(context.Database.ProviderName)
+            return context.Database.IsRelational()
                 ? await operation(context)
-                : new Error(Errors.NotFound, $"The EF Core stores have no SQL statements for the provider {context.Database.ProviderName}.");
+                : new Error(Errors.NotFound, $"The EF Core stores need a relational provider, and {context.Database.ProviderName} is not relational.");
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

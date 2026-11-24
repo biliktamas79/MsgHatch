@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>The EF Core stores of MsgHatch, with SQL Server as the provider.</Description>
-    <PackageTags>messaging;outbox;inbox;efcore;sqlserver</PackageTags>
+    <Description>The EF Core stores of MsgHatch, on each relational EF Core provider.</Description>
+    <PackageTags>messaging;outbox;inbox;efcore</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

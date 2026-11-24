@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>The EF Core subscription store of MsgHatch.Subscriptions, with SQL Server as the provider.</Description>
-    <PackageTags>messaging;subscriptions;efcore;sqlserver</PackageTags>
+    <Description>The EF Core subscription store of MsgHatch.Subscriptions, on each relational EF Core provider.</Description>
+    <PackageTags>messaging;subscriptions;efcore</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

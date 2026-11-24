@@ -64,6 +64,7 @@
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.Tests.Integration/MsgHatch.Data.EFCore.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.Tests.Unit/MsgHatch.Data.EFCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.MongoDb.Tests.Integration/MsgHatch.Data.MongoDb.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Data.Sqlite.Tests.Unit/MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
@@ -87,6 +88,7 @@
     <Project Path="tests/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />

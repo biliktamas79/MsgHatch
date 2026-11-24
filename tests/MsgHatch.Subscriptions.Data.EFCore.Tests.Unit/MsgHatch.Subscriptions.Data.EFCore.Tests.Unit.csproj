@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Data.EFCore\MsgHatch.Subscriptions.Data.EFCore.csproj" />
+    <ProjectReference Include="..\MsgHatch.Subscriptions.Tests.Unit\MsgHatch.Subscriptions.Tests.Unit.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.EFCore.Tests.Unit\MsgHatch.Data.EFCore.Tests.Unit.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+  </ItemGroup>
+
+</Project>

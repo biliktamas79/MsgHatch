@@ -17,7 +17,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.Tests.Integration;
 /// </summary>
 public sealed class ReadmeIntegTests
 {
-    private const string _testConnectionString = "Server=localhost;Database=msghatch;Integrated Security=true;TrustServerCertificate=true";
+    private const string _testConnectionString = "Data Source=msghatch.db";
 
     [Fact]
     public void Readme_Snippets_EqualTheirSources() => ReadmeCheck.AssertSnippets();
@@ -35,9 +35,9 @@ public sealed class ReadmeIntegTests
         // Act
         #region readme:setup
         services.AddMsgHatch()
-            .UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))
+            .UseEntityFrameworkStores(o => o.UseSqlite(connectionString))
             .UseSubscriptions()
-            .UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(connectionString));
+            .UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString));
         #endregion
         await using var provider = services.Build();
 

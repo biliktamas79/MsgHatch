@@ -18,13 +18,10 @@ internal static class StoreModel
 
     private const int _maxLength = 256;
 
-    /// <summary>Whether the stores have their SQL statements for the provider (D120, D175).</summary>
-    public static bool HasStatements(string? providerName) => providerName == SqlServerProvider;
-
     public static void ConfigureConventions(ModelConfigurationBuilder builder, string? providerName)
     {
         builder.Properties<DateTime>().HaveConversion<UtcTimeConverter>();
-        if (HasStatements(providerName))
+        if (providerName == SqlServerProvider)
         {
             builder.Properties<string>().UseCollation(_binaryCollation);
         }
@@ -35,7 +32,7 @@ internal static class StoreModel
     public static PropertyBuilder<TText> IsName<TText>(this PropertyBuilder<TText> property) =>
         property.HasMaxLength(_maxLength).IsUnicode(false);
 
-    public static PropertyBuilder<string> IsGuid(this PropertyBuilder<string> property) =>
+    public static PropertyBuilder<TText> IsGuid<TText>(this PropertyBuilder<TText> property) =>
         property.HasMaxLength(36).IsUnicode(false).IsFixedLength();
 
     public static PropertyBuilder<string> IsEnum(this PropertyBuilder<string> property) => property.HasMaxLength(32).IsUnicode(false);

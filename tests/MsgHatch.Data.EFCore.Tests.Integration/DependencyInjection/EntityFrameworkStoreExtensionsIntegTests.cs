@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
-using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
@@ -16,14 +14,11 @@ using NSubstitute;
 namespace MsgHatch.Data.EFCore.Tests.Integration.DependencyInjection;
 
 /// <summary>
-/// <c>UseEntityFrameworkStores</c> alone registers all parts of the package (section 4.7, D60), and its startup check
-/// rejects a provider with no SQL statements of the stores (D175).
+/// <c>UseEntityFrameworkStores</c> alone registers all parts of the package on SQL Server (section 4.7, D60).
 /// </summary>
 public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture server)
 {
     private const string _schemaKey = "MsgHatch:EntityFramework:Schema";
-
-    private const string _sqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -143,38 +138,6 @@ public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture se
         // Assert
         var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
         Assert.Equal("Schema", failure[..failure.IndexOf(':', StringComparison.Ordinal)]);
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkStores_ProviderWithNoStatements_FailsTheStartupValidationAndNamesTheProvider()
-    {
-        // Arrange
-        var services = TestHost.CreateServices();
-        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkStores(static o => o.UseSqlite("Data Source=:memory:"));
-        await using var provider = services.Build();
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.Contains(_sqliteProvider, failure, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ClaimDueAsync_ProviderWithNoStatements_GivesNotFoundForTheInboxAndTheOutbox()
-    {
-        // Arrange
-        var contexts = new PooledDbContextFactory<MsgHatchDbContext>(
-            new DbContextOptionsBuilder<MsgHatchDbContext>().UseSqlite("Data Source=:memory:").Options);
-        var json = new MsgHatchJson(TestContentTypes.ARegistry());
-
-        // Act
-        var inbox = await new EntityFrameworkInboxStore(contexts, json).ClaimDueAsync(10, Now, TimeSpan.FromSeconds(30), Ct);
-        var outbox = await new EntityFrameworkOutboxStore(contexts, json).ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
-
-        // Assert
-        Assert.Equal([Errors.NotFound, Errors.NotFound], [inbox.Error?.Type, outbox.Error?.Type]);
     }
 
     [Fact]

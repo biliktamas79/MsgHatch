@@ -9,8 +9,8 @@ using MsgHatch.Domain.Management;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The operations that the inbox and the outbox share: the claim after its SQL statement (D103, D144), the filters and
-/// the page of a query (D112), the retry (D111), the purge (D128), and the values of a row.
+/// The operations that the inbox and the outbox share: the claim (D103, D144, D318), the filters and the page of a query
+/// (D112), the retry (D111), the purge (D128), and the values of a row.
 /// </summary>
 internal static class MessageQueries
 {
@@ -34,31 +34,38 @@ internal static class MessageQueries
             row.NextTryAtUtc, row.LeaseUntilUtc, row.ExpiresAtUtc, row.LastError);
 
     /// <summary>
-    /// Reads the rows of a claim statement, and returns their messages in the claim order: the due time before the lease,
-    /// then <c>Sequence</c> (D144). The end of the lease is the next due time of a claimed row (D103). A row that the code
+    /// Claims the due rows (D318), and returns their messages in the claim order: the due time before the lease, then
+    /// <c>Sequence</c> (D144). The end of the lease is the next due time of a claimed row (D103). A row that the code
     /// cannot read stays out of the result: a transient error keeps it leased for a newer instance (section 4.13), and a
     /// permanent error fails it.
     /// </summary>
+    /// <param name="context">The context.</param>
+    /// <param name="table">The message table.</param>
+    /// <param name="rows">The rows that the claim can take: each row of the inbox, or the rows of one channel of the outbox.</param>
+    /// <param name="channel">The channel of the outbox claim, or null for the inbox.</param>
+    /// <param name="claim">The values of the claim.</param>
+    /// <param name="read">Reads the message of a claimed row.</param>
+    /// <param name="ct">The cancel token.</param>
     public static async ValueTask<ErrorOr<ClaimResult<T>>> ClaimAsync<TRow, T>(
-        IQueryable<TRow> claim, IQueryable<TRow> pending, int maxCount, DateTime nowUtc, Func<TRow, ErrorOr<T>> read, CancellationToken ct)
+        DbContext context, DbSet<TRow> table, IQueryable<TRow> rows, string? channel, ClaimArguments claim, Func<TRow, ErrorOr<T>> read,
+        CancellationToken ct)
         where TRow : MessageRow
     {
-        var rows = await claim.AsNoTracking().ToListAsync(ct);
-        var messages = new List<T>(rows.Count);
-        foreach (var row in rows.OrderBy(static row => row.NextTryAtUtc).ThenBy(static row => row.Sequence))
+        var claimed = await MessageClaims.ClaimAsync(context, table, rows, channel, claim, ct);
+        var messages = new List<T>(claimed.Count);
+        foreach (var row in claimed.OrderBy(static row => row.ClaimedDueAtUtc).ThenBy(static row => row.Sequence))
         {
-            row.NextTryAtUtc = row.LeaseUntilUtc.GetValueOrDefault();
             var message = read(row);
             if (message.IsError)
             {
-                await SetAsideAsync(pending, row.Sequence, message.Error!, ct);
+                await SetAsideAsync(rows, row.Sequence, message.Error!, ct);
                 continue;
             }
 
             messages.Add(message.Value);
         }
 
-        var nextDueAtUtc = rows.Count < maxCount ? await NextDueAsync(pending, ct) : nowUtc;
+        var nextDueAtUtc = claimed.Count < claim.MaxCount ? await NextDueAsync(rows, ct) : claim.NowUtc;
         return new ClaimResult<T>(messages, nextDueAtUtc);
     }
 

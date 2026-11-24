@@ -6,14 +6,12 @@ namespace MsgHatch.Data.EFCore;
 /// <summary>
 /// The EF Core model of the inbox, the outbox, the channel states, and the registry settings (section 4.5, D120), in the
 /// schema of <see cref="EntityFrameworkStoreOptions.Schema"/>. The table and column names are the names of section 4.5
-/// (D56), with the same indexes. The partial claim index of each message table is a filtered index with
-/// <c>WHERE Status = 'Pending'</c> (D104). The package creates no schema: the host creates it with its own EF Core
-/// migrations of this context.
+/// (D56), with the same indexes. The due index of each message table has no filter, so each provider can use it:
+/// <c>Status</c> is a column of the index, and <c>Sequence</c> is its last column, so the index gives the claim order
+/// (D104, D144, D318). The package creates no schema: the host creates it with its own EF Core migrations of this context.
 /// </summary>
 public sealed class MsgHatchDbContext : DbContext
 {
-    private const string _pending = "Status = 'Pending'";
-
     private readonly string _schema;
 
     /// <summary>Makes the context. <c>UseEntityFrameworkStores</c> registers a pooled factory of it.</summary>
@@ -47,7 +45,7 @@ public sealed class MsgHatchDbContext : DbContext
         {
             Message(inbox, "MsgHatchInbox");
             inbox.HasIndex(static row => new { row.TenantId, row.Id }).IsUnique().HasDatabaseName("UX_MsgHatchInbox_Key");
-            inbox.HasIndex(static row => row.NextTryAtUtc).HasFilter(_pending).HasDatabaseName("IX_MsgHatchInbox_Due");
+            inbox.HasIndex(static row => new { row.Status, row.NextTryAtUtc, row.Sequence }).HasDatabaseName("IX_MsgHatchInbox_Due");
         });
         modelBuilder.Entity<OutboxRow>(static outbox =>
         {
@@ -59,7 +57,7 @@ public sealed class MsgHatchDbContext : DbContext
             outbox.Property(static row => row.TargetId).IsId();
             outbox.Property(static row => row.TraceType).IsName();
             outbox.HasIndex(static row => row.Id).IsUnique().HasDatabaseName("UX_MsgHatchOutbox_Id");
-            outbox.HasIndex(static row => new { row.Channel, row.NextTryAtUtc }).HasFilter(_pending).HasDatabaseName("IX_MsgHatchOutbox_Due");
+            outbox.HasIndex(static row => new { row.Channel, row.Status, row.NextTryAtUtc, row.Sequence }).HasDatabaseName("IX_MsgHatchOutbox_Due");
             outbox.HasIndex(static row => new { row.TenantId, row.TargetKind, row.TargetId, row.CreatedAtUtc })
                 .HasDatabaseName("IX_MsgHatchOutbox_Target");
             outbox.HasIndex(static row => row.SourceMessageId).HasDatabaseName("IX_MsgHatchOutbox_Source");
@@ -101,6 +99,7 @@ public sealed class MsgHatchDbContext : DbContext
         message.Property(static row => row.TenantId).IsId();
         message.Property(static row => row.Id).IsGuid();
         message.Property(static row => row.Status).IsEnum();
+        message.Property(static row => row.ClaimToken).IsGuid();
         message.Property(static row => row.ContentType).IsName();
         message.Property(static row => row.Flags).IsEnum();
         message.HasIndex(static row => row.Flags).HasDatabaseName($"IX_{table}_Flags");

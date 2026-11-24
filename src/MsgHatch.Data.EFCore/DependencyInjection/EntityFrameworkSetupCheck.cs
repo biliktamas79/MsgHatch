@@ -4,7 +4,7 @@ namespace MsgHatch.Data.EFCore.DependencyInjection;
 
 /// <summary>
 /// The options type of the startup check of an EF Core setup method on <typeparamref name="TContext"/> (section 4.7,
-/// D175, D182).
+/// D175, D182, D318).
 /// </summary>
 /// <typeparam name="TContext">The context of the setup method.</typeparam>
 internal sealed class EntityFrameworkSetupCheck<TContext>

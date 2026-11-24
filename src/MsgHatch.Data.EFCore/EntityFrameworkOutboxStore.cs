@@ -1,6 +1,4 @@
-using System.Buffers;
 using System.Text;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
@@ -14,10 +12,10 @@ using MsgHatch.Domain.Routing;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The outbox on EF Core (section 4.5, D120): one row of the table <c>MsgHatchOutbox</c> for each outgoing message, with
-/// the columns of its delivery state, its channel envelope and its route trace as JSON (D143), and its publish tries as
-/// the JSON array <c>Tries</c> (D27). The table <c>MsgHatchChannelState</c> has the insert-only state rows of each channel,
-/// with the key <c>(Channel, Version)</c> (D106, D277).
+/// The outbox on EF Core (section 4.5, D120, D318): one row of the table <c>MsgHatchOutbox</c> for each outgoing message,
+/// with the columns of its delivery state, its channel envelope and its route trace as JSON (D143), and its publish tries
+/// as the JSON array <c>Tries</c> (D27), which the store writes in C#. The table <c>MsgHatchChannelState</c> has the
+/// insert-only state rows of each channel, with the key <c>(Channel, Version)</c> (D106, D277).
 /// Each operation makes its own context through the pooled factory (D130). It is the dispatch store of all tenants,
 /// and <see cref="For"/> gives the tenant store of one key.
 /// </summary>
@@ -57,15 +55,9 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
                         return new ClaimResult<OutgoingMessage>([], NextDueAtUtc: null, down);
                     }
 
-                    var arguments = Arguments(context)
-                        .Number("@maxCount", maxCount)
-                        .Name("@channel", channel.Name)
-                        .Time("@nowUtc", nowUtc)
-                        .Time("@leaseUntilUtc", nowUtc + lease);
                     return await MessageQueries.ClaimAsync(
-                        context.Outbox.FromSqlRaw(Statements(context).ClaimOutgoing, arguments.Values),
-                        context.Outbox.Where(row => row.Channel == channel.Name), maxCount, nowUtc,
-                        row => _json.DeserializeOutgoing(MessageDocuments.Outgoing(row)), ct);
+                        context, context.Outbox, context.Outbox.Where(row => row.Channel == channel.Name), channel.Name,
+                        new ClaimArguments(maxCount, nowUtc, nowUtc + lease), row => _json.DeserializeOutgoing(MessageDocuments.Outgoing(row)), ct);
                 },
                 ct);
 
@@ -75,23 +67,21 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
     {
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(publishTry);
-        var status = publishTry.StatusAfter(nextTryAtUtc);
         var id = MessageQueries.Id(message.Delivery.Id);
         return _contexts.RunAsync(
             async context =>
             {
-                var arguments = Arguments(context)
-                    .MessageId("@id", id)
-                    .Text("@try", TryJson(publishTry))
-                    .Number("@tryNumber", publishTry.TryNumber)
-                    .Time("@finishedAtUtc", publishTry.FinishedAtUtc)
-                    .Name("@status", status.ToString())
-                    .Time("@nextTryAtUtc", status == DeliveryStatus.Pending ? nextTryAtUtc : null)
-                    .Text("@lastError", publishTry.ErrorText());
-                return await context.Database.ExecuteSqlRawAsync(Statements(context).RecordTry, arguments.Values, ct) == 0
-                    && !await context.Outbox.AnyAsync(row => row.Id == id, ct)
-                    ? new Error(Errors.NotFound, "The outgoing message is not stored.")
-                    : null;
+                while (await context.Outbox.AsNoTracking().Where(row => row.Id == id)
+                    .Select(static row => new StoredTries(row.TryCount, row.Tries)).FirstOrDefaultAsync(ct) is { } stored)
+                {
+                    if (stored.TryCount != publishTry.TryNumber - 1
+                        || await TryRecordAsync(context.Outbox.Where(row => row.Id == id), stored, publishTry, nextTryAtUtc, ct))
+                    {
+                        return null;
+                    }
+                }
+
+                return new Error(Errors.NotFound, "The outgoing message is not stored.");
             },
             ct);
     }
@@ -168,60 +158,50 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
                 .ExecuteUpdateAsync(set => set.SetProperty(static row => row.NextCheckAtUtc, nextCheckAtUtc), ct) > 0,
             ct);
 
-    private static SqlArguments Arguments(MsgHatchDbContext context) => new(context.Database.GetDbConnection());
-
-    private static SqlServerStatements Statements(MsgHatchDbContext context) => new(context.Model.GetDefaultSchema()!);
-
-    /// <summary>A publish try as one JSON object of the array <c>Tries</c> (section 4.5).</summary>
-    private static string TryJson(PublishTry publishTry)
+    /// <summary>
+    /// Writes the try and the delivery state after it, only when the stored <c>TryCount</c> is still the count that the
+    /// store read. A false result means that another writer changed the row first (section 4.5, D27).
+    /// </summary>
+    private static async Task<bool> TryRecordAsync(
+        IQueryable<OutboxRow> row, StoredTries stored, PublishTry publishTry, DateTime? nextTryAtUtc, CancellationToken ct)
     {
-        var buffer = new ArrayBufferWriter<byte>();
-        using (var writer = new Utf8JsonWriter(buffer))
-        {
-            writer.WriteStartObject();
-            writer.WriteNumber("tryNumber", publishTry.TryNumber);
-            writer.WriteString("startedAtUtc", MessageDocuments.Time(publishTry.StartedAtUtc));
-            writer.WriteString("finishedAtUtc", MessageDocuments.Time(publishTry.FinishedAtUtc));
-            writer.WriteString("outcome", publishTry.Outcome.ToString());
-            writer.WriteString("providerMessageId", publishTry.ProviderMessageId);
-            if (publishTry.ErrorCode is { } code)
+        var status = publishTry.StatusAfter(nextTryAtUtc);
+        var tries = PublishTries.Append(stored.Tries, publishTry);
+        var lastError = publishTry.ErrorText();
+        return await row.Where(row => row.TryCount == stored.TryCount).ExecuteUpdateAsync(
+            set =>
             {
-                writer.WriteNumber("errorCode", code);
-            }
-            else
-            {
-                writer.WriteNull("errorCode");
-            }
-
-            writer.WriteString("errorName", publishTry.ErrorName);
-            writer.WriteString("errorMessage", publishTry.ErrorMessage);
-            writer.WriteEndObject();
-        }
-
-        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+                set.SetProperty(static row => row.Tries, tries)
+                    .SetProperty(static row => row.Status, status.ToString())
+                    .SetProperty(static row => row.TryCount, publishTry.TryNumber)
+                    .SetProperty(static row => row.LastTryAtUtc, publishTry.FinishedAtUtc)
+                    .SetProperty(static row => row.LeaseUntilUtc, (DateTime?)null)
+                    .SetProperty(static row => row.LastError, lastError);
+                if (status == DeliveryStatus.Pending && nextTryAtUtc is { } next)
+                {
+                    set.SetProperty(static row => row.NextTryAtUtc, next);
+                }
+            },
+            ct) > 0;
     }
 
     private static async Task<ChannelState?> LatestStateAsync(MsgHatchDbContext context, ChannelId channel, CancellationToken ct) =>
         await context.ChannelStates.AsNoTracking().Where(row => row.Channel == channel.Name).OrderByDescending(static row => row.Version)
             .FirstOrDefaultAsync(ct) is { } row ? StateOf(row) : null;
 
-    /// <summary>Inserts a state row. A stored version keeps its row, and gives false (D277).</summary>
-    private static async Task<bool> TryAddStateAsync(MsgHatchDbContext context, ChannelState row, CancellationToken ct)
-    {
-        var arguments = Arguments(context)
-            .Name("@channel", row.Channel.Name)
-            .Number("@version", row.Version)
-            .Name("@kind", row.Kind.ToString())
-            .Time("@sinceUtc", row.SinceUtc)
-            .Name("@previousKind", row.PreviousKind?.ToString())
-            .Milliseconds("@previousDurationMs", row.PreviousDuration)
-            .Name("@reason", row.Reason?.ToString())
-            .Time("@nextCheckAtUtc", row.NextCheckAtUtc)
-            .Number("@errorCode", row.ErrorCode)
-            .Name("@errorName", row.ErrorName)
-            .Text("@note", row.Note);
-        return await context.Database.ExecuteSqlRawAsync(Statements(context).AddChannelState, arguments.Values, ct) > 0;
-    }
+    /// <summary>Inserts a state row on the key of the channel and the version. A stored version keeps its row, and gives false (D277).</summary>
+    private static Task<bool> TryAddStateAsync(MsgHatchDbContext context, ChannelState state, CancellationToken ct) =>
+        RowWrites.TryAddAsync(
+            context,
+            new ChannelStateRow
+            {
+                Channel = state.Channel.Name, Version = state.Version, Kind = state.Kind.ToString(), SinceUtc = state.SinceUtc,
+                PreviousKind = state.PreviousKind?.ToString(), PreviousDurationMs = (long?)state.PreviousDuration?.TotalMilliseconds,
+                Reason = state.Reason?.ToString(), NextCheckAtUtc = state.NextCheckAtUtc, ErrorCode = state.ErrorCode, ErrorName = state.ErrorName,
+                Note = state.Note,
+            },
+            () => context.ChannelStates.AnyAsync(row => row.Channel == state.Channel.Name && row.Version == state.Version, ct),
+            ct);
 
     /// <exception cref="ArgumentException">The row has an invalid channel name, kind, or reason.</exception>
     private static ChannelState StateOf(ChannelStateRow row) =>
@@ -239,7 +219,7 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
             return new Error(Errors.ValidationFailed, "A message has another tenant than the key of the store.");
         }
 
-        var documents = new List<(OutgoingMessage Message, string Document)>(messages.Count);
+        var documents = new List<(OutgoingMessage Message, byte[] Document)>(messages.Count);
         foreach (var message in messages)
         {
             var document = _json.Serialize(message);
@@ -248,43 +228,70 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
                 return document.Error;
             }
 
-            documents.Add((message, Encoding.UTF8.GetString(document.Value)));
+            documents.Add((message, document.Value));
         }
 
         return await _contexts.RunAsync(
             async context =>
             {
-                var insert = Statements(context).InsertOutgoing;
-                await context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
-                {
-                    await using var transaction = await context.Database.BeginTransactionAsync(ct);
-                    foreach (var (message, document) in documents)
-                    {
-                        await context.Database.ExecuteSqlRawAsync(insert, InsertArguments(context, message, document).Values, ct);
-                    }
-
-                    await transaction.CommitAsync(ct);
-                });
+                await AddWithNoStoredIdAsync(
+                    context, [.. documents.Select(static item => MessageRows.Outgoing(item.Message, item.Document)).DistinctBy(static row => row.Id)], ct);
                 return (Error?)null;
             },
             ct);
     }
 
-    private static SqlArguments InsertArguments(MsgHatchDbContext context, OutgoingMessage message, string document) =>
-        Arguments(context)
-            .Text("@tenantId", MessageQueries.Tenant(message.Tenant))
-            .Delivery(message.Delivery)
-            .Number("@schemaVersion", message.SchemaVersion)
-            .MessageId("@sourceMessageId", MessageQueries.Id(message.SourceMessageId))
-            .Name("@messageType", message.Type.Name)
-            .Name("@channel", message.Channel.Name)
-            .Name("@targetKind", message.Target.Kind.ToString())
-            .Text("@targetId", message.Target.Id)
-            .Name("@contentType", message.ContentType)
-            .Number("@contentVersion", message.ContentVersion)
-            .Name("@flags", message.Flags.ToString())
-            .Text("@traceParent", message.TraceParent)
-            .Text("@document", document);
+    /// <summary>
+    /// Adds the rows in one transaction, in the order of the batch, so their <c>Sequence</c> keeps that order (D144). The
+    /// rows have different ids. When a row has a stored id, the store adds the rows with no stored id in a new transaction,
+    /// because some databases, for example PostgreSQL, end a transaction after an error (D318).
+    /// </summary>
+    private static Task AddWithNoStoredIdAsync(MsgHatchDbContext context, IReadOnlyList<OutboxRow> rows, CancellationToken ct) =>
+        context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            var missing = rows;
+            while (missing.Count > 0)
+            {
+                try
+                {
+                    await AddInOneTransactionAsync(context, missing, ct);
+                    return;
+                }
+                catch (DbUpdateException)
+                {
+                    context.ChangeTracker.Clear();
+                    var stillMissing = await WithNoStoredIdAsync(context, missing, ct);
+                    if (stillMissing.Count == missing.Count)
+                    {
+                        throw;
+                    }
+
+                    missing = stillMissing;
+                }
+            }
+        });
+
+    /// <summary>Inserts the rows one by one in one transaction. A row of a failed transaction gets a new <c>Sequence</c>.</summary>
+    private static async Task AddInOneTransactionAsync(MsgHatchDbContext context, IReadOnlyList<OutboxRow> rows, CancellationToken ct)
+    {
+        await using var transaction = await context.Database.BeginTransactionAsync(ct);
+        foreach (var row in rows)
+        {
+            row.Sequence = default;
+            context.Outbox.Add(row);
+            await context.SaveChangesAsync(ct);
+        }
+
+        await transaction.CommitAsync(ct);
+        context.ChangeTracker.Clear();
+    }
+
+    private static async Task<IReadOnlyList<OutboxRow>> WithNoStoredIdAsync(MsgHatchDbContext context, IReadOnlyList<OutboxRow> rows, CancellationToken ct)
+    {
+        string[] ids = [.. rows.Select(static row => row.Id)];
+        var stored = await context.Outbox.Where(row => ids.Contains(row.Id)).Select(static row => row.Id).ToListAsync(ct);
+        return [.. rows.Where(row => !stored.Contains(row.Id))];
+    }
 
     private async ValueTask<ErrorOr<MessagePage<OutgoingMessageSummary>>> QueryAsync(TenantKey key, OutboxQuery query, CancellationToken ct)
     {
@@ -393,14 +400,43 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
         return _contexts.RunAsync<int>(
             async context =>
             {
-                var arguments = Arguments(context)
-                    .Text("@tenantId", MessageQueries.Tenant(key.Tenant))
-                    .Text("@ids", $"[{string.Join(',', ids.Select(static id => $"\"{MessageQueries.Id(id)}\""))}]")
-                    .Time("@nowUtc", nowUtc)
-                    .Text("@try", TryJson(PublishTry.Cancel(Guid.Empty, tryNumber: 0, nowUtc)));
-                return await context.Database.ExecuteSqlRawAsync(Statements(context).CancelOutgoing, arguments.Values, ct);
+                var cancelled = 0;
+                foreach (var id in ids)
+                {
+                    cancelled += await TryCancelAsync(MessageQueries.Cancellable(context.Outbox, key, [id], nowUtc), id, nowUtc, ct) ? 1 : 0;
+                }
+
+                return cancelled;
             },
             ct);
+    }
+
+    /// <summary>
+    /// Cancels the message while it is cancellable, and records the cancelled try with the next try number (D110). The
+    /// write has the condition of the <c>TryCount</c> that the store read, so a change of another writer makes the store
+    /// read the row again.
+    /// </summary>
+    private static async Task<bool> TryCancelAsync(IQueryable<OutboxRow> cancellable, Guid id, DateTime nowUtc, CancellationToken ct)
+    {
+        while (await cancellable.AsNoTracking().Select(static row => new StoredTries(row.TryCount, row.Tries)).FirstOrDefaultAsync(ct) is { } stored)
+        {
+            var tryCount = stored.TryCount + 1;
+            var tries = PublishTries.Append(stored.Tries, PublishTry.Cancel(id, tryCount, nowUtc));
+            var changed = await cancellable.Where(row => row.TryCount == stored.TryCount).ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(static row => row.Status, nameof(DeliveryStatus.Cancelled))
+                    .SetProperty(static row => row.LeaseUntilUtc, (DateTime?)null)
+                    .SetProperty(static row => row.TryCount, tryCount)
+                    .SetProperty(static row => row.LastTryAtUtc, nowUtc)
+                    .SetProperty(static row => row.Tries, tries),
+                ct);
+            if (changed > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static OutgoingMessageSummary SummaryOf(OutboxRow row) =>
@@ -408,6 +444,8 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
             MessageQueries.DeliveryOf(row), Guid.Parse(row.SourceMessageId), MessageQueries.TenantOf(row.TenantId), new MessageType(row.MessageType),
             new ChannelId(row.Channel), new DeliveryTarget(Enum.Parse<DeliveryTargetKind>(row.TargetKind), row.TargetId), row.ContentType,
             row.ContentVersion, Enum.Parse<MessageFlags>(row.Flags));
+
+    private sealed record StoredTries(int TryCount, string Tries);
 
     private sealed class TenantStore(EntityFrameworkOutboxStore store, TenantKey key) : IOutboxStore
     {

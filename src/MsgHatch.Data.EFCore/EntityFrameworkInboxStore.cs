@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
@@ -11,10 +10,10 @@ using MsgHatch.Domain.Persistence;
 namespace MsgHatch.Data.EFCore;
 
 /// <summary>
-/// The inbox on EF Core (section 4.5, D120): one row of the table <c>MsgHatchInbox</c> for each received message, with
-/// the columns of its delivery state, and its event as JSON in the column <c>Content</c> (D143). The key of a row is the
-/// tenant and the id. Each operation makes its own context through the pooled factory (D130). It is the dispatch store
-/// of all tenants, and <see cref="For"/> gives the tenant store of one key.
+/// The inbox on EF Core (section 4.5, D120, D318): one row of the table <c>MsgHatchInbox</c> for each received message,
+/// with the columns of its delivery state, and its event as JSON in the column <c>Content</c> (D143). The key of a row is
+/// the tenant and the id, so an add of a stored key changes nothing. Each operation makes its own context through the
+/// pooled factory (D130). It is the dispatch store of all tenants, and <see cref="For"/> gives the tenant store of one key.
 /// </summary>
 public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
 {
@@ -43,16 +42,9 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
         maxCount < 1
             ? new Error(Errors.ValidationFailed, "maxCount is less than 1.")
             : await _contexts.RunAsync(
-                context =>
-                {
-                    var arguments = Arguments(context)
-                        .Number("@maxCount", maxCount)
-                        .Time("@nowUtc", nowUtc)
-                        .Time("@leaseUntilUtc", nowUtc + lease);
-                    return MessageQueries.ClaimAsync(
-                        context.Inbox.FromSqlRaw(Statements(context).ClaimReceived, arguments.Values), context.Inbox, maxCount, nowUtc,
-                        row => _json.DeserializeReceived(MessageDocuments.Received(row)), ct);
-                },
+                context => MessageQueries.ClaimAsync(
+                    context, context.Inbox, context.Inbox, channel: null, new ClaimArguments(maxCount, nowUtc, nowUtc + lease),
+                    row => _json.DeserializeReceived(MessageDocuments.Received(row)), ct),
                 ct);
 
     /// <inheritdoc />
@@ -91,10 +83,6 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
     public ValueTask<ErrorOr<int>> DeleteTestDataAsync(CancellationToken ct) =>
         _contexts.RunAsync<int>(async context => await MessageQueries.DeleteTestDataAsync(context.Inbox, ct), ct);
 
-    private static SqlArguments Arguments(MsgHatchDbContext context) => new(context.Database.GetDbConnection());
-
-    private static SqlServerStatements Statements(MsgHatchDbContext context) => new(context.Model.GetDefaultSchema()!);
-
     private ValueTask<Error?> Update(
         ReceivedMessage message, Action<Microsoft.EntityFrameworkCore.Query.UpdateSettersBuilder<InboxRow>> setters, CancellationToken ct)
     {
@@ -124,16 +112,9 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
         return await _contexts.RunAsync(
             async context =>
             {
-                var arguments = Arguments(context)
-                    .Text("@tenantId", MessageQueries.Tenant(message.Tenant))
-                    .Delivery(message.Delivery)
-                    .Number("@schemaVersion", message.SchemaVersion)
-                    .Name("@contentType", message.Type.Name)
-                    .Number("@contentVersion", message.ContentVersion)
-                    .Name("@flags", message.Flags.ToString())
-                    .Text("@traceParent", message.TraceParent)
-                    .Text("@document", Encoding.UTF8.GetString(document.Value));
-                await context.Database.ExecuteSqlRawAsync(Statements(context).InsertReceived, arguments.Values, ct);
+                var row = MessageRows.Received(message, document.Value);
+                await RowWrites.TryAddAsync(
+                    context, row, () => context.Inbox.AnyAsync(stored => stored.TenantId == row.TenantId && stored.Id == row.Id, ct), ct);
                 return (Error?)null;
             },
             ct);

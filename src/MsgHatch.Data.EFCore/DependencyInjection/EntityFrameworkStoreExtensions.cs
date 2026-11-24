@@ -11,14 +11,15 @@ namespace MsgHatch.Data.EFCore.DependencyInjection;
 public static class EntityFrameworkStoreExtensions
 {
     /// <summary>
-    /// Selects the EF Core stores (D120): a pooled <see cref="IDbContextFactory{TContext}"/> of
-    /// <see cref="MsgHatchDbContext"/> with the options of <paramref name="configure"/>, for example
-    /// <c>o =&gt; o.UseSqlServer(connectionString)</c>, then <see cref="EntityFrameworkInboxStore"/> and
+    /// Selects the EF Core stores on a relational EF Core provider (D120, D318): a pooled
+    /// <see cref="IDbContextFactory{TContext}"/> of <see cref="MsgHatchDbContext"/> with the options of
+    /// <paramref name="configure"/>, for example <c>o =&gt; o.UseSqlite(connectionString)</c>, then
+    /// <see cref="EntityFrameworkInboxStore"/> and
     /// <see cref="EntityFrameworkOutboxStore"/>, each with its two parts and their logging wrappers, and
     /// <see cref="EntityFrameworkRegistrySettingsStore"/> with its logging wrapper (D130). The package creates no schema:
     /// the host creates it with its own EF Core migrations of <see cref="MsgHatchDbContext"/>. The options bind from the
     /// section <c>MsgHatch:EntityFramework</c>, and a value from code wins. The startup validation fails for a provider
-    /// with no SQL statements of the stores (D175).
+    /// that is not relational (D175).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">The options of the contexts, with the provider and its connection.</param>
