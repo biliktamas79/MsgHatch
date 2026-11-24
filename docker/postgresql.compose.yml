@@ -1,0 +1,46 @@
+# Local PostgreSQL for the EF Core integration tests, with pgAdmin.
+# Put POSTGRES_PASSWORD=<password> into docker/.env (git ignores it), then run from the repository root:
+#   docker compose -f docker/postgresql.compose.yml up -d
+# Connection string: Host=localhost;Port=5432;Username=postgres;Password=<password>
+# pgAdmin: http://localhost:5050 (desktop mode, no login).
+name: msghatch-postgresql
+
+services:
+  dev-postgres:
+    image: postgres:18.7
+    container_name: dev-postgres
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # PostgreSQL 18 images keep PGDATA in /var/lib/postgresql/18/docker, so the volume mounts one level up.
+      - dev-postgres-data:/var/lib/postgresql
+    restart: unless-stopped
+
+  dev-pgadmin:
+    image: dpage/pgadmin4:9.19
+    container_name: dev-pgadmin
+    environment:
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      # The entrypoint requires both values on the first start, also in desktop mode, where no login uses them.
+      PGADMIN_DEFAULT_EMAIL: dev@example.com
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in docker/.env}
+    ports:
+      - "127.0.0.1:5050:80"
+    configs:
+      - source: pgadmin-servers
+        target: /pgadmin4/servers.json
+    depends_on:
+      - dev-postgres
+    restart: unless-stopped
+
+configs:
+  pgadmin-servers:
+    content: |
+      {"Servers": {"1": {"Name": "dev-postgres", "Group": "Servers", "Host": "dev-postgres", "Port": 5432,
+        "MaintenanceDB": "postgres", "Username": "postgres", "SSLMode": "prefer"}}}
+
+volumes:
+  dev-postgres-data:
