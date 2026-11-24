@@ -3627,6 +3627,27 @@ Tests:
 
 Check for the owner: run the integration tests of the stores with the new versions.
 
+Checked facts (2026-11-24), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| `global.json` asks for SDK 10.0.100 with `latestFeature`, so this machine builds with 10.0.404 and Roslyn 5.9.0. The SDK 10.0.204 has Roslyn 5.3.0. The generator references `Microsoft.CodeAnalysis.CSharp` 5.0.0, the Roslyn of SDK 10.0.100, so each SDK of the major 10 loads it. | The file versions of `Microsoft.CodeAnalysis.CSharp.dll` of each installed SDK |
+| With no `CentralPackageFloatingVersionsEnabled`, the restore fails with `NU1011` for each floating `PackageVersion`. | `dotnet restore -p:CentralPackageFloatingVersionsEnabled=false` |
+| The restore gives these new versions: the `Microsoft.Extensions`, ASP.NET Core, and EF Core packages 10.0.15 (from 10.0.14), `Microsoft.Extensions.Caching.Hybrid`, `.TimeProvider.Testing`, and `.Diagnostics.Testing` 10.11.1 (from 10.11.0), `AWSSDK.SimpleEmailV2` 4.1.1, `AWSSDK.SimpleNotificationService` and `AWSSDK.SQS` 4.1.0.2, `Fluid.Core` 2.41.2, the `WolverineFx` packages 6.65.1, `MongoDB.Driver` 3.14.1, `ZiggyCreatures.FusionCache` 2.10.0, the `OpenTelemetry` packages 1.21.0, `Microsoft.IdentityModel.JsonWebTokens` 8.23.0, the `Testcontainers` packages 4.17.0, `xunit.v3` 4.0.3, `Microsoft.NET.Test.Sdk` 18.12.0, and `coverlet.collector` 10.1.1. The restore gives no warning. | `project.assets.json` of each project |
+| `WolverineFx.RabbitMQ` 6.65.1, the latest of the major 6, still needs `RabbitMQ.Client` 7.2.2 for `net10.0` and `net9.0`, and `7.*` gives 7.3.0. So the reason holds, and `RabbitMQ.Client` keeps 7.2.2. | The nuspec of `WolverineFx.RabbitMQ` 6.65.1 in the NuGet cache |
+| `Microsoft.EntityFrameworkCore.SqlServer` 10.0.15 still depends on `Microsoft.Data.SqlClient` 6.1.7, and `6.*` gives 6.1.8. So the test projects keep their reference of `Microsoft.Data.SqlClient`, with `6.*`. | The nuspec of `Microsoft.EntityFrameworkCore.SqlServer` 10.0.15 |
+| `Microsoft.CodeAnalysis.BannedApiAnalyzers` `3.*` gives 3.3.4, the version of D32. | `project.assets.json` |
+| No analyzer DLL of a resolved package references a Roslyn newer than 5.0.0, so each one loads on the compiler of SDK 10.0.100. The newest reference is 5.0.0, of `Microsoft.EntityFrameworkCore.Analyzers` 10.0.15. `xunit.analyzers` 2.3.0 references 4.11.0, and `Microsoft.CodeAnalysis.BannedApiAnalyzers` 3.3.4 references 2.9.0. | The assembly references of each analyzer DLL of the 282 resolved packages |
+| Each package version that the phase changes has a license of the rule of section 5.5. The 7 packages with a license file or a license URL keep the versions of phase 46: the two packages of D179, `NSubstitute.Analyzers.CSharp` 1.0.17, `NETStandard.Library` 2.0.3, `Microsoft.NETCore.Platforms` 1.1.0, and `CommandLineParser` 2.9.1 and `Microsoft.DotNet.PlatformAbstractions` 3.1.6 of `BenchmarkDotNet` 0.15.8. | The nuspec of each of the 282 resolved packages |
+| `dotnet pack` writes the resolved version as the lowest version of a dependency, for example `Microsoft.Extensions.Options` 10.0.15 for `10.*`. Each MsgHatch dependency is 0.2.1. | The nuspec of each 0.2.1 package |
+| Only 15 packages get a newer dependency of their own, the 15 packages with the entry 0.2.1: `MsgHatch.Domain`, `MsgHatch.AdminUI`, the three client packages, `MsgHatch.Broker.AmazonSns`, `MsgHatch.Broker.Wolverine`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.MongoDb`, `MsgHatch.Data.Sqlite`, `MsgHatch.Email.AmazonSES`, `MsgHatch.Email.Resend`, the two cache packages, and `MsgHatch.Templates.Liquid`. The other 21 packages depend only on MsgHatch packages, or keep their dependency, as `MsgHatch.Dispatch.RabbitMq` does. | A comparison of the dependencies of each nuspec of 0.2.0 and of 0.2.1 |
+| The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 38 unit test projects pass 5,849 tests and skip 1, the path limit test of the named pipe signal, the same as after phase 46. The line coverage is 98.4 %. `pwsh ./pack.ps1` passes with 36 packages of version 0.2.1. | `dotnet build`, `pwsh ./coverage.ps1`, `pwsh ./pack.ps1` |
+| The pack of the solution gives the warning "This project cannot be packaged because packaging has been disabled" for the 4 web examples `AdminUiExample`, `ExampleApp`, `SignalRDemo`, and `WolverineExample.Consumer`. The phase changes no project file, so the warning is not from this phase. | The log of `pwsh ./pack.ps1` |
+
+Checks that the phase did not do:
+- The integration tests of the stores and of the brokers with the new versions. They are the check for the owner.
+- A run on Linux before the push. The workflow run of the push builds and tests on Linux.
+
 Commits:
 1. "Plan phases 47 to 49: floating versions and the provider packages of the EF Core stores"
 2. "Float each package version within its major"
@@ -3635,6 +3656,15 @@ Commits:
 5. "Record phase 47 as done in README and AGENTS.md"
 
 Commit 1 holds the plans of phases 47, 48, and 49, and the decisions D317 to D319. A second plan commit adds the schema migrations to phases 48 and 49, and the decision D320. Commit 2 holds items 1 to 4. Commit 5 also sets the range of the decisions in `AGENTS.md`, which says D315 since phase 46.
+
+The plan of this phase is in commit 1 (`8f03d01`) and in the second plan commit (`721f09b`). Commit 2 holds items 1 to 4 (`1cfa252`), and commit 3 item 5 (`2fa29e8`). Item 3 needed no fix, because the build gave no new warning and no test failed.
+
+The implementation changed the plan in these points:
+- `RabbitMQ.Client` keeps 7.2.2 after the check of item 2, and its label names `WolverineFx.RabbitMQ` 6.65.1. `Microsoft.Data.SqlClient` gets `6.*`.
+- `Microsoft.CodeAnalysis.BannedApiAnalyzers` gets `3.*` and no exact version, because the major 3 gives 3.3.4, so D32 holds.
+- Item 4 gives the entry 0.2.1 only to the packages whose own dependencies change. A package with only MsgHatch dependencies gets no entry, as in phase 45.
+- The entry 0.2.1 names no resolved version, because the pack of a release can resolve a newer version than the pack of this phase.
+- Section 5.2 of the design said that a package version changes only in its own commit. Now a new major or a change of an exact version is a commit of its own.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.2.1.
 
