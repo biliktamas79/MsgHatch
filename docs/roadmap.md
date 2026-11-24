@@ -4000,6 +4000,49 @@ Commit 1 only moves types, so commit 2 makes the migrations with the base classe
 
 The plan of this phase and D321 to D323 are in their own commit before commit 1.
 
+Checked facts (2026-11-24), on Windows 11 build 26300 with the .NET SDK 10.0.404, EF Core 10.0.15, `Microsoft.Data.SqlClient` 6.1.8, Npgsql 10.0.4, SQL Server 2025 (17.0.4065.4) of the local container dev-mssql, and PostgreSQL 18.7 of the local container dev-postgres:
+
+| Fact | Source |
+|---|---|
+| Before the code, 563 places in 98 files named an old table, index, or history table. The phase changes the places of the EF Core stores, their tests, `examples/SchemaMigrator`, and the documents. The SQLite and MongoDB stores, their tests, and `tests/ExampleApp.Tests.Unit`, whose example app uses the SQLite stores, keep the prefix. | `git grep` of the old names in `src`, `tests`, `examples`, and `docs` |
+| The error numbers of the SQL Server dialect are the messages 207 "Invalid column name", 208 "Invalid object name", 229 and 230 "permission was denied on the object" and "on the column", 262 "permission denied in database", 2628 and 8152 "String or binary data would be truncated", and 18456 "Login failed for user". | `sys.messages` of dev-mssql, read by a temporary test that the phase did not commit |
+| The states of the PostgreSQL dialect are the conditions `insufficient_privilege` 42501, `invalid_authorization_specification` 28000, `invalid_password` 28P01, `undefined_table` 42P01, `undefined_column` 42703, and `string_data_right_truncation` 22001. The constants of `PostgresErrorCodes` have these values, because the dialect test with the literal states passes. | Appendix A of the PostgreSQL documentation, and `PostgreSqlStoreDialectIntegTests` |
+| A query of a missing table throws the provider exception, 208 or 42P01, with no wrap. `SaveChanges` wraps the provider exception of an insert in `DbUpdateException`: a target id of 300 characters gives 2628 or 8152 on SQL Server and 22001 on PostgreSQL inside it. Npgsql does not cut the value to the size of the column. With the dialect, each of these gives `Errors.ValidationFailed`. | The EF Core documentation of `SaveChanges`, and the integration tests of the database with no migrations and of the long target id |
+| PostgreSQL refuses a collation on a `json` column: the first migration with the JSON type failed with "42804: collations are not supported by type json". So a JSON column gets no collation. | The migration test of the PostgreSQL package |
+| Npgsql writes a `string` into a `json` and a `jsonb` column with an insert, an `ExecuteUpdate`, and the claim statement, and reads it back. A write of invalid JSON into a `json` column fails with 22P02. | The contract bases of the PostgreSQL packages with the dialect and with the option `jsonb`, and the test of invalid JSON |
+| EF Core 10 and `Microsoft.Data.SqlClient` 6.1.8 write and read a `string` in a `json` column on SQL Server 2025, and the claim with `OUTPUT inserted.*` reads it. SQL Server keeps the order of the keys, so `$type` stays the first key. | The contract bases of the SQL Server packages with the option `json` |
+| The EF Core tools 10.0.2 made the `Initial` migrations of the 4 provider packages again. With the generator, they have no literal schema, no literal collation, and no literal `"json"`, and they compile with the base classes in `MsgHatch.Data.EFCore.Migrations`. A JSON column has `type: JsonColumnType` and no collation. With no JSON type in the options or the dialect, EF Core gives the column the type of a `string` with no length of the provider. | The generated migrations, and the tests "no pending model change" with the schema `other`, a collation, and the options `json` and `jsonb` |
+| The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 40 unit test projects pass 6,527 tests and skip 1, the path limit test of the named pipe signal. The line coverage is 98.3 %. | `dotnet build`, `pwsh ./coverage.ps1` |
+| `pwsh ./pack.ps1` passes with 40 packages of version 0.5.0. The pack warning "packaging has been disabled" names only the 4 web examples, as in phase 49. | `pwsh ./pack.ps1` |
+| The EF Core integration projects pass on dev-mssql and on dev-postgres: `MsgHatch.Data.EFCore.Tests.Integration` 625 tests, `MsgHatch.Subscriptions.Data.EFCore.Tests.Integration` 88, `MsgHatch.Data.EFCore.SqlServer.Tests.Integration` 604, `MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration` 75, `MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` 613, `MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration` 76, and `SchemaMigrator.Tests.Integration` 10. No container started, and no image was pulled. | `dotnet test` of each project, `docker ps` before and after each run |
+| Each new test failed first. The namespace test failed with the two namespaces of the root. The tests of the names failed with the prefix. The classifier tests gave 503 in place of 409 and 403, and the cancel test failed when the classifiers came before the cancel. The dialect tests gave null and 503. The tests of the JSON type failed with no type in the options of a context, and the rows of the text type failed with `json` for each JSON column. The collation tests failed with the collation on the JSON columns. | The test runs before the code, and the temporary changes of the code |
+
+Checks that the phase did not do:
+- The owner check: the EF Core integration projects on SQL Server and on PostgreSQL on the machine of the owner. The phase ran them on dev-mssql and dev-postgres.
+- A test of a missing permission, of a failed login, and of a missing column against a server. The dialect test of PostgreSQL builds each state, and `sys.messages` gives the SQL Server numbers.
+- A run of the EF Core tests through Testcontainers, and a run on Linux before the push. The workflow run of the push builds and tests on Linux, with no integration project.
+
+Commits:
+1. "Move the types of the base EF Core package into feature folders"
+2. "Keep the EF Core tables in their schema with no prefix"
+3. "Add the exception classifiers of the EF Core stores"
+4. "Give the JSON columns of the EF Core stores the JSON type of the dialect"
+5. "Describe the changes of the EF Core stores in the design and the store guide"
+6. "Record the commits and the checked facts of phase 50 in the plan"
+7. "Record phase 50 as done in README and AGENTS.md"
+
+Commit 1 is `c86cebb`, commit 2 `7972cf8`, commit 3 `2128a52`, commit 4 `e0be691`, and commit 5 `dc31331`. The plan of this phase is in `35286e0` and `942a30c`.
+
+The implementation changed the plan in these points:
+- A JSON column has no collation, because PostgreSQL refuses a collation on `json` (checked fact). The collation tests of both contexts check that the JSON columns have none. A host with migrations of its own makes them again.
+- The design-time contexts of the EF Core tools set the option `JsonColumnType` to `json`, and the generator writes `JsonColumnType` in place of the literal `"json"`, because the type `nvarchar(max)` of the design time is also the type of `LastError` and `TraceParent`. At run time, the migration gets the type of the options or of the dialect, or null, and with null EF Core gives the column the text type of the provider. So the migrations need no type mapping source.
+- Commit 1 also changes the `using` directives of the migrations of phase 49 and the base namespace of the generator, so commit 1 builds. Commit 2 makes the `Initial` migrations again, and commit 4 makes them a third time for the JSON type. Commit 2 also makes the SQLite migrations of the host in `tests/MsgHatch.Data.EFCore.Tests.Unit` again.
+- The test of invalid JSON is an `UPDATE` of a stored row, not an insert, because an insert needs each column of the row.
+- The phase adds two integration tests on each server that the plan does not list: a database with no migrations gives `Errors.ValidationFailed` for the inbox, the outbox, and the registry settings, and a target id longer than its column gives `Errors.ValidationFailed`. The second test checks the wrap in `DbUpdateException`.
+- The contract classes with the JSON option use databases of their own, and the subscription classes also a scenario fixture of their own, because two scenario fixtures on one database fail. A PostgreSQL test database of the subscription project has the name `subs_jsonb`, because `subscriptions_jsonb` gives more than 63 bytes. `MigratedStores` and `MigratedSubscriptionStores` of the 4 provider projects take the options of a database.
+- The READMEs of `MsgHatch.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore`, and the 2 store provider packages show a classifier of the host. The subscription provider packages change no code in commit 3, so their READMEs have no classifier.
+- The README entries of 0.5.0 start with "Breaking:" for the names, the namespaces, the error types of the dialects, the dialect contract, and the JSON type. The option and the classifiers of the subscription store are entries with no "Breaking:".
+
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 40 packages of 0.5.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
 
 ### Later phases
