@@ -4045,6 +4045,134 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 40 packages of 0.5.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
 
+### Phase 51: Channel packages under MsgHatch.Channels
+
+Goal: the 7 channel packages get the role segment `Channels` in their names, as the other package families have a role segment, and `AmazonSES` becomes `AmazonSes` (D324). Section 5.6 of the design gets the step that sets the baseline of the package validation after the first publish.
+
+Starting point: the commits of phase 50. The channel packages are `MsgHatch.Email`, `MsgHatch.Email.AmazonSES`, `MsgHatch.Email.Resend`, `MsgHatch.SignalR`, `MsgHatch.Broker`, `MsgHatch.Broker.Wolverine`, and `MsgHatch.Broker.AmazonSns`, with 12 test projects. On 2026-11-24, 274 files of the repository name one of them: 72 in `src`, 169 in `tests`, 26 in `examples`, and 7 others. `pack.ps1`, `coverage.ps1`, and the workflow name no channel project. The solution folders `/src/Channels/` and `/tests/Channels/` already hold the channel projects. `Directory.Build.props` sets `EnablePackageValidation` with no baseline. No package is on nuget.org.
+
+1. `git mv` the 7 project folders in `src` and the 12 test project folders in `tests` to the new names, with their project files. Each test project takes the name of its production project and its level, for example `tests/MsgHatch.Channels.Email.AmazonSes.Tests.Integration`.
+2. Change each namespace and each `using` directive in `src`, `tests`, and `examples`. The class names do not change.
+3. `MsgHatch.slnx`, each `ProjectReference`, and the labels of the item groups in `Directory.Packages.props` use the new names.
+4. The READMEs:
+   - The README of each renamed package, with its README tests.
+   - The READMEs of `MsgHatch.Domain`, `MsgHatch.Templates`, and `MsgHatch.Templates.Liquid` name a channel package. They get the new names with no version entry, because their code does not change.
+   - The root `README.md`, `docs/signalr-client.md`, and `examples/WolverineExample.Consumer/README.md`.
+5. Git ignores the `appsettings.Local.json` files of the SES, Resend, Wolverine, and SNS integration projects, so `git mv` leaves them in the old folders. The owner moves them. The phase never reads or changes them, and it does not delete the old folders.
+6. Section 5.6 of the design gets a step after the first publish: set `PackageValidationBaselineVersion` in `Directory.Build.props` to the published version, because `EnablePackageValidation` with no baseline checks no breaking change against an earlier version.
+7. `VersionPrefix` becomes `0.6.0`, because the package ids and the namespaces change, and before 1.0.0 a breaking change raises the minor. The README of each renamed package gets the entry 0.6.0, which starts with "Breaking:" and names the old package id.
+8. Describe the phase: section 4.2 and each other mention of an old name in the design, and `AGENTS.md` with the project table and the test commands.
+
+Checks before the code:
+- Each file that names an old package, project, or namespace, in `src`, `tests`, `examples`, `docs`, and the root folder.
+- `examples/ExampleApp` and `examples/WolverineExample.Consumer` have a folder `Channels` with the namespaces `ExampleApp.Channels` and `WolverineExample.Consumer.Channels`. Inside these namespaces, a name that starts with `Channels.` resolves to the namespace of the example first. Each file of these folders builds with the new `using` directives.
+
+Tests:
+- The build has no errors and no warnings.
+- All unit tests and the README tests pass.
+- `pwsh ./pack.ps1` passes with 40 packages of 0.6.0 with the new ids.
+- No file names an old package id, project, or namespace, except the "Breaking:" entries of the version history and the done phases of this roadmap, which record the history.
+
+Check for the owner: move the 4 `appsettings.Local.json` files to the new folders, then run the SES, Resend, Wolverine, and SNS integration projects.
+
+Commits:
+1. "Rename the channel packages to MsgHatch.Channels"
+2. "Describe the channel package names in the design and AGENTS.md"
+3. "Record the commits and the checked facts of phase 51 in the plan"
+4. "Record phase 51 as done in README and AGENTS.md"
+
+The plan of this phase and D324 are in their own commit before commit 1.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 40 packages of 0.6.0.
+
+### Phase 52: MySQL packages of the EF Core stores
+
+Goal: the new packages `MsgHatch.Data.EFCore.MySql` and `MsgHatch.Subscriptions.Data.EFCore.MySql` run the EF Core stores on MySQL 8.4 with the binary collation, the schema migrations, and a setup with one call (D325). On MySQL, the tables keep the prefix `MsgHatch` (D326). On each provider, the subscription key of the EF Core store moves into a hash column (D327).
+
+Starting point: the commits of phase 51. The base packages run on each relational provider, and the SQL Server and PostgreSQL packages show a dialect and a migration set. MySQL has no `UPDATE ... RETURNING`, so the base claim runs. The base claim already sets the old due time first, because MySQL applies the assignments of an `UPDATE` from left to right (`docs/stores.md` section 4.4). The unique index `UX_Subscription_Owner` has 7 columns with 1,344 characters, and no MySQL index key can hold them (D327).
+
+1. The base packages (D326): `IEntityFrameworkStoreDialect` gets the default property `bool HasSchemas => true`. With false, `StoreModel` puts the prefix `MsgHatch` on each table name and each history table name of both contexts, and uses no schema. With such a dialect, the startup validation fails when `Schema` is not the default `msghatch`, because the option has no effect. The SQL Server and PostgreSQL packages do not change.
+2. The subscription key (D327):
+   - `MsgHatchSubscriptionDbContext` gets the column `OwnerKey`, a binary column of 32 bytes. The unique index `UX_Subscription_Owner` has only this column.
+   - The store calculates `OwnerKey` in C# before each insert and each update: the SHA-256 of `TenantId`, `MessageType`, `Level`, `CompanyId`, `UserId`, `Channel`, and `Recipients`. Each value goes into the hash as its byte count and then its UTF-8 bytes.
+   - The new index `IX_Subscription_Type` on `TenantId` and `MessageType` is not unique, and serves `FindForDeliveryAsync`. Its key has at most 2,048 bytes on MySQL and 768 bytes on SQL Server, so it needs no column prefixes.
+   - An add of a second subscription with the same key still gives the error of the unique key.
+   - The SQL Server and PostgreSQL subscription packages make their `Initial` migrations again, as in phase 50. No package is on nuget.org.
+3. The package `MsgHatch.Data.EFCore.MySql`:
+   - It references `MsgHatch.Data.EFCore` and `Microting.EntityFrameworkCore.MySql` (D325). Its public API has no type of the provider, for example no `ServerVersion`.
+   - Its dialect gives no claim statement, so the base claim runs: a LINQ read of the due candidates and one `ExecuteUpdate` with a claim token.
+   - The default collation is `utf8mb4_bin`, so an id or a name is case-sensitive and sorts in binary order. MariaDB also has this collation.
+   - The JSON type of the dialect is null, so each JSON column is `longtext`. The MySQL type `json` sorts the keys and drops duplicate keys, as `jsonb` does. So a host selects it only with the option `JsonColumnType` (D323).
+   - The dialect maps the error numbers 1044, 1045, 1142, and 1143 to `Errors.Rejected`, and 1054, 1146, and 1406 to `Errors.ValidationFailed` (D322).
+   - Its dialect gives `HasSchemas` false. So the tables are `MsgHatchInbox`, `MsgHatchOutbox`, `MsgHatchChannelState`, `MsgHatchChannelEntry`, and `MsgHatchMessageTypeEntry`, and the history table is `__MsgHatchStoreMigrations`, in the database of the host (D326).
+   - It holds the migrations of `MsgHatchDbContext` for MySQL (D320).
+   - `UseEntityFrameworkMySqlStores` registers the stores with the provider, the dialect, and the migrations in one call.
+   - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests. The README says why the package uses Microting (D325): the MIT license, EF Core 10, and MariaDB. The Oracle provider has the GPL-2.0 with the Universal FOSS exception, which limits a closed-source host that ships its binaries. Pomelo has no EF Core 10 build.
+4. The package `MsgHatch.Subscriptions.Data.EFCore.MySql`:
+   - It references `MsgHatch.Subscriptions.Data.EFCore` and `MsgHatch.Data.EFCore.MySql`, and uses the dialect of `MsgHatch.Data.EFCore.MySql`.
+   - It holds the migrations of `MsgHatchSubscriptionDbContext` for MySQL, with the column `OwnerKey` of item 2.
+   - The subscription table is `MsgHatchSubscription`, and its history table is `__MsgHatchSubscriptionMigrations` (D326).
+   - `UseEntityFrameworkMySqlSubscriptionStore` registers the subscription store in one call.
+   - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests. The README gives the reason for the provider, as the README of item 3 does.
+5. A time is `datetime(6)`, which keeps microseconds, as on PostgreSQL (D319).
+6. `docker/mysql.compose.yml`: the container dev-mysql from `mysql:8.4` on 127.0.0.1:3306, with the password from `MYSQL_ROOT_PASSWORD` in `docker/.env`. The owner adds the password to `docker/.env`. The owner pulls the image.
+7. Tests:
+   - The new projects `tests/MsgHatch.Data.EFCore.MySql.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Integration` run the contract bases on MySQL with the dialect, on a database that the migrations of their package created. They also run their README tests.
+   - The fixture `MySqlFixture` uses `MySqlIntegration:ConnectionString` of `appsettings.Local.json` (D180). With no connection string, Testcontainers starts the image `mysql:8.4`.
+   - The two base integration projects also run the contract bases on MySQL with no dialect, in a folder `MySql`.
+   - MySQL allows at most 64 characters in a database name, and the name of the subscription project has 58. So the name of a test database follows the PostgreSQL rule of D180: `msghatch_subscriptions_data_efcore_mysql__` has 42 characters.
+   - Each test database has a pool of at most 10 connections, because MySQL allows 151 connections by default.
+8. Packages: `Microting.EntityFrameworkCore.MySql` `10.*`, because its 11.x line needs .NET 11, and `Testcontainers.MySql` `4.*` for the tests.
+9. `VersionPrefix` becomes `0.7.0`, because the new packages are a new feature. Version entries:
+   - The README of `MsgHatch.Data.EFCore` gets the entry 0.7.0 for `HasSchemas`, and shows the setup with the MySQL package.
+   - The READMEs of `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer`, and `MsgHatch.Subscriptions.Data.EFCore.PostgreSql` get the entry 0.7.0. It starts with "Breaking:", and names the column `OwnerKey` and the new `Initial` migrations.
+10. `examples/SchemaMigrator` also applies the MySQL migrations, and writes their script (`SchemaMigrator__Provider` `MySql`).
+11. Describe the phase: the design (sections 4.2, 4.5, 5.1, and 5.6, and D178), the EF Core section of `docs/stores.md`, `AGENTS.md` with the commands and the settings of the MySQL tests, and the count of 42 packages.
+
+Checks before the code:
+- The exception type of the Microting provider (`MySqlConnector.MySqlException`), and how the provider treats a schema.
+- How the setup gets the server version with no provider type in the API of MsgHatch.
+- How the provider maps a text column with `IsUnicode(false)`, and whether the collation `utf8mb4_bin` fits its character set.
+- The restore takes a 10.x version of `Microting.EntityFrameworkCore.MySql` with EF Core 10.
+- MySQL 8.4 has no `UPDATE ... RETURNING`, so a dialect claim statement cannot return the claimed rows.
+- The provider cuts a time down to the microsecond, and does not round it up. The MySQL server rounds a time with more fractional digits than the column, unless the SQL mode has `TIME_TRUNCATE_FRACTIONAL`. A rounded-up due time delays its claim.
+- The MySQL type `json` sorts the keys of an object (the reason for the JSON type in item 3).
+- The key length of each index of both contexts in `utf8mb4` against 3,072 bytes. On 2026-11-24, only `UX_Subscription_Owner` is over the limit.
+- The image tag `mysql:8.4` exists, with `docker manifest inspect` and no pull.
+
+Tests:
+- The contract bases pass on MySQL with the dialect and with no dialect.
+- On MySQL, each table name and each history table name of both contexts starts with `MsgHatch`, and no table is in another database. On SQLite, a test dialect with `HasSchemas` false gives the same names, and a `Schema` that is not the default fails the startup validation (D326).
+- A subscription with each key column at its maximum length is stored on SQL Server, PostgreSQL, and MySQL, and a second add with the same key fails (D327). Before the hash column, the insert fails on SQL Server, because the key has 2,112 bytes and SQL Server allows 1,700 (D178).
+- Two keys that differ only at the border of two values give two subscriptions, for example `UserId` `ab` with `Channel` `c`, and `UserId` `a` with `Channel` `bc` (D327).
+- Two tenants that differ only in case stay apart with `utf8mb4_bin`.
+- A time with a part of a microsecond comes back cut down to the microsecond (D319).
+- The migrations create the schema of each package on an empty MySQL database, and a second call changes nothing. The model of each context has no pending change against its migrations, on each provider.
+- The dialect gives the error type of each number of item 3.
+- `examples/SchemaMigrator` applies the MySQL migrations on an empty database, and writes their script.
+- The setup with the two MySQL packages passes the startup validation.
+- The README snippets.
+- Each new test fails first.
+
+Check for the owner: start dev-mysql, and put `MySqlIntegration:ConnectionString` into the `appsettings.Local.json` files. Then run the EF Core integration projects on SQL Server, PostgreSQL, and MySQL.
+
+Commits:
+1. "Add the MySQL compose file for the local tests"
+2. "Keep the EF Core tables of a database with no schemas under the prefix MsgHatch"
+3. "Keep the subscription key of the EF Core store in a hash column"
+4. "Add the MySQL package of the EF Core stores with its migrations"
+5. "Add the MySQL package of the EF Core subscription store"
+6. "Test the base EF Core stores on MySQL"
+7. "Describe the MySQL packages in the design and the store guide"
+8. "Record the commits and the checked facts of phase 52 in the plan"
+9. "Record phase 52 as done in README and AGENTS.md"
+
+The plan of this phase and D325 to D327 are in their own commit before commit 1.
+
+Checks that the phase does not do: a run on MariaDB, and a run of the MySQL tests through Testcontainers.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.7.0, and the EF Core integration projects pass on SQL Server, PostgreSQL, and MySQL.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
