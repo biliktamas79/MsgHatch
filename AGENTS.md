@@ -141,6 +141,7 @@ dotnet test tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration
   - Add an entry for the new version to the version history of each package that the phase changes, with its release notes. Start a breaking change with "Breaking:".
   - The README tests fail when a code block or the options table differs from the code.
 - A phase that adds a library project adds its `README.md`, its `Description`, its `PackageTags`, and its README tests.
+- From phase 47 on, each package of `Directory.Packages.props` has the version `{major}.*`, for example `10.*`, or `0.{minor}.*` for the major 0 (D317). So each restore takes the latest stable version of the major. A package keeps an exact version only with the reason in the label of its item group, for example the Roslyn packages of the source generator.
 - Expected failures are `ErrorOr<T>` or `Error?` values. Do not add custom exception types.
 - Write each log method as a source-generated `[LoggerMessage]` extension method of `ILogger`, and call it as `logger.EventName(...)`.
 - Turn a sequence into an array or a list with a collection expression, for example `[.. items]`, not with a LINQ `ToArray()` or `ToList()`. `.editorconfig` sets IDE0305 to error.
