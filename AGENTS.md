@@ -26,8 +26,8 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Core | `MsgHatch.Domain`, `MsgHatch.SourceGeneration`, `MsgHatch.AspNetCore` |
 | Templates | `MsgHatch.Templates`, `MsgHatch.Templates.Liquid`, `MsgHatch.Templates.AspNetCore` |
 | Channels | `MsgHatch.Email`, `MsgHatch.Email.AmazonSES`, `MsgHatch.Email.Resend`, `MsgHatch.SignalR`, `MsgHatch.Broker`, `MsgHatch.Broker.Wolverine`, `MsgHatch.Broker.AmazonSns` |
-| Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.MongoDb` |
-| Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
+| Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.EFCore.SqlServer`, `MsgHatch.Data.MongoDb` |
+| Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 | Dispatch signal | `MsgHatch.Dispatch.NamedPipes`, `MsgHatch.Dispatch.RabbitMq` |
 | API contracts | `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts` |
 | API clients | `MsgHatch.Api.Client`, `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
@@ -51,7 +51,7 @@ The coverage report of the unit tests (PowerShell 7). It writes `artifacts/cover
 pwsh ./coverage.ps1
 ```
 
-From phase 41 on, the pack check (PowerShell 7). It packs the 36 packages in Release into `artifacts/packages`, and fails when a package has a wrong version, wrong metadata, or missing content (section 5.6 of the design). The GitHub workflow `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1 -VersionSuffix ci.<run number>` on `ubuntu-latest` on each push of a branch and each pull request, and publishes to nuget.org only on a tag `v<version>`. Never push a tag `v*` unless the owner asks:
+From phase 41 on, the pack check (PowerShell 7). It packs the 38 packages in Release into `artifacts/packages`, and fails when a package has a wrong version, wrong metadata, or missing content (section 5.6 of the design). The GitHub workflow `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1 -VersionSuffix ci.<run number>` on `ubuntu-latest` on each push of a branch and each pull request, and publishes to nuget.org only on a tag `v<version>`. Never push a tag `v*` unless the owner asks:
 
 ```bash
 pwsh ./pack.ps1
@@ -106,6 +106,16 @@ From phase 18 on, the EF Core integration tests use the SQL Server of `SqlServer
 ```bash
 dotnet test tests/MsgHatch.Data.EFCore.Tests.Integration
 dotnet test tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration
+```
+
+From phase 48 on, the base EF Core stores also run on SQLite in the unit test projects, and the SQL Server packages, their migrations, and the example `examples/SchemaMigrator` have integration projects. These three projects have no appsettings files of their own: the files of `tests/MsgHatch.Data.EFCore.Tests.Integration` reach their output, so they use the same SQL Server. The migrations of a SQL Server package come from the EF Core tools, with the test project of the package as the startup project (`docs/stores.md` section 4.9). The tool `dotnet-ef` is a download, so it needs the owner's yes when it is missing:
+
+```bash
+dotnet test tests/MsgHatch.Data.EFCore.Tests.Unit
+dotnet test tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit
+dotnet test tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration
+dotnet test tests/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration
+dotnet test tests/SchemaMigrator.Tests.Integration
 ```
 
 From phase 19 on, the MongoDB integration tests use the MongoDB of `MongoDbIntegration:ConnectionString` in `appsettings.Local.json` of each MongoDB integration project, which git ignores, for example the local container dev-mongo with `mongodb://localhost:27017/?replicaSet=rs0`. `appsettings.json` next to it describes the key. The tests drop only the databases whose names start with the name of their project, at the start and at the end of a run (D183). MongoDB allows at most 63 characters in a database name, so the name of a test database adds at most 9 characters to the 54 of the subscription project. The server must be a replica set, because the tests of the MongoDB dispatch signal open a change stream. With no connection string, Testcontainers starts MongoDB from the image `mongo:8.3` as a replica set with one member:

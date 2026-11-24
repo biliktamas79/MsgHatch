@@ -347,76 +347,89 @@ A state row is one `INSERT OR IGNORE`, and a changed row count of 0 means that a
 
 ## 4. EF Core stores
 
-`MsgHatch.Data.EFCore` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in a database through EF Core, with SQL Server as the first provider (D120). `UseEntityFrameworkStores(o => o.UseSqlServer(connectionString))` selects them. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlServer(connectionString))`.
+`MsgHatch.Data.EFCore` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in a database through EF Core, on each relational EF Core provider (D120, D318). The package has no SQL text and no provider name. `UseEntityFrameworkStores(o => o.UseSqlite(connectionString))` selects the stores on a provider with no MsgHatch package. The SQL Server package `MsgHatch.Data.EFCore.SqlServer` selects them with `UseEntityFrameworkSqlServerStores(connectionString)`. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString))`, and `MsgHatch.Subscriptions.Data.EFCore.SqlServer` with `UseEntityFrameworkSqlServerSubscriptionStore(connectionString)`.
 
 ### 4.1 Model and tables
 
-`MsgHatchDbContext` maps the tables of section 3.1 with the same table and column names, in the schema of `EntityFrameworkStoreOptions.Schema`. The options bind from the section `MsgHatch:EntityFramework`, and the default schema is `msghatch`. There is no table `MsgHatchSchema`, because the migration history of the host keeps the version of the schema.
+`MsgHatchDbContext` maps the tables of section 3.1 with the same table and column names, in the schema of `EntityFrameworkStoreOptions.Schema`. The options bind from the section `MsgHatch:EntityFramework`, and the default schema is `msghatch`. There is no table `MsgHatchSchema`: the history table of the migrations of each context keeps the version of its schema (section 4.9). SQLite has no schemas, so EF Core ignores the schema there.
 
-| Value | SQL Server type | Rule |
+| Value | Column | Rule |
 |---|---|---|
-| `Sequence` | `bigint` identity, the clustered primary key of a message table | It keeps the add order (D144). |
-| A tenant, company, user, or target id | `nvarchar(256)` with the collation `Latin1_General_100_BIN2` | An id is case-sensitive, so two tenants that differ only in case stay apart (D178). An empty text means no tenant. |
-| A message id | `char(36)` in the format `D` | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. A `uniqueidentifier` sorts by its last bytes first (checked fact of phase 18). A message id parameter of a raw statement is a fixed ANSI text too. With an `nvarchar` parameter, SQL Server converts the column, and parallel adds of one id got the deadlock 1205 (checked fact after phase 18). |
-| A message type, channel, content type, or trace type name | `varchar(256)` with the binary collation | A longer name gives `Errors.Unavailable` (D178). The binary collation gives the ordinal order. |
+| `Sequence` | `bigint` identity, the primary key of a message table (`INTEGER PRIMARY KEY AUTOINCREMENT` on SQLite) | It keeps the add order (D144). |
+| A tenant, company, user, or target id | `nvarchar(256)` | An empty text means no tenant. An id must be case-sensitive, so two tenants that differ only in case stay apart (D178). |
+| A message id | `char(36)` in the format `D` | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. EF Core gives each parameter the type of its column, so a parameter of a message id is a fixed ANSI text on SQL Server too. With an `nvarchar` parameter, SQL Server converts the column, and parallel adds of one id got the deadlock 1205 (checked fact after phase 18). |
+| A message type, channel, content type, or trace type name | `varchar(256)` | A longer name gives `Errors.Unavailable` on SQL Server (D178). |
 | An enum value | `varchar(32)` | The name of the value, for example `Pending`. |
-| A time | `datetime2(7)` in UTC | The store gives each time that it reads the kind UTC. |
+| A time | A UTC `DateTime` in the time type of the provider: `datetime2(7)` on SQL Server, text on SQLite | Both keep 100 ns. The store gives each time the kind UTC on a write and on a read, because a provider can refuse a time with no kind (D319). |
+| The claim token and the due time before the claim | `ClaimToken` as `char(36)`, and `ClaimedDueAtUtc` | The values of the last claim of a message (section 4.4). |
 | JSON | `nvarchar(max)` | `Content`, `Trace`, `Tries`, `DisabledChannels`, `Settings`, and `NamedUsers`. |
 
-The indexes have the names of the model, for example `IX_MsgHatchOutbox_Due` on `(Channel, NextTryAtUtc)` with the filter `Status = 'Pending'` (D104). The other indexes are the indexes of section 3.1: the unique `(TenantId, Id)` of the inbox and `Id` of the outbox, `Flags`, `(TenantId, CreatedAtUtc, Id)`, `(TenantId, TargetKind, TargetId, CreatedAtUtc)`, and `SourceMessageId`.
+The collation of each text column comes from the option `TextCollation`, or else from the dialect of a provider package, or else from the database. The SQL Server package gives `Latin1_General_100_BIN2`, so an id or a name is case-sensitive and sorts in ordinal order. The default collation of SQLite, `BINARY`, is case-sensitive. A database with a case-insensitive default, for example SQL Server with `SQL_Latin1_General_CP1_CI_AS`, needs the option or a dialect.
 
-The package creates no schema. The host adds EF Core migrations of `MsgHatchDbContext` and `MsgHatchSubscriptionDbContext` to its own assembly, for example with `o.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("MyHost"))`, and applies them. The integration tests use `EnsureCreatedAsync`, which creates the tables only when it creates the database. So use migrations for a database with both contexts.
+The indexes have the names of the model. The due indexes have no filter, so each provider can use them: `IX_MsgHatchInbox_Due` on `(Status, NextTryAtUtc, Sequence)` and `IX_MsgHatchOutbox_Due` on `(Channel, Status, NextTryAtUtc, Sequence)` (D104). `Sequence` is the last column, so the index gives the claim order. The other indexes are the indexes of section 3.1: the unique `(TenantId, Id)` of the inbox and `Id` of the outbox, `Flags`, `(TenantId, CreatedAtUtc, Id)`, `(TenantId, TargetKind, TargetId, CreatedAtUtc)`, and `SourceMessageId`.
 
 ### 4.2 Message format
 
-- `AddAsync` writes the whole message with `MsgHatchJson`. SQL Server takes the event or the envelope, the route trace, and its `$type` out of that document into their columns with `JSON_QUERY` and `JSON_VALUE` (D143).
+- `AddAsync` writes the whole message with `MsgHatchJson`. The store takes the event or the envelope, the route trace, and its `$type` out of that document in C#, and writes them into their columns (D143, D318).
 - To read a message, the store writes the document from the columns of the row with `Utf8JsonWriter`, and `MsgHatchJson` reads it (D176).
 - A JSON column that is not valid JSON goes into the document as a JSON string. So an edited row gives the error of that row only, and an edited column cannot add a property to the document, for example a second `tenant`.
 
 ### 4.3 Publish tries
 
-`RecordTryAsync` is one statement:
+`RecordTryAsync` reads the stored `TryCount` and `Tries` of the message, and then writes with one `ExecuteUpdate`:
 
-```sql
-UPDATE [msghatch].[MsgHatchOutbox] SET
-    Tries = JSON_MODIFY(Tries, 'append $', JSON_QUERY(@try)), Status = @status, TryCount = @tryNumber, ...
-WHERE Id = @id AND TryCount = @tryNumber - 1
-```
+- With a stored `TryCount` that is not the try number minus 1, the try is already recorded, and the store changes nothing (D27). An id that is not stored gives `Errors.NotFound`.
+- Else the store appends the try to the JSON array in C#, and writes the array, the status, `TryCount`, `LastTryAtUtc`, `LastError`, the end of the lease, and the next due time, on the condition of the `TryCount` that it read.
+- When another writer changed the row first, the write changes no row, and the store reads the row again.
+- Stored tries that a person changed into invalid JSON give `Errors.SerializationFailed`.
 
-- `@try` is the try as one JSON object. Without `JSON_QUERY`, `JSON_MODIFY` appends the object as a JSON string (checked fact of phase 18).
-- A changed row count of 0 means that the try is already recorded (D27), or that the message is not stored. Only then a second query reads whether the id is stored, and an id that is not stored gives `Errors.NotFound`.
-- The cancel of an outgoing message appends the cancelled try with `JSON_MODIFY(@try, '$.tryNumber', TryCount + 1)`, so each row gets its next try number in the same statement.
+The cancel of an outgoing message does the same for each id: it reads the cancellable row of the tenant, appends the try of `PublishTry.Cancel` with the next try number, and writes on the condition of the `TryCount` that it read (D110).
 
 ### 4.4 Claim pattern
 
-The claim is one statement (D120, D144):
+A claim takes the due messages in the order of `NextTryAtUtc`, and then in the order of `Sequence` (D144). It has two forms.
+
+The claim of the base package, with no claim statement:
+
+1. A LINQ query reads the `Sequence` of the first due candidates: pending, due at `nowUtc`, in the claim order, at most the count that the claim still needs.
+2. One `ExecuteUpdate` claims the candidates that are still pending and due. It sets `ClaimedDueAtUtc` to the due time before the claim, then a new `ClaimToken`, and `NextTryAtUtc` and `LeaseUntilUtc` to the end of the lease (D103). The old due time comes first, because some databases, for example MySQL, apply the assignments from left to right.
+3. When another dispatcher took a candidate first, the update changes fewer rows, and the store reads the next candidates, until it has the maximum count or no due message is left. So two parallel claims of 5 get 10 different messages.
+4. The store reads the claimed rows by the `Sequence` of the candidates and the token, so the token needs no index.
+
+The claim of a dialect is one statement with the quoted names of the model (section 4.8). On SQL Server:
 
 ```sql
-UPDATE [msghatch].[MsgHatchOutbox] SET NextTryAtUtc = @leaseUntilUtc, LeaseUntilUtc = @leaseUntilUtc
-OUTPUT inserted.Sequence, ..., deleted.NextTryAtUtc AS NextTryAtUtc, ...
-WHERE Sequence IN (
-    SELECT TOP (@maxCount) due.Sequence FROM [msghatch].[MsgHatchOutbox] AS due WITH (ROWLOCK, READPAST, UPDLOCK)
-    WHERE due.Status = 'Pending' AND due.Channel = @channel AND due.NextTryAtUtc <= @nowUtc
-    ORDER BY due.NextTryAtUtc, due.Sequence)
+UPDATE [msghatch].[MsgHatchOutbox] SET [ClaimedDueAtUtc] = [NextTryAtUtc], [ClaimToken] = @claimToken,
+    [NextTryAtUtc] = @leaseUntilUtc, [LeaseUntilUtc] = @leaseUntilUtc
+OUTPUT inserted.*
+WHERE [Sequence] IN (
+    SELECT TOP (@maxCount) due.[Sequence] FROM [msghatch].[MsgHatchOutbox] AS due WITH (ROWLOCK, READPAST, UPDLOCK)
+    WHERE due.[Status] = @pending AND due.[Channel] = @channel AND due.[NextTryAtUtc] <= @nowUtc
+    ORDER BY due.[NextTryAtUtc], due.[Sequence])
 ```
 
-1. The subquery reads the filtered due index in the claim order, and stops after `maxCount` rows. `UPDLOCK` locks only these rows, and `READPAST` lets a parallel claim skip them. So two parallel claims get different messages.
+1. The subquery reads the due index in the claim order, and stops after `maxCount` rows. `UPDLOCK` locks only these rows, and `READPAST` lets a parallel claim skip them. So two parallel claims get different messages.
 2. An `UPDATE` of a CTE with the `TOP` puts a sort under the `TOP` as the Halloween protection, because the statement changes the key of the index that it reads. The sort reads and locks each due row, so a parallel claim got only 0 to 3 of 5 rows (checked fact of phase 18).
-3. `OUTPUT` gives the rows in no order. The store sorts them by the due time before the lease, which `deleted.NextTryAtUtc` gives, and by `Sequence`. The end of the lease is the next due time of a claimed message (D103).
-4. A claimed row that the code cannot read stays out of the result. A transient error keeps the row leased for a newer instance. A permanent error sets the status `Failed`, ends the lease, and writes `{ErrorName}: {message}` into `LastError`.
-5. When the claim takes fewer than `maxCount` rows, a query reads `MIN(NextTryAtUtc)` of the pending rows as `NextDueAtUtc`. Else `NextDueAtUtc` is now.
+3. The status is a parameter. SQL Server cannot use a filtered index for a parameter, so a filtered due index made the subquery read each due row, and the parallel claim test failed some runs (checked fact of phase 48). The due index has no filter, and `Status` is a column of it.
 
-The outbox claim first reads the latest state row of its channel. With a down row, it claims nothing, and returns the down state as `ClaimResult.Down` (D106). A state row is an `INSERT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK` on the channel and the version, so of two parallel changes only the first adds its row, and the other gets no key error (D277). `TryStartChannelCheckAsync` is one `UPDATE` of the latest version with the condition `NextCheckAtUtc <= @now`. The table is `MsgHatchChannelState` with the key `(Channel, Version)` and `PreviousDurationMs` as `bigint`, so a host adds it with a new migration of `MsgHatchDbContext`.
+After each form:
+
+- The store sorts the claimed rows by `ClaimedDueAtUtc` and `Sequence`. The end of the lease is the next due time of a claimed message (D103).
+- A claimed row that the code cannot read stays out of the result. A transient error keeps the row leased for a newer instance. A permanent error sets the status `Failed`, ends the lease, and writes `{ErrorName}: {message}` into `LastError`.
+- When the claim takes fewer than `maxCount` rows, a query reads `MIN(NextTryAtUtc)` of the pending rows as `NextDueAtUtc`. Else `NextDueAtUtc` is now.
+
+The outbox claim first reads the latest state row of its channel. With a down row, it claims nothing, and returns the down state as `ClaimResult.Down` (D106). A state row is an EF Core insert on the key `(Channel, Version)`. When another caller added the version first, the insert fails on the key, the store reads that the version is stored, and gives false, so `ChannelState.ChangeAsync` reads the latest row again (D277). `TryStartChannelCheckAsync` is one `ExecuteUpdate` of the latest version with the condition `NextCheckAtUtc <= @now`.
 
 ### 4.5 Two parts and the tenant field
 
 - `EntityFrameworkInboxStore` and `EntityFrameworkOutboxStore` are the dispatch stores. `For(key)` gives the tenant store of a key.
-- `AddAsync` is an `INSERT ... SELECT ... WHERE NOT EXISTS` with `UPDLOCK, HOLDLOCK` on the key. So a second add of a key changes nothing, also from a parallel caller. The outbox adds a batch in one transaction, inside the execution strategy of the provider.
-- The statements that LINQ can express are LINQ: a query page with `OrderByDescending` and `Take`, a count with `GroupBy`, a retry and the cancel of a received message with `ExecuteUpdateAsync`, and a purge with `ExecuteDeleteAsync`. A query reads only the columns of a summary.
+- `AddAsync` of the inbox is an EF Core insert on the unique key `(TenantId, Id)`. When the insert fails and the key is stored, for example from a parallel caller, the store treats the add as done. Each other failed insert gives `Errors.Unavailable`.
+- `AddAsync` of the outbox adds a batch in one transaction, inside the execution strategy of the provider, one row after the other, so `Sequence` keeps the order of the batch. The batch first drops a second message with the same id. When a row has a stored id, the store rolls back, reads the stored ids, and adds the other rows in a new transaction, because some databases, for example PostgreSQL, end a transaction after an error.
+- The other operations are LINQ: a query page with `OrderByDescending` and `Take`, a count with `GroupBy`, a retry and the cancel of a received message with `ExecuteUpdateAsync`, and a purge with `ExecuteDeleteAsync`. A query reads only the columns of a summary.
 
 ### 4.6 Subscription store
 
-`MsgHatchSubscriptionDbContext` maps the table `MsgHatchSubscription` with the columns of section 3.6, in the same schema and with the same column rules. It is a context of its own, because the core packages never reference `MsgHatch.Subscriptions`.
+`MsgHatchSubscriptionDbContext` maps the table `MsgHatchSubscription` with the columns of section 3.6, in the same schema and with the same column rules and collation. It is a context of its own, because the core packages never reference `MsgHatch.Subscriptions`.
 
 - The unique index `UX_MsgHatchSubscription_Owner` on `(TenantId, MessageType, Level, CompanyId, UserId, Channel, Recipients)` stops a duplicate, and also serves `FindForDeliveryAsync`. The store writes an empty text for a missing tenant, company, user, or channel.
 - The declared size of this index is more than 1,700 bytes, so SQL Server creates it with a warning. A real row has a company id or a user id, never both, so its key stays below the limit (D178).
@@ -432,14 +445,50 @@ The outbox claim first reads the latest state row of its channel. With a down ro
 - A change is one `ExecuteUpdateAsync` with the condition `Revision = @revision - 1`. A changed row count of 0 gives `Errors.Conflict`.
 - `GetEntriesAsync` sorts each list with the ordinal comparer, so each provider gives the same order.
 
-### 4.8 Connections, versioning, and limits
+### 4.8 Dialect contract
+
+A provider package implements `IEntityFrameworkStoreDialect` of the base package, and gives it to the contexts with `UseEntityFrameworkStoreDialect` in the provider setup of its setup method (D318):
+
+- `ProviderName`: the name of the EF Core provider that it serves, for example `Microsoft.EntityFrameworkCore.SqlServer`. The startup validation fails when the provider of a context has another name.
+- `TextCollation`: the default collation of the text columns, or null. The option `TextCollation` wins over it.
+- `ClaimStatement(ClaimStatementNames names)`: the claim statement of one message table, or null for the claim of the base package. `ClaimStatementNames` has the table with its schema, the columns, and the placeholders of the parameters, each quoted with the names of the EF Core model and `ISqlGenerationHelper`. The base package gives each parameter the type of its column, and runs the statement with `FromSqlRaw`. The statement sets the same columns as the claim of the base package, and returns each column of each claimed row with its values after the claim.
+
+The contract does not expose the row types of the stores. The dialect object travels in the options of each context, so the stores and the subscription store of one host can use two providers.
+
+### 4.9 Schema migrations
+
+Only `MigrateMsgHatchAsync` of the base package changes the schema (D320). It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and `MsgHatchSubscriptionDbContext`:
+
+- Each context has a history table of its own in the schema of the options, `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`, so the history of the host does not change. A history table that the host set in the provider setup stays.
+- EF Core 10 locks the database during `MigrateAsync`, so two hosts that start at the same time apply each migration one time. A second call changes nothing.
+- An optional `Action<DbContextOptionsBuilder>` runs on top of the setup of the stores, for example `o => o.UseSqlServer(migrationConnectionString)`. The migration then uses that connection, and the stores keep theirs. MsgHatch never logs a connection string.
+- `ScriptMsgHatchMigrationsAsync` gives an idempotent script of the migrations of each context. EF Core writes no idempotent script for SQLite.
+- With `RequireCurrentSchema`, the startup validation reads the history tables, and fails for the first migration that is not applied, with the names of the context and the migration.
+
+A provider package ships the migrations of its context, which the EF Core tools generate. A migration takes the schema and the collation of the options at run time:
+
+- The migrations derive from `EntityFrameworkStoreMigration`, and the snapshot from `EntityFrameworkStoreModelSnapshot`. Their code has `Schema` and `TextCollation` in place of the schema and the collation of the design time, and their classes are internal.
+- The base package replaces `IMigrationsAssembly` of each context. It finds the migrations and the snapshot of the context in the migrations assembly, and gives them the schema and the collation of the options. So a context with another schema or collation has no pending model change, and `MigrateAsync` of EF Core 10 does not refuse it.
+- The generator `StoreMigrationsCodeGenerator` of `tests/MsgHatch.Data.EFCore.Tests.Integration` writes this code. The test project of each provider package is the startup project of the EF Core tools, with an `IDesignTimeDbContextFactory` and a `DesignTimeServicesReference` to the generator. A new migration of the SQL Server package:
+
+```powershell
+dotnet ef migrations add Name --context MsgHatchDbContext --project src/MsgHatch.Data.EFCore.SqlServer --startup-project tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration --output-dir Migrations
+dotnet ef migrations add Name --context MsgHatchSubscriptionDbContext --project src/MsgHatch.Subscriptions.Data.EFCore.SqlServer --startup-project tests/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration --output-dir Migrations
+```
+
+- A file `.editorconfig` with `generated_code = true` in each folder `Migrations` stops the analyzers on the generated code.
+- The test "no pending model change" of each package fails when the model changes with no new migration.
+
+For a provider with no MsgHatch package, the host generates the migrations of the MsgHatch contexts in its own assembly, for example with `o => o.UseSqlite(connectionString, sqlite => sqlite.MigrationsAssembly("MyHost"))`, and `MigrateMsgHatchAsync` applies them unchanged. `tests/MsgHatch.Data.EFCore.Tests.Unit` keeps such migrations on SQLite in its folder `SqliteMigrations`.
+
+### 4.10 Connections, versioning, and limits
 
 - Each operation makes its own context through the pooled `IDbContextFactory` of its context, so the stores are thread-safe singletons (D130).
-- The stores have SQL statements only for SQL Server. With another provider, the startup validation of `UseEntityFrameworkStores` and of `UseEntityFrameworkSubscriptionStore` fails with an `OptionsValidationException` that names the setup method and the provider, and each store call gives `Errors.NotFound` (D175, D182).
+- A provider that is not relational fails the startup validation of `UseEntityFrameworkStores` and of `UseEntityFrameworkSubscriptionStore` with an `OptionsValidationException` that names the setup method and the provider, and each store call gives `Errors.NotFound` (D175, D182).
 - A database failure gives `Errors.Unavailable`, a stored value that a person changed into an invalid value gives `Errors.SerializationFailed`, and a cancelled token gives `Errors.OperationCancelled`.
-- The package references only `Microsoft.EntityFrameworkCore.Relational`, so the host adds the provider. `Microsoft.EntityFrameworkCore.SqlServer` 10.0.14 brings `Microsoft.Data.SqlClient` 6.1.7, which brings `System.Security.Cryptography.Pkcs` 9.0.11 with the advisories GHSA-846f-f764-76mx (high) and GHSA-2fmv-rv2c-59x7 (moderate). So a host pins `Microsoft.Data.SqlClient` 6.1.8 or later, which brings the fixed 9.0.21, as the integration tests do (checked fact of phase 18).
-- The statements need SQL Server 2016 or later, for `JSON_MODIFY`, `JSON_QUERY`, `JSON_VALUE`, and `OPENJSON`. The integration tests run on SQL Server 2025 CU7: on the server of `appsettings.Local.json`, for example the local container dev-mssql, or else in a container through Testcontainers (D180).
-- The schema is a part of the options of each context. So two hosts with two schemas in one process get two models.
+- The base package references only `Microsoft.EntityFrameworkCore.Relational`, so the host adds the provider. The SQL Server package references `Microsoft.EntityFrameworkCore.SqlServer`. With version 10.0.15, it brings `Microsoft.Data.SqlClient` 6.1.7 and `System.Security.Cryptography.Pkcs` 10.0.13, which has no advisory (checked fact of phase 48).
+- The tests run the contract bases on SQLite (unit tests), on SQL Server with no dialect and the binary collation of the option, and on SQL Server with the dialect on a database of the migrations. The integration tests run on SQL Server 2025 CU7: on the server of `appsettings.Local.json`, for example the local container dev-mssql, or else in a container through Testcontainers (D180).
+- The schema and the collation are a part of the options of each context. So two hosts with two schemas in one process get two models.
 
 ## 5. MongoDB stores
 
