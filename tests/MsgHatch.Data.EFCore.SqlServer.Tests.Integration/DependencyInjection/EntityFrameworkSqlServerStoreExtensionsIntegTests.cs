@@ -123,9 +123,9 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
         var script = await provider.ScriptMsgHatchMigrationsAsync(Ct);
 
         // Act
-        await MigratedStores.RunScriptAsync(scripted, script, Ct);
+        await SqlServerSchema.RunScriptAsync(scripted, script, Ct);
         var afterFirstRun = await SchemaOfAsync(scripted);
-        await MigratedStores.RunScriptAsync(scripted, script, Ct);
+        await SqlServerSchema.RunScriptAsync(scripted, script, Ct);
 
         // Assert
         Assert.Equal(await SchemaOfAsync(migrated), afterFirstRun);
@@ -191,9 +191,6 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
                 Ct));
     }
 
-    private static async Task<List<string?[]>> SchemaOfAsync(TestDatabase database) =>
-        [
-            .. await database.RowsAsync(MigratedStores.ColumnsQuery, Ct), .. await database.RowsAsync(MigratedStores.IndexesQuery, Ct),
-            .. await database.RowsAsync("SELECT MigrationId FROM [msghatch].[__MsgHatchMigrations]", Ct),
-        ];
+    private static Task<List<string?[]>> SchemaOfAsync(TestDatabase database) =>
+        SqlServerSchema.OfAsync(database, Ct, "[msghatch].[__MsgHatchMigrations]");
 }
