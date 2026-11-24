@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore;
+using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;

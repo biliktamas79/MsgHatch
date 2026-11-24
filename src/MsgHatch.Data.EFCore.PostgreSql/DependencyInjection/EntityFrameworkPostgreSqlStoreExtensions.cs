@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Domain.DependencyInjection;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
 

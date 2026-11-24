@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using MsgHatch.Data.EFCore.Model;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Migrations;
 
 /// <summary>
 /// The base class of the model snapshot of a MsgHatch context in a provider package (D320). It takes the schema and the

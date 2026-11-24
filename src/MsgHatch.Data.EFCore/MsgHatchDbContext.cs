@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using MsgHatch.Data.EFCore.Messages;
+using MsgHatch.Data.EFCore.Model;
+using MsgHatch.Data.EFCore.Registry;
 
 namespace MsgHatch.Data.EFCore;
 

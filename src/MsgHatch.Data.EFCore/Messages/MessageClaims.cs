@@ -3,8 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
+using MsgHatch.Data.EFCore.Model;
+using MsgHatch.Data.EFCore.Providers;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>The values of one claim, with a new claim token.</summary>
 /// <param name="MaxCount">The maximum count of claimed rows.</param>

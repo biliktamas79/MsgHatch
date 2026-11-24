@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Globalization;
 using System.Text.Json;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>
 /// Puts the columns of a message row back into the document that <c>MsgHatchJson</c> reads (D143, D176). A time is

@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using MsgHatch.Domain.Delivery;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>The JSON array <c>Tries</c> of an outgoing message (section 4.5, D27), which the store writes in C# (D318).</summary>
 internal static class PublishTries

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using MsgHatch.Domain.Delivery;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>
 /// Splits a message into the columns of its row in C# (D176, D318): the delivery state, the versions, and the flags from

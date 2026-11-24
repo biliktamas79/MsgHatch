@@ -1,4 +1,4 @@
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>
 /// The columns that the two message tables share (section 4.5): the counter <see cref="Sequence"/> of the claim order

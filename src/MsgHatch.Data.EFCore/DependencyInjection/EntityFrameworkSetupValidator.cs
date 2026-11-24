@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using MsgHatch.Data.EFCore.Model;
 
 namespace MsgHatch.Data.EFCore.DependencyInjection;
 

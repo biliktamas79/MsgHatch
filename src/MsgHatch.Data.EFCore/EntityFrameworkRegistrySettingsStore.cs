@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using MsgHatch.Data.EFCore.Model;
+using MsgHatch.Data.EFCore.Registry;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;

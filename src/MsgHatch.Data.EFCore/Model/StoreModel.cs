@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Model;
 
 /// <summary>
 /// The column rules of the EF Core stores (section 4.5, D178, D318, D319), which the subscription store shares: each

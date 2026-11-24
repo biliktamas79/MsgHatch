@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Data.EFCore.Providers;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Model;
 
 /// <summary>
 /// The MsgHatch options of a <see cref="DbContext"/> of the stores (D318): the schema of

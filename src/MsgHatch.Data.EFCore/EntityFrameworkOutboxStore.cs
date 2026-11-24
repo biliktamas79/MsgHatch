@@ -1,5 +1,7 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using MsgHatch.Data.EFCore.Messages;
+using MsgHatch.Data.EFCore.Model;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>The insert of one row on its unique key, with no SQL text (D318).</summary>
 internal static class RowWrites

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore.Migrations;
 
 using MsgHatch.Data.EFCore;
+using MsgHatch.Data.EFCore.Migrations;
 
 #nullable disable
 

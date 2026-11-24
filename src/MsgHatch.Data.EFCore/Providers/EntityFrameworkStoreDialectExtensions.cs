@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using MsgHatch.Data.EFCore.Model;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Providers;
 
 /// <summary>The option of the contexts of the EF Core stores that a provider package sets (D318).</summary>
 public static class EntityFrameworkStoreDialectExtensions

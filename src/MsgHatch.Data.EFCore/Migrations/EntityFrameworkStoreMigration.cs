@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using MsgHatch.Data.EFCore.Model;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Migrations;
 
 /// <summary>
 /// The base class of a migration of a MsgHatch context in a provider package (D320). The EF Core tools write the schema

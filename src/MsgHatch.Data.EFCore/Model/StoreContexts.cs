@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using MsgHatch.Domain.Failures;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Model;
 
 /// <summary>
 /// The boundary of the database operations of an EF Core store: each operation gets its own context from the pooled

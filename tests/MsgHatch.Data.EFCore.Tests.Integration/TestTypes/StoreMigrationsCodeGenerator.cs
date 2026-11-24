@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations.Design;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using MsgHatch.Data.EFCore.Migrations;
 using MsgHatch.Data.EFCore.PostgreSql;
 using MsgHatch.Data.EFCore.SqlServer;
 
@@ -34,7 +35,7 @@ public sealed class StoreMigrationsCodeGenerator(
         WithStoreOptions(base.GenerateSnapshot(modelSnapshotNamespace, contextType, modelSnapshotName, model))
             .Replace(" : ModelSnapshot", " : EntityFrameworkStoreModelSnapshot", StringComparison.Ordinal);
 
-    private const string _baseNamespace = "using MsgHatch.Data.EFCore;";
+    private const string _baseNamespace = "using MsgHatch.Data.EFCore.Migrations;";
 
     private static string WithStoreOptions(string code) =>
         WithBaseNamespace(_dialectCollations.Aggregate(

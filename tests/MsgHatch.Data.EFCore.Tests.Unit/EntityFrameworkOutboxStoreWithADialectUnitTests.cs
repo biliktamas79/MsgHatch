@@ -1,3 +1,4 @@
+using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.Contracts;

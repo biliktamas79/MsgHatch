@@ -1,3 +1,5 @@
+using MsgHatch.Data.EFCore.Providers;
+
 namespace MsgHatch.Data.EFCore.PostgreSql;
 
 /// <summary>

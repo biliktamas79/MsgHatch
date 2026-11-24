@@ -6,7 +6,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>
 /// The operations that the inbox and the outbox share: the claim (D103, D144, D318), the filters and the page of a query

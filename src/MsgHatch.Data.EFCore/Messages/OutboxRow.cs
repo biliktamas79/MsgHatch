@@ -1,4 +1,4 @@
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>
 /// A row of the table <c>MsgHatchOutbox</c>: one outgoing message, with its channel envelope as JSON in

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MsgHatch.Data.EFCore;
+using MsgHatch.Data.EFCore.Model;
 
 namespace MsgHatch.Subscriptions.Data.EFCore;
 

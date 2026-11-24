@@ -1,4 +1,4 @@
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Messages;
 
 /// <summary>A row of the table <c>MsgHatchChannelState</c>: one insert-only state of a channel (D106, D277).</summary>
 internal sealed class ChannelStateRow

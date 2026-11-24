@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Domain.DependencyInjection;
 
 namespace MsgHatch.Data.EFCore.SqlServer.DependencyInjection;

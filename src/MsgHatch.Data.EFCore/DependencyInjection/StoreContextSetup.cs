@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using MsgHatch.Data.EFCore.Migrations;
+using MsgHatch.Data.EFCore.Model;
 
 namespace MsgHatch.Data.EFCore.DependencyInjection;
 

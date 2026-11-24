@@ -1,4 +1,4 @@
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Registry;
 
 /// <summary>
 /// A row of the table <c>MsgHatchMessageTypeEntry</c>: the stored settings of one message type, with its disabled

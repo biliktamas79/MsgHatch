@@ -2,8 +2,9 @@ using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using MsgHatch.Data.EFCore.Model;
 
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Migrations;
 
 /// <summary>
 /// The migrations of a MsgHatch context (D320): the migrations and the model snapshot of the context in the migrations

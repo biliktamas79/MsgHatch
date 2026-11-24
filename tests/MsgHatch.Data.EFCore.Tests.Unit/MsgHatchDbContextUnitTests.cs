@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -45,6 +46,21 @@ public sealed class MsgHatchDbContextUnitTests
 
         // Assert
         Assert.Equal((row, expected), (row, Assert.Single(collations)));
+    }
+
+    [Fact]
+    public void PublicTypes_BasePackage_AreInTheRootTheSetupTheProviderAndTheMigrationNamespaces()
+    {
+        // Arrange
+        var assembly = typeof(MsgHatchDbContext).Assembly;
+
+        // Act
+        var namespaces = assembly.GetExportedTypes().Select(static type => type.Namespace).Distinct().Order(StringComparer.Ordinal);
+
+        // Assert
+        Assert.Equal(
+            ["MsgHatch.Data.EFCore", "MsgHatch.Data.EFCore.DependencyInjection", "MsgHatch.Data.EFCore.Migrations", "MsgHatch.Data.EFCore.Providers"],
+            namespaces);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Providers;
 
 /// <summary>
 /// The contract of a provider package of the EF Core stores (D318), for example <c>MsgHatch.Data.EFCore.SqlServer</c>.

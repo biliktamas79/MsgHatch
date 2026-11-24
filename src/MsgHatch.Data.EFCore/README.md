@@ -107,6 +107,10 @@ A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF
 
 ## Version history
 
+### 0.5.0 (2026-11-24)
+
+- Breaking: the API of a provider package moves into its own namespaces. `IEntityFrameworkStoreDialect`, `EntityFrameworkStoreDialectExtensions`, and `ClaimStatementNames` are in `MsgHatch.Data.EFCore.Providers`, and `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` are in `MsgHatch.Data.EFCore.Migrations`. A host that uses only the stores, the options, and `MsgHatchDbContext` needs no change.
+
 ### 0.4.0 (2026-11-24)
 
 - The new package `MsgHatch.Data.EFCore.PostgreSql` ships the dialect and the migrations for PostgreSQL. This package does not change.

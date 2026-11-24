@@ -1,4 +1,4 @@
-namespace MsgHatch.Data.EFCore;
+namespace MsgHatch.Data.EFCore.Providers;
 
 /// <summary>
 /// The names of one claim statement of a message table for <see cref="IEntityFrameworkStoreDialect.ClaimStatement"/>

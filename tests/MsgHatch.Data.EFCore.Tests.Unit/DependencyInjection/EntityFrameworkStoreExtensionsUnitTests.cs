@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
