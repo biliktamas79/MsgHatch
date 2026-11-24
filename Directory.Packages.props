@@ -2,133 +2,134 @@
 
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
   </PropertyGroup>
 
   <ItemGroup Label="MsgHatch.Domain">
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics" Version="10.*" />
   </ItemGroup>
 
-  <ItemGroup Label="MsgHatch.SourceGeneration">
+  <ItemGroup Label="MsgHatch.SourceGeneration: exact, the Roslyn of the compiler of SDK 10.0.100, the minimum SDK of global.json, because a compiler does not load a generator that references a newer Roslyn">
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Email.AmazonSES">
-    <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.0.106.7" />
+    <PackageVersion Include="AWSSDK.SimpleEmailV2" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Templates.Liquid">
-    <PackageVersion Include="Fluid.Core" Version="2.41.1" />
+    <PackageVersion Include="Fluid.Core" Version="2.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Email.Resend">
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Broker.Wolverine">
-    <PackageVersion Include="WolverineFx" Version="6.61.0" />
+    <PackageVersion Include="WolverineFx" Version="6.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Broker.AmazonSns">
-    <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.100.22" />
+    <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.*" />
   </ItemGroup>
 
-  <ItemGroup Label="MsgHatch.Dispatch.RabbitMq: the version that WolverineFx.RabbitMQ 6.61.0 needs">
+  <ItemGroup Label="MsgHatch.Dispatch.RabbitMq: exact, the version that WolverineFx.RabbitMQ 6.65.1 needs, so the package does not raise the client version of a host with Wolverine">
     <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Data.Sqlite">
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Data.EFCore">
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Data.MongoDb">
-    <PackageVersion Include="MongoDB.Driver" Version="3.14.0" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Subscriptions.Caching.Hybrid">
-    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Subscriptions.Caching.FusionCache">
-    <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.9.0" />
+    <PackageVersion Include="ZiggyCreatures.FusionCache" Version="2.*" />
   </ItemGroup>
 
   <ItemGroup Label="Admin UIs">
-    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.*" />
   </ItemGroup>
 
   <ItemGroup Label="ExampleApp and WolverineExample.Consumer">
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
-    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.61.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.*" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.*" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
+    <PackageVersion Include="WolverineFx.RuntimeCompilation" Version="6.*" />
   </ItemGroup>
 
   <ItemGroup Label="WolverineExample.UserSimulator">
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.*" />
+    <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.*" />
   </ItemGroup>
 
   <ItemGroup Label="ExampleApp.Tests.Unit">
-    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.AspNetCore.Tests.Unit, MsgHatch.Subscriptions.AspNetCore.Tests.Unit, and MsgHatch.Templates.AspNetCore.Tests.Unit">
-    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Broker.AmazonSns.Tests.Integration">
-    <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.21" />
+    <PackageVersion Include="AWSSDK.SQS" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup Label="MsgHatch.Broker.Wolverine.Tests.Integration and the WolverineExample publisher and consumer">
-    <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.61.0" />
+    <PackageVersion Include="WolverineFx.RabbitMQ" Version="6.*" />
   </ItemGroup>
 
   <ItemGroup Label="EF Core integration tests">
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.8" />
-    <PackageVersion Include="Testcontainers.MsSql" Version="4.16.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.*" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.*" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.*" />
+    <PackageVersion Include="Testcontainers.MsSql" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup Label="MongoDB integration tests">
-    <PackageVersion Include="Testcontainers.MongoDb" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.MongoDb" Version="4.*" />
   </ItemGroup>
 
   <ItemGroup Label="Performance tests">
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.*" />
   </ItemGroup>
 
   <ItemGroup Label="Admin UI tests">
-    <PackageVersion Include="bunit" Version="2.15.2" />
+    <PackageVersion Include="bunit" Version="2.*" />
   </ItemGroup>
 
   <ItemGroup Label="Analyzers">
-    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.*" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">
-    <PackageVersion Include="xunit.v3" Version="4.0.2" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
-    <PackageVersion Include="NSubstitute" Version="6.2.0" />
-    <PackageVersion Include="NSubstitute.Analyzers.CSharp" Version="1.0.17" />
-    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="10.11.0" />
-    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.14" />
+    <PackageVersion Include="xunit.v3" Version="4.*" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.*" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.*" />
+    <PackageVersion Include="NSubstitute" Version="6.*" />
+    <PackageVersion Include="NSubstitute.Analyzers.CSharp" Version="1.*" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="10.*" />
+    <PackageVersion Include="coverlet.collector" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.*" />
   </ItemGroup>
 
 </Project>

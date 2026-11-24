@@ -27,6 +27,10 @@ The admin UI example of the repository shows a complete host: [`AdminUiApplicati
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `Microsoft.AspNetCore.Components.Web` within the major 10 at the time of the pack, not on 10.0.14. The API does not change.
+
 ### 0.2.0 (2026-11-23)
 
 - The outbox page lists the target kind `Tenant`, and filters by a tenant target with an empty target id. A tenant target with an id gives a validation error.

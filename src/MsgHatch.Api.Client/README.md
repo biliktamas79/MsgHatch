@@ -54,6 +54,10 @@ Each interface has its own named HTTP client. The host adds its handlers with `c
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `Microsoft.Extensions.Http` within the major 10 at the time of the pack, not on 10.0.14. The API does not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the HTTP clients of the registry API with `UseRegistryApiClient` and of the delivery API with `UseDeliveryApiClient`.

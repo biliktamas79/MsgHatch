@@ -22,6 +22,10 @@ The startup validation fails when the host did not register Wolverine, or when `
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `WolverineFx` within the major 6 at the time of the pack, not on 6.61.0. The API does not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the Wolverine broker client with `UseWolverineBroker`.

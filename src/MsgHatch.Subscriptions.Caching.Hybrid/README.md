@@ -52,6 +52,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `Microsoft.Extensions.Caching.Hybrid` within the major 10 at the time of the pack, not on 10.11.0. The API does not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the HybridCache backend of the subscription cache with `UseHybridSubscriptionCache`.

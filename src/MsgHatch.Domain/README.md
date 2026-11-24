@@ -113,6 +113,10 @@ The sections of a channel, for example `MsgHatch:Retry:Email`, `MsgHatch:Channel
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable versions of the `Microsoft.Extensions` packages within the major 10 at the time of the pack, not on 10.0.14. The API does not change.
+
 ### 0.2.0 (2026-11-23)
 
 - The delivery target kind `Tenant`: a target for all users of the tenant of the message, with an empty target id. A router of the host can return it, for example for a SignalR message to a whole tenant. The deterministic id of a tenant target differs from the id of a user target and of a company target.

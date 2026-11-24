@@ -57,6 +57,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `MongoDB.Driver` within the major 3 at the time of the pack, not on 3.14.0. The API does not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the MongoDB inbox, outbox, and registry settings stores with `UseMongoDbStores`, and the change stream dispatch signal with `UseMongoDbDispatchSignal`.

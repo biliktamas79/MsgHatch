@@ -23,6 +23,10 @@ The package has no options.
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `Fluid.Core` within the major 2 at the time of the pack, not on 2.41.1. The API does not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the Liquid template engine on Fluid with `LiquidTemplates.Engine`, with the template check and the render of a draft for the preview.

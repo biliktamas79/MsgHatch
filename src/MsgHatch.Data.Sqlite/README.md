@@ -74,6 +74,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `Microsoft.Data.Sqlite` within the major 10 at the time of the pack, not on 10.0.14. The API does not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the SQLite inbox, outbox, and registry settings stores on one database file with `UseSqliteStores`, and one database file for each tenant with `UseSqliteTenantStores<TTenantSource>`.

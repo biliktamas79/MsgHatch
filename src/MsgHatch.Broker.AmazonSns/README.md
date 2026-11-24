@@ -52,6 +52,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.2.1 (2026-11-24)
+
+- The package depends on the latest stable version of `AWSSDK.SimpleNotificationService` within the major 4 at the time of the pack, not on 4.0.100.22. The API does not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the Amazon SNS broker client with `UseAmazonSnsBroker`, a topic for each registration or one default topic, and a rate limit error with the wait that SNS asks for.
