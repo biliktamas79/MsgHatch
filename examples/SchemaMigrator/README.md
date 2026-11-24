@@ -1,13 +1,13 @@
 # SchemaMigrator
 
-A console app of a pipeline that applies the MsgHatch schema migrations on SQL Server (D320). In an enterprise setup, the pipeline has the rights to change the schema, and the service has only the rights to read and write rows. This app is the migration step of such a pipeline.
+A console app of a pipeline that applies the MsgHatch schema migrations on SQL Server or on PostgreSQL (D320). In an enterprise setup, the pipeline has the rights to change the schema, and the service has only the rights to read and write rows. This app is the migration step of such a pipeline.
 
-- It applies the migrations of `MsgHatch.Data.EFCore.SqlServer` and of `MsgHatch.Subscriptions.Data.EFCore.SqlServer` with `MigrateMsgHatchAsync`. EF Core locks the database during the migration, and a second run changes nothing.
+- It applies the migrations of `MsgHatch.Data.EFCore.SqlServer` and of `MsgHatch.Subscriptions.Data.EFCore.SqlServer` with `MigrateMsgHatchAsync`, or with the provider `PostgreSql` the migrations of `MsgHatch.Data.EFCore.PostgreSql` and of `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`. EF Core locks the database during the migration, and a second run changes nothing.
 - With `--script <path>`, it writes the idempotent SQL script of the same migrations with `ScriptMsgHatchMigrationsAsync`, for a database administrator that runs only SQL. The script mode opens no connection.
-- It reads the connection string from the environment variable `SchemaMigrator__ConnectionString`, through the options class `SchemaMigratorOptions`. It never writes the connection string to its output.
+- It reads the connection string from the environment variable `SchemaMigrator__ConnectionString`, and the provider from `SchemaMigrator__Provider`, `SqlServer` (the default) or `PostgreSql`, through the options class `SchemaMigratorOptions`. It never writes the connection string to its output.
 - It registers MsgHatch with no role and no message type, so it needs no transport and no router.
 
-The exit code is 0 for a successful run, and 2 for a run with no connection string or with unknown arguments.
+The exit code is 0 for a successful run, and 2 for a run with no connection string, an unknown provider, or unknown arguments.
 
 ## Run
 
@@ -15,6 +15,13 @@ The exit code is 0 for a successful run, and 2 for a run with no connection stri
 $env:SchemaMigrator__ConnectionString = "<connection string with the rights to change the schema>"
 dotnet run --project examples/SchemaMigrator
 dotnet run --project examples/SchemaMigrator -- --script msghatch-migrations.sql
+```
+
+On PostgreSQL:
+
+```powershell
+$env:SchemaMigrator__Provider = "PostgreSql"
+dotnet run --project examples/SchemaMigrator
 ```
 
 ## A step of a pipeline
@@ -48,9 +55,11 @@ services.AddMsgHatch()
     .UseEntityFrameworkSqlServerSubscriptionStore(connectionString);
 ```
 
+On PostgreSQL, the service calls `UseEntityFrameworkPostgreSqlStores` and `UseEntityFrameworkPostgreSqlSubscriptionStore` in the same way.
+
 ## Tests
 
-`tests/SchemaMigrator.Tests.Integration` runs the migrator on the SQL Server of the EF Core integration tests, with the settings of `tests/MsgHatch.Data.EFCore.Tests.Integration`:
+`tests/SchemaMigrator.Tests.Integration` runs the migrator on the SQL Server and on the PostgreSQL of the EF Core integration tests, with the settings of `tests/MsgHatch.Data.EFCore.Tests.Integration`:
 
 ```powershell
 dotnet test tests/SchemaMigrator.Tests.Integration

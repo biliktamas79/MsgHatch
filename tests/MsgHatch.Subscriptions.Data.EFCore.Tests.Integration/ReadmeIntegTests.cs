@@ -3,10 +3,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.DependencyInjection;
+using MsgHatch.Subscriptions.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Subscriptions.DependencyInjection;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
@@ -23,6 +25,8 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private const string _testConnectionString = "Data Source=msghatch.db";
+
+    private const string _postgreSqlConnectionString = "Host=localhost;Database=msghatch";
 
     [Fact]
     public void Readme_Snippets_EqualTheirSources() => ReadmeCheck.AssertSnippets();
@@ -69,6 +73,27 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
         // Assert
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
         Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", context.Database.ProviderName);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkPostgreSqlSubscriptionStore_SetupOfTheReadme_GivesTheContextTheProviderOfPostgreSql()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = _postgreSqlConnectionString;
+
+        // Act
+        #region readme:setup-postgresql
+        services.AddMsgHatch()
+            .UseEntityFrameworkPostgreSqlStores(connectionString)
+            .UseSubscriptions()
+            .UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString);
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
+        Assert.Equal("Npgsql.EntityFrameworkCore.PostgreSQL", context.Database.ProviderName);
     }
 
     [Fact]

@@ -2,7 +2,7 @@
 
 The EF Core subscription store of [MsgHatch.Subscriptions](https://github.com/biliktamas79/MsgHatch), on each relational EF Core provider. The package keeps the subscriptions on the tables of `MsgHatchSubscriptionDbContext`, through a pooled `IDbContextFactory`, with one store instance for each tenant key.
 
-For SQL Server, use the package `MsgHatch.Subscriptions.Data.EFCore.SqlServer`. It adds the binary collation, the schema migrations, and a setup with one call. For another provider, add the EF Core provider and the migrations of the host.
+For SQL Server, use the package `MsgHatch.Subscriptions.Data.EFCore.SqlServer`. It adds the binary collation, the schema migrations, and a setup with one call. For PostgreSQL, use the package `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`, with the collation `C`. For another provider, add the EF Core provider and the migrations of the host.
 
 ## Install
 
@@ -15,6 +15,12 @@ For SQL Server:
 
 ```shell
 dotnet add package MsgHatch.Subscriptions.Data.EFCore.SqlServer
+```
+
+For PostgreSQL:
+
+```shell
+dotnet add package MsgHatch.Subscriptions.Data.EFCore.PostgreSql
 ```
 
 ## Setup
@@ -37,6 +43,16 @@ services.AddMsgHatch()
     .UseEntityFrameworkSqlServerStores(connectionString)
     .UseSubscriptions()
     .UseEntityFrameworkSqlServerSubscriptionStore(connectionString);
+```
+
+The PostgreSQL packages do the same with the dialect of PostgreSQL:
+
+[//]: # (snippet: setup-postgresql)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkPostgreSqlStores(connectionString)
+    .UseSubscriptions()
+    .UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString);
 ```
 
 ## Schema migrations
@@ -66,6 +82,10 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 ```
 
 ## Version history
+
+### 0.4.0 (2026-11-24)
+
+- The new package `MsgHatch.Subscriptions.Data.EFCore.PostgreSql` ships the migrations for PostgreSQL. This package does not change.
 
 ### 0.3.0 (2026-11-24)
 

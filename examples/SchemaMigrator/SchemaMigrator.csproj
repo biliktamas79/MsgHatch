@@ -7,6 +7,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.SqlServer\MsgHatch.Data.EFCore.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Data.EFCore.SqlServer\MsgHatch.Subscriptions.Data.EFCore.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.PostgreSql\MsgHatch.Data.EFCore.PostgreSql.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Data.EFCore.PostgreSql\MsgHatch.Subscriptions.Data.EFCore.PostgreSql.csproj" />
   </ItemGroup>
 
   <ItemGroup>

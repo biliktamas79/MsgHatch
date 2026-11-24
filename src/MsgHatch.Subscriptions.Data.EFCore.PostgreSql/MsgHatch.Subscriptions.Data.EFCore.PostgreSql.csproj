@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The PostgreSQL package of the EF Core subscription store of MsgHatch.Subscriptions: the collation C, the schema migrations, and a setup with one call.</Description>
+    <PackageTags>messaging;subscriptions;efcore;postgresql;npgsql;migrations</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Subscriptions.Data.EFCore\MsgHatch.Subscriptions.Data.EFCore.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.EFCore.PostgreSql\MsgHatch.Data.EFCore.PostgreSql.csproj" />
+  </ItemGroup>
+
+</Project>
