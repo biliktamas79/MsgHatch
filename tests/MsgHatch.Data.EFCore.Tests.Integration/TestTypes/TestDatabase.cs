@@ -11,10 +11,12 @@ namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 /// <summary>
 /// One database of a test class on the SQL Server of the fixture, with the default schema <c>msghatch</c> and the
 /// collation <see cref="TextCollation"/> of the option, because the tests use no dialect (D318). The first reset creates
-/// it with <c>EnsureCreatedAsync</c>, and each reset deletes the rows of each table. The raw reads use their own
-/// connection.
+/// it with <c>EnsureCreatedAsync</c>, or with the create step of the test, for example the migrations of a provider
+/// package (D320). Each reset deletes the rows of each table. The raw reads use their own connection.
 /// </summary>
-public sealed class TestDatabase(string connectionString)
+/// <param name="connectionString">The connection string of the database.</param>
+/// <param name="create">The create step of the database, or null for <c>EnsureCreatedAsync</c> with <see cref="Contexts"/>.</param>
+public sealed class TestDatabase(string connectionString, Func<TestDatabase, CancellationToken, Task>? create = null)
 {
     private const string _tables = "MsgHatchInbox,MsgHatchOutbox,MsgHatchChannelState,MsgHatchChannelEntry,MsgHatchMessageTypeEntry";
 
@@ -43,12 +45,30 @@ public sealed class TestDatabase(string connectionString)
     {
         if (!_created)
         {
-            await using var context = await Contexts.CreateDbContextAsync(ct);
-            await context.Database.EnsureCreatedAsync(ct);
+            await (create ?? EnsureCreatedAsync)(this, ct);
             _created = true;
         }
 
         await ExecuteAsync(string.Join(';', _tables.Split(',').Select(static table => $"DELETE FROM [msghatch].[{table}]")), ct);
+    }
+
+    /// <summary>Creates the database with no table, for a test of a migration or of a script.</summary>
+    public async Task CreateEmptyAsync(CancellationToken ct)
+    {
+        var builder = new SqlConnectionStringBuilder(ConnectionString);
+        var name = builder.InitialCatalog;
+        builder.InitialCatalog = "master";
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = new SqlCommand("DECLARE @sql nvarchar(max) = N'CREATE DATABASE ' + QUOTENAME(@name); EXEC (@sql);", connection);
+        command.Parameters.AddWithValue("@name", name);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task EnsureCreatedAsync(TestDatabase database, CancellationToken ct)
+    {
+        await using var context = await database.Contexts.CreateDbContextAsync(ct);
+        await context.Database.EnsureCreatedAsync(ct);
     }
 
     public async Task<int> ExecuteAsync(string sql, CancellationToken ct)

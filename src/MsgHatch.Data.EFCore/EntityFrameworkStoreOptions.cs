@@ -27,4 +27,10 @@ public sealed class EntityFrameworkStoreOptions
     [MinLength(1)]
     [RegularExpression("^[A-Za-z0-9_.-]+$")]
     public string? TextCollation { get; set; }
+
+    /// <summary>
+    /// Whether the start of the host fails when a migration of a MsgHatch context is not applied (D320). The check reads
+    /// only the history tables of the migrations, so it needs no right to change the schema.
+    /// </summary>
+    public bool RequireCurrentSchema { get; set; }
 }

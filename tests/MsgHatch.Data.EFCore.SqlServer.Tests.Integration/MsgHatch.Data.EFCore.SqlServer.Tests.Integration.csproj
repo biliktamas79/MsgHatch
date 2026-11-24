@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.SqlServer\MsgHatch.Data.EFCore.SqlServer.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.EFCore.Tests.Integration\MsgHatch.Data.EFCore.Tests.Integration.csproj" />
+  </ItemGroup>
+
+</Project>

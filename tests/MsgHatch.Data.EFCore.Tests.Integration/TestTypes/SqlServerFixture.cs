@@ -69,9 +69,10 @@ public sealed class SqlServerFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>The database of one name, the same instance for each call with that name.</summary>
-    public TestDatabase Database(string name) =>
-        _databases.GetOrAdd(name, static (name, fixture) => new TestDatabase(fixture.ConnectionStringOf($"{fixture._prefix}{name}")), this);
+    /// <summary>The database of one name, the same instance for each call with that name, with the create step of its first call.</summary>
+    public TestDatabase Database(string name, Func<TestDatabase, CancellationToken, Task>? create = null) =>
+        _databases.GetOrAdd(
+            name, static (name, state) => new TestDatabase(state.Fixture.ConnectionStringOf($"{state.Fixture._prefix}{name}"), state.Create), (Fixture: this, Create: create));
 
     private string ConnectionStringOf(string database) => new SqlConnectionStringBuilder(_server) { InitialCatalog = database }.ConnectionString;
 

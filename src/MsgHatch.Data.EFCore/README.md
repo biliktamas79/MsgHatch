@@ -2,13 +2,19 @@
 
 The EF Core stores of [MsgHatch](https://github.com/biliktamas79/MsgHatch), on each relational EF Core provider. The package implements `IInboxStore`, `IOutboxStore`, and `IRegistrySettingsStore` of `MsgHatch.Domain` on the tables of `MsgHatchDbContext`, through a pooled `IDbContextFactory`. It has no SQL text and no provider name: the claim, the adds, and the writes of the publish tries are LINQ queries and EF Core writes.
 
-The package creates no schema. The host creates the tables with its own EF Core migrations of `MsgHatchDbContext`.
+For SQL Server, use the package `MsgHatch.Data.EFCore.SqlServer`. It adds the claim with `READPAST`, the binary collation, the schema migrations, and a setup with one call. For another provider, add the EF Core provider and the migrations of the host.
 
 ## Install
 
 ```shell
 dotnet add package MsgHatch.Data.EFCore
 dotnet add package Microsoft.EntityFrameworkCore.Sqlite
+```
+
+For SQL Server:
+
+```shell
+dotnet add package MsgHatch.Data.EFCore.SqlServer
 ```
 
 ## Setup
@@ -29,6 +35,14 @@ services.AddMsgHatch()
         o => o.Schema = "messaging");
 ```
 
+With the SQL Server package, one call selects the stores, the dialect of SQL Server, and the migrations of the package:
+
+[//]: # (snippet: setup-sqlserver)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkSqlServerStores(connectionString);
+```
+
 ## Claim
 
 A claim takes the due messages in the order of their due time, and then in the order of their add. The store reads the due candidates with a LINQ query, and claims those that are still pending and due with one `ExecuteUpdate` and a new claim token. When another dispatcher took a candidate first, the store reads the next candidates, until it has the maximum count or no due message is left.
@@ -37,9 +51,24 @@ A claim takes the due messages in the order of their due time, and then in the o
 
 An id of a tenant, a company, or a user is case-sensitive, so `t1` and `T1` are two tenants. Use a case-sensitive collation of the text columns: the option `TextCollation` sets it, or else the dialect of a provider package, or else the database. The default collation of SQLite, `BINARY`, is case-sensitive.
 
+## Schema migrations
+
+Only `MigrateMsgHatchAsync` changes the schema. It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and the subscription context. Each context has a history table of its own in the schema of the options, `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`, so the migration history of the host does not change. EF Core locks the database during the migration, so two hosts that start at the same time apply each migration one time.
+
+[//]: # (snippet: migrate)
+```csharp
+await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
+```
+
+- A host calls the method at its start. Where only the pipeline has the rights to change the schema, a separate console app of the pipeline calls it, and the service gets only the rights to read and write rows. The example `examples/SchemaMigrator` is such a console app.
+- An optional action gives the migration its own provider setup on top of the setup of the stores, for example `o => o.UseSqlServer(migrationConnectionString)`. With no action, the migration uses the setup of the stores. MsgHatch never logs a connection string.
+- `ScriptMsgHatchMigrationsAsync` gives an idempotent SQL script of the migrations, for a pipeline or a database administrator that runs only SQL.
+- With the option `RequireCurrentSchema`, the start of the host fails when a migration is not applied. The message names the context and the migration. The check reads only the history tables.
+- A provider package ships the migrations of its context. For a provider with no MsgHatch package, the host generates the migrations of the MsgHatch contexts in its own assembly, for example `o => o.UseSqlite(connectionString, sqlite => sqlite.MigrationsAssembly("MyHost"))` and `dotnet ef migrations add InitialMsgHatch --context MsgHatchDbContext`. `MigrateMsgHatchAsync` applies them.
+
 ## Provider packages
 
-A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF Core provider that it serves, the default collation, and an optional claim statement. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context.
+A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF Core provider that it serves, the default collation, and an optional claim statement. Its migrations derive from `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot`, so each migration takes the schema and the collation of the options at run time. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context.
 
 ## Options
 
@@ -48,13 +77,15 @@ A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF
 |---|---|---|---|
 | `Schema` | `string` | `msghatch` | Required. The database schema of the tables. It starts with an ASCII letter or `_`, and contains only ASCII letters, digits, and `_`. |
 | `TextCollation` | `string?` | the collation of the dialect, or else of the database | The collation of each text column, so of each id and name, for example `Latin1_General_100_BIN2`. Only ASCII letters, digits, `_`, `.`, and `-`. |
+| `RequireCurrentSchema` | `bool` | `false` | The start of the host fails when a migration of a MsgHatch context is not applied. |
 
 [//]: # (snippet: options)
 ```json
 {
   "MsgHatch": {
     "EntityFramework": {
-      "Schema": "msghatch"
+      "Schema": "msghatch",
+      "RequireCurrentSchema": true
     }
   }
 }
@@ -69,6 +100,7 @@ A provider package implements `IEntityFrameworkStoreDialect`: the name of the EF
 - The stores run on each relational EF Core provider, for example SQLite. The claim, the adds, and the writes of the publish tries have no SQL text. The startup validation fails only for a provider that is not relational.
 - The contract `IEntityFrameworkStoreDialect` of a provider package, with `ClaimStatementNames` and `UseEntityFrameworkStoreDialect`. The startup validation fails for a dialect of another provider.
 - Each time gets the kind UTC also on a write, because a provider can refuse a time with no kind.
+- The migration step: `MigrateMsgHatchAsync`, `ScriptMsgHatchMigrationsAsync`, the option `RequireCurrentSchema`, and the history table `__MsgHatchMigrations`. The new package `MsgHatch.Data.EFCore.SqlServer` ships the migrations for SQL Server.
 
 ### 0.2.1 (2026-11-24)
 

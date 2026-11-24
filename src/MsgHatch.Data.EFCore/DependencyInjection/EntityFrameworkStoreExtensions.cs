@@ -16,8 +16,9 @@ public static class EntityFrameworkStoreExtensions
     /// <paramref name="configure"/>, for example <c>o =&gt; o.UseSqlite(connectionString)</c>, then
     /// <see cref="EntityFrameworkInboxStore"/> and
     /// <see cref="EntityFrameworkOutboxStore"/>, each with its two parts and their logging wrappers, and
-    /// <see cref="EntityFrameworkRegistrySettingsStore"/> with its logging wrapper (D130). The package creates no schema:
-    /// the host creates it with its own EF Core migrations of <see cref="MsgHatchDbContext"/>. The options bind from the
+    /// <see cref="EntityFrameworkRegistrySettingsStore"/> with its logging wrapper (D130). Only
+    /// <see cref="EntityFrameworkMigrationExtensions.MigrateMsgHatchAsync"/> changes the schema, with the migrations of a
+    /// provider package or of the host, and the history table <c>__MsgHatchMigrations</c> (D320). The options bind from the
     /// section <c>MsgHatch:EntityFramework</c>, and a value from code wins. The startup validation fails for a provider
     /// that is not relational (D175).
     /// </summary>
@@ -31,7 +32,7 @@ public static class EntityFrameworkStoreExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
         AddOptions(builder, nameof(UseEntityFrameworkStores), configureOptions);
-        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure);
+        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure, "__MsgHatchMigrations");
         builder.Services.TryAddSingleton(static services => new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new EntityFrameworkOutboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>()));
         builder.Services.TryAddSingleton(static services => new EntityFrameworkRegistrySettingsStore(ContextsOf(services)));
@@ -60,18 +61,18 @@ public static class EntityFrameworkStoreExtensions
     }
 
     /// <summary>
-    /// Registers a pooled factory of a context, with the options of the host and the schema of
-    /// <see cref="EntityFrameworkStoreOptions"/>, and the startup check of its provider, which names the setup method
-    /// (D175, D182).
+    /// Registers a pooled factory of a context, with the options of the host and of <see cref="EntityFrameworkStoreOptions"/>,
+    /// the migrations of the context with a history table of its own (D320), and the startup check of its provider, which
+    /// names the setup method (D175, D182).
     /// </summary>
-    internal static void AddContexts<TContext>(IServiceCollection services, string setupMethod, Action<DbContextOptionsBuilder> configure)
+    internal static void AddContexts<TContext>(
+        IServiceCollection services, string setupMethod, Action<DbContextOptionsBuilder> configure, string historyTable)
         where TContext : DbContext
     {
-        services.AddPooledDbContextFactory<TContext>((provider, options) =>
-        {
-            configure(options);
-            StoreOptionsExtension.UseOptions(options, provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value);
-        });
+        services.AddSingleton(new StoreContextSetup<TContext>(configure, historyTable));
+        services.AddPooledDbContextFactory<TContext>(static (provider, options) => provider.GetRequiredService<StoreContextSetup<TContext>>()
+            .Configure(options, provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IStoreContextMigrator, StoreContextMigrator<TContext>>());
         services.AddOptions<EntityFrameworkSetupCheck<TContext>>().Configure(check => check.SetupMethod = setupMethod).ValidateOnStart();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<EntityFrameworkSetupCheck<TContext>>, EntityFrameworkSetupValidator<TContext>>());

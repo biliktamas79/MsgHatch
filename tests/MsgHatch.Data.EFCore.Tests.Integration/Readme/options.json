@@ -1,7 +1,8 @@
 {
   "MsgHatch": {
     "EntityFramework": {
-      "Schema": "msghatch"
+      "Schema": "msghatch",
+      "RequireCurrentSchema": true
     }
   }
 }

@@ -79,8 +79,7 @@ internal static class MessageClaims
     private static IQueryable<TRow>? StatementOf<TRow>(DbContext context, DbSet<TRow> table, string? channel, ClaimArguments claim)
         where TRow : MessageRow
     {
-        var dialect = StoreOptionsExtension.Of(context).Dialect;
-        if (dialect is null && !SqlServerClaim.IsFor(context))
+        if (StoreOptionsExtension.Of(context).Dialect is not { } dialect)
         {
             return null;
         }
@@ -118,7 +117,6 @@ internal static class MessageClaims
             PendingParameter = Parameter("pending", MappingOf(nameof(MessageRow.Status)), MessageQueries.Pending),
             ChannelParameter = channel is null ? null : Parameter("channel", MappingOf(nameof(OutboxRow.Channel)), channel),
         };
-        var statement = dialect is null ? SqlServerClaim.Statement(names) : dialect.ClaimStatement(names);
-        return statement is null ? null : table.FromSqlRaw(statement, [.. parameters]);
+        return dialect.ClaimStatement(names) is { } statement ? table.FromSqlRaw(statement, [.. parameters]) : null;
     }
 }

@@ -1,16 +1,20 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace MsgHatch.Data.EFCore.DependencyInjection;
 
 /// <summary>
-/// The startup check of an EF Core setup method (D175, D182, D318): the EF Core provider of
+/// The startup check of an EF Core setup method (D175, D182, D318, D320): the EF Core provider of
 /// <typeparamref name="TContext"/> is relational, and the dialect of a provider package serves that provider. The message
-/// names the setup method and the provider. The check opens no connection.
+/// names the setup method and the provider. The check opens no connection, except with
+/// <see cref="EntityFrameworkStoreOptions.RequireCurrentSchema"/>: then it reads the history table of the migrations, and
+/// fails for the first migration that is not applied.
 /// </summary>
 /// <typeparam name="TContext">The context of the setup method.</typeparam>
 /// <param name="contexts">The pooled factory of the contexts.</param>
-internal sealed class EntityFrameworkSetupValidator<TContext>(IDbContextFactory<TContext> contexts)
+/// <param name="storeOptions">The options of the stores.</param>
+internal sealed class EntityFrameworkSetupValidator<TContext>(IDbContextFactory<TContext> contexts, IOptions<EntityFrameworkStoreOptions> storeOptions)
     : IValidateOptions<EntityFrameworkSetupCheck<TContext>>
     where TContext : DbContext
 {
@@ -24,9 +28,28 @@ internal sealed class EntityFrameworkSetupValidator<TContext>(IDbContextFactory<
             return ValidateOptionsResult.Fail($"{options.SetupMethod} needs a relational EF Core provider, and {provider} is not relational.");
         }
 
-        return StoreOptionsExtension.Of(context).Dialect is { } dialect && dialect.ProviderName != provider
-            ? ValidateOptionsResult.Fail(
-                $"{options.SetupMethod} has the dialect of the EF Core provider {dialect.ProviderName}, but the provider of the context is {provider}.")
-            : ValidateOptionsResult.Success;
+        if (StoreOptionsExtension.Of(context).Dialect is { } dialect && dialect.ProviderName != provider)
+        {
+            return ValidateOptionsResult.Fail(
+                $"{options.SetupMethod} has the dialect of the EF Core provider {dialect.ProviderName}, but the provider of the context is {provider}.");
+        }
+
+        return storeOptions.Value.RequireCurrentSchema ? CurrentSchemaResult(context, options.SetupMethod) : ValidateOptionsResult.Success;
+    }
+
+    private static ValidateOptionsResult CurrentSchemaResult(TContext context, string setupMethod)
+    {
+        try
+        {
+            return context.Database.GetPendingMigrations().FirstOrDefault() is { } pending
+                ? ValidateOptionsResult.Fail(
+                    $"{setupMethod} requires the current schema, but the migration {pending} of {typeof(TContext).Name} is not applied.")
+                : ValidateOptionsResult.Success;
+        }
+        catch (DbException exception)
+        {
+            return ValidateOptionsResult.Fail(
+                $"{setupMethod} requires the current schema, but the history of the migrations of {typeof(TContext).Name} is not readable: {exception.Message}");
+        }
     }
 }

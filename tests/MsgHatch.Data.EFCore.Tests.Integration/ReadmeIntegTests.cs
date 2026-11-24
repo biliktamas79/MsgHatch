@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
+using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
@@ -10,12 +12,14 @@ using MsgHatch.Tests.Shared;
 namespace MsgHatch.Data.EFCore.Tests.Integration;
 
 /// <summary>
-/// The examples of the README of the package run as tests, and the README check compares them (D311). The tests open
-/// no connection, so they need no database.
+/// The examples of the README of the package run as tests, and the README check compares them (D311). Only the test of
+/// the migration step opens a connection, to a database of the fixture.
 /// </summary>
-public sealed class ReadmeIntegTests
+public sealed class ReadmeIntegTests(SqlServerFixture server)
 {
     private const string _testConnectionString = "Data Source=msghatch.db";
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public void Readme_Snippets_EqualTheirSources() => ReadmeCheck.AssertSnippets();
@@ -39,7 +43,10 @@ public sealed class ReadmeIntegTests
 
         // Assert
         Assert.NotNull(provider.GetRequiredService<IOutboxStore>());
-        Assert.Equal("msghatch", provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.Schema);
+        Assert.Equal(
+            ("msghatch", true),
+            (provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.Schema,
+                provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.RequireCurrentSchema));
     }
 
     [Fact]
@@ -60,5 +67,43 @@ public sealed class ReadmeIntegTests
 
         // Assert
         Assert.Equal("messaging", provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.Schema);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkSqlServerStores_SetupOfTheReadme_GivesTheContextsTheDialectOfSqlServer()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = server.Database("readme").ConnectionString;
+
+        // Act
+        #region readme:setup-sqlserver
+        services.AddMsgHatch()
+            .UseEntityFrameworkSqlServerStores(connectionString);
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+        Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", context.Database.ProviderName);
+    }
+
+    [Fact]
+    public async Task MigrateMsgHatchAsync_StepOfTheReadme_CreatesTheTablesOfTheStores()
+    {
+        // Arrange
+        var database = server.Database("readme_migrate");
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseEntityFrameworkSqlServerStores(database.ConnectionString);
+        await using var serviceProvider = services.Build();
+        var cancellationToken = Ct;
+
+        // Act
+        #region readme:migrate
+        await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
+        #endregion
+
+        // Assert
+        Assert.Equal(6, (await database.RowsAsync("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES", Ct)).Count);
     }
 }

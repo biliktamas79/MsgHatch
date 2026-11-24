@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The SQL Server package of the EF Core stores of MsgHatch: the claim with READPAST, the binary collation, the schema migrations, and a setup with one call.</Description>
+    <PackageTags>messaging;outbox;inbox;efcore;sqlserver;migrations</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Data.EFCore\MsgHatch.Data.EFCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MsgHatch.Subscriptions.Data.EFCore.SqlServer" />
+  </ItemGroup>
+
+</Project>
