@@ -3634,16 +3634,16 @@ Commits:
 4. "Record the commits and the checked facts of phase 47 in the plan"
 5. "Record phase 47 as done in README and AGENTS.md"
 
-Commit 1 holds the plans of phases 47, 48, and 49, and the decisions D317 to D319. Commit 2 holds items 1 to 4. Commit 5 also sets the range of the decisions in `AGENTS.md`, which says D315 since phase 46.
+Commit 1 holds the plans of phases 47, 48, and 49, and the decisions D317 to D319. A second plan commit adds the schema migrations to phases 48 and 49, and the decision D320. Commit 2 holds items 1 to 4. Commit 5 also sets the range of the decisions in `AGENTS.md`, which says D315 since phase 46.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.2.1.
 
 
-### Phase 48: Provider-agnostic EF Core stores, with a SQL Server package
+### Phase 48: Provider-agnostic EF Core stores, with SQL Server packages
 
-Goal: `MsgHatch.Data.EFCore` has no SQL text and no provider name, and runs on each relational EF Core provider with no change. The new package `MsgHatch.Data.EFCore.SqlServer` holds the parts for SQL Server: the claim with `READPAST`, the default collation, and a setup with one call (D318, D319).
+Goal: `MsgHatch.Data.EFCore` has no SQL text and no provider name, and runs on each relational EF Core provider with no change. The new packages `MsgHatch.Data.EFCore.SqlServer` and `MsgHatch.Subscriptions.Data.EFCore.SqlServer` hold the parts for SQL Server: the claim with `READPAST`, the default collation, the schema migrations, and a setup with one call (D318 to D320).
 
-Starting point: the commits of phase 47. The stores select their SQL by the provider of the context (D120), and only SQL Server has SQL. A context of another provider fails the startup validation (D175). These parts are for SQL Server only:
+Starting point: the commits of phase 47. The stores select their SQL by the provider of the context (D120), and only SQL Server has SQL. A context of another provider fails the startup validation (D175). The host makes the schema with its own migrations. These parts are for SQL Server only:
 - `SqlServerStatements`: names in brackets, an insert if absent with `WITH (UPDLOCK, HOLDLOCK)`, the claim with `TOP`, `WITH (ROWLOCK, READPAST, UPDLOCK)`, and `OUTPUT deleted.NextTryAtUtc`, and the functions `JSON_QUERY`, `JSON_VALUE`, `JSON_MODIFY`, and `OPENJSON`.
 - `SqlArguments`: a time is `DbType.DateTime2`.
 - `StoreModel`: the provider name, and the binary collation `Latin1_General_100_BIN2`.
@@ -3673,28 +3673,53 @@ The subscription store, the LINQ of the registry store, the error mapping, the e
 5. The package `MsgHatch.Data.EFCore.SqlServer`:
    - It references `MsgHatch.Data.EFCore` and `Microsoft.EntityFrameworkCore.SqlServer`.
    - Its dialect has the claim of D120 with `READPAST` and `OUTPUT`, and the default collation `Latin1_General_100_BIN2`.
-   - `UseEntityFrameworkSqlServerStores` registers the stores with `UseSqlServer` and the dialect in one call. The subscription store takes the collation of the registered dialect, so it needs no provider package, and the store packages never reference `MsgHatch.Subscriptions`.
+   - It holds the migrations of `MsgHatchDbContext` for SQL Server, which the EF Core tools generate (D320).
+   - `UseEntityFrameworkSqlServerStores` registers the stores with `UseSqlServer`, the dialect, and the migrations in one call.
    - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests.
-6. `SqlServerStatements`, `SqlArguments`, and the provider name of `StoreModel` go away from the base package.
-7. Tests:
-   - The new unit test projects `tests/MsgHatch.Data.EFCore.Tests.Unit` and `tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit` run the contract bases on the EF Core SQLite provider, with a file in a temporary folder (D71). So the coverage includes the base package.
-   - `tests/MsgHatch.Data.EFCore.Tests.Integration` runs the contract bases on SQL Server with no dialect, so the claim of item 1 meets the concurrency of a real server.
-   - The new project `tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration` runs the contract bases on SQL Server with the dialect, and the README tests of the package. It uses the fixture and the test data of `MsgHatch.Data.EFCore.Tests.Integration`.
-8. `VersionPrefix` becomes `0.3.0`. The schema of the EF Core stores changes: a claim token, the old due time, the due indexes with no filter, and the collation of the option. Before 1.0.0, a breaking change raises the minor. The READMEs of `MsgHatch.Data.EFCore` and `MsgHatch.Subscriptions.Data.EFCore` get the entry 0.3.0, which starts with "Breaking:", and show the setup with the SQL Server package and with `UseSqlite`.
-9. Describe the phase:
-   - In the design: D318 and D319, the changes of D120, D175, and D178, and sections 4.2, 4.5, 4.7, 5.1, 5.6, and 7.
-   - In `docs/stores.md`: the section of the EF Core stores, with the two claims, the writes, the types, the dialect contract, and the limits.
-   - The count of 37 packages in `AGENTS.md`, `README.md`, and the design.
+6. The package `MsgHatch.Subscriptions.Data.EFCore.SqlServer`:
+   - It references `MsgHatch.Subscriptions.Data.EFCore` and `MsgHatch.Data.EFCore.SqlServer`, so the store packages never reference `MsgHatch.Subscriptions`.
+   - It holds the migrations of `MsgHatchSubscriptionDbContext` for SQL Server, and uses the dialect of `MsgHatch.Data.EFCore.SqlServer`.
+   - `UseEntityFrameworkSqlServerSubscriptionStore` registers the subscription store with `UseSqlServer`, the dialect, and the migrations in one call.
+   - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests.
+7. The migration step of the base package (D320):
+   - `MigrateMsgHatchAsync` applies the migrations of each registered MsgHatch context. No other code of MsgHatch changes the schema.
+   - An optional `Action<DbContextOptionsBuilder>` gives the migration its own provider setup, for example a connection string with the rights to change the schema. With no action, the migration uses the setup of the stores. MsgHatch never logs a connection string.
+   - A host can call the method at its start. In a setup where only the pipeline has the rights to change the schema, a separate console app calls the same method with the connection string of the pipeline, and the service gets only the rights to read and write rows.
+   - `ScriptMsgHatchMigrationsAsync` gives an idempotent SQL script of the MsgHatch migrations, for a pipeline or a database administrator that runs only SQL.
+   - The option `RequireCurrentSchema` makes the start of a host fail when a MsgHatch migration is not applied, with an error that names the context and the migration. The check reads only the history tables, so it needs no right to change the schema.
+   - Each context has a history table of its own in the schema of the option, for example `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`, so the history of the host does not change.
+   - Each migration takes the schema of the option at run time.
+   - For a provider with no MsgHatch package, the host generates the migrations of the MsgHatch contexts in its own assembly with `MigrationsAssembly`, and the same method applies them.
+   - The new example `examples/SchemaMigrator` is a console app for a pipeline. It reads the connection string from an environment variable, applies the MsgHatch migrations, or writes the script with an argument. Its README shows a step of a pipeline, and the setup of the service with `RequireCurrentSchema`.
+8. `SqlServerStatements`, `SqlArguments`, and the provider name of `StoreModel` go away from the base package.
+9. Tests:
+   - The new unit test projects `tests/MsgHatch.Data.EFCore.Tests.Unit` and `tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit` run the contract bases on the EF Core SQLite provider, with a file in a temporary folder (D71). So the coverage includes the base packages.
+   - `tests/MsgHatch.Data.EFCore.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration` run the contract bases on SQL Server with no dialect, so the claim of item 1 meets the concurrency of a real server.
+   - The new projects `tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration` run the contract bases on SQL Server with the dialect, on a database that the migrations of their package created, and the README tests of their package. They use the fixture and the test data of `MsgHatch.Data.EFCore.Tests.Integration`.
+10. `VersionPrefix` becomes `0.3.0`. The schema of the EF Core stores changes: a claim token, the old due time, the due indexes with no filter, and the collation of the option. Before 1.0.0, a breaking change raises the minor. The READMEs of `MsgHatch.Data.EFCore` and `MsgHatch.Subscriptions.Data.EFCore` get the entry 0.3.0, which starts with "Breaking:", and show the setup with the SQL Server packages, with `UseSqlite`, and with the migration step.
+11. Describe the phase:
+    - In the design: D318 to D320, the changes of D120, D175, and D178, and sections 4.2, 4.5, 4.7, 5.1, 5.6, and 7.
+    - In `docs/stores.md`: the section of the EF Core stores, with the two claims, the writes, the types, the dialect contract, the migrations, and the limits.
+    - The count of 38 packages in `AGENTS.md`, `README.md`, and the design.
 
 Checks before the code:
 - An `ExecuteUpdate` that sets a column from the old value of another column works on SQLite and SQL Server.
 - Parallel claims on one SQLite file get no `SQLITE_BUSY` error within the timeout of the connection.
 - `ISqlGenerationHelper` gives the quoted names of the schema, the tables, and the columns for the claim statement of a dialect.
+- How a migration takes the schema of the option at run time, for example through a custom `IMigrationsAssembly` that gives the schema to each migration.
+- Whether `MigrateAsync` of EF Core 10 locks the database, so two hosts that start at the same time do not apply one migration two times.
+- A console app with `MsgHatchRoles.None` and no message type passes the startup validation of MsgHatch.
 
 Tests:
 - The contract bases of the inbox, the outbox, the registry settings, and the subscription store, with the scenario of Acme and Globex, pass on SQLite, on SQL Server with no dialect, and on SQL Server with the dialect. They include two parallel claims, 160 parallel adds, parallel cancels, parallel try records, and parallel channel states.
 - A claim of the base package whose first candidates another dispatcher took claims the next due messages.
 - Two tenants that differ only in case stay apart on SQL Server with the collation of the dialect, and with the collation of the option.
+- The migrations create the schema of each package on an empty SQL Server database, in the schema of the option, with two history tables. A second call of `MigrateMsgHatchAsync` changes nothing.
+- The model of each context has no pending change against the migrations of its package.
+- A migration with its own provider setup uses its own connection string, and the stores keep theirs.
+- The script of `ScriptMsgHatchMigrationsAsync` creates the same schema on an empty database, and a second run of it changes nothing.
+- With `RequireCurrentSchema`, a start with a pending migration fails with the names of the context and the migration, and a start with each migration applied passes.
+- `examples/SchemaMigrator` applies the migrations on an empty SQL Server database with the connection string of its environment variable, and writes the script with its argument.
 - The setup: SQLite, SQL Server with no dialect, and SQL Server with the dialect pass the startup validation. A provider that is not relational fails, and a dialect for another provider fails.
 - The README snippets.
 - Each new test fails first. The SQLite tests fail before the change, because SQLite has no SQL statements.
@@ -3704,35 +3729,44 @@ Check for the owner: run the EF Core integration projects on SQL Server.
 Commits:
 1. "Run the EF Core stores on each relational provider"
 2. "Add the dialect contract and the collation option of the EF Core stores"
-3. "Add the SQL Server package of the EF Core stores"
-4. "Describe the provider-agnostic EF Core stores in the design and the store guide"
-5. "Record the commits and the checked facts of phase 48 in the plan"
-6. "Record phase 48 as done in README and AGENTS.md"
+3. "Add the SQL Server package of the EF Core stores with its migrations"
+4. "Add the SQL Server package of the EF Core subscription store"
+5. "Add the schema migrator example"
+6. "Describe the provider-agnostic EF Core stores in the design and the store guide"
+7. "Record the commits and the checked facts of phase 48 in the plan"
+8. "Record phase 48 as done in README and AGENTS.md"
 
-The plan of this phase is in commit 1 of phase 47. Commit 1 holds items 1, 2, and 6, the claim of D120 in place until commit 3, the SQLite tests of item 7, and the version of item 8. Commit 2 holds items 3 and 4. Commit 3 holds item 5 with its tests and the READMEs of item 8.
+The plan of this phase is in commit 1 of phase 47. Commit 1 holds items 1, 2, and 8, the claim of D120 in place until commit 3, the SQLite tests of item 9, and the version of item 10. Commit 2 holds items 3 and 4. Commit 3 holds items 5 and 7 with their tests, except the example of item 7. Commit 4 holds item 6 with its tests. Commit 5 holds the example of item 7 with its test. Each commit of a package holds its README of item 10.
 
-Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 37 packages of 0.3.0, and the EF Core integration projects pass on SQL Server.
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 38 packages of 0.3.0, and the EF Core integration projects pass on SQL Server.
 
-### Phase 49: PostgreSQL package of the EF Core stores
+### Phase 49: PostgreSQL packages of the EF Core stores
 
-Goal: the new package `MsgHatch.Data.EFCore.PostgreSql` runs the EF Core stores on PostgreSQL with a claim with `SKIP LOCKED`, the default collation `C`, and a setup with one call. `MsgHatch.Data.EFCore` does not change (D318, D319).
+Goal: the new packages `MsgHatch.Data.EFCore.PostgreSql` and `MsgHatch.Subscriptions.Data.EFCore.PostgreSql` run the EF Core stores on PostgreSQL with a claim with `SKIP LOCKED`, the default collation `C`, the schema migrations, and a setup with one call. The base packages do not change (D318 to D320).
 
-Starting point: the commits of phase 48. The base package runs on each relational provider, and the SQL Server package shows a dialect.
+Starting point: the commits of phase 48. The base packages run on each relational provider, and the SQL Server packages show a dialect and a migration set.
 
 1. The package `MsgHatch.Data.EFCore.PostgreSql`:
    - It references `MsgHatch.Data.EFCore` and `Npgsql.EntityFrameworkCore.PostgreSQL`.
    - Its dialect has the claim `UPDATE ... FROM` a subquery with `ORDER BY` of the due time and `"Sequence"`, `LIMIT`, and `FOR UPDATE SKIP LOCKED`. `RETURNING` gives the old due time from the subquery (D144).
    - The default collation is `C`, so an id or a name is case-sensitive and sorts in ordinal order.
-   - `UseEntityFrameworkPostgreSqlStores` registers the stores with `UseNpgsql` and the dialect in one call.
+   - It holds the migrations of `MsgHatchDbContext` for PostgreSQL (D320).
+   - `UseEntityFrameworkPostgreSqlStores` registers the stores with `UseNpgsql`, the dialect, and the migrations in one call.
    - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests.
-2. A time is `timestamptz`, which keeps microseconds (D319).
-3. Tests:
-   - The new project `tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` runs the contract bases on PostgreSQL with the dialect, and the README tests. Its fixture `PostgreSqlFixture` uses `PostgreSqlIntegration:ConnectionString` of `appsettings.Local.json` (D180). With no connection string, Testcontainers starts the image `postgres:18.7`.
-   - `tests/MsgHatch.Data.EFCore.Tests.Integration` and the subscription integration project also run the contract bases on PostgreSQL with no dialect, in a folder `PostgreSql`, so the base package shows a third provider with no change.
+2. The package `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`:
+   - It references `MsgHatch.Subscriptions.Data.EFCore` and `MsgHatch.Data.EFCore.PostgreSql`.
+   - It holds the migrations of `MsgHatchSubscriptionDbContext` for PostgreSQL, and uses the dialect of `MsgHatch.Data.EFCore.PostgreSql`.
+   - `UseEntityFrameworkPostgreSqlSubscriptionStore` registers the subscription store with `UseNpgsql`, the dialect, and the migrations in one call.
+   - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests.
+3. A time is `timestamptz`, which keeps microseconds (D319).
+4. Tests:
+   - The new projects `tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` and `tests/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration` run the contract bases on PostgreSQL with the dialect, on a database that the migrations of their package created, and their README tests. The fixture `PostgreSqlFixture` uses `PostgreSqlIntegration:ConnectionString` of `appsettings.Local.json` (D180). With no connection string, Testcontainers starts the image `postgres:18.7`.
+   - `tests/MsgHatch.Data.EFCore.Tests.Integration` and the subscription integration project also run the contract bases on PostgreSQL with no dialect, in a folder `PostgreSql`, so the base packages show a third provider with no change.
    - A database name of PostgreSQL has at most 63 bytes, and PostgreSQL cuts a longer name with no error. The prefix of the subscription project has 53 characters, so its names `subscriptions`, `setup_alone`, and `setup_schema` get names of at most 10 characters on PostgreSQL.
-4. Packages: `Npgsql.EntityFrameworkCore.PostgreSQL` `10.*`, and `Testcontainers.PostgreSql` `4.*` for the tests.
-5. `VersionPrefix` becomes `0.4.0`, because the new package is a new feature. The READMEs of the two EF Core packages show the setup with the PostgreSQL package, and get the entry 0.4.0.
-6. Describe the phase: the design (sections 4.2, 4.5, 5.1, and 5.6), the EF Core section of `docs/stores.md`, `AGENTS.md` with the commands and the settings of the PostgreSQL tests, and the count of 38 packages.
+5. Packages: `Npgsql.EntityFrameworkCore.PostgreSQL` `10.*`, and `Testcontainers.PostgreSql` `4.*` for the tests.
+6. `VersionPrefix` becomes `0.4.0`, because the new packages are a new feature. The READMEs of the two base packages show the setup with the PostgreSQL packages, and get the entry 0.4.0.
+7. `examples/SchemaMigrator` also applies the PostgreSQL migrations, and also writes their script.
+8. Describe the phase: the design (sections 4.2, 4.5, 5.1, and 5.6), the EF Core section of `docs/stores.md`, `AGENTS.md` with the commands and the settings of the PostgreSQL tests, and the count of 40 packages.
 
 Checks before the code:
 - Npgsql cuts a time down to the microsecond, and does not round it up. A stored due time that is later than the given time delays its claim.
@@ -3743,22 +3777,25 @@ Tests:
 - The contract bases pass on PostgreSQL with the dialect and with no dialect.
 - Two tenants that differ only in case stay apart with the collation `C`.
 - A time with a part of a microsecond comes back cut down to the microsecond (D319).
-- The setup with `UseEntityFrameworkPostgreSqlStores` passes the startup validation.
+- The migrations create the schema of each package on an empty PostgreSQL database, in the schema of the option, and a second call changes nothing. The model of each context has no pending change against its migrations.
+- `examples/SchemaMigrator` applies the PostgreSQL migrations on an empty database, and writes their script.
+- The setup with the two PostgreSQL packages passes the startup validation.
 - The README snippets.
 - Each new test fails first.
 
 Check for the owner: run the EF Core integration projects on PostgreSQL, with a local PostgreSQL in `appsettings.Local.json` or with Docker.
 
 Commits:
-1. "Add the PostgreSQL package of the EF Core stores"
-2. "Test the base EF Core stores on PostgreSQL"
-3. "Describe the PostgreSQL package in the design and the store guide"
-4. "Record the commits and the checked facts of phase 49 in the plan"
-5. "Record phase 49 as done in README and AGENTS.md"
+1. "Add the PostgreSQL package of the EF Core stores with its migrations"
+2. "Add the PostgreSQL package of the EF Core subscription store"
+3. "Test the base EF Core stores on PostgreSQL"
+4. "Describe the PostgreSQL packages in the design and the store guide"
+5. "Record the commits and the checked facts of phase 49 in the plan"
+6. "Record phase 49 as done in README and AGENTS.md"
 
-The plan of this phase is in commit 1 of phase 47.
+The plan of this phase is in commit 1 of phase 47. Commit 1 also holds item 7 with its test.
 
-Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 38 packages of 0.4.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 40 packages of 0.4.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
 
 ### Later phases
 
