@@ -347,7 +347,7 @@ A state row is one `INSERT OR IGNORE`, and a changed row count of 0 means that a
 
 ## 4. EF Core stores
 
-`MsgHatch.Data.EFCore` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in a database through EF Core, on each relational EF Core provider (D120, D318). The package has no SQL text and no provider name. `UseEntityFrameworkStores(o => o.UseSqlite(connectionString))` selects the stores on a provider with no MsgHatch package. The SQL Server package `MsgHatch.Data.EFCore.SqlServer` selects them with `UseEntityFrameworkSqlServerStores(connectionString)`. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString))`, and `MsgHatch.Subscriptions.Data.EFCore.SqlServer` with `UseEntityFrameworkSqlServerSubscriptionStore(connectionString)`.
+`MsgHatch.Data.EFCore` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in a database through EF Core, on each relational EF Core provider (D120, D318). The package has no SQL text and no provider name. `UseEntityFrameworkStores(o => o.UseSqlite(connectionString))` selects the stores on a provider with no MsgHatch package. The SQL Server package `MsgHatch.Data.EFCore.SqlServer` selects them with `UseEntityFrameworkSqlServerStores(connectionString)`, and the PostgreSQL package `MsgHatch.Data.EFCore.PostgreSql` with `UseEntityFrameworkPostgreSqlStores(connectionString)`. `MsgHatch.Subscriptions.Data.EFCore` adds the subscription store with `UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString))`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer` with `UseEntityFrameworkSqlServerSubscriptionStore(connectionString)`, and `MsgHatch.Subscriptions.Data.EFCore.PostgreSql` with `UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString)`.
 
 ### 4.1 Model and tables
 
@@ -356,15 +356,15 @@ A state row is one `INSERT OR IGNORE`, and a changed row count of 0 means that a
 | Value | Column | Rule |
 |---|---|---|
 | `Sequence` | `bigint` identity, the primary key of a message table (`INTEGER PRIMARY KEY AUTOINCREMENT` on SQLite) | It keeps the add order (D144). |
-| A tenant, company, user, or target id | `nvarchar(256)` | An empty text means no tenant. An id must be case-sensitive, so two tenants that differ only in case stay apart (D178). |
-| A message id | `char(36)` in the format `D` | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. EF Core gives each parameter the type of its column, so a parameter of a message id is a fixed ANSI text on SQL Server too. With an `nvarchar` parameter, SQL Server converts the column, and parallel adds of one id got the deadlock 1205 (checked fact after phase 18). |
+| A tenant, company, user, or target id | `nvarchar(256)` (`character varying(256)` on PostgreSQL) | An empty text means no tenant. An id must be case-sensitive, so two tenants that differ only in case stay apart (D178). |
+| A message id | `char(36)` in the format `D` (`character(36)` on PostgreSQL) | The text sorts as `Guid.CompareTo`, so the pages of a query keep the order of D112. EF Core gives each parameter the type of its column, so a parameter of a message id is a fixed ANSI text on SQL Server too. With an `nvarchar` parameter, SQL Server converts the column, and parallel adds of one id got the deadlock 1205 (checked fact after phase 18). |
 | A message type, channel, content type, or trace type name | `varchar(256)` | A longer name gives `Errors.Unavailable` on SQL Server (D178). |
 | An enum value | `varchar(32)` | The name of the value, for example `Pending`. |
-| A time | A UTC `DateTime` in the time type of the provider: `datetime2(7)` on SQL Server, text on SQLite | Both keep 100 ns. The store gives each time the kind UTC on a write and on a read, because a provider can refuse a time with no kind (D319). |
+| A time | A UTC `DateTime` in the time type of the provider: `datetime2(7)` on SQL Server, text on SQLite, `timestamptz` on PostgreSQL | SQL Server and SQLite keep 100 ns. PostgreSQL keeps microseconds, and Npgsql cuts a time down to the microsecond with an integer division, so a time never comes back later than it was. The store gives each time the kind UTC on a write and on a read, because a provider can refuse a time with no kind (D319). |
 | The claim token and the due time before the claim | `ClaimToken` as `char(36)`, and `ClaimedDueAtUtc` | The values of the last claim of a message (section 4.4). |
-| JSON | `nvarchar(max)` | `Content`, `Trace`, `Tries`, `DisabledChannels`, `Settings`, and `NamedUsers`. |
+| JSON | `nvarchar(max)` (`text` on PostgreSQL) | `Content`, `Trace`, `Tries`, `DisabledChannels`, `Settings`, and `NamedUsers`. |
 
-The collation of each text column comes from the option `TextCollation`, or else from the dialect of a provider package, or else from the database. The SQL Server package gives `Latin1_General_100_BIN2`, so an id or a name is case-sensitive and sorts in ordinal order. The default collation of SQLite, `BINARY`, is case-sensitive. A database with a case-insensitive default, for example SQL Server with `SQL_Latin1_General_CP1_CI_AS`, needs the option or a dialect.
+The collation of each text column comes from the option `TextCollation`, or else from the dialect of a provider package, or else from the database. The SQL Server package gives `Latin1_General_100_BIN2`, and the PostgreSQL package gives `C`, so an id or a name is case-sensitive and sorts in ordinal order. The default collation of SQLite, `BINARY`, is case-sensitive. A deterministic collation of PostgreSQL is case-sensitive too, but it can sort in another order than the ordinal order. A database with a case-insensitive default, for example SQL Server with `SQL_Latin1_General_CP1_CI_AS`, needs the option or a dialect.
 
 The indexes have the names of the model. The due indexes have no filter, so each provider can use them: `IX_MsgHatchInbox_Due` on `(Status, NextTryAtUtc, Sequence)` and `IX_MsgHatchOutbox_Due` on `(Channel, Status, NextTryAtUtc, Sequence)` (D104). `Sequence` is the last column, so the index gives the claim order. The other indexes are the indexes of section 3.1: the unique `(TenantId, Id)` of the inbox and `Id` of the outbox, `Flags`, `(TenantId, CreatedAtUtc, Id)`, `(TenantId, TargetKind, TargetId, CreatedAtUtc)`, and `SourceMessageId`.
 
@@ -412,6 +412,25 @@ WHERE [Sequence] IN (
 2. An `UPDATE` of a CTE with the `TOP` puts a sort under the `TOP` as the Halloween protection, because the statement changes the key of the index that it reads. The sort reads and locks each due row, so a parallel claim got only 0 to 3 of 5 rows (checked fact of phase 18).
 3. The status is a parameter. SQL Server cannot use a filtered index for a parameter, so a filtered due index made the subquery read each due row, and the parallel claim test failed some runs (checked fact of phase 48). The due index has no filter, and `Status` is a column of it.
 
+On PostgreSQL:
+
+```sql
+UPDATE "msghatch"."MsgHatchOutbox" AS claimed SET "ClaimedDueAtUtc" = due."NextTryAtUtc", "ClaimToken" = @claimToken,
+    "NextTryAtUtc" = @leaseUntilUtc, "LeaseUntilUtc" = @leaseUntilUtc
+FROM (
+    SELECT "Sequence", "NextTryAtUtc" FROM "msghatch"."MsgHatchOutbox"
+    WHERE "Status" = @pending AND "Channel" = @channel AND "NextTryAtUtc" <= @nowUtc
+    ORDER BY "NextTryAtUtc", "Sequence"
+    LIMIT @maxCount
+    FOR UPDATE SKIP LOCKED) AS due
+WHERE claimed."Sequence" = due."Sequence"
+RETURNING claimed.*
+```
+
+1. The subquery reads the due rows in the claim order, stops after `maxCount` rows, and locks them. `SKIP LOCKED` lets a parallel claim skip the locked rows and take the next due rows.
+2. The subquery gives the due time before the claim to `ClaimedDueAtUtc`, and `RETURNING` gives each column of each claimed row after the claim. `FromSqlRaw` runs the statement with no composition.
+3. When a parallel writer changed a locked candidate first, PostgreSQL checks the condition again on the new row, and the claim takes fewer rows.
+
 After each form:
 
 - The store sorts the claimed rows by `ClaimedDueAtUtc` and `Sequence`. The end of the lease is the next due time of a claimed message (D103).
@@ -449,7 +468,7 @@ The outbox claim first reads the latest state row of its channel. With a down ro
 
 A provider package implements `IEntityFrameworkStoreDialect` of the base package, and gives it to the contexts with `UseEntityFrameworkStoreDialect` in the provider setup of its setup method (D318):
 
-- `ProviderName`: the name of the EF Core provider that it serves, for example `Microsoft.EntityFrameworkCore.SqlServer`. The startup validation fails when the provider of a context has another name.
+- `ProviderName`: the name of the EF Core provider that it serves, for example `Microsoft.EntityFrameworkCore.SqlServer` or `Npgsql.EntityFrameworkCore.PostgreSQL`. The startup validation fails when the provider of a context has another name.
 - `TextCollation`: the default collation of the text columns, or null. The option `TextCollation` wins over it.
 - `ClaimStatement(ClaimStatementNames names)`: the claim statement of one message table, or null for the claim of the base package. `ClaimStatementNames` has the table with its schema, the columns, and the placeholders of the parameters, each quoted with the names of the EF Core model and `ISqlGenerationHelper`. The base package gives each parameter the type of its column, and runs the statement with `FromSqlRaw`. The statement sets the same columns as the claim of the base package, and returns each column of each claimed row with its values after the claim.
 
@@ -462,7 +481,7 @@ Only `MigrateMsgHatchAsync` of the base package changes the schema (D320). It ap
 - Each context has a history table of its own in the schema of the options, `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`, so the history of the host does not change. A history table that the host set in the provider setup stays.
 - EF Core 10 locks the database during `MigrateAsync`, so two hosts that start at the same time apply each migration one time. A second call changes nothing.
 - An optional `Action<DbContextOptionsBuilder>` runs on top of the setup of the stores, for example `o => o.UseSqlServer(migrationConnectionString)`. The migration then uses that connection, and the stores keep theirs. MsgHatch never logs a connection string.
-- `ScriptMsgHatchMigrationsAsync` gives an idempotent script of the migrations of each context. EF Core writes no idempotent script for SQLite.
+- `ScriptMsgHatchMigrationsAsync` gives an idempotent script of the migrations of each context. EF Core writes no idempotent script for SQLite. The script of PostgreSQL has no batch separator, and one command runs it.
 - With `RequireCurrentSchema`, the startup validation reads the history tables, and fails for the first migration that is not applied, with the names of the context and the migration.
 
 A provider package ships the migrations of its context, which the EF Core tools generate. A migration takes the schema and the collation of the options at run time:
@@ -476,6 +495,15 @@ dotnet ef migrations add Name --context MsgHatchDbContext --project src/MsgHatch
 dotnet ef migrations add Name --context MsgHatchSubscriptionDbContext --project src/MsgHatch.Subscriptions.Data.EFCore.SqlServer --startup-project tests/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration --output-dir Migrations
 ```
 
+A new migration of the PostgreSQL packages:
+
+```powershell
+dotnet ef migrations add Name --context MsgHatchDbContext --project src/MsgHatch.Data.EFCore.PostgreSql --startup-project tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration --output-dir Migrations
+dotnet ef migrations add Name --context MsgHatchSubscriptionDbContext --project src/MsgHatch.Subscriptions.Data.EFCore.PostgreSql --startup-project tests/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration --output-dir Migrations
+```
+
+The generator replaces each text literal of a dialect collation, `"Latin1_General_100_BIN2"` and `"C"`, with `TextCollation`. A generated migration has no other literal with one of these texts.
+
 - A file `.editorconfig` with `generated_code = true` in each folder `Migrations` stops the analyzers on the generated code.
 - The test "no pending model change" of each package fails when the model changes with no new migration.
 
@@ -486,8 +514,9 @@ For a provider with no MsgHatch package, the host generates the migrations of th
 - Each operation makes its own context through the pooled `IDbContextFactory` of its context, so the stores are thread-safe singletons (D130).
 - A provider that is not relational fails the startup validation of `UseEntityFrameworkStores` and of `UseEntityFrameworkSubscriptionStore` with an `OptionsValidationException` that names the setup method and the provider, and each store call gives `Errors.NotFound` (D175, D182).
 - A database failure gives `Errors.Unavailable`, a stored value that a person changed into an invalid value gives `Errors.SerializationFailed`, and a cancelled token gives `Errors.OperationCancelled`.
-- The base package references only `Microsoft.EntityFrameworkCore.Relational`, so the host adds the provider. The SQL Server package references `Microsoft.EntityFrameworkCore.SqlServer`. With version 10.0.15, it brings `Microsoft.Data.SqlClient` 6.1.7 and `System.Security.Cryptography.Pkcs` 10.0.13, which has no advisory (checked fact of phase 48).
-- The tests run the contract bases on SQLite (unit tests), on SQL Server with no dialect and the binary collation of the option, and on SQL Server with the dialect on a database of the migrations. The integration tests run on SQL Server 2025 CU7: on the server of `appsettings.Local.json`, for example the local container dev-mssql, or else in a container through Testcontainers (D180).
+- The base package references only `Microsoft.EntityFrameworkCore.Relational`, so the host adds the provider. The SQL Server package references `Microsoft.EntityFrameworkCore.SqlServer`. With version 10.0.15, it brings `Microsoft.Data.SqlClient` 6.1.7 and `System.Security.Cryptography.Pkcs` 10.0.13, which has no advisory (checked fact of phase 48). The PostgreSQL package references `Npgsql.EntityFrameworkCore.PostgreSQL`, 10.0.4 with Npgsql 10.0.4 in phase 49.
+- The tests run the contract bases on SQLite (unit tests), on SQL Server with no dialect and the binary collation of the option, on SQL Server with the dialect on a database of the migrations, on PostgreSQL with no dialect and the collation of the database, and on PostgreSQL with the dialect on a database of the migrations. The integration tests run on SQL Server 2025 CU7 and on PostgreSQL 18.7: on the servers of `appsettings.Local.json`, for example the local containers dev-mssql and dev-postgres, or else in containers through Testcontainers (D180).
+- PostgreSQL allows 100 connections by default, and Npgsql keeps a pool of up to 100 connections for each connection string. The test fixture gives each test database a pool of at most 10 connections. With the default pool, the parallel tests failed with the error 53300, "too many clients already" (checked fact of phase 49). A host with many connection strings on one server sets `Maximum Pool Size` in the same way.
 - The schema and the collation are a part of the options of each context. So two hosts with two schemas in one process get two models.
 
 ## 5. MongoDB stores
