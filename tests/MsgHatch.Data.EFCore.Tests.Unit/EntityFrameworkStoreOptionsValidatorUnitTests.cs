@@ -9,6 +9,8 @@ public sealed class EntityFrameworkStoreOptionsValidatorUnitTests
 
     private const string _textCollation = nameof(EntityFrameworkStoreOptions.TextCollation);
 
+    private const string _jsonColumnType = nameof(EntityFrameworkStoreOptions.JsonColumnType);
+
     public static TheoryData<string?, string[]> SchemaRows => new()
     {
         { null, [_schema] },
@@ -33,6 +35,21 @@ public sealed class EntityFrameworkStoreOptionsValidatorUnitTests
         { "", [_textCollation] },
         { "BIN2; DROP TABLE x", [_textCollation] },
         { "\"C\"", [_textCollation] },
+    };
+
+    public static TheoryData<string?, string[]> JsonColumnTypeRows => new()
+    {
+        { null, [] },
+        { "json", [] },
+        { "jsonb", [] },
+        { "nvarchar(max)", [] },
+        { "varchar(4000)", [] },
+        { "", [_jsonColumnType] },
+        { "json DROP", [_jsonColumnType] },
+        { "json; DROP TABLE x", [_jsonColumnType] },
+        { "\"json\"", [_jsonColumnType] },
+        { "1json", [_jsonColumnType] },
+        { "nvarchar(max", [_jsonColumnType] },
     };
 
     [Fact]
@@ -68,6 +85,20 @@ public sealed class EntityFrameworkStoreOptionsValidatorUnitTests
     {
         // Arrange
         var options = new EntityFrameworkStoreOptions { TextCollation = value };
+
+        // Act
+        var result = new EntityFrameworkStoreOptionsValidator().Validate(null, options);
+
+        // Assert
+        Assert.Equal(expectedFailedProperties, OptionsFailures.FailedProperties(result));
+    }
+
+    [Theory]
+    [MemberData(nameof(JsonColumnTypeRows))]
+    public void Validate_JsonColumnType_FailsWhenItIsNotTheNameOfAType(string? value, string[] expectedFailedProperties)
+    {
+        // Arrange
+        var options = new EntityFrameworkStoreOptions { JsonColumnType = value };
 
         // Act
         var result = new EntityFrameworkStoreOptionsValidator().Validate(null, options);

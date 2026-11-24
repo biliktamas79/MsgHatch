@@ -18,6 +18,8 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
 
     private readonly string? _textCollation;
 
+    private readonly string? _jsonColumnType;
+
     /// <summary>Makes the context. <c>UseEntityFrameworkSubscriptionStore</c> registers a pooled factory of it.</summary>
     /// <param name="options">The options of the context.</param>
     public MsgHatchSubscriptionDbContext(DbContextOptions<MsgHatchSubscriptionDbContext> options)
@@ -26,6 +28,7 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
         var storeOptions = StoreOptionsExtension.Of(options);
         _schema = storeOptions.Schema;
         _textCollation = storeOptions.TextCollation;
+        _jsonColumnType = storeOptions.JsonColumnType;
     }
 
     internal DbSet<SubscriptionRow> Subscriptions => Set<SubscriptionRow>();
@@ -39,7 +42,8 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         modelBuilder.HasDefaultSchema(_schema);
-        modelBuilder.Entity<SubscriptionRow>(static subscription =>
+        var jsonColumnType = _jsonColumnType;
+        modelBuilder.Entity<SubscriptionRow>(subscription =>
         {
             subscription.ToTable("Subscription");
             subscription.HasKey(static row => row.Id);
@@ -52,6 +56,8 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
             subscription.Property(static row => row.Kind).IsEnum();
             subscription.Property(static row => row.Channel).IsName();
             subscription.Property(static row => row.SettingsType).IsName();
+            subscription.Property(static row => row.Settings).IsJson(jsonColumnType);
+            subscription.Property(static row => row.NamedUsers).IsJson(jsonColumnType);
             subscription.Property(static row => row.Recipients).IsEnum();
             subscription.HasIndex(static row => new { row.TenantId, row.MessageType, row.Level, row.CompanyId, row.UserId, row.Channel, row.Recipients })
                 .IsUnique()

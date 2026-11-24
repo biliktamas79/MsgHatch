@@ -32,6 +32,10 @@ services.AddMsgHatch()
         sql => sql.EnableRetryOnFailure());
 ```
 
+## JSON columns
+
+The JSON columns stay `nvarchar(max)`, because the type `json` needs SQL Server 2025 or Azure SQL. A host on such a server selects it with the option `JsonColumnType`, for example `o => o.JsonColumnType = "json"`. Then SQL Server checks each write of a document. The migrations of the package take the type of the option at run time.
+
 ## Errors
 
 The dialect gives `Errors.Rejected` for a missing permission or a failed login (the numbers 229, 230, 262, and 18456), and `Errors.ValidationFailed` for a missing table or column and for a value that is too long (207, 208, 2628, and 8152). So the dispatcher does not retry these errors. Each other database failure stays `Errors.Unavailable`. A classifier of the host comes before the dialect, for example a classifier that rejects a write to a read-only database:
@@ -94,6 +98,7 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ### 0.5.0 (2026-11-24)
 
+- The option `JsonColumnType = "json"` gives the JSON columns the type `json` of SQL Server 2025 and Azure SQL. With no option, they stay `nvarchar(max)`. Breaking: a JSON column has no collation.
 - Breaking: the dialect gives `Errors.Rejected` for a missing permission or a failed login, and `Errors.ValidationFailed` for a missing table or column and for a value that is too long, not `Errors.Unavailable`. So the dispatcher does not retry these errors.
 - Breaking: the tables, the indexes, and the history table drop the prefix `MsgHatch`, because the schema of the options keeps them apart from the tables of the host: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, `MessageTypeEntry`, `IX_Outbox_Due`, and `__StoreMigrations`. The SQLite and MongoDB stores keep the prefix. The `Initial` migration of the package creates the new names.
 

@@ -25,6 +25,13 @@ public interface IEntityFrameworkStoreDialect
     string? TextCollation { get; }
 
     /// <summary>
+    /// The type of each JSON column, for example <c>json</c>, or null for the text type of the provider (D323).
+    /// <see cref="EntityFrameworkStoreOptions.JsonColumnType"/> wins over it. The default gives null, so a dialect of a host
+    /// still compiles.
+    /// </summary>
+    string? JsonColumnType => null;
+
+    /// <summary>
     /// Gives the claim statement of one message table, or null for the claim of the base package: a LINQ read of the
     /// due candidates and one <c>ExecuteUpdate</c> with a claim token. The base package runs the statement with
     /// <c>FromSqlRaw</c> and the parameters of <paramref name="names"/>.

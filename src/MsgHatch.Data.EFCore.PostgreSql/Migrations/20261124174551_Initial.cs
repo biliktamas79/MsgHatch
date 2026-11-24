@@ -81,7 +81,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                     ContentVersion = table.Column<int>(type: "integer", nullable: false),
                     Flags = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: false, collation: TextCollation),
                     TraceParent = table.Column<string>(type: "text", nullable: true, collation: TextCollation),
-                    Content = table.Column<string>(type: "text", nullable: false, collation: TextCollation)
+                    Content = table.Column<string>(type: JsonColumnType, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -97,7 +97,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                     DisplayName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true, collation: TextCollation),
                     Description = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true, collation: TextCollation),
                     Enabled = table.Column<bool>(type: "boolean", nullable: false),
-                    DisabledChannels = table.Column<string>(type: "text", nullable: false, collation: TextCollation),
+                    DisabledChannels = table.Column<string>(type: JsonColumnType, nullable: false),
                     Revision = table.Column<int>(type: "integer", nullable: false),
                     LastModifiedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
@@ -119,8 +119,8 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                     TargetKind = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: false, collation: TextCollation),
                     TargetId = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false, collation: TextCollation),
                     TraceType = table.Column<string>(type: "character varying(256)", unicode: false, maxLength: 256, nullable: true, collation: TextCollation),
-                    Trace = table.Column<string>(type: "text", nullable: true, collation: TextCollation),
-                    Tries = table.Column<string>(type: "text", nullable: false, collation: TextCollation),
+                    Trace = table.Column<string>(type: JsonColumnType, nullable: true),
+                    Tries = table.Column<string>(type: JsonColumnType, nullable: false),
                     TenantId = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false, collation: TextCollation),
                     Id = table.Column<string>(type: "character(36)", unicode: false, fixedLength: true, maxLength: 36, nullable: true, collation: TextCollation),
                     Status = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: false, collation: TextCollation),
@@ -139,7 +139,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                     ContentVersion = table.Column<int>(type: "integer", nullable: false),
                     Flags = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: false, collation: TextCollation),
                     TraceParent = table.Column<string>(type: "text", nullable: true, collation: TextCollation),
-                    Content = table.Column<string>(type: "text", nullable: false, collation: TextCollation)
+                    Content = table.Column<string>(type: JsonColumnType, nullable: false)
                 },
                 constraints: table =>
                 {

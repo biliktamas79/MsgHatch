@@ -23,7 +23,7 @@ public sealed class SqlServerDesignTimeContexts : IDesignTimeDbContextFactory<Ms
 {
     public MsgHatchDbContext CreateDbContext(string[] args)
     {
-        var services = TestHost.CreateServices();
+        var services = TestHost.CreateServices(configuration: StoreMigrationsCodeGenerator.DesignTimeOptions);
         services.AddMsgHatch().UseEntityFrameworkSqlServerStores("Server=localhost;Database=msghatch-design-time;Integrated Security=true");
         return services.Build().GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContext();
     }

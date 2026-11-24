@@ -32,6 +32,13 @@ public sealed class MsgHatchDbContextUnitTests
         { "other", "other" },
     };
 
+    public static TheoryData<string, string?, string?, string> JsonColumnTypeRows => new()
+    {
+        { "the text type of the provider with no option and no dialect", null, null, "TEXT" },
+        { "the JSON type of the dialect", null, "json", "json" },
+        { "the option over the dialect", "jsonb", "json", "jsonb" },
+    };
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static string[] TablesOf(DbContext context)
@@ -43,7 +50,8 @@ public sealed class MsgHatchDbContextUnitTests
 
     [Theory]
     [MemberData(nameof(CollationRows))]
-    public async Task Model_TextCollation_IsTheCollationOfEachTextColumn(string row, string? option, string? dialectCollation, string? expected)
+    public async Task Model_TextCollation_IsTheCollationOfEachTextColumnAndNoJsonColumn(
+        string row, string? option, string? dialectCollation, string? expected)
     {
         // Arrange
         var services = TestHost.CreateServices();
@@ -55,10 +63,13 @@ public sealed class MsgHatchDbContextUnitTests
 
         // Act
         var collations = context.GetService<IDesignTimeModel>().Model.GetEntityTypes().SelectMany(static type => type.GetProperties())
-            .Where(static property => property.ClrType == typeof(string)).Select(static property => property.GetCollation()).Distinct();
+            .Where(static property => property.ClrType == typeof(string))
+            .Select(property => $"{row}: {(property.Name is "Content" or "Trace" or "Tries" or "DisabledChannels" ? "JSON" : "text")} {property.GetCollation()}")
+            .Distinct()
+            .Order(StringComparer.Ordinal);
 
         // Assert
-        Assert.Equal((row, expected), (row, Assert.Single(collations)));
+        Assert.Equal([$"{row}: JSON ", $"{row}: text {expected}"], collations);
     }
 
     [Theory]
@@ -78,6 +89,34 @@ public sealed class MsgHatchDbContextUnitTests
         Assert.Equal(
             [$"{schema}.ChannelEntry", $"{schema}.ChannelState", $"{schema}.Inbox", $"{schema}.MessageTypeEntry", $"{schema}.Outbox", $"{schema}.__StoreMigrations"],
             tables);
+    }
+
+    [Theory]
+    [MemberData(nameof(JsonColumnTypeRows))]
+    public async Task Model_JsonColumnType_IsTheTypeOfEachJsonColumnOnly(string row, string? option, string? dialectType, string expected)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseEntityFrameworkStores(
+            o => _ = dialectType is null
+                ? o.UseSqlite(_connectionString)
+                : o.UseSqlite(_connectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(jsonColumnType: dialectType)),
+            o => o.JsonColumnType = option);
+        await using var provider = services.Build();
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+
+        // Act
+        var types = context.GetService<IDesignTimeModel>().Model.GetEntityTypes()
+            .SelectMany(static type => type.GetProperties().Select(property => (Table: type.GetTableName(), property.Name, Type: property.GetColumnType())))
+            .Where(static column => column.Name is "Content" or "Trace" or "Tries" or "DisabledChannels" or "LastError")
+            .Select(column => $"{row}: {column.Table}.{column.Name} {column.Type}")
+            .Order(StringComparer.Ordinal);
+
+        // Assert
+        Assert.Equal(
+            [$"{row}: Inbox.Content {expected}", $"{row}: Inbox.LastError TEXT", $"{row}: MessageTypeEntry.DisabledChannels {expected}",
+                $"{row}: Outbox.Content {expected}", $"{row}: Outbox.LastError TEXT", $"{row}: Outbox.Trace {expected}", $"{row}: Outbox.Tries {expected}"],
+            types);
     }
 
     [Fact]

@@ -78,8 +78,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
                         .UseCollation(TextCollation);
 
                     b.Property<string>("NamedUsers")
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("Recipients")
                         .IsRequired()
@@ -92,8 +91,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Settings")
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("SettingsType")
                         .HasMaxLength(256)

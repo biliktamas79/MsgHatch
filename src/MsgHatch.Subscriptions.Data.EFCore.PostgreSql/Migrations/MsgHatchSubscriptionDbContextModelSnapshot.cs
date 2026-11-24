@@ -78,8 +78,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
                         .UseCollation(TextCollation);
 
                     b.Property<string>("NamedUsers")
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("Recipients")
                         .IsRequired()
@@ -92,8 +91,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Settings")
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("SettingsType")
                         .HasMaxLength(256)

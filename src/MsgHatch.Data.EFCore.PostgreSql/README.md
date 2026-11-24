@@ -34,6 +34,10 @@ services.AddMsgHatch()
         npgsql => npgsql.EnableRetryOnFailure());
 ```
 
+## JSON columns
+
+The dialect gives each JSON column the type `json`, which checks each write and keeps the text unchanged. The dialect does not give `jsonb`, because `jsonb` changes the order of the keys and drops duplicate keys, so an event type of a host that needs `$type` as the first key can fail to read. A host selects `jsonb` with the option `JsonColumnType`, for example `o => o.JsonColumnType = "jsonb"`. The stores write a document one time and read it whole, so `text` is faster: `json` parses each write, and `jsonb` also converts each read.
+
 ## Errors
 
 The dialect gives `Errors.Rejected` for a missing permission or a failed login (the states `42501`, `28000`, and `28P01`), and `Errors.ValidationFailed` for a missing table or column and for a value that is too long (`42P01`, `42703`, and `22001`). So the dispatcher does not retry these errors. Each other database failure stays `Errors.Unavailable`. A classifier of the host comes before the dialect, for example a classifier that rejects a write to a read-only database:
@@ -94,6 +98,7 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ### 0.5.0 (2026-11-24)
 
+- Breaking: each JSON column is `json`, not `text`, so a write of invalid JSON fails. A JSON column has no collation. The option `JsonColumnType` selects another type, for example `jsonb`.
 - Breaking: the dialect gives `Errors.Rejected` for a missing permission or a failed login, and `Errors.ValidationFailed` for a missing table or column and for a value that is too long, not `Errors.Unavailable`. So the dispatcher does not retry these errors.
 - Breaking: the tables, the indexes, and the history table drop the prefix `MsgHatch`, because the schema of the options keeps them apart from the tables of the host: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, `MessageTypeEntry`, `IX_Outbox_Due`, and `__StoreMigrations`. The SQLite and MongoDB stores keep the prefix. The `Initial` migration of the package creates the new names.
 

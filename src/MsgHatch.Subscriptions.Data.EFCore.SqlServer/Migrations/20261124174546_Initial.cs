@@ -32,9 +32,9 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
                     Channel = table.Column<string>(type: "varchar(256)", unicode: false, maxLength: 256, nullable: false, collation: TextCollation),
                     SettingsType = table.Column<string>(type: "varchar(256)", unicode: false, maxLength: 256, nullable: true, collation: TextCollation),
                     SettingsVersion = table.Column<int>(type: "int", nullable: true),
-                    Settings = table.Column<string>(type: "nvarchar(max)", nullable: true, collation: TextCollation),
+                    Settings = table.Column<string>(type: JsonColumnType, nullable: true),
                     Recipients = table.Column<string>(type: "varchar(32)", unicode: false, maxLength: 32, nullable: false, collation: TextCollation),
-                    NamedUsers = table.Column<string>(type: "nvarchar(max)", nullable: true, collation: TextCollation),
+                    NamedUsers = table.Column<string>(type: JsonColumnType, nullable: true),
                     Mandatory = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
                     LastModifiedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)

@@ -13,8 +13,10 @@ namespace MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 /// <param name="textCollation">The default collation, or null.</param>
 /// <param name="hasClaimStatement">Whether the dialect gives a claim statement.</param>
 /// <param name="errorType">The error type of each database exception, or null for the built-in mapping.</param>
+/// <param name="jsonColumnType">The type of the JSON columns, or null for the text type of the provider.</param>
 public sealed class SqliteTestDialect(
-    string providerName = SqliteTestDialect.SqliteProvider, string? textCollation = null, bool hasClaimStatement = true, ErrorType? errorType = null)
+    string providerName = SqliteTestDialect.SqliteProvider, string? textCollation = null, bool hasClaimStatement = true, ErrorType? errorType = null,
+    string? jsonColumnType = null)
     : IEntityFrameworkStoreDialect
 {
     public const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
@@ -24,6 +26,8 @@ public sealed class SqliteTestDialect(
     public string ProviderName { get; } = providerName;
 
     public string? TextCollation { get; } = textCollation;
+
+    public string? JsonColumnType { get; } = jsonColumnType;
 
     public int ClaimStatements => _claimStatements;
 

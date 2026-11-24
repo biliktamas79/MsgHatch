@@ -8,8 +8,9 @@ namespace MsgHatch.Data.EFCore.Model;
 /// The column rules of the EF Core stores (section 4.5, D178, D318, D319), which the subscription store shares: each
 /// time is a UTC <see cref="DateTime"/> in the time type of the provider, each text column has the collation of the
 /// options, or else of the dialect, or else of the database, an id is <c>nvarchar(256)</c>, a name is
-/// <c>varchar(256)</c>, a <see cref="Guid"/> is <c>char(36)</c> in the format <c>D</c>, and an enum value is
-/// <c>varchar(32)</c>. The model has no provider name.
+/// <c>varchar(256)</c>, a <see cref="Guid"/> is <c>char(36)</c> in the format <c>D</c>, an enum value is
+/// <c>varchar(32)</c>, and a JSON column has the JSON type of the options or the dialect, or else the text type of the
+/// provider (D323). The model has no provider name.
 /// </summary>
 internal static class StoreModel
 {
@@ -35,6 +36,15 @@ internal static class StoreModel
         property.HasMaxLength(36).IsUnicode(false).IsFixedLength();
 
     public static PropertyBuilder<string> IsEnum(this PropertyBuilder<string> property) => property.HasMaxLength(32).IsUnicode(false);
+
+    /// <summary>
+    /// A JSON column gets no collation, because no query compares or sorts a document, and PostgreSQL refuses a collation
+    /// on <c>json</c> with the error 42804.
+    /// </summary>
+    /// <param name="property">A JSON column.</param>
+    /// <param name="jsonColumnType">The JSON type of the options or the dialect, or null for the text type of the provider.</param>
+    public static PropertyBuilder<TText> IsJson<TText>(this PropertyBuilder<TText> property, string? jsonColumnType) =>
+        (jsonColumnType is null ? property : property.HasColumnType(jsonColumnType)).UseCollation(null);
 
     /// <summary>
     /// A provider can refuse a time with no kind, and a database keeps no kind of a time. So each time gets the kind UTC on

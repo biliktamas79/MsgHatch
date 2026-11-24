@@ -29,6 +29,15 @@ public sealed class EntityFrameworkStoreOptions
     public string? TextCollation { get; set; }
 
     /// <summary>
+    /// The type of each JSON column, for example <c>json</c>, <c>jsonb</c>, or <c>nvarchar(max)</c> (D323). With no value,
+    /// the type comes from the dialect of the provider package, or else it is the text type of the provider. It starts with
+    /// an ASCII letter, contains only ASCII letters, digits, and <c>_</c>, and can end with a size in parentheses.
+    /// </summary>
+    [MinLength(1)]
+    [RegularExpression(@"^[A-Za-z][A-Za-z0-9_]*(\([A-Za-z0-9]+\))?$")]
+    public string? JsonColumnType { get; set; }
+
+    /// <summary>
     /// Whether the start of the host fails when a migration of a MsgHatch context is not applied (D320). The check reads
     /// only the history tables of the migrations, so it needs no right to change the schema.
     /// </summary>

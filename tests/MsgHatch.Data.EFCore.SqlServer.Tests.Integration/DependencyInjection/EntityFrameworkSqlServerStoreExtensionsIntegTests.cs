@@ -192,6 +192,34 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
                 Ct));
     }
 
+    [Theory]
+    [InlineData(null, "nvarchar")]
+    [InlineData("json", "json")]
+    public async Task MigrateMsgHatchAsync_JsonColumnTypeOfTheOption_IsTheTypeOfEachJsonColumnWithNoPendingModelChange(string? option, string expected)
+    {
+        // Arrange
+        var database = server.Database($"json_{expected}");
+        await using var provider = MigratedStores.Build(database.ConnectionString, o => o.JsonColumnType = option);
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+
+        // Act
+        await provider.MigrateMsgHatchAsync(ct: Ct);
+
+        // Assert
+        Assert.Equal(
+            [["Inbox.Content", expected], ["Inbox.LastError", "nvarchar"],
+                ["MessageTypeEntry.DisabledChannels", expected], ["Outbox.Content", expected], ["Outbox.LastError", "nvarchar"], ["Outbox.Trace", expected],
+                ["Outbox.Tries", expected]],
+            await database.RowsAsync(
+                """
+                SELECT TABLE_NAME + '.' + COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = 'msghatch' AND COLUMN_NAME IN ('Content', 'Trace', 'Tries', 'DisabledChannels', 'LastError')
+                ORDER BY TABLE_NAME + '.' + COLUMN_NAME COLLATE Latin1_General_100_BIN2
+                """,
+                Ct));
+        Assert.False(context.Database.HasPendingModelChanges());
+    }
+
     [Fact]
     public async Task Stores_DatabaseWithNoMigrations_GiveValidationFailed()
     {

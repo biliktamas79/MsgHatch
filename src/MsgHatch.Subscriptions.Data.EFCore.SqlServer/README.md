@@ -39,6 +39,7 @@ await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
 
 ### 0.5.0 (2026-11-24)
 
+- The option `JsonColumnType = "json"` gives the columns `Settings` and `NamedUsers` the type `json` of SQL Server 2025 and Azure SQL. With no option, they stay `nvarchar(max)`. Breaking: a JSON column has no collation.
 - Breaking: the table, the index, and the history table drop the prefix `MsgHatch`: `Subscription`, `UX_Subscription_Owner`, and `__SubscriptionMigrations`. The SQLite and MongoDB stores keep the prefix. The `Initial` migration of the package creates the new names.
 
 ### 0.3.0 (2026-11-24)

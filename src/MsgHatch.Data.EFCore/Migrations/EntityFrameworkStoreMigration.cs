@@ -17,5 +17,9 @@ public abstract class EntityFrameworkStoreMigration : Migration
     /// <summary>The collation of the text columns of the options or of the dialect, or null for the collation of the database.</summary>
     protected string? TextCollation { get; private set; }
 
-    internal void UseOptions(StoreOptionsExtension options) => (Schema, TextCollation) = (options.Schema, options.TextCollation);
+    /// <summary>The type of the JSON columns of the options or of the dialect, or null for the text type of the provider.</summary>
+    protected string? JsonColumnType { get; private set; }
+
+    internal void UseOptions(StoreOptionsExtension options) =>
+        (Schema, TextCollation, JsonColumnType) = (options.Schema, options.TextCollation, options.JsonColumnType);
 }

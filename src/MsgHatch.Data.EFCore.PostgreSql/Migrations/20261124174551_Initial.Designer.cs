@@ -14,7 +14,7 @@ using MsgHatch.Data.EFCore.Migrations;
 namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 {
     [DbContext(typeof(MsgHatchDbContext))]
-    [Migration("20261124171348_Initial")]
+    [Migration("20261124174551_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -106,8 +106,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -223,8 +222,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -317,8 +315,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Trace")
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("TraceParent")
                         .HasColumnType("text")
@@ -332,8 +329,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("Tries")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<int>("TryCount")
                         .HasColumnType("integer");
@@ -409,8 +405,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("DisabledChannels")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("DisplayName")
                         .HasMaxLength(200)

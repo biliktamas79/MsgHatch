@@ -203,6 +203,52 @@ public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSq
         Assert.Equal(Errors.ValidationFailed, error?.Type);
     }
 
+    [Theory]
+    [InlineData(null, "json")]
+    [InlineData("jsonb", "jsonb")]
+    public async Task MigrateMsgHatchAsync_JsonColumnTypeOfTheDialectOrTheOption_IsTheTypeOfEachJsonColumnWithNoPendingModelChange(
+        string? option, string expected)
+    {
+        // Arrange
+        var database = server.Database($"json_{expected}");
+        await using var provider = MigratedStores.Build(database.ConnectionString, o => o.JsonColumnType = option);
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+
+        // Act
+        await provider.MigrateMsgHatchAsync(ct: Ct);
+
+        // Assert
+        Assert.Equal(
+            [["Inbox.Content", expected], ["Inbox.LastError", "text"], ["MessageTypeEntry.DisabledChannels", expected],
+                ["Outbox.Content", expected], ["Outbox.LastError", "text"], ["Outbox.Trace", expected], ["Outbox.Tries", expected]],
+            await database.RowsAsync(
+                """
+                SELECT table_name || '.' || column_name, data_type FROM information_schema.columns
+                WHERE table_schema = 'msghatch' AND column_name IN ('Content', 'Trace', 'Tries', 'DisabledChannels', 'LastError')
+                ORDER BY table_name || '.' || column_name COLLATE "C"
+                """,
+                Ct));
+        Assert.False(context.Database.HasPendingModelChanges());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_InvalidJsonInTheContentOfTheDialect_FailsWithTheStateOfInvalidText()
+    {
+        // Arrange
+        var database = MigratedStores.Of(server, "json_invalid");
+        await database.ResetAsync(Ct);
+        var store = new EntityFrameworkInboxStore(MigratedStores.ContextsOf(database), new MsgHatchJson(TestContentTypes.ARegistry()));
+        var message = TestMessages.AReceivedMessage(new TestEvent("text"));
+        await store.For(TenantKey.None).AddAsync(message, Ct);
+
+        // Act
+        var exception = await Record.ExceptionAsync(
+            () => database.ExecuteAsync($$"""UPDATE "msghatch"."Inbox" SET "Content" = '{ not json' WHERE "Id" = '{{message.Delivery.Id:D}}'""", Ct));
+
+        // Assert
+        Assert.Equal(PostgresErrorCodes.InvalidTextRepresentation, Assert.IsType<PostgresException>(exception).SqlState);
+    }
+
     [Fact]
     public async Task MigrateMsgHatchAsync_CollationOfTheDialect_KeepsTwoTenantsThatDifferOnlyInCaseApart()
     {

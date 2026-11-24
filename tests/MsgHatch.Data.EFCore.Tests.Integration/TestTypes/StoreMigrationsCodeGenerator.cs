@@ -8,16 +8,20 @@ using MsgHatch.Data.EFCore.SqlServer;
 namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 
 /// <summary>
-/// The C# generator of the migrations of a provider package (D320). The EF Core tools write the schema and the collation
-/// of the design time into the code. This generator writes <c>Schema</c> and <c>TextCollation</c> of
-/// <see cref="EntityFrameworkStoreMigration"/> and <see cref="EntityFrameworkStoreModelSnapshot"/> in their place, so
-/// each migration takes the schema and the collation of the options at run time. The classes are internal, so they are
+/// The C# generator of the migrations of a provider package (D320, D323). The EF Core tools write the schema, the
+/// collation, and the JSON type of the design time into the code. This generator writes <c>Schema</c>,
+/// <c>TextCollation</c>, and <c>JsonColumnType</c> of <see cref="EntityFrameworkStoreMigration"/> and
+/// <see cref="EntityFrameworkStoreModelSnapshot"/> in their place, so each migration takes the schema, the collation,
+/// and the JSON type of the options at run time. The design-time contexts set the JSON type <c>json</c> of
+/// <see cref="DesignTimeOptions"/>, which no other column has, so the literal marks only the JSON columns. The classes are internal, so they are
 /// not a part of the public API of the package.
 /// </summary>
 public sealed class StoreMigrationsCodeGenerator(
     MigrationsCodeGeneratorDependencies dependencies, CSharpMigrationsGeneratorDependencies csharpDependencies)
     : CSharpMigrationsGenerator(dependencies, csharpDependencies)
 {
+    private const string _designTimeJsonColumnType = "json";
+
     private static readonly string[] _dialectCollations =
         [SqlServerStoreDialect.Instance.TextCollation!, PostgreSqlStoreDialect.Instance.TextCollation!];
 
@@ -37,9 +41,14 @@ public sealed class StoreMigrationsCodeGenerator(
 
     private const string _baseNamespace = "using MsgHatch.Data.EFCore.Migrations;";
 
+    /// <summary>The configuration of a design-time context: the JSON type that the generator replaces.</summary>
+    public static IReadOnlyDictionary<string, string?> DesignTimeOptions { get; } =
+        new Dictionary<string, string?> { [$"{EntityFrameworkStoreOptions.SectionName}:{nameof(EntityFrameworkStoreOptions.JsonColumnType)}"] = _designTimeJsonColumnType };
+
     private static string WithStoreOptions(string code) =>
         WithBaseNamespace(_dialectCollations.Aggregate(
             code.Replace($"\"{EntityFrameworkStoreOptions.DefaultSchema}\"", "Schema", StringComparison.Ordinal)
+                .Replace($"\"{_designTimeJsonColumnType}\"", "JsonColumnType", StringComparison.Ordinal)
                 .Replace("public partial class", "internal partial class", StringComparison.Ordinal),
             static (text, collation) => text.Replace($"\"{collation}\"", "TextCollation", StringComparison.Ordinal)));
 

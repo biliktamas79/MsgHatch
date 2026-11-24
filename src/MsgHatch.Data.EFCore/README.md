@@ -65,6 +65,10 @@ A claim takes the due messages in the order of their due time, and then in the o
 
 An id of a tenant, a company, or a user is case-sensitive, so `t1` and `T1` are two tenants. Use a case-sensitive collation of the text columns: the option `TextCollation` sets it, or else the dialect of a provider package, or else the database. The default collation of SQLite, `BINARY`, is case-sensitive.
 
+## JSON columns
+
+The columns `Content`, `Trace`, `Tries`, and `DisabledChannels` hold JSON documents. Their type comes from the option `JsonColumnType`, or else from the dialect of a provider package, or else it is the text type of the provider. The PostgreSQL package gives `json`, which checks each write. The SQL Server package keeps `nvarchar(max)`, because the type `json` needs SQL Server 2025 or Azure SQL. The stores keep the JSON work in C#, and a JSON column has no collation, because no query compares or sorts a document.
+
 ## Errors
 
 A store gives each failure as an `Error` value. It classifies an exception in this order, and the first result that is not null wins:
@@ -120,6 +124,7 @@ A provider package implements `IEntityFrameworkStoreDialect` of the namespace `M
 |---|---|---|---|
 | `Schema` | `string` | `msghatch` | Required. The database schema of the tables. It starts with an ASCII letter or `_`, and contains only ASCII letters, digits, and `_`. |
 | `TextCollation` | `string?` | the collation of the dialect, or else of the database | The collation of each text column, so of each id and name, for example `Latin1_General_100_BIN2`. Only ASCII letters, digits, `_`, `.`, and `-`. |
+| `JsonColumnType` | `string?` | the JSON type of the dialect, or else the text type of the provider | The type of each JSON column, for example `json`, `jsonb`, or `nvarchar(max)`. It starts with an ASCII letter, contains only ASCII letters, digits, and `_`, and can end with a size in parentheses. |
 | `RequireCurrentSchema` | `bool` | `false` | The start of the host fails when a migration of a MsgHatch context is not applied. |
 
 [//]: # (snippet: options)
@@ -138,6 +143,7 @@ A provider package implements `IEntityFrameworkStoreDialect` of the namespace `M
 
 ### 0.5.0 (2026-11-24)
 
+- Breaking: the JSON columns get the type of the new option `JsonColumnType`, or else the new default property `JsonColumnType` of `IEntityFrameworkStoreDialect`, or else the text type of the provider. A JSON column has no collation. `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` get the property `JsonColumnType`, which a migration of a provider package uses in place of the type of the design time.
 - Breaking: `IEntityFrameworkStoreDialect` gets the default method `ErrorTypeOf`. The stores ask the classifiers `IExceptionClassifier<MsgHatchDbContext>` of the host, then the dialect, and then the built-in mapping. The constructors of the stores get the optional parameter `classifiers`, and the setup method gives them the registered classifiers.
 - Breaking: the tables, the indexes, and the history table drop the prefix `MsgHatch`, because the schema of the options keeps them apart from the tables of the host: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, `MessageTypeEntry`, `IX_Outbox_Due`, and `__StoreMigrations`. The SQLite and MongoDB stores keep the prefix. A host with migrations of its own makes them again.
 - Breaking: the API of a provider package moves into its own namespaces. `IEntityFrameworkStoreDialect`, `EntityFrameworkStoreDialectExtensions`, and `ClaimStatementNames` are in `MsgHatch.Data.EFCore.Providers`, and `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` are in `MsgHatch.Data.EFCore.Migrations`. A host that uses only the stores, the options, and `MsgHatchDbContext` needs no change.

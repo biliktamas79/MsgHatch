@@ -20,6 +20,8 @@ public sealed class MsgHatchDbContext : DbContext
 
     private readonly string? _textCollation;
 
+    private readonly string? _jsonColumnType;
+
     /// <summary>Makes the context. <c>UseEntityFrameworkStores</c> registers a pooled factory of it.</summary>
     /// <param name="options">The options of the context.</param>
     public MsgHatchDbContext(DbContextOptions<MsgHatchDbContext> options)
@@ -28,6 +30,7 @@ public sealed class MsgHatchDbContext : DbContext
         var storeOptions = StoreOptionsExtension.Of(options);
         _schema = storeOptions.Schema;
         _textCollation = storeOptions.TextCollation;
+        _jsonColumnType = storeOptions.JsonColumnType;
     }
 
     internal DbSet<InboxRow> Inbox => Set<InboxRow>();
@@ -49,21 +52,24 @@ public sealed class MsgHatchDbContext : DbContext
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         modelBuilder.HasDefaultSchema(_schema);
-        modelBuilder.Entity<InboxRow>(static inbox =>
+        var jsonColumnType = _jsonColumnType;
+        modelBuilder.Entity<InboxRow>(inbox =>
         {
-            Message(inbox, "Inbox");
+            Message(inbox, "Inbox", jsonColumnType);
             inbox.HasIndex(static row => new { row.TenantId, row.Id }).IsUnique().HasDatabaseName("UX_Inbox_Key");
             inbox.HasIndex(static row => new { row.Status, row.NextTryAtUtc, row.Sequence }).HasDatabaseName("IX_Inbox_Due");
         });
-        modelBuilder.Entity<OutboxRow>(static outbox =>
+        modelBuilder.Entity<OutboxRow>(outbox =>
         {
-            Message(outbox, "Outbox");
+            Message(outbox, "Outbox", jsonColumnType);
             outbox.Property(static row => row.SourceMessageId).IsGuid();
             outbox.Property(static row => row.MessageType).IsName();
             outbox.Property(static row => row.Channel).IsName();
             outbox.Property(static row => row.TargetKind).IsEnum();
             outbox.Property(static row => row.TargetId).IsId();
             outbox.Property(static row => row.TraceType).IsName();
+            outbox.Property(static row => row.Trace).IsJson(jsonColumnType);
+            outbox.Property(static row => row.Tries).IsJson(jsonColumnType);
             outbox.HasIndex(static row => row.Id).IsUnique().HasDatabaseName("UX_Outbox_Id");
             outbox.HasIndex(static row => new { row.Channel, row.Status, row.NextTryAtUtc, row.Sequence }).HasDatabaseName("IX_Outbox_Due");
             outbox.HasIndex(static row => new { row.TenantId, row.TargetKind, row.TargetId, row.CreatedAtUtc })
@@ -89,17 +95,18 @@ public sealed class MsgHatchDbContext : DbContext
             entry.Property(static row => row.DisplayName).HasMaxLength(200);
             entry.Property(static row => row.Description).HasMaxLength(2000);
         });
-        modelBuilder.Entity<MessageTypeEntryRow>(static entry =>
+        modelBuilder.Entity<MessageTypeEntryRow>(entry =>
         {
             entry.ToTable("MessageTypeEntry");
             entry.HasKey(static row => row.Type);
             entry.Property(static row => row.Type).IsName();
+            entry.Property(static row => row.DisabledChannels).IsJson(jsonColumnType);
             entry.Property(static row => row.DisplayName).HasMaxLength(200);
             entry.Property(static row => row.Description).HasMaxLength(2000);
         });
     }
 
-    private static void Message<TRow>(EntityTypeBuilder<TRow> message, string table)
+    private static void Message<TRow>(EntityTypeBuilder<TRow> message, string table, string? jsonColumnType)
         where TRow : MessageRow
     {
         message.ToTable(table);
@@ -110,6 +117,7 @@ public sealed class MsgHatchDbContext : DbContext
         message.Property(static row => row.ClaimToken).IsGuid();
         message.Property(static row => row.ContentType).IsName();
         message.Property(static row => row.Flags).IsEnum();
+        message.Property(static row => row.Content).IsJson(jsonColumnType);
         message.HasIndex(static row => row.Flags).HasDatabaseName($"IX_{table}_Flags");
         message.HasIndex(static row => new { row.TenantId, row.CreatedAtUtc, row.Id }).HasDatabaseName($"IX_{table}_Created");
     }

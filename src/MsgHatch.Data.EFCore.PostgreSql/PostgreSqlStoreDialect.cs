@@ -12,7 +12,9 @@ namespace MsgHatch.Data.EFCore.PostgreSql;
 /// <c>FOR UPDATE SKIP LOCKED</c>: a parallel claim skips the rows that another claim locked, and takes the next due rows.
 /// The subquery gives the due time before the claim, and <c>RETURNING</c> gives each claimed row with its values after the
 /// claim. A missing permission or a failed login is rejected, and a missing table or column or a value that is too long
-/// fails the validation, so the dispatcher does not retry them (D322).
+/// fails the validation, so the dispatcher does not retry them (D322). Each JSON column is <c>json</c>, which checks each
+/// write and keeps the text unchanged. <c>jsonb</c> changes the order of the keys, so a host selects it only with the
+/// option (D323).
 /// </summary>
 public sealed class PostgreSqlStoreDialect : IEntityFrameworkStoreDialect
 {
@@ -28,6 +30,9 @@ public sealed class PostgreSqlStoreDialect : IEntityFrameworkStoreDialect
 
     /// <inheritdoc />
     public string? TextCollation => "C";
+
+    /// <inheritdoc />
+    public string? JsonColumnType => "json";
 
     /// <inheritdoc />
     public string? ClaimStatement(ClaimStatementNames names)

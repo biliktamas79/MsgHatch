@@ -55,7 +55,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     }
 
     [Fact]
-    public async Task UseEntityFrameworkSubscriptionStore_TextCollationOfTheSharedOptions_IsTheCollationOfEachTextColumn()
+    public async Task UseEntityFrameworkSubscriptionStore_TextCollationOfTheSharedOptions_IsTheCollationOfEachTextColumnAndNoJsonColumn()
     {
         // Arrange
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM" });
@@ -66,10 +66,13 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
 
         // Act
         var collations = context.GetService<IDesignTimeModel>().Model.GetEntityTypes().SelectMany(static type => type.GetProperties())
-            .Where(static property => property.ClrType == typeof(string)).Select(static property => property.GetCollation()).Distinct();
+            .Where(static property => property.ClrType == typeof(string))
+            .Select(static property => $"{(property.Name is "Settings" or "NamedUsers" ? "JSON" : "text")} {property.GetCollation()}")
+            .Distinct()
+            .Order(StringComparer.Ordinal);
 
         // Assert
-        Assert.Equal("RTRIM", Assert.Single(collations));
+        Assert.Equal(["JSON ", "text RTRIM"], collations);
     }
 
     [Fact]
@@ -131,6 +134,28 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+    }
+
+    [Theory]
+    [InlineData(null, "TEXT")]
+    [InlineData("json", "json")]
+    public async Task UseEntityFrameworkSubscriptionStore_JsonColumnTypeOfTheSharedOptions_IsTheTypeOfEachJsonColumnOnly(string? option, string expected)
+    {
+        // Arrange
+        var services = TestHost.CreateServices(
+            configuration: option is null ? null : new Dictionary<string, string?> { ["MsgHatch:EntityFramework:JsonColumnType"] = option });
+        services.AddMsgHatch().UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(_database.ConnectionString));
+        await using var provider = services.Build();
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
+
+        // Act
+        var types = context.GetService<IDesignTimeModel>().Model.GetEntityTypes().SelectMany(static type => type.GetProperties())
+            .Where(static property => property.Name is "Settings" or "NamedUsers" or "SettingsType")
+            .Select(static property => $"{property.Name} {property.GetColumnType()}")
+            .Order(StringComparer.Ordinal);
+
+        // Assert
+        Assert.Equal([$"NamedUsers {expected}", $"Settings {expected}", "SettingsType TEXT"], types);
     }
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure)

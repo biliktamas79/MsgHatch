@@ -122,6 +122,28 @@ public sealed class EntityFrameworkPostgreSqlSubscriptionStoreExtensionsIntegTes
     }
 
     [Fact]
+    public async Task MigrateMsgHatchAsync_DialectOfPostgreSql_GivesEachJsonColumnOfTheSubscriptionsTheTypeJson()
+    {
+        // Arrange
+        var database = server.Database("json");
+        await using var provider = MigratedSubscriptionStores.Build(database.ConnectionString);
+
+        // Act
+        await provider.MigrateMsgHatchAsync(ct: Ct);
+
+        // Assert
+        Assert.Equal(
+            [["NamedUsers", "json"], ["Settings", "json"], ["SettingsType", "character varying"]],
+            await database.RowsAsync(
+                """
+                SELECT column_name, data_type FROM information_schema.columns
+                WHERE table_schema = 'msghatch' AND table_name = 'Subscription' AND column_name IN ('Settings', 'NamedUsers', 'SettingsType')
+                ORDER BY column_name COLLATE "C"
+                """,
+                Ct));
+    }
+
+    [Fact]
     public async Task RequireCurrentSchema_SubscriptionMigrationThatIsNotApplied_FailsTheStartupWithTheContextAndTheMigration()
     {
         // Arrange

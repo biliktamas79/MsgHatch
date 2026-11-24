@@ -14,7 +14,7 @@ using MsgHatch.Data.EFCore.Migrations;
 namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 {
     [DbContext(typeof(MsgHatchDbContext))]
-    [Migration("20261124171335_Initial")]
+    [Migration("20261124174540_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -106,8 +106,7 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -224,8 +223,7 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -318,8 +316,7 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Trace")
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("TraceParent")
                         .HasColumnType("nvarchar(max)")
@@ -333,8 +330,7 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 
                     b.Property<string>("Tries")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<int>("TryCount")
                         .HasColumnType("int");
@@ -411,8 +407,7 @@ namespace MsgHatch.Data.EFCore.SqlServer.Migrations
 
                     b.Property<string>("DisabledChannels")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("DisplayName")
                         .HasMaxLength(200)

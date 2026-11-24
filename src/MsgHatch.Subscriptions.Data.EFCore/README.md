@@ -55,6 +55,10 @@ services.AddMsgHatch()
     .UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString);
 ```
 
+## JSON columns
+
+The columns `Settings` and `NamedUsers` hold JSON documents. They get the type of the option `JsonColumnType`, or else of the dialect, or else the text type of the provider, as the JSON columns of `MsgHatch.Data.EFCore`. A JSON column has no collation.
+
 ## Errors
 
 The store classifies an exception in the order of the EF Core stores of `MsgHatch.Data.EFCore`: a cancelled token, the classifiers of the host, the dialect of the provider package, and then the built-in mapping. The client of a classifier is the subscription context, so `IExceptionClassifier<MsgHatchSubscriptionDbContext>` serves only the subscription store:
@@ -109,6 +113,7 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 
 ### 0.5.0 (2026-11-24)
 
+- Breaking: the columns `Settings` and `NamedUsers` get the JSON type of the option `JsonColumnType` or of the dialect, or else the text type of the provider, and no collation.
 - The store asks the classifiers `IExceptionClassifier<MsgHatchSubscriptionDbContext>` of the host, then the dialect, and then the built-in mapping. Its constructor gets the optional parameter `classifiers`, and the setup method gives it the registered classifiers.
 - Breaking: the table, the index, and the history table drop the prefix `MsgHatch`: `Subscription`, `UX_Subscription_Owner`, and `__SubscriptionMigrations`. The SQLite and MongoDB stores keep the prefix. A host with migrations of its own makes them again.
 

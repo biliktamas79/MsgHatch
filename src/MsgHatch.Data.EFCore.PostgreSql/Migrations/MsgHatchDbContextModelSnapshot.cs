@@ -103,8 +103,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -220,8 +219,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -314,8 +312,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
                         .UseCollation(TextCollation);
 
                     b.Property<string>("Trace")
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("TraceParent")
                         .HasColumnType("text")
@@ -329,8 +326,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("Tries")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<int>("TryCount")
                         .HasColumnType("integer");
@@ -406,8 +402,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Migrations
 
                     b.Property<string>("DisabledChannels")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .UseCollation(TextCollation);
+                        .HasColumnType(JsonColumnType);
 
                     b.Property<string>("DisplayName")
                         .HasMaxLength(200)

@@ -23,7 +23,7 @@ public sealed class PostgreSqlDesignTimeContexts : IDesignTimeDbContextFactory<M
 {
     public MsgHatchDbContext CreateDbContext(string[] args)
     {
-        var services = TestHost.CreateServices();
+        var services = TestHost.CreateServices(configuration: StoreMigrationsCodeGenerator.DesignTimeOptions);
         services.AddMsgHatch().UseEntityFrameworkPostgreSqlStores("Host=localhost;Database=msghatch-design-time");
         return services.Build().GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContext();
     }
