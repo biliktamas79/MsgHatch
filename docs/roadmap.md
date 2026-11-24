@@ -3931,23 +3931,53 @@ Done when: the build has no errors and no warnings, all unit tests pass, `pwsh .
 
 ### Phase 50: EF Core tables in their schema with no prefix
 
-Goal: the EF Core stores keep their tables in the schema of `EntityFrameworkStoreOptions.Schema` with no prefix `MsgHatch`, because the schema already keeps them apart from the tables of the host. SQLite and MongoDB keep the prefix, because their databases have no schemas (D321).
+Goal: the EF Core stores keep their tables in the schema of `EntityFrameworkStoreOptions.Schema` with no prefix `MsgHatch`, because the schema already keeps them apart from the tables of the host. SQLite and MongoDB keep the prefix, because their databases have no schemas (D321). The base package `MsgHatch.Data.EFCore` also gets feature folders (D50), and the EF Core stores classify exceptions in the same order as the transports (D141, D322). The JSON columns get the JSON type of the dialect or of an option (D323).
 
-Starting point: the commits of phase 49. `MsgHatchDbContext` maps `MsgHatchInbox`, `MsgHatchOutbox`, `MsgHatchChannelState`, `MsgHatchChannelEntry`, and `MsgHatchMessageTypeEntry` in the schema of the option, default `msghatch`, so a name such as `msghatch.MsgHatchOutbox` repeats the schema. `MsgHatchSubscriptionDbContext` maps `MsgHatchSubscription`. The indexes have the names of the model, for example `IX_MsgHatchInbox_Due`. The history tables are `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`. The 4 provider packages of phases 48 and 49 hold the `Initial` migrations with these names. No package is on nuget.org.
+Starting point: the commits of phase 49. `MsgHatch.Data.EFCore` has 27 files at its root and 7 files in `DependencyInjection`, because the package grew in phase 48 with no new folders. The private static method `ErrorOf` of `StoreContexts<TContext>` gives `Errors.Unavailable` for each `DbException`, so a missing permission or a missing table is transient, and neither a provider package nor a host can change the mapping. Each JSON column is `nvarchar(max)` on SQL Server and `text` on PostgreSQL. `MsgHatchDbContext` maps `MsgHatchInbox`, `MsgHatchOutbox`, `MsgHatchChannelState`, `MsgHatchChannelEntry`, and `MsgHatchMessageTypeEntry` in the schema of the option, default `msghatch`, so a name such as `msghatch.MsgHatchOutbox` repeats the schema. `MsgHatchSubscriptionDbContext` maps `MsgHatchSubscription`. The indexes have the names of the model, for example `IX_MsgHatchInbox_Due`. The history tables are `__MsgHatchMigrations` and `__MsgHatchSubscriptionMigrations`. The 4 provider packages of phases 48 and 49 hold the `Initial` migrations with these names. No package is on nuget.org.
 
 1. `MsgHatchDbContext` maps `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, and `MessageTypeEntry`. `MsgHatchSubscriptionDbContext` maps `Subscription`. The names of the indexes drop the prefix, for example `IX_Inbox_Due` and `IX_Outbox_Due`.
 2. The history tables are `__StoreMigrations` and `__SubscriptionMigrations`. A history table that the host set in the provider setup stays.
 3. The EF Core tools make the `Initial` migrations of `MsgHatch.Data.EFCore.SqlServer`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer`, `MsgHatch.Data.EFCore.PostgreSql`, and `MsgHatch.Subscriptions.Data.EFCore.PostgreSql` again, with the same steps as phases 48 and 49. The phase adds no rename migration, because no database of a consumer has the old names.
 4. The SQL text and the test data of the EF Core tests, and the tests of `examples/SchemaMigrator`, use the new names.
 5. The SQLite and MongoDB stores do not change.
-6. `VersionPrefix` becomes `0.5.0`, because the schema of the EF Core stores changes, and before 1.0.0 a breaking change raises the minor. The READMEs of `MsgHatch.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore`, and the 4 provider packages get the entry 0.5.0, which starts with "Breaking:".
-7. Describe the phase: the EF Core text of section 4.5 of the design, the EF Core section of `docs/stores.md`, and `AGENTS.md`.
+6. `MsgHatch.Data.EFCore` gets feature folders (D50). The path of each folder is its namespace, and no folder has the name of a type:
+   - The root keeps the types that a host uses: the three stores, `EntityFrameworkStoreOptions` with its validator, and `MsgHatchDbContext`. So a host still needs only the namespace `MsgHatch.Data.EFCore`.
+   - `DependencyInjection` does not change.
+   - `Messages`: `MessageRow`, `InboxRow`, `OutboxRow`, `MessageRows`, `MessageDocuments`, `MessageQueries`, `MessageClaims`, `PublishTries`, `RowWrites`, and `ChannelStateRow`, which only the outbox uses.
+   - `Registry`: `ChannelEntryRow` and `MessageTypeEntryRow`.
+   - `Model`: `StoreModel`, `StoreContexts`, and `StoreOptionsExtension`.
+   - `Providers`, the API of a provider package: `IEntityFrameworkStoreDialect`, `EntityFrameworkStoreDialectExtensions`, and `ClaimStatementNames`.
+   - `Migrations`: `EntityFrameworkStoreMigration`, `EntityFrameworkStoreModelSnapshot`, and `StoreMigrationsAssembly`.
+   - The 5 public types of `Providers` and `Migrations` get new namespaces, which is a breaking change. The provider packages, the subscription package, the tests, and the README code blocks change their `using` directives. The other store packages have 4 to 12 files, so they stay flat.
+7. Exception classifiers of the EF Core stores (D322):
+   - `StoreContexts<TContext>` takes the registered `IExceptionClassifier<TContext>` services and reads the dialect of the context. `ErrorOf` becomes an instance method, but not a virtual one. The order: a cancelled token, the classifiers of the host, the dialect, and then the built-in mapping.
+   - The 4 EF Core stores get the optional parameter `IEnumerable<IExceptionClassifier<TContext>>? classifiers = null`, as the transports have, and their setup methods give them the registered classifiers. A host adds one with `AddExceptionClassifier<MsgHatchDbContext, TClassifier>()`.
+   - `IEntityFrameworkStoreDialect` gets the default method `ErrorType? ErrorTypeOf(DbException exception)`, which gives null.
+   - The SQL Server dialect maps `SqlException.Number`: 229, 230, 262, and 18456 to `Errors.Rejected`, and 207, 208, 2628, and 8152 to `Errors.ValidationFailed`.
+   - The PostgreSQL dialect maps `PostgresException.SqlState`: `42501`, `28000`, and `28P01` to `Errors.Rejected`, and `42P01`, `42703`, and `22001` to `Errors.ValidationFailed`.
+   - The README of each changed package shows a classifier of the host.
+8. The JSON column type (D323):
+   - The new option `EntityFrameworkStoreOptions.JsonColumnType`, with a validation attribute that accepts a type name such as `json`, `jsonb`, or `nvarchar(max)`. With no value, the type comes from the dialect, or else it is the text type of the provider.
+   - `IEntityFrameworkStoreDialect` gets the default property `string? JsonColumnType`, which gives null. The PostgreSQL dialect gives `json`. The SQL Server dialect gives null, so its columns stay `nvarchar(max)`.
+   - `StoreModel` gives the type to each JSON column of both contexts, and the migrations take it at run time, as they take the schema and the collation.
+   - The READMEs show the option in the options table, with the reason for `json` and not `jsonb` on PostgreSQL.
+9. `VersionPrefix` becomes `0.5.0`, because the schema of the EF Core stores, the namespaces of 5 public types, and the dialect contract change, and before 1.0.0 a breaking change raises the minor. The READMEs of `MsgHatch.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore`, and the 4 provider packages get the entry 0.5.0, which starts with "Breaking:".
+10. Describe the phase: the EF Core text of section 4.5 of the design, the EF Core section of `docs/stores.md`, and `AGENTS.md`.
 
 Checks before the code:
+- Each error code of item 7 in the documentation of SQL Server and PostgreSQL, and the exception that EF Core gives for it, for example the provider exception inside a `DbUpdateException`.
+- Npgsql writes a `string` into a `json` and a `jsonb` column, also in an `ExecuteUpdate` and in the claim statement. EF Core and `Microsoft.Data.SqlClient` read and write a `string` in a `json` column on SQL Server 2025, the version of dev-mssql.
 - The migrations that the tools make again have no literal schema and no literal collation, as in phases 48 and 49.
+- The generated migrations of a provider package, in for example the namespace `MsgHatch.Data.EFCore.SqlServer.Migrations`, compile with the base classes in `MsgHatch.Data.EFCore.Migrations`.
 - Each place that names an old table, index, or history table, in `src`, `tests`, `examples`, and `docs`.
 
 Tests:
+- Each public type of `MsgHatch.Data.EFCore` is in the namespace `MsgHatch.Data.EFCore`, `MsgHatch.Data.EFCore.DependencyInjection`, `MsgHatch.Data.EFCore.Providers`, or `MsgHatch.Data.EFCore.Migrations`.
+- On SQLite: a classifier of the host wins over the dialect and the built-in mapping, a classifier that gives null passes the exception to the next step, and a cancelled token gives `Errors.OperationCancelled` before each classifier.
+- A store on a database with no migrations gives `Errors.ValidationFailed` on SQL Server and on PostgreSQL.
+- The PostgreSQL dialect gives the error type of each code of item 7, from a `PostgresException` that the test builds.
+- On PostgreSQL, each JSON column has the type `json`, and an insert of invalid JSON into `Content` fails. The contract bases also pass with the option `jsonb` on PostgreSQL and with the option `json` on SQL Server.
+- With no dialect, on SQLite, each JSON column keeps the text type. The migrations with the option create the type of the option, with no pending model change.
 - Each table of both contexts is in the schema of the option, and no name of a table, an index, or a history table starts with `MsgHatch`.
 - A host with the schema `other` gets `other.Outbox` and `other.__StoreMigrations`.
 - The model of each context has no pending change against the migrations of each provider package.
@@ -3958,12 +3988,17 @@ Tests:
 Check for the owner: run the EF Core integration projects on SQL Server and on PostgreSQL.
 
 Commits:
-1. "Keep the EF Core tables in their schema with no prefix"
-2. "Describe the table names of the EF Core stores in the design and the store guide"
-3. "Record the commits and the checked facts of phase 50 in the plan"
-4. "Record phase 50 as done in README and AGENTS.md"
+1. "Move the types of the base EF Core package into feature folders"
+2. "Keep the EF Core tables in their schema with no prefix"
+3. "Add the exception classifiers of the EF Core stores"
+4. "Give the JSON columns of the EF Core stores the JSON type of the dialect"
+5. "Describe the changes of the EF Core stores in the design and the store guide"
+6. "Record the commits and the checked facts of phase 50 in the plan"
+7. "Record phase 50 as done in README and AGENTS.md"
 
-The plan of this phase and D321 are in their own commit before commit 1.
+Commit 1 only moves types, so commit 2 makes the migrations with the base classes in their new namespace.
+
+The plan of this phase and D321 to D323 are in their own commit before commit 1.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 40 packages of 0.5.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
 
