@@ -3604,6 +3604,162 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 36 packages of 0.2.0, and the owner check of the dashboard shows no miss and no extra hit.
 
+### Phase 47: Package versions that float within their major
+
+Goal: each package of `Directory.Packages.props` takes the latest stable version of its major at each restore, so the repository gets each new minor and patch with no commit (D317).
+
+Starting point: the commits of phase 46. Each package has an exact version. For example, EF Core is 10.0.14, but 10.0.15 exists, and `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.4 needs EF Core 10.0.15. NuGet refuses a floating version in central package management (NU1011), unless `CentralPackageFloatingVersionsEnabled` is true. With the floating version `10.*`, a restore takes 10.0.15, and `dotnet pack` writes `10.0.15` as the lowest version of the dependency, not `10.0.0`.
+
+1. `Directory.Packages.props` sets `CentralPackageFloatingVersionsEnabled` to true, and gives each package the version `{major}.*`, for example `10.*`, `4.*`, or `6.*`. A package with the major 0 floats within its minor, for example `0.15.*`, because a new minor of a version 0 can break.
+2. These packages keep an exact version, with the reason in their label:
+   - `Microsoft.CodeAnalysis.CSharp` and `Microsoft.CodeAnalysis.Analyzers` of the source generator, because a generator loads only on a compiler that is not older than the Roslyn that it references.
+   - Each package whose label gives a reason for its version. The phase checks each reason: `RabbitMQ.Client` for WolverineFx.RabbitMQ, and `Microsoft.Data.SqlClient` for the advisory, where `6.*` gives 6.1.8 or later.
+3. The build and the tests run with the new versions. A new warning or a failed test gets a fix in this phase, or its package keeps an exact version with the reason in its label.
+4. `VersionPrefix` becomes `0.2.1`, because the packages get newer dependencies and no new feature. Each README of a package with a changed dependency gets the entry 0.2.1.
+5. Describe the phase: D317, section 5.2 of the design, and a rule for package versions in `AGENTS.md`.
+
+Checks before the code:
+- The Roslyn version of the compiler of the SDK of `global.json`, and the version that the generator references.
+- Each analyzer package, for example `Microsoft.CodeAnalysis.BannedApiAnalyzers`, loads on that compiler at the latest version of its major.
+
+Tests:
+- No new test. All unit tests pass with the new versions, and `pwsh ./coverage.ps1` and `pwsh ./pack.ps1` pass.
+
+Check for the owner: run the integration tests of the stores with the new versions.
+
+Commits:
+1. "Plan phases 47 to 49: floating versions and the provider packages of the EF Core stores"
+2. "Float each package version within its major"
+3. "Describe the floating versions in the design and AGENTS.md"
+4. "Record the commits and the checked facts of phase 47 in the plan"
+5. "Record phase 47 as done in README and AGENTS.md"
+
+Commit 1 holds the plans of phases 47, 48, and 49, and the decisions D317 to D319. Commit 2 holds items 1 to 4. Commit 5 also sets the range of the decisions in `AGENTS.md`, which says D315 since phase 46.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 36 packages of 0.2.1.
+
+
+### Phase 48: Provider-agnostic EF Core stores, with a SQL Server package
+
+Goal: `MsgHatch.Data.EFCore` has no SQL text and no provider name, and runs on each relational EF Core provider with no change. The new package `MsgHatch.Data.EFCore.SqlServer` holds the parts for SQL Server: the claim with `READPAST`, the default collation, and a setup with one call (D318, D319).
+
+Starting point: the commits of phase 47. The stores select their SQL by the provider of the context (D120), and only SQL Server has SQL. A context of another provider fails the startup validation (D175). These parts are for SQL Server only:
+- `SqlServerStatements`: names in brackets, an insert if absent with `WITH (UPDLOCK, HOLDLOCK)`, the claim with `TOP`, `WITH (ROWLOCK, READPAST, UPDLOCK)`, and `OUTPUT deleted.NextTryAtUtc`, and the functions `JSON_QUERY`, `JSON_VALUE`, `JSON_MODIFY`, and `OPENJSON`.
+- `SqlArguments`: a time is `DbType.DateTime2`.
+- `StoreModel`: the provider name, and the binary collation `Latin1_General_100_BIN2`.
+- `MsgHatchDbContext`: the filter `Status = 'Pending'` of the due indexes.
+
+The subscription store, the LINQ of the registry store, the error mapping, the execution strategy, and the schema option have no part for SQL Server only.
+
+1. The claim of the base package with no SQL text:
+   - A LINQ query reads the due candidates of a claim in the order of `NextTryAtUtc` and `Sequence` (D144).
+   - One `ExecuteUpdate` claims the candidates that are still pending and due. It sets a new claim token, the old due time, the due time, and the lease end. The old due time comes first, because some databases, for example MySQL, apply the assignments from left to right.
+   - The store reads the rows of its token. When another dispatcher took a candidate first, the store reads the next candidates, until it has the maximum count or no due message is left. So two parallel claims of 5 get 10 different messages, as the contract test requires.
+2. The writes of the base package with no SQL text:
+   - An add is an insert on the unique key. When the key exists, the store reads the stored row and treats the add as done. When an outbox batch meets a stored id, the store adds the other messages in a new transaction, because some databases, for example PostgreSQL, end a transaction after an error.
+   - A channel state row is an insert on the unique key of the channel and the version. A stored version gives false, so `ChannelState.ChangeAsync` reads the latest row again.
+   - The store splits a message into its columns in C#, and builds the document in C# (D176).
+   - A try record and a cancel write the new text of the tries with an `ExecuteUpdate` on the condition of the `TryCount` that the store read. When another writer changed the row first, the store reads it again.
+3. The model of the base package with no provider name:
+   - The due indexes have no filter. `Status` is a column of each due index.
+   - The new option `TextCollation` sets the collation of each id and name. With no value, the collation comes from the provider package, or else from the database.
+   - Each time is a `DateTime` in the time type of the provider (D319). The value converter also sets the kind UTC on a write, because a provider can refuse a time with no kind.
+   - The startup check of D175 accepts each relational provider, and refuses a provider that is not relational. It also fails when a registered provider package does not match the provider of the context.
+4. The public contract of a provider package in the base package, for example `IEntityFrameworkStoreDialect`:
+   - The name of the EF Core provider that it serves.
+   - The default collation of the ids and the names.
+   - An optional claim statement. The base package gives it the names of the tables and the columns with the quotes of the provider, from the EF Core model and `ISqlGenerationHelper`, and runs it with `FromSqlRaw`. With no claim statement, the base package uses the claim of item 1.
+   - The contract does not expose the row types of the stores.
+5. The package `MsgHatch.Data.EFCore.SqlServer`:
+   - It references `MsgHatch.Data.EFCore` and `Microsoft.EntityFrameworkCore.SqlServer`.
+   - Its dialect has the claim of D120 with `READPAST` and `OUTPUT`, and the default collation `Latin1_General_100_BIN2`.
+   - `UseEntityFrameworkSqlServerStores` registers the stores with `UseSqlServer` and the dialect in one call. The subscription store takes the collation of the registered dialect, so it needs no provider package, and the store packages never reference `MsgHatch.Subscriptions`.
+   - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests.
+6. `SqlServerStatements`, `SqlArguments`, and the provider name of `StoreModel` go away from the base package.
+7. Tests:
+   - The new unit test projects `tests/MsgHatch.Data.EFCore.Tests.Unit` and `tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit` run the contract bases on the EF Core SQLite provider, with a file in a temporary folder (D71). So the coverage includes the base package.
+   - `tests/MsgHatch.Data.EFCore.Tests.Integration` runs the contract bases on SQL Server with no dialect, so the claim of item 1 meets the concurrency of a real server.
+   - The new project `tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration` runs the contract bases on SQL Server with the dialect, and the README tests of the package. It uses the fixture and the test data of `MsgHatch.Data.EFCore.Tests.Integration`.
+8. `VersionPrefix` becomes `0.3.0`. The schema of the EF Core stores changes: a claim token, the old due time, the due indexes with no filter, and the collation of the option. Before 1.0.0, a breaking change raises the minor. The READMEs of `MsgHatch.Data.EFCore` and `MsgHatch.Subscriptions.Data.EFCore` get the entry 0.3.0, which starts with "Breaking:", and show the setup with the SQL Server package and with `UseSqlite`.
+9. Describe the phase:
+   - In the design: D318 and D319, the changes of D120, D175, and D178, and sections 4.2, 4.5, 4.7, 5.1, 5.6, and 7.
+   - In `docs/stores.md`: the section of the EF Core stores, with the two claims, the writes, the types, the dialect contract, and the limits.
+   - The count of 37 packages in `AGENTS.md`, `README.md`, and the design.
+
+Checks before the code:
+- An `ExecuteUpdate` that sets a column from the old value of another column works on SQLite and SQL Server.
+- Parallel claims on one SQLite file get no `SQLITE_BUSY` error within the timeout of the connection.
+- `ISqlGenerationHelper` gives the quoted names of the schema, the tables, and the columns for the claim statement of a dialect.
+
+Tests:
+- The contract bases of the inbox, the outbox, the registry settings, and the subscription store, with the scenario of Acme and Globex, pass on SQLite, on SQL Server with no dialect, and on SQL Server with the dialect. They include two parallel claims, 160 parallel adds, parallel cancels, parallel try records, and parallel channel states.
+- A claim of the base package whose first candidates another dispatcher took claims the next due messages.
+- Two tenants that differ only in case stay apart on SQL Server with the collation of the dialect, and with the collation of the option.
+- The setup: SQLite, SQL Server with no dialect, and SQL Server with the dialect pass the startup validation. A provider that is not relational fails, and a dialect for another provider fails.
+- The README snippets.
+- Each new test fails first. The SQLite tests fail before the change, because SQLite has no SQL statements.
+
+Check for the owner: run the EF Core integration projects on SQL Server.
+
+Commits:
+1. "Run the EF Core stores on each relational provider"
+2. "Add the dialect contract and the collation option of the EF Core stores"
+3. "Add the SQL Server package of the EF Core stores"
+4. "Describe the provider-agnostic EF Core stores in the design and the store guide"
+5. "Record the commits and the checked facts of phase 48 in the plan"
+6. "Record phase 48 as done in README and AGENTS.md"
+
+The plan of this phase is in commit 1 of phase 47. Commit 1 holds items 1, 2, and 6, the claim of D120 in place until commit 3, the SQLite tests of item 7, and the version of item 8. Commit 2 holds items 3 and 4. Commit 3 holds item 5 with its tests and the READMEs of item 8.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 37 packages of 0.3.0, and the EF Core integration projects pass on SQL Server.
+
+### Phase 49: PostgreSQL package of the EF Core stores
+
+Goal: the new package `MsgHatch.Data.EFCore.PostgreSql` runs the EF Core stores on PostgreSQL with a claim with `SKIP LOCKED`, the default collation `C`, and a setup with one call. `MsgHatch.Data.EFCore` does not change (D318, D319).
+
+Starting point: the commits of phase 48. The base package runs on each relational provider, and the SQL Server package shows a dialect.
+
+1. The package `MsgHatch.Data.EFCore.PostgreSql`:
+   - It references `MsgHatch.Data.EFCore` and `Npgsql.EntityFrameworkCore.PostgreSQL`.
+   - Its dialect has the claim `UPDATE ... FROM` a subquery with `ORDER BY` of the due time and `"Sequence"`, `LIMIT`, and `FOR UPDATE SKIP LOCKED`. `RETURNING` gives the old due time from the subquery (D144).
+   - The default collation is `C`, so an id or a name is case-sensitive and sorts in ordinal order.
+   - `UseEntityFrameworkPostgreSqlStores` registers the stores with `UseNpgsql` and the dialect in one call.
+   - It has its `README.md`, its `Description`, its `PackageTags`, and its README tests.
+2. A time is `timestamptz`, which keeps microseconds (D319).
+3. Tests:
+   - The new project `tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` runs the contract bases on PostgreSQL with the dialect, and the README tests. Its fixture `PostgreSqlFixture` uses `PostgreSqlIntegration:ConnectionString` of `appsettings.Local.json` (D180). With no connection string, Testcontainers starts the image `postgres:18.7`.
+   - `tests/MsgHatch.Data.EFCore.Tests.Integration` and the subscription integration project also run the contract bases on PostgreSQL with no dialect, in a folder `PostgreSql`, so the base package shows a third provider with no change.
+   - A database name of PostgreSQL has at most 63 bytes, and PostgreSQL cuts a longer name with no error. The prefix of the subscription project has 53 characters, so its names `subscriptions`, `setup_alone`, and `setup_schema` get names of at most 10 characters on PostgreSQL.
+4. Packages: `Npgsql.EntityFrameworkCore.PostgreSQL` `10.*`, and `Testcontainers.PostgreSql` `4.*` for the tests.
+5. `VersionPrefix` becomes `0.4.0`, because the new package is a new feature. The READMEs of the two EF Core packages show the setup with the PostgreSQL package, and get the entry 0.4.0.
+6. Describe the phase: the design (sections 4.2, 4.5, 5.1, and 5.6), the EF Core section of `docs/stores.md`, `AGENTS.md` with the commands and the settings of the PostgreSQL tests, and the count of 38 packages.
+
+Checks before the code:
+- Npgsql cuts a time down to the microsecond, and does not round it up. A stored due time that is later than the given time delays its claim.
+- `FromSqlRaw` of an `UPDATE ... RETURNING` gives the rows with no composition.
+- The image `postgres:19.0` also exists. The phase checks whether Npgsql 10 supports PostgreSQL 19, and uses 18.7 when it does not.
+
+Tests:
+- The contract bases pass on PostgreSQL with the dialect and with no dialect.
+- Two tenants that differ only in case stay apart with the collation `C`.
+- A time with a part of a microsecond comes back cut down to the microsecond (D319).
+- The setup with `UseEntityFrameworkPostgreSqlStores` passes the startup validation.
+- The README snippets.
+- Each new test fails first.
+
+Check for the owner: run the EF Core integration projects on PostgreSQL, with a local PostgreSQL in `appsettings.Local.json` or with Docker.
+
+Commits:
+1. "Add the PostgreSQL package of the EF Core stores"
+2. "Test the base EF Core stores on PostgreSQL"
+3. "Describe the PostgreSQL package in the design and the store guide"
+4. "Record the commits and the checked facts of phase 49 in the plan"
+5. "Record phase 49 as done in README and AGENTS.md"
+
+The plan of this phase is in commit 1 of phase 47.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 38 packages of 0.4.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
@@ -3617,8 +3773,7 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
   - The edit page offers the builder and the raw editor for one part, so the extension point of D240 changes from one editor for each engine to a choice of editors.
   - The markers are needed only in the text of the template store. An email client can remove them from a sent email, because the builder never reads a sent email.
   - The phase checks the license of each JavaScript library that it uses.
-- A dispatch signal with PostgreSQL `LISTEN` and `NOTIFY`, after the PostgreSQL provider (D102, D188). Phases 39 and 40 add the signals of MongoDB and RabbitMQ.
-- A PostgreSQL provider for the EF Core stores.
+- A dispatch signal with PostgreSQL `LISTEN` and `NOTIFY`, after the PostgreSQL package of phase 49 (D102, D188). Phases 39 and 40 add the signals of MongoDB and RabbitMQ.
 - SMS and push channels.
 - Batched try records: one store call records the tries of several sent messages, for more throughput on one channel.
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
