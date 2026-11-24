@@ -3883,6 +3883,50 @@ Commits:
 
 The plan of this phase is in commit 1 of phase 47. Commit 1 also holds item 7 with its test.
 
+Checked facts (2026-11-24), on Windows 11 build 26300 with the .NET SDK 10.0.404, EF Core 10.0.15, Npgsql 10.0.4, SQL Server 2025 of the local container dev-mssql, and PostgreSQL 18.7 of the local container dev-postgres:
+
+| Fact | Source |
+|---|---|
+| The images `postgres:18.7` and `postgres:19.0` exist, and `postgres:19.1` does not. | `docker manifest inspect`, with no pull |
+| No page of Npgsql 10 names PostgreSQL 19. The compatibility page names only the policy of the supported PostgreSQL versions, and the release notes of the EF Core provider 10 name PostgreSQL 18 only. So the tests use `postgres:18.7`. | npgsql.org: the compatibility page, and the release notes of Npgsql 10.0 and of the EF Core provider 10.0 |
+| Npgsql writes a `DateTime` to `timestamptz` as `(value.Ticks - PostgresTimestampOffsetTicks) / 10`, so it cuts a time down to the microsecond and never rounds it up. The claim parameter `nowUtc` is cut in the same way, so a due time with a part of a microsecond does not delay its claim. A time of `2030-01-01T00:00:00.0000019Z` comes back as `2030-01-01T00:00:00.0000010Z`. | `PgTimestamp.Encode` in the source of Npgsql, and `QueryAsync_DueTimeWithAPartOfAMicrosecond_GivesTheDueTimeCutDownToTheMicrosecond` |
+| `FromSqlRaw` of the `UPDATE ... RETURNING` of the dialect runs with `AsNoTracking().ToListAsync()` and no composition, and gives the claimed rows. | The contract tests of the PostgreSQL package, and the log of the statement in `ClaimDueAsync_DueMessage_ClaimsItWithTheSkipLockedStatementOfTheDialect` |
+| The restore takes `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.4 with `Npgsql` 10.0.4, and `Testcontainers.PostgreSql` 4.17.0. | `project.assets.json` |
+| The EF Core tools write the PostgreSQL types `character varying(256)`, `character(36)`, `text`, `timestamp with time zone`, `boolean`, and `bigint` with the identity strategy `IdentityByDefaultColumn`. After the generator, the migrations have no literal `"C"` and no literal `"msghatch"`. | The generated migrations of both PostgreSQL packages |
+| PostgreSQL allows 100 connections by default, and Npgsql keeps a pool of up to 100 connections for each connection string. The first run of the PostgreSQL package tests failed 6 of 309 tests with the error 53300, "too many clients already", in the tests of 160 parallel adds, parallel try records, parallel cancels, and the migration of the README. With a pool of at most 10 connections for each test database, each run passed. | `show max_connections` on dev-postgres, the first two runs of `MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` |
+| After about 8 calls of `docker manifest inspect`, Docker Hub answered "toomanyrequests" for the unauthenticated pulls of this machine. The owner then started the local container dev-postgres from `postgres:18.7`, so the phase pulled no image. | The output of `docker manifest inspect`, `docker ps` |
+| The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 40 unit test projects pass 6,500 tests and skip 1, the path limit test of the named pipe signal. The line coverage is 98.3 %. | `dotnet build`, `pwsh ./coverage.ps1` |
+| `pwsh ./pack.ps1` passes with 40 packages of version 0.4.0. `MsgHatch.Data.EFCore.PostgreSql` depends on `MsgHatch.Data.EFCore` 0.4.0 and on `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.4. The pack warning "packaging has been disabled" names only the 4 web examples, as in phase 48. | `pwsh ./pack.ps1`, the nuspec of the package |
+| The EF Core integration projects pass on dev-mssql and on dev-postgres: `MsgHatch.Data.EFCore.Tests.Integration` 624 tests, 333 on SQL Server and 291 on PostgreSQL with no dialect, `MsgHatch.Subscriptions.Data.EFCore.Tests.Integration` 87, 53 and 34, `MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` 309, `MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration` 43, `MsgHatch.Data.EFCore.SqlServer.Tests.Integration` 308, `MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration` 43, and `SchemaMigrator.Tests.Integration` 10. No run started a container, and after the runs dev-postgres has only the databases `postgres`, `template0`, and `template1`. | `dotnet test` of each project, `docker ps` before and after each run, `pg_database` |
+| Each new test failed first. A dialect with no claim statement, no collation, and another provider name failed the 2 tests of the `SKIP LOCKED` statement, the collation test, and the startup validation. The PostgreSQL packages with no migrations failed 301 of 309 and 37 of 43 tests. The base claim with no read of the next candidates failed the two parallel claim tests on PostgreSQL with no dialect. A subscription update with no revision condition failed the 2 revision tests on PostgreSQL. A migrator that ignores the provider failed the 2 PostgreSQL runs, the row of the unknown provider, and the startup test of the PostgreSQL host. | The runs of the broken code, which the phase then restored |
+
+Checks that the phase did not do:
+- The owner check: the EF Core integration projects on PostgreSQL on the machine of the owner. The phase ran them on dev-postgres.
+- A run on PostgreSQL 19, and a run of the PostgreSQL tests through Testcontainers.
+- A run on Linux before the push. The workflow run of the push builds and tests on Linux, with no integration project.
+
+Commits:
+1. "Add the PostgreSQL package of the EF Core stores with its migrations"
+2. "Add the PostgreSQL package of the EF Core subscription store"
+3. "Test the base EF Core stores on PostgreSQL"
+4. "Describe the PostgreSQL packages in the design and the store guide"
+5. "Record the commits and the checked facts of phase 49 in the plan"
+6. "Record phase 49 as done in README and AGENTS.md"
+
+Commit 1 is `d20ebb6`, commit 2 `bd8d21c`, commit 3 `cbaf97e`, and commit 4 `74b41e6`.
+
+The implementation changed the plan in these points:
+- The change of `examples/SchemaMigrator` (item 7) is in commit 2, not in commit 1, because the example applies the migrations of both PostgreSQL packages. The new option `Provider` of `SchemaMigratorOptions`, `SqlServer` or `PostgreSql`, comes from the environment variable `SchemaMigrator__Provider`. An unknown provider gives the usage error.
+- A database name of a PostgreSQL test starts with the name of the test project in lower case, with no `.Tests.Integration`, each `.` as `_`, and `__`, not with the prefix of D180. The name of `MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration` alone has 63 characters, so the prefix of D180 leaves no byte for the name of a database. The `__` keeps `msghatch_data_efcore__` from being the start of `msghatch_data_efcore_postgresql__`, and `PostgreSqlFixture` refuses a name of more than 63 bytes. So the subscription project keeps its names `subscriptions`, `setup_alone`, and `setup_schema`.
+- `PostgreSqlFixture` gives each test database a pool of at most 10 connections (checked fact).
+- The tests run on the local container dev-postgres of the owner, from `PostgreSqlIntegration:ConnectionString` of `appsettings.Local.json`, not on a container of Testcontainers.
+- `tests/MsgHatch.Data.EFCore.Tests.Integration` has the PostgreSQL types of the tests in its folder `TestTypes`: `PostgreSqlIntegration`, `PostgreSqlFixture`, `PostgreSqlTestDatabase`, `PostgreSqlSchema`, and the test data of the inbox, the outbox, and the registry settings, which read the documents with `json_build_object`. `TestDatabase` stays the type of SQL Server. The `appsettings.json` files of both base projects describe the key `PostgreSqlIntegration:ConnectionString`.
+- The contracts on PostgreSQL with no dialect use the collation of the database, with no option `TextCollation`. A deterministic collation of PostgreSQL is case-sensitive.
+- The test of the time cut down to the microsecond reads the due time with a query. The claim needs no test of its own, because Npgsql cuts the parameter of the claim in the same way.
+- The test "no pending model change" uses the collation `POSIX` of PostgreSQL in the row with the schema `other`.
+- The README tests of the setup with the PostgreSQL packages in the two base integration projects use a constant connection string, because they open no connection.
+- The design also changes D10, D180, section 4.7, and section 5.5.
+
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 40 packages of 0.4.0, and the EF Core integration projects pass on SQL Server and on PostgreSQL.
 
 ### Later phases
