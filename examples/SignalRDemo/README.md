@@ -84,6 +84,8 @@ The demo makes these choices only for the demo:
 
 ## The SignalR client
 
+[Consume the SignalR notifications in a browser](../../docs/signalr-client.md) is the guide of the client side. `client-ts/msghatch-signalr-client.ts` is its TypeScript sample.
+
 `wwwroot/lib/signalr.min.js` is the file `dist/browser/signalr.min.js` of the npm package `@microsoft/signalr` 10.0.11, the last version for ASP.NET Core 10, with no change. Its source is `https://cdn.jsdelivr.net/npm/@microsoft/signalr@10.0.11/dist/browser/signalr.min.js`, and its SHA-256 is `l+m5fmQqcuWkcJFxR6K/efhsrYKaXGeGrbEGFNJIu5U=` (Base64). The package has the MIT license, and Microsoft publishes it from the repository `dotnet/aspnetcore`. The repository has no source map of the file.
 
 ## Tests
