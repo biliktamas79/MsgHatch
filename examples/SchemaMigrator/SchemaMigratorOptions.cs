@@ -17,11 +17,11 @@ public sealed class SchemaMigratorOptions
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>
-    /// The database of the MsgHatch packages, <see cref="SqlServer"/> or <see cref="PostgreSql"/>, from the environment
-    /// variable <c>SchemaMigrator__Provider</c>.
+    /// The database of the MsgHatch packages, <see cref="SqlServer"/>, <see cref="PostgreSql"/>, or <see cref="MySql"/>, from
+    /// the environment variable <c>SchemaMigrator__Provider</c>.
     /// </summary>
     [Required]
-    [AllowedValues(SqlServer, PostgreSql)]
+    [AllowedValues(SqlServer, PostgreSql, MySql)]
     public string Provider { get; set; } = SqlServer;
 
     /// <summary>The SQL Server packages of the EF Core stores.</summary>
@@ -29,6 +29,9 @@ public sealed class SchemaMigratorOptions
 
     /// <summary>The PostgreSQL packages of the EF Core stores.</summary>
     public const string PostgreSql = "PostgreSql";
+
+    /// <summary>The MySQL packages of the EF Core stores.</summary>
+    public const string MySql = "MySql";
 }
 
 /// <summary>The source-generated validator of <see cref="SchemaMigratorOptions"/>.</summary>

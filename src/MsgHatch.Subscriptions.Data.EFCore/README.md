@@ -2,7 +2,7 @@
 
 The EF Core subscription store of [MsgHatch.Subscriptions](https://github.com/biliktamas79/MsgHatch), on each relational EF Core provider. The package keeps the subscriptions on the tables of `MsgHatchSubscriptionDbContext`, through a pooled `IDbContextFactory`, with one store instance for each tenant key.
 
-For SQL Server, use the package `MsgHatch.Subscriptions.Data.EFCore.SqlServer`. It adds the binary collation, the schema migrations, and a setup with one call. For PostgreSQL, use the package `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`, with the collation `C`. For another provider, add the EF Core provider and the migrations of the host.
+For SQL Server, use the package `MsgHatch.Subscriptions.Data.EFCore.SqlServer`. It adds the binary collation, the schema migrations, and a setup with one call. For PostgreSQL, use the package `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`, with the collation `C`. For MySQL, use the package `MsgHatch.Subscriptions.Data.EFCore.MySql`, with the collation `utf8mb4_bin` and the table `MsgHatchSubscription`. For another provider, add the EF Core provider and the migrations of the host.
 
 ## Install
 
@@ -114,6 +114,7 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 ### 0.7.0 (2026-11-25)
 
 - Breaking: the new column `OwnerKey` holds the SHA-256 of the 7 key values of a subscription: the tenant, the message type, the level, the company, the user, the channel, and the recipient kind. The unique index `UX_Subscription_Owner` has only this column, so it has 32 bytes on each provider, also on MySQL, which refuses an index key of more than 3,072 bytes. The key compares bytes, so a `TextCollation` that ignores case gives one owner for each spelling of an id. The new index `IX_Subscription_Type` on the tenant and the message type serves the delivery read. A host with migrations of its own makes them again.
+- The new package `MsgHatch.Subscriptions.Data.EFCore.MySql` ships the migrations for MySQL.
 - With the dialect of a database with no schemas, the table is `MsgHatchSubscription` and the history table is `__MsgHatchSubscriptionMigrations`, with no schema.
 
 ### 0.5.0 (2026-11-24)

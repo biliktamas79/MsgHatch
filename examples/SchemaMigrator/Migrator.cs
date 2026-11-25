@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Subscriptions.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.SqlServer.DependencyInjection;
 
@@ -11,7 +13,7 @@ namespace SchemaMigrator;
 
 /// <summary>
 /// The schema migrator of a pipeline (D320): it applies the MsgHatch migrations of the stores and of the subscription
-/// store on SQL Server or on PostgreSQL, or with <c>--script path</c> it writes their idempotent SQL script. Only the pipeline needs the
+/// store on SQL Server, PostgreSQL, or MySQL, or with <c>--script path</c> it writes their idempotent SQL script. Only the pipeline needs the
 /// rights to change the schema. The service gets only the rights to read and write rows.
 /// </summary>
 public static class Migrator
@@ -25,7 +27,7 @@ public static class Migrator
     private const string _usage = """
         Usage: SchemaMigrator [--script <path>]
         Set the environment variable SchemaMigrator__ConnectionString to a connection string with the rights to change the schema.
-        Set SchemaMigrator__Provider to SqlServer (the default) or PostgreSql.
+        Set SchemaMigrator__Provider to SqlServer (the default), PostgreSql, or MySql.
         With no argument, the migrator applies the MsgHatch migrations. With --script, it writes their idempotent SQL script.
         """;
 
@@ -63,11 +65,14 @@ public static class Migrator
 
     /// <summary>
     /// The host of the migrator: MsgHatch with no role and no message type, the EF Core stores and the subscription store on
-    /// SQL Server or on PostgreSQL with the migrations of their packages.
+    /// SQL Server, PostgreSQL, or MySQL with the migrations of their packages.
     /// </summary>
     /// <param name="builder">The builder of the host.</param>
     /// <param name="connectionString">The connection string with the rights to change the schema.</param>
-    /// <param name="provider">The database, <see cref="SchemaMigratorOptions.SqlServer"/> or <see cref="SchemaMigratorOptions.PostgreSql"/>.</param>
+    /// <param name="provider">
+    /// The database, <see cref="SchemaMigratorOptions.SqlServer"/>, <see cref="SchemaMigratorOptions.PostgreSql"/>, or
+    /// <see cref="SchemaMigratorOptions.MySql"/>.
+    /// </param>
     /// <returns>The host.</returns>
     public static IHost Build(HostApplicationBuilder builder, string connectionString, string provider = SchemaMigratorOptions.SqlServer)
     {
@@ -76,6 +81,10 @@ public static class Migrator
         if (provider == SchemaMigratorOptions.PostgreSql)
         {
             msgHatch.UseEntityFrameworkPostgreSqlStores(connectionString).UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString);
+        }
+        else if (provider == SchemaMigratorOptions.MySql)
+        {
+            msgHatch.UseEntityFrameworkMySqlStores(connectionString).UseEntityFrameworkMySqlSubscriptionStore(connectionString);
         }
         else
         {

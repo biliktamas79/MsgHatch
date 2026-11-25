@@ -7,15 +7,16 @@ using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 
 [assembly: AssemblyFixture(typeof(SqlServerFixture))]
 [assembly: AssemblyFixture(typeof(PostgreSqlFixture))]
+[assembly: AssemblyFixture(typeof(MySqlFixture))]
 
 namespace SchemaMigrator.Tests.Integration;
 
 /// <summary>
-/// The schema migrator of the pipeline on SQL Server and on PostgreSQL (D320). It reads the connection string and the
+/// The schema migrator of the pipeline on SQL Server, PostgreSQL, and MySQL (D320). It reads the connection string and the
 /// provider from its environment variables, so each test sets the variables of the process and removes them at its end.
 /// The tests of this class run one by one.
 /// </summary>
-public sealed class MigratorIntegTests(SqlServerFixture server, PostgreSqlFixture postgreSql) : IDisposable
+public sealed class MigratorIntegTests(SqlServerFixture server, PostgreSqlFixture postgreSql, MySqlFixture mySql) : IDisposable
 {
     private const string _connectionStringVariable = "SchemaMigrator__ConnectionString";
 
@@ -111,6 +112,49 @@ public sealed class MigratorIntegTests(SqlServerFixture server, PostgreSqlFixtur
             (exitCode, script.Contains("\"__StoreMigrations\"", StringComparison.Ordinal),
                 script.Contains("\"__SubscriptionMigrations\"", StringComparison.Ordinal),
                 (await PostgreSqlSchema.TablesOfAsync(database, Ct)).Count));
+    }
+
+    [Fact]
+    public async Task RunAsync_MySqlProviderAndTheConnectionStringOfTheEnvironmentVariable_AppliesTheMigrationsOfBothContextsToTheEmptyDatabase()
+    {
+        // Arrange
+        var database = mySql.Database("migrate", "MsgHatch");
+        await database.CreateEmptyAsync(Ct);
+        Environment.SetEnvironmentVariable(_connectionStringVariable, database.ConnectionString);
+        Environment.SetEnvironmentVariable(_providerVariable, SchemaMigratorOptions.MySql);
+        using var output = new StringWriter();
+
+        // Act
+        var exitCode = await Migrator.RunAsync([], output, Ct);
+
+        // Assert
+        Assert.Equal(
+            (Migrator.Success, "Applied the MsgHatch migrations.", 8),
+            (exitCode, output.ToString().Trim(), (await MySqlSchema.TablesOfAsync(database, Ct)).Count));
+    }
+
+    [Fact]
+    public async Task RunAsync_MySqlProviderAndTheScriptArgument_WritesTheIdempotentScriptOfBothContextsAndChangesNoDatabase()
+    {
+        // Arrange
+        var database = mySql.Database("script", "MsgHatch");
+        await database.CreateEmptyAsync(Ct);
+        Environment.SetEnvironmentVariable(_connectionStringVariable, database.ConnectionString);
+        Environment.SetEnvironmentVariable(_providerVariable, SchemaMigratorOptions.MySql);
+        var path = Path.Combine(Path.GetTempPath(), $"msghatch-migrations-{Guid.NewGuid():N}.sql");
+        using var output = new StringWriter();
+
+        // Act
+        var exitCode = await Migrator.RunAsync(["--script", path], output, Ct);
+
+        // Assert
+        var script = await File.ReadAllTextAsync(path, Ct);
+        File.Delete(path);
+        Assert.Equal(
+            (Migrator.Success, true, true, 0),
+            (exitCode, script.Contains("`__MsgHatchStoreMigrations`", StringComparison.Ordinal),
+                script.Contains("`__MsgHatchSubscriptionMigrations`", StringComparison.Ordinal),
+                (await MySqlSchema.TablesOfAsync(database, Ct)).Count));
     }
 
     [Theory]

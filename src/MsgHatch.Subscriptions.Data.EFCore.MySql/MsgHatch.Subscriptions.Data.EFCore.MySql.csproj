@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The MySQL package of the EF Core subscription store of MsgHatch.Subscriptions: the binary collation, the table prefix MsgHatch, the schema migrations, and a setup with one call.</Description>
+    <PackageTags>messaging;subscriptions;efcore;mysql;mariadb;migrations</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Subscriptions.Data.EFCore\MsgHatch.Subscriptions.Data.EFCore.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.EFCore.MySql\MsgHatch.Data.EFCore.MySql.csproj" />
+  </ItemGroup>
+
+</Project>
