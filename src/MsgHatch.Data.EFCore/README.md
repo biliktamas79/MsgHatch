@@ -100,7 +100,7 @@ public sealed class SqliteReadOnlyClassifier : IExceptionClassifier<MsgHatchDbCo
 
 ## Schema migrations
 
-Only `MigrateMsgHatchAsync` changes the schema. It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and the subscription context. Each context has a history table of its own in the schema of the options, `__StoreMigrations` and `__SubscriptionMigrations`, so the migration history of the host does not change. EF Core locks the database during the migration, so two hosts that start at the same time apply each migration one time.
+Only `MigrateMsgHatchAsync` changes the schema. It applies the migrations of each registered MsgHatch context, `MsgHatchDbContext` and the subscription context. Each context has a history table of its own in the schema of the options, `__StoreMigrations` and `__SubscriptionMigrations`, so the migration history of the host does not change. On a database with no schemas, the history tables are `__MsgHatchStoreMigrations` and `__MsgHatchSubscriptionMigrations`. EF Core locks the database during the migration, so two hosts that start at the same time apply each migration one time.
 
 [//]: # (snippet: migrate)
 ```csharp
@@ -117,12 +117,14 @@ await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
 
 A provider package implements `IEntityFrameworkStoreDialect` of the namespace `MsgHatch.Data.EFCore.Providers`: the name of the EF Core provider that it serves, the default collation, the error type of a database exception, and an optional claim statement. Its migrations derive from `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` of the namespace `MsgHatch.Data.EFCore.Migrations`, so each migration takes the schema and the collation of the options at run time. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context.
 
+A database with no schemas inside it, for example MySQL, where a schema is a database, has a dialect with `HasSchemas` false. Then each table and each history table gets the prefix `MsgHatch` and no schema, for example `MsgHatchOutbox` and `__MsgHatchStoreMigrations`, in the database of the connection. The names of the indexes do not change. The option `Schema` then has no effect, so the startup validation fails when it is not the default `msghatch`.
+
 ## Options
 
 [//]: # (options: EntityFrameworkStoreOptions)
 | Option | Type | Default | Rule |
 |---|---|---|---|
-| `Schema` | `string` | `msghatch` | Required. The database schema of the tables. It starts with an ASCII letter or `_`, and contains only ASCII letters, digits, and `_`. |
+| `Schema` | `string` | `msghatch` | Required. The database schema of the tables. It starts with an ASCII letter or `_`, and contains only ASCII letters, digits, and `_`. Only the default with the dialect of a database with no schemas. |
 | `TextCollation` | `string?` | the collation of the dialect, or else of the database | The collation of each text column, so of each id and name, for example `Latin1_General_100_BIN2`. Only ASCII letters, digits, `_`, `.`, and `-`. |
 | `JsonColumnType` | `string?` | the JSON type of the dialect, or else the text type of the provider | The type of each JSON column, for example `json`, `jsonb`, or `nvarchar(max)`. It starts with an ASCII letter, contains only ASCII letters, digits, and `_`, and can end with a size in parentheses. |
 | `RequireCurrentSchema` | `bool` | `false` | The start of the host fails when a migration of a MsgHatch context is not applied. |
@@ -140,6 +142,10 @@ A provider package implements `IEntityFrameworkStoreDialect` of the namespace `M
 ```
 
 ## Version history
+
+### 0.7.0 (2026-11-25)
+
+- `IEntityFrameworkStoreDialect` gets the default property `HasSchemas`, which gives true. With false, each table and each history table gets the prefix `MsgHatch` and no schema, for example `MsgHatchOutbox` and `__MsgHatchStoreMigrations`, and the startup validation fails when the option `Schema` is not the default `msghatch`.
 
 ### 0.5.0 (2026-11-24)
 

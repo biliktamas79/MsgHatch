@@ -85,7 +85,7 @@ public sealed class SqliteReadOnlySubscriptionsClassifier : IExceptionClassifier
 
 ## Schema migrations
 
-`MigrateMsgHatchAsync` of `MsgHatch.Data.EFCore` applies the migrations of each registered MsgHatch context, and only it changes the schema. The subscription context has the history table `__SubscriptionMigrations` in the schema of the options:
+`MigrateMsgHatchAsync` of `MsgHatch.Data.EFCore` applies the migrations of each registered MsgHatch context, and only it changes the schema. The subscription context has the history table `__SubscriptionMigrations` in the schema of the options. With the dialect of a database with no schemas, the table is `MsgHatchSubscription` and the history table is `__MsgHatchSubscriptionMigrations`, with no schema:
 
 [//]: # (snippet: migrate)
 ```csharp
@@ -110,6 +110,10 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 ```
 
 ## Version history
+
+### 0.7.0 (2026-11-25)
+
+- With the dialect of a database with no schemas, the table is `MsgHatchSubscription` and the history table is `__MsgHatchSubscriptionMigrations`, with no schema.
 
 ### 0.5.0 (2026-11-24)
 

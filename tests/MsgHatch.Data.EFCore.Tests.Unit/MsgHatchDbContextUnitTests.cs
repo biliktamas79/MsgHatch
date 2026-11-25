@@ -91,6 +91,46 @@ public sealed class MsgHatchDbContextUnitTests
             tables);
     }
 
+    [Fact]
+    public async Task Model_DialectWithNoSchemas_HoldsEachTableAndTheHistoryTableWithThePrefixMsgHatchAndNoSchema()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseEntityFrameworkStores(
+            static o => o.UseSqlite(_connectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
+        await using var provider = services.Build();
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+
+        // Act
+        var tables = TablesOf(context);
+
+        // Assert
+        Assert.Equal(
+            [".MsgHatchChannelEntry", ".MsgHatchChannelState", ".MsgHatchInbox", ".MsgHatchMessageTypeEntry", ".MsgHatchOutbox", ".__MsgHatchStoreMigrations"],
+            tables);
+    }
+
+    [Fact]
+    public async Task Model_TwoDialectsOfOneTypeWithAndWithNoSchemas_GiveTwoModels()
+    {
+        // Arrange
+        async Task<string> TableOfTheInboxAsync(SqliteTestDialect dialect)
+        {
+            var services = TestHost.CreateServices();
+            services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlite(_connectionString).UseEntityFrameworkStoreDialect(dialect));
+            await using var provider = services.Build();
+            await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+            var inbox = context.GetService<IDesignTimeModel>().Model.GetEntityTypes().Single(static type => type.ClrType.Name == "InboxRow");
+            return $"{inbox.GetSchema()}.{inbox.GetTableName()}";
+        }
+
+        // Act
+        var tables = (await TableOfTheInboxAsync(new SqliteTestDialect()), await TableOfTheInboxAsync(new SqliteTestDialect(hasSchemas: false)));
+
+        // Assert
+        Assert.Equal(("msghatch.Inbox", ".MsgHatchInbox"), tables);
+    }
+
     [Theory]
     [MemberData(nameof(JsonColumnTypeRows))]
     public async Task Model_JsonColumnType_IsTheTypeOfEachJsonColumnOnly(string row, string? option, string? dialectType, string expected)

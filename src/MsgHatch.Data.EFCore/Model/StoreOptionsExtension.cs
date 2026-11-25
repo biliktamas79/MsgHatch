@@ -9,8 +9,9 @@ namespace MsgHatch.Data.EFCore.Model;
 /// The MsgHatch options of a <see cref="DbContext"/> of the stores (D318): the schema of
 /// <see cref="EntityFrameworkStoreOptions.Schema"/>, the collation of the text columns, the type of the JSON columns, and
 /// the dialect of a provider package. EF Core keeps one model cache for each internal service provider, and the schema, the
-/// collation, the JSON type, and the type of the dialect are part of the hash of the service provider. So two schemas, two
-/// collations, or two JSON types in one process give two models, and a pooled context keeps no state of its own.
+/// collation, the JSON type, the type of the dialect, and whether the database has schemas are part of the hash of the
+/// service provider. So two schemas, two collations, or two JSON types in one process give two models, and a pooled context
+/// keeps no state of its own.
 /// </summary>
 /// <param name="schema">The schema.</param>
 /// <param name="textCollation">The collation of each text column, or null for the collation of the database.</param>
@@ -31,6 +32,9 @@ internal sealed class StoreOptionsExtension(string schema, string? textCollation
     public string? JsonColumnType { get; } = jsonColumnType;
 
     public IEntityFrameworkStoreDialect? Dialect { get; } = dialect;
+
+    /// <summary>Whether the database has schemas: false only with the dialect of a database with no schemas (D326).</summary>
+    public bool HasSchemas => Dialect?.HasSchemas ?? true;
 
     public DbContextOptionsExtensionInfo Info => _info ??= new ExtensionInfo(this);
 
@@ -87,15 +91,18 @@ internal sealed class StoreOptionsExtension(string schema, string? textCollation
 
         private Type? DialectType => extension.Dialect?.GetType();
 
+        private bool HasSchemas => extension.HasSchemas;
+
         public override int GetServiceProviderHashCode() =>
-            HashCode.Combine(StringComparer.Ordinal.GetHashCode(Schema), TextCollation, JsonColumnType, DialectType);
+            HashCode.Combine(StringComparer.Ordinal.GetHashCode(Schema), TextCollation, JsonColumnType, DialectType, HasSchemas);
 
         public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other) =>
             other is ExtensionInfo info
             && string.Equals(info.Schema, Schema, StringComparison.Ordinal)
             && string.Equals(info.TextCollation, TextCollation, StringComparison.Ordinal)
             && string.Equals(info.JsonColumnType, JsonColumnType, StringComparison.Ordinal)
-            && info.DialectType == DialectType;
+            && info.DialectType == DialectType
+            && info.HasSchemas == HasSchemas;
 
         public override void PopulateDebugInfo(IDictionary<string, string> debugInfo)
         {

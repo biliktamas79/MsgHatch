@@ -32,6 +32,14 @@ public interface IEntityFrameworkStoreDialect
     string? JsonColumnType => null;
 
     /// <summary>
+    /// Whether the database has schemas inside it (D326). With false, for example on MySQL, where a schema is a database,
+    /// each table and each history table gets the prefix <c>MsgHatch</c> and no schema, for example <c>MsgHatchOutbox</c>
+    /// and <c>__MsgHatchStoreMigrations</c>. Then <see cref="EntityFrameworkStoreOptions.Schema"/> has no effect, so the
+    /// startup validation fails when it is not the default. The default gives true, so a dialect of a host still compiles.
+    /// </summary>
+    bool HasSchemas => true;
+
+    /// <summary>
     /// Gives the claim statement of one message table, or null for the claim of the base package: a LINQ read of the
     /// due candidates and one <c>ExecuteUpdate</c> with a claim token. The base package runs the statement with
     /// <c>FromSqlRaw</c> and the parameters of <paramref name="names"/>.

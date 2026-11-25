@@ -10,28 +10,20 @@ namespace MsgHatch.Data.EFCore;
 /// The EF Core model of the inbox, the outbox, the channel states, and the registry settings (section 4.5, D120), in the
 /// schema of <see cref="EntityFrameworkStoreOptions.Schema"/>. The tables and the indexes have the names of the SQLite
 /// stores with no prefix <c>MsgHatch</c>, for example <c>Outbox</c>, because the schema keeps them apart from the tables
-/// of the host (D56, D321). The due index of each message table has no filter, so each provider can use it:
+/// of the host (D56, D321). With the dialect of a database with no schemas, the tables keep the prefix, for example
+/// <c>MsgHatchOutbox</c>, and the indexes keep their names (D326). The due index of each message table has no filter, so each provider can use it:
 /// <c>Status</c> is a column of the index, and <c>Sequence</c> is its last column, so the index gives the claim order
 /// (D104, D144, D318). The package creates no schema: the host creates it with its own EF Core migrations of this context.
 /// </summary>
 public sealed class MsgHatchDbContext : DbContext
 {
-    private readonly string _schema;
-
-    private readonly string? _textCollation;
-
-    private readonly string? _jsonColumnType;
+    private readonly StoreOptionsExtension _storeOptions;
 
     /// <summary>Makes the context. <c>UseEntityFrameworkStores</c> registers a pooled factory of it.</summary>
     /// <param name="options">The options of the context.</param>
     public MsgHatchDbContext(DbContextOptions<MsgHatchDbContext> options)
-        : base(options)
-    {
-        var storeOptions = StoreOptionsExtension.Of(options);
-        _schema = storeOptions.Schema;
-        _textCollation = storeOptions.TextCollation;
-        _jsonColumnType = storeOptions.JsonColumnType;
-    }
+        : base(options) =>
+        _storeOptions = StoreOptionsExtension.Of(options);
 
     internal DbSet<InboxRow> Inbox => Set<InboxRow>();
 
@@ -45,14 +37,13 @@ public sealed class MsgHatchDbContext : DbContext
 
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
-        StoreModel.ConfigureConventions(configurationBuilder, _textCollation);
+        StoreModel.ConfigureConventions(configurationBuilder, _storeOptions.TextCollation);
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
-        modelBuilder.HasDefaultSchema(_schema);
-        var jsonColumnType = _jsonColumnType;
+        var jsonColumnType = _storeOptions.JsonColumnType;
         modelBuilder.Entity<InboxRow>(inbox =>
         {
             Message(inbox, "Inbox", jsonColumnType);
@@ -104,6 +95,7 @@ public sealed class MsgHatchDbContext : DbContext
             entry.Property(static row => row.DisplayName).HasMaxLength(200);
             entry.Property(static row => row.Description).HasMaxLength(2000);
         });
+        StoreModel.PlaceTables(modelBuilder, _storeOptions);
     }
 
     private static void Message<TRow>(EntityTypeBuilder<TRow> message, string table, string? jsonColumnType)

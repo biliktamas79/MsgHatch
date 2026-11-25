@@ -16,6 +16,32 @@ internal static class StoreModel
 {
     private const int _maxLength = 256;
 
+    private const string _tablePrefix = "MsgHatch";
+
+    /// <summary>
+    /// Puts each table of a model into the schema of the options (D321). With the dialect of a database with no schemas,
+    /// each table gets the prefix <c>MsgHatch</c> and no schema, for example <c>MsgHatchOutbox</c> (D326). The names of the
+    /// indexes do not change, because MySQL keeps the index names for each table.
+    /// </summary>
+    /// <param name="builder">The model of a context, after each table has its name.</param>
+    /// <param name="options">The MsgHatch options of the context.</param>
+    public static void PlaceTables(ModelBuilder builder, StoreOptionsExtension options)
+    {
+        if (options.HasSchemas)
+        {
+            builder.HasDefaultSchema(options.Schema);
+            return;
+        }
+
+        foreach (var entity in builder.Model.GetEntityTypes())
+        {
+            entity.SetTableName(TableNameOf(entity.GetTableName()!, options));
+        }
+    }
+
+    /// <summary>A table name with no prefix in a schema, or with the prefix <c>MsgHatch</c> on a database with no schemas (D326).</summary>
+    public static string TableNameOf(string name, StoreOptionsExtension options) => options.HasSchemas ? name : _tablePrefix + name;
+
     /// <param name="builder">The conventions of a context.</param>
     /// <param name="textCollation">The collation of each text column, or null for the collation of the database.</param>
     public static void ConfigureConventions(ModelConfigurationBuilder builder, string? textCollation)

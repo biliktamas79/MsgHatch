@@ -119,6 +119,41 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     }
 
     [Fact]
+    public async Task UseEntityFrameworkSubscriptionStore_DialectWithNoSchemas_HoldsTheTableAndTheHistoryTableWithThePrefixMsgHatchAndNoSchema()
+    {
+        // Arrange
+        await using var provider = Build(o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
+        var history = RelationalOptionsExtension.Extract(context.GetService<IDbContextOptions>());
+
+        // Act
+        string[] tables = [.. context.GetService<IDesignTimeModel>().Model.GetEntityTypes().Select(static type => $"{type.GetSchema()}.{type.GetTableName()}"),
+            $"{history.MigrationsHistoryTableSchema}.{history.MigrationsHistoryTableName}"];
+
+        // Assert
+        Assert.Equal([".MsgHatchSubscription", ".__MsgHatchSubscriptionMigrations"], tables);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkSubscriptionStore_DialectWithNoSchemasAndASchemaThatIsNotTheDefault_FailsTheStartupValidationAndNamesTheOption()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = "other" });
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseInMemoryStores().UseEntityFrameworkSubscriptionStore(
+            o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.Equal(
+            (true, true),
+            (failure.Contains("UseEntityFrameworkSubscriptionStore", StringComparison.Ordinal), failure.Contains("Schema", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task UseEntityFrameworkSubscriptionStore_ClassifierOfTheSubscriptionContext_ClassifiesTheExceptionsOfTheStore()
     {
         // Arrange

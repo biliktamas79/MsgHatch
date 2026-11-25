@@ -6,43 +6,34 @@ namespace MsgHatch.Subscriptions.Data.EFCore;
 
 /// <summary>
 /// The EF Core model of the subscriptions (section 4.5, D120): the table <c>Subscription</c> in the schema of
-/// <see cref="EntityFrameworkStoreOptions.Schema"/>, with no prefix <c>MsgHatch</c> (D321), and with the column rules of
-/// the core EF Core stores (D178). The unique
+/// <see cref="EntityFrameworkStoreOptions.Schema"/>, with no prefix <c>MsgHatch</c> (D321), or <c>MsgHatchSubscription</c>
+/// with the dialect of a database with no schemas (D326), and with the column rules of the core EF Core stores (D178). The
+/// unique
 /// index of the owner stops a second subscription with the same owner, message type, channel, and recipient kind, and
 /// also serves <c>FindForDeliveryAsync</c>. The package creates no schema: the host creates it with its own EF Core
 /// migrations of this context.
 /// </summary>
 public sealed class MsgHatchSubscriptionDbContext : DbContext
 {
-    private readonly string _schema;
-
-    private readonly string? _textCollation;
-
-    private readonly string? _jsonColumnType;
+    private readonly StoreOptionsExtension _storeOptions;
 
     /// <summary>Makes the context. <c>UseEntityFrameworkSubscriptionStore</c> registers a pooled factory of it.</summary>
     /// <param name="options">The options of the context.</param>
     public MsgHatchSubscriptionDbContext(DbContextOptions<MsgHatchSubscriptionDbContext> options)
-        : base(options)
-    {
-        var storeOptions = StoreOptionsExtension.Of(options);
-        _schema = storeOptions.Schema;
-        _textCollation = storeOptions.TextCollation;
-        _jsonColumnType = storeOptions.JsonColumnType;
-    }
+        : base(options) =>
+        _storeOptions = StoreOptionsExtension.Of(options);
 
     internal DbSet<SubscriptionRow> Subscriptions => Set<SubscriptionRow>();
 
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
-        StoreModel.ConfigureConventions(configurationBuilder, _textCollation);
+        StoreModel.ConfigureConventions(configurationBuilder, _storeOptions.TextCollation);
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
-        modelBuilder.HasDefaultSchema(_schema);
-        var jsonColumnType = _jsonColumnType;
+        var jsonColumnType = _storeOptions.JsonColumnType;
         modelBuilder.Entity<SubscriptionRow>(subscription =>
         {
             subscription.ToTable("Subscription");
@@ -63,5 +54,6 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
                 .IsUnique()
                 .HasDatabaseName("UX_Subscription_Owner");
         });
+        StoreModel.PlaceTables(modelBuilder, _storeOptions);
     }
 }

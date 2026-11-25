@@ -6,8 +6,9 @@ using MsgHatch.Data.EFCore.Model;
 namespace MsgHatch.Data.EFCore.DependencyInjection;
 
 /// <summary>
-/// The startup check of an EF Core setup method (D175, D182, D318, D320): the EF Core provider of
-/// <typeparamref name="TContext"/> is relational, and the dialect of a provider package serves that provider. The message
+/// The startup check of an EF Core setup method (D175, D182, D318, D320, D326): the EF Core provider of
+/// <typeparamref name="TContext"/> is relational, the dialect of a provider package serves that provider, and the option
+/// <see cref="EntityFrameworkStoreOptions.Schema"/> is the default on a database with no schemas. The message
 /// names the setup method and the provider. The check opens no connection, except with
 /// <see cref="EntityFrameworkStoreOptions.RequireCurrentSchema"/>: then it reads the history table of the migrations, and
 /// fails for the first migration that is not applied.
@@ -29,10 +30,17 @@ internal sealed class EntityFrameworkSetupValidator<TContext>(IDbContextFactory<
             return ValidateOptionsResult.Fail($"{options.SetupMethod} needs a relational EF Core provider, and {provider} is not relational.");
         }
 
-        if (StoreOptionsExtension.Of(context).Dialect is { } dialect && dialect.ProviderName != provider)
+        var contextOptions = StoreOptionsExtension.Of(context);
+        if (contextOptions.Dialect is { } dialect && dialect.ProviderName != provider)
         {
             return ValidateOptionsResult.Fail(
                 $"{options.SetupMethod} has the dialect of the EF Core provider {dialect.ProviderName}, but the provider of the context is {provider}.");
+        }
+
+        if (!contextOptions.HasSchemas && contextOptions.Schema != EntityFrameworkStoreOptions.DefaultSchema)
+        {
+            return ValidateOptionsResult.Fail(
+                $"{options.SetupMethod} has the dialect of {provider}, whose database has no schemas, so the option Schema has no effect and must be {EntityFrameworkStoreOptions.DefaultSchema}, not {contextOptions.Schema}.");
         }
 
         return storeOptions.Value.RequireCurrentSchema ? CurrentSchemaResult(context, options.SetupMethod) : ValidateOptionsResult.Success;

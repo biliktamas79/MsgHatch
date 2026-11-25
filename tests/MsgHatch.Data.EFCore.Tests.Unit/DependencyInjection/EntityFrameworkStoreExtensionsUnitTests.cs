@@ -90,6 +90,45 @@ public sealed class EntityFrameworkStoreExtensionsUnitTests
     }
 
     [Fact]
+    public async Task UseEntityFrameworkStores_DialectWithNoSchemas_PassesTheStartupValidationAndClaimsFromTheTableWithThePrefix()
+    {
+        // Arrange
+        await using var provider = Build(o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
+        await _database.ResetAsync(provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>(), Ct);
+        var received = TestMessages.AReceivedMessage(new TestEvent("text"));
+        await provider.GetRequiredService<IInboxStore>().AddAsync(received, Ct);
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+        var inbox = await provider.GetRequiredService<IInboxDispatchStore>().ClaimDueAsync(10, Now, TimeSpan.FromSeconds(30), Ct);
+
+        // Assert
+        Assert.Null(exception);
+        Assert.Equal(received.Delivery.Id, Assert.Single(inbox.Value.Messages).Delivery.Id);
+        Assert.Equal([["1"]], _database.Rows("SELECT count(*) FROM MsgHatchInbox"));
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkStores_DialectWithNoSchemasAndASchemaThatIsNotTheDefault_FailsTheStartupValidationAndNamesTheOption()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = "other" });
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkStores(
+            o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.Equal(
+            (true, true, true),
+            (failure.Contains("UseEntityFrameworkStores", StringComparison.Ordinal), failure.Contains("Schema", StringComparison.Ordinal),
+                failure.Contains("other", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task UseEntityFrameworkStores_DialectOfAnotherProvider_FailsTheStartupValidationAndNamesBothProviders()
     {
         // Arrange

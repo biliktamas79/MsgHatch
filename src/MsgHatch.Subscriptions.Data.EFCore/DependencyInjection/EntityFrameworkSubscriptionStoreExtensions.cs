@@ -18,8 +18,9 @@ public static class EntityFrameworkSubscriptionStoreExtensions
     /// <c>o =&gt; o.UseSqlite(connectionString)</c> (D318). It shares the
     /// <see cref="EntityFrameworkStoreOptions"/> of <c>UseEntityFrameworkStores</c> (D59): the options bind from the
     /// section <c>MsgHatch:EntityFramework</c>. Only <c>MigrateMsgHatchAsync</c> changes the schema, with the migrations of a
-    /// provider package or of the host, and the history table <c>__SubscriptionMigrations</c> (D320). The startup validation fails for a provider that is not
-    /// relational (D182).
+    /// provider package or of the host, and the history table <c>__SubscriptionMigrations</c>, or
+    /// <c>__MsgHatchSubscriptionMigrations</c> on a database with no schemas (D320, D326). The startup validation fails for a
+    /// provider that is not relational (D182).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">The options of the contexts, with the provider and its connection.</param>
@@ -30,7 +31,7 @@ public static class EntityFrameworkSubscriptionStoreExtensions
         ArgumentNullException.ThrowIfNull(configure);
         EntityFrameworkStoreExtensions.AddOptions(builder, nameof(UseEntityFrameworkSubscriptionStore), configure: null);
         EntityFrameworkStoreExtensions.AddContexts<MsgHatchSubscriptionDbContext>(
-            builder.Services, nameof(UseEntityFrameworkSubscriptionStore), configure, "__SubscriptionMigrations");
+            builder.Services, nameof(UseEntityFrameworkSubscriptionStore), configure, "SubscriptionMigrations");
         return builder.UseSubscriptionStore(
             static (services, key) => new EntityFrameworkSubscriptionStore(
                 services.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>(), key, services.GetRequiredService<ChannelSettingsJson>(),

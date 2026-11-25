@@ -19,7 +19,8 @@ public static class EntityFrameworkStoreExtensions
     /// <see cref="EntityFrameworkOutboxStore"/>, each with its two parts and their logging wrappers, and
     /// <see cref="EntityFrameworkRegistrySettingsStore"/> with its logging wrapper (D130). Only
     /// <see cref="EntityFrameworkMigrationExtensions.MigrateMsgHatchAsync"/> changes the schema, with the migrations of a
-    /// provider package or of the host, and the history table <c>__StoreMigrations</c> (D320). The options bind from the
+    /// provider package or of the host, and the history table <c>__StoreMigrations</c>, or <c>__MsgHatchStoreMigrations</c> on
+    /// a database with no schemas (D320, D326). The options bind from the
     /// section <c>MsgHatch:EntityFramework</c>, and a value from code wins. The startup validation fails for a provider
     /// that is not relational (D175).
     /// </summary>
@@ -33,7 +34,7 @@ public static class EntityFrameworkStoreExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
         AddOptions(builder, nameof(UseEntityFrameworkStores), configureOptions);
-        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure, "__StoreMigrations");
+        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure, "StoreMigrations");
         builder.Services.TryAddSingleton(static services =>
             new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>(), ClassifiersOf(services)));
         builder.Services.TryAddSingleton(static services =>
@@ -66,7 +67,8 @@ public static class EntityFrameworkStoreExtensions
     /// <summary>
     /// Registers a pooled factory of a context, with the options of the host and of <see cref="EntityFrameworkStoreOptions"/>,
     /// the migrations of the context with a history table of its own (D320), and the startup check of its provider, which
-    /// names the setup method (D175, D182).
+    /// names the setup method (D175, D182). <paramref name="historyTable"/> has no <c>__</c> and no prefix, for example
+    /// <c>StoreMigrations</c>.
     /// </summary>
     internal static void AddContexts<TContext>(
         IServiceCollection services, string setupMethod, Action<DbContextOptionsBuilder> configure, string historyTable)

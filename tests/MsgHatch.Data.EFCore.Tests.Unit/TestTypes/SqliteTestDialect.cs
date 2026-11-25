@@ -7,16 +7,18 @@ namespace MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 /// <summary>
 /// A dialect of the EF Core SQLite provider for the tests of the dialect contract (D318): a claim statement with
 /// <c>UPDATE ... RETURNING</c>, which SQLite runs in one write, and an optional default collation. It counts its claim
-/// statements, and gives one error type for each database exception.
+/// statements, and gives one error type for each database exception. It can act as the dialect of a database with no
+/// schemas.
 /// </summary>
 /// <param name="providerName">The provider that the dialect serves.</param>
 /// <param name="textCollation">The default collation, or null.</param>
 /// <param name="hasClaimStatement">Whether the dialect gives a claim statement.</param>
 /// <param name="errorType">The error type of each database exception, or null for the built-in mapping.</param>
 /// <param name="jsonColumnType">The type of the JSON columns, or null for the text type of the provider.</param>
+/// <param name="hasSchemas">Whether the database of the dialect has schemas (D326).</param>
 public sealed class SqliteTestDialect(
     string providerName = SqliteTestDialect.SqliteProvider, string? textCollation = null, bool hasClaimStatement = true, ErrorType? errorType = null,
-    string? jsonColumnType = null)
+    string? jsonColumnType = null, bool hasSchemas = true)
     : IEntityFrameworkStoreDialect
 {
     public const string SqliteProvider = "Microsoft.EntityFrameworkCore.Sqlite";
@@ -28,6 +30,8 @@ public sealed class SqliteTestDialect(
     public string? TextCollation { get; } = textCollation;
 
     public string? JsonColumnType { get; } = jsonColumnType;
+
+    public bool HasSchemas { get; } = hasSchemas;
 
     public int ClaimStatements => _claimStatements;
 
