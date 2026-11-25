@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using MsgHatch.Data.EFCore;
 using MsgHatch.Data.EFCore.Model;
@@ -8,10 +9,9 @@ namespace MsgHatch.Subscriptions.Data.EFCore;
 /// The EF Core model of the subscriptions (section 4.5, D120): the table <c>Subscription</c> in the schema of
 /// <see cref="EntityFrameworkStoreOptions.Schema"/>, with no prefix <c>MsgHatch</c> (D321), or <c>MsgHatchSubscription</c>
 /// with the dialect of a database with no schemas (D326), and with the column rules of the core EF Core stores (D178). The
-/// unique
-/// index of the owner stops a second subscription with the same owner, message type, channel, and recipient kind, and
-/// also serves <c>FindForDeliveryAsync</c>. The package creates no schema: the host creates it with its own EF Core
-/// migrations of this context.
+/// unique index of the owner on the hash <c>OwnerKey</c> stops a second subscription with the same owner, message type,
+/// channel, and recipient kind (D327). The index of the tenant and the message type serves <c>FindForDeliveryAsync</c>.
+/// Only <c>MigrateMsgHatchAsync</c> creates the schema, with the migrations of a provider package or of the host (D320).
 /// </summary>
 public sealed class MsgHatchSubscriptionDbContext : DbContext
 {
@@ -50,9 +50,9 @@ public sealed class MsgHatchSubscriptionDbContext : DbContext
             subscription.Property(static row => row.Settings).IsJson(jsonColumnType);
             subscription.Property(static row => row.NamedUsers).IsJson(jsonColumnType);
             subscription.Property(static row => row.Recipients).IsEnum();
-            subscription.HasIndex(static row => new { row.TenantId, row.MessageType, row.Level, row.CompanyId, row.UserId, row.Channel, row.Recipients })
-                .IsUnique()
-                .HasDatabaseName("UX_Subscription_Owner");
+            subscription.Property(static row => row.OwnerKey).HasMaxLength(SHA256.HashSizeInBytes).IsFixedLength();
+            subscription.HasIndex(static row => row.OwnerKey).IsUnique().HasDatabaseName("UX_Subscription_Owner");
+            subscription.HasIndex(static row => new { row.TenantId, row.MessageType }).HasDatabaseName("IX_Subscription_Type");
         });
         StoreModel.PlaceTables(modelBuilder, _storeOptions);
     }

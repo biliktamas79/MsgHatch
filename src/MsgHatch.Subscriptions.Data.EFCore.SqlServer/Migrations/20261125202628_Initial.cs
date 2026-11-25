@@ -34,6 +34,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
                     SettingsVersion = table.Column<int>(type: "int", nullable: true),
                     Settings = table.Column<string>(type: JsonColumnType, nullable: true),
                     Recipients = table.Column<string>(type: "varchar(32)", unicode: false, maxLength: 32, nullable: false, collation: TextCollation),
+                    OwnerKey = table.Column<byte[]>(type: "binary(32)", fixedLength: true, maxLength: 32, nullable: false),
                     NamedUsers = table.Column<string>(type: JsonColumnType, nullable: true),
                     Mandatory = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -45,10 +46,16 @@ namespace MsgHatch.Subscriptions.Data.EFCore.SqlServer.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Subscription_Type",
+                schema: Schema,
+                table: "Subscription",
+                columns: new[] { "TenantId", "MessageType" });
+
+            migrationBuilder.CreateIndex(
                 name: "UX_Subscription_Owner",
                 schema: Schema,
                 table: "Subscription",
-                columns: new[] { "TenantId", "MessageType", "Level", "CompanyId", "UserId", "Channel", "Recipients" },
+                column: "OwnerKey",
                 unique: true);
         }
 

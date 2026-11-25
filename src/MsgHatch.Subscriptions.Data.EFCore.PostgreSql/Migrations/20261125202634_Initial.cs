@@ -34,6 +34,7 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
                     SettingsVersion = table.Column<int>(type: "integer", nullable: true),
                     Settings = table.Column<string>(type: JsonColumnType, nullable: true),
                     Recipients = table.Column<string>(type: "character varying(32)", unicode: false, maxLength: 32, nullable: false, collation: TextCollation),
+                    OwnerKey = table.Column<byte[]>(type: "bytea", fixedLength: true, maxLength: 32, nullable: false),
                     NamedUsers = table.Column<string>(type: JsonColumnType, nullable: true),
                     Mandatory = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -45,10 +46,16 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Subscription_Type",
+                schema: Schema,
+                table: "Subscription",
+                columns: new[] { "TenantId", "MessageType" });
+
+            migrationBuilder.CreateIndex(
                 name: "UX_Subscription_Owner",
                 schema: Schema,
                 table: "Subscription",
-                columns: new[] { "TenantId", "MessageType", "Level", "CompanyId", "UserId", "Channel", "Recipients" },
+                column: "OwnerKey",
                 unique: true);
         }
 

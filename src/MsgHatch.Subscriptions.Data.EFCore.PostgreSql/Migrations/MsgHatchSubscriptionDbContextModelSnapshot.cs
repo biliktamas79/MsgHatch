@@ -80,6 +80,12 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
                     b.Property<string>("NamedUsers")
                         .HasColumnType(JsonColumnType);
 
+                    b.Property<byte[]>("OwnerKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("bytea")
+                        .IsFixedLength();
+
                     b.Property<string>("Recipients")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -116,9 +122,12 @@ namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "MessageType", "Level", "CompanyId", "UserId", "Channel", "Recipients")
+                    b.HasIndex("OwnerKey")
                         .IsUnique()
                         .HasDatabaseName("UX_Subscription_Owner");
+
+                    b.HasIndex("TenantId", "MessageType")
+                        .HasDatabaseName("IX_Subscription_Type");
 
                     b.ToTable("Subscription", Schema);
                 });

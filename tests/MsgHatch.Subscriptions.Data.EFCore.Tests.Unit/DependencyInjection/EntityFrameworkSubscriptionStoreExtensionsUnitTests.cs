@@ -115,7 +115,26 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
 
         // Assert
         Assert.Equal([$"{schema}.Subscription", $"{schema}.__SubscriptionMigrations"], tables);
-        Assert.Equal(["PK_Subscription", "UX_Subscription_Owner"], names);
+        Assert.Equal(["IX_Subscription_Type", "PK_Subscription", "UX_Subscription_Owner"], names);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkSubscriptionStore_Model_HasTheOwnerKeyOf32BytesAsTheUniqueKeyAndTheTenantAndTheTypeAsTheIndexOfTheDeliveryRead()
+    {
+        // Arrange
+        await using var provider = Build(o => o.UseSqlite(_database.ConnectionString));
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
+        var subscription = context.GetService<IDesignTimeModel>().Model.GetEntityTypes().Single();
+
+        // Act
+        var indexes = subscription.GetIndexes()
+            .Select(static index => $"{index.GetDatabaseName()} unique {index.IsUnique}: {string.Join(", ", index.Properties.Select(static property => property.Name))}")
+            .Order(StringComparer.Ordinal);
+        var ownerKey = subscription.FindProperty("OwnerKey");
+
+        // Assert
+        Assert.Equal(["IX_Subscription_Type unique False: TenantId, MessageType", "UX_Subscription_Owner unique True: OwnerKey"], indexes);
+        Assert.Equal((typeof(byte[]), 32, true, false), (ownerKey?.ClrType, ownerKey?.GetMaxLength(), ownerKey?.IsFixedLength(), ownerKey?.IsNullable));
     }
 
     [Fact]

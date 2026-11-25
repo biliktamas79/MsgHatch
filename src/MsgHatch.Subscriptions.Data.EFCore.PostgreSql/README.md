@@ -37,6 +37,10 @@ await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
 
 ## Version history
 
+### 0.7.0 (2026-11-25)
+
+- Breaking: the new column `OwnerKey` holds the SHA-256 of the 7 key values of a subscription, and the unique index `UX_Subscription_Owner` has only this column. The new index `IX_Subscription_Type` on the tenant and the message type serves the delivery read. The new `Initial` migration of the package creates them, so a database of an earlier version needs a new database or a manual change.
+
 ### 0.5.0 (2026-11-24)
 
 - Breaking: the columns `Settings` and `NamedUsers` are `json`, not `text`, and have no collation. The option `JsonColumnType` selects another type, for example `jsonb`.

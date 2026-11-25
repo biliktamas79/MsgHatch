@@ -1,4 +1,7 @@
+using System.Buffers.Binary;
 using System.Data.Common;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MsgHatch.Data.EFCore;
@@ -13,7 +16,8 @@ namespace MsgHatch.Subscriptions.Data.EFCore;
 /// The subscription store on EF Core (section 4.5, D78, D120): one row of the table <c>Subscription</c> for
 /// each subscription, with its fields as columns and its channel settings as JSON (D149). The store of one tenant key
 /// reads and writes only the rows of its tenant. A second subscription with the same owner, message type, channel, and
-/// recipient kind, or with a stored id, gives <see cref="Errors.Conflict"/>. Each operation makes its own context through
+/// recipient kind, or with a stored id, gives <see cref="Errors.Conflict"/>. The unique index of the owner is on the
+/// SHA-256 of these 7 key values, which the store calculates before each insert and each update (D327). Each operation makes its own context through
 /// the pooled factory (D130).
 /// </summary>
 public sealed class EntityFrameworkSubscriptionStore : ISubscriptionStore
@@ -159,6 +163,7 @@ public sealed class EntityFrameworkSubscriptionStore : ISubscriptionStore
                             .SetProperty(static row => row.SettingsVersion, changed.SettingsVersion)
                             .SetProperty(static row => row.Settings, changed.Settings)
                             .SetProperty(static row => row.Recipients, changed.Recipients)
+                            .SetProperty(static row => row.OwnerKey, changed.OwnerKey)
                             .SetProperty(static row => row.NamedUsers, changed.NamedUsers)
                             .SetProperty(static row => row.Mandatory, changed.Mandatory)
                             .SetProperty(static row => row.CreatedAtUtc, changed.CreatedAtUtc)
@@ -188,12 +193,7 @@ public sealed class EntityFrameworkSubscriptionStore : ISubscriptionStore
 
     /// <summary>Whether another row has the id of the row, or its owner, message type, channel, and recipient kind.</summary>
     private static Task<bool> IsTakenAsync(MsgHatchSubscriptionDbContext context, SubscriptionRow row, CancellationToken ct) =>
-        context.Subscriptions.AsNoTracking().AnyAsync(
-            stored => stored.Id == row.Id
-                || (stored.TenantId == row.TenantId && stored.MessageType == row.MessageType && stored.Level == row.Level
-                    && stored.CompanyId == row.CompanyId && stored.UserId == row.UserId && stored.Channel == row.Channel
-                    && stored.Recipients == row.Recipients),
-            ct);
+        context.Subscriptions.AsNoTracking().AnyAsync(stored => stored.Id == row.Id || stored.OwnerKey == row.OwnerKey, ct);
 
     private ValueTask<ErrorOr<IReadOnlyList<Subscription>>> ReadAllAsync(
         Func<IQueryable<SubscriptionRow>, IQueryable<SubscriptionRow>> filter, CancellationToken ct) =>
@@ -231,7 +231,7 @@ public sealed class EntityFrameworkSubscriptionStore : ISubscriptionStore
             settings = serialized.Value;
         }
 
-        return new SubscriptionRow
+        var row = new SubscriptionRow
         {
             Id = subscription.Id.ToString("D"),
             Revision = subscription.Revision,
@@ -253,6 +253,28 @@ public sealed class EntityFrameworkSubscriptionStore : ISubscriptionStore
             CreatedAtUtc = subscription.CreatedAtUtc,
             LastModifiedAtUtc = subscription.LastModifiedAtUtc,
         };
+        row.OwnerKey = OwnerKeyOf(row);
+        return row;
+    }
+
+    /// <summary>
+    /// The SHA-256 of the 7 key values of a row (D327). Each value goes into the hash as its UTF-8 byte count, a 32-bit
+    /// integer in little-endian order, and then its UTF-8 bytes, so two different keys never give the same input, also when
+    /// they differ only at the border of two values.
+    /// </summary>
+    private static byte[] OwnerKeyOf(SubscriptionRow row)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Span<byte> byteCount = stackalloc byte[sizeof(int)];
+        foreach (var value in (ReadOnlySpan<string>)[row.TenantId, row.MessageType, row.Level, row.CompanyId, row.UserId, row.Channel, row.Recipients])
+        {
+            var bytes = Encoding.UTF8.GetBytes(value);
+            BinaryPrimitives.WriteInt32LittleEndian(byteCount, bytes.Length);
+            hash.AppendData(byteCount);
+            hash.AppendData(bytes);
+        }
+
+        return hash.GetHashAndReset();
     }
 
     /// <exception cref="ArgumentException">A column has an invalid id, name, or enum value.</exception>

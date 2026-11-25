@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Tests.Unit.Contracts;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
@@ -34,6 +37,41 @@ public sealed class EntityFrameworkSubscriptionStoreUnitTests(EntityFrameworkAcm
             ["", "Company", "100", "", "D", "Channel", "Email", "NamedUsers", "[\"2\"]", "0", "2030-01-01 00:00:00"],
             Assert.Single(Data.Database.Rows(
                 "SELECT TenantId, Level, CompanyId, UserId, MessageType, Kind, Channel, Recipients, NamedUsers, CAST(Mandatory AS TEXT), CreatedAtUtc FROM Subscription")));
+    }
+
+    [Fact]
+    public async Task AddAsync_Subscription_KeepsTheSha256OfTheByteCountAndTheUtf8BytesOfEachKeyValueAsTheOwnerKey()
+    {
+        // Arrange
+        var subscription = TestSubscriptions.A(
+            owner: SubscriptionOwner.ForCompany(new CompanyId("Ő1")), type: "D", kind: SubscriptionKind.OptOut, channel: new ChannelId("Email"));
+        static byte[] Value(string text)
+        {
+            var bytes = Encoding.UTF8.GetBytes(text);
+            return [(byte)bytes.Length, (byte)(bytes.Length >> 8), (byte)(bytes.Length >> 16), (byte)(bytes.Length >> 24), .. bytes];
+        }
+
+        byte[] key = [.. Value(""), .. Value("D"), .. Value("Company"), .. Value("Ő1"), .. Value(""), .. Value("Email"), .. Value("ScopeUsers")];
+
+        // Act
+        await Store.AddAsync(subscription, Ct);
+
+        // Assert
+        Assert.Equal([[Convert.ToHexString(SHA256.HashData(key))]], Data.Database.Rows("SELECT hex(OwnerKey) FROM Subscription"));
+    }
+
+    [Fact]
+    public async Task AddAsync_KeysThatDifferOnlyAtTheBorderOfTwoValues_StoresTwoSubscriptions()
+    {
+        // Arrange
+        var first = TestSubscriptions.A(owner: SubscriptionOwner.ForUser(new UserId("ab")), kind: SubscriptionKind.OptOut, channel: new ChannelId("c"));
+        var second = TestSubscriptions.A(owner: SubscriptionOwner.ForUser(new UserId("a")), kind: SubscriptionKind.OptOut, channel: new ChannelId("bc"));
+
+        // Act
+        var codes = (CodeOf(await Store.AddAsync(first, Ct)), CodeOf(await Store.AddAsync(second, Ct)));
+
+        // Assert
+        Assert.Equal(((int?)null, (int?)null), codes);
     }
 
     [Theory]
