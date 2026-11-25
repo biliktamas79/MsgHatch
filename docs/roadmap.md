@@ -4200,7 +4200,49 @@ Commits:
 
 The plan of this phase and D325 to D327 are in their own commit before commit 1.
 
-Checks that the phase does not do: a run on MariaDB, and a run of the MySQL tests through Testcontainers.
+Checked facts (2026-11-25), on Windows 11 build 26300 with the .NET SDK 10.0.404, EF Core 10.0.15, `Microting.EntityFrameworkCore.MySql` 10.0.14, `MySqlConnector` 2.6.2, MySQL 8.4.13 of the local container dev-mysql, SQL Server 2025 of the local container dev-mssql, and PostgreSQL 18.7 of the local container dev-postgres:
+
+| Fact | Source |
+|---|---|
+| The restore takes `Microting.EntityFrameworkCore.MySql` 10.0.14 with `MySqlConnector` 2.6.2, and `Testcontainers.MySql` 4.17.0. The local image `mysql:8.4` has MySQL 8.4.13. | The NuGet cache after the restore, and `docker image inspect mysql:8.4` |
+| The provider throws `MySqlConnector.MySqlException`, and each constructor of it is not public. So the dialect test makes each error number through reflection, with the constructor `(MySqlErrorCode, string)`. | `MySqlStoreDialectIntegTests` |
+| The default schema behavior of the provider is `Throw`, so a model with a schema fails. The setup with no dialect needs `SchemaBehavior(MySqlSchemaBehavior.Ignore)`. | A probe app with no server, and the folders `MySql` of the base projects |
+| `ServerVersion.Create(8, 4, 0, ServerType.MySql)` opens no connection, and `ServerVersion.AutoDetect` opens one. So the setup uses a fixed version 8.4, and its public API has no `ServerVersion`. | The probe app |
+| A text column with `IsUnicode(false)` is `varchar` in `utf8mb4` with the collation `utf8mb4_bin`, a time is `datetime(6)`, and a fixed `byte[]` of 32 bytes is `binary(32)`. | The generated migrations |
+| By default, each migration and each script of the provider starts with `ALTER DATABASE CHARACTER SET utf8mb4`. `HasCharSet("utf8mb4", DelegationModes.ApplyToTables)` in a model customizer puts the character set on each table instead. A combined value of the flags fails with `ArgumentOutOfRangeException`, because the provider checks the value with `Enum.IsDefined`. | The probe app, and the script test of the MySQL package |
+| The provider maps the store type `char(36)` to `Guid`, so `HasPendingModelChanges` threw a `NullReferenceException` for a fixed-length text column of 36 characters. MySqlConnector reads a `CHAR(36)` column as a `Guid`: with no dialect, 80 contract tests of the base store project failed with `InvalidCastException` until the connection got `GuidFormat=None`. The customizer of the MySQL package makes these columns `varchar(36)`. | The probe app, and the first run of the base store project |
+| `HasPendingModelChanges` gives false with the JSON type null and `json`, and with the collation `utf8mb4_0900_as_cs`. | The probe app |
+| The idempotent script has no `ALTER DATABASE`, and runs each migration in a procedure between `DELIMITER` lines. So the test runs it with a splitter of `DELIMITER` on one connection. | The script tests of both MySQL packages |
+| A time with a part of a microsecond comes back cut down to the microsecond: `AddTicks(19)` comes back as `AddTicks(10)`. | The time test of the MySQL inbox |
+| The largest real key of the old index `UX_Subscription_Owner` on SQL Server has 1,553 bytes, below 1,700, because an owner has a company id or a user id, never both. The test of each key column at its maximum length passed on the old index on SQL Server and on PostgreSQL. So the test line "Before the hash column, the insert fails on SQL Server" of this plan is wrong. | The new test on the commit before the hash column |
+| The hash with no byte count fails the border test and the format test. An update with no new `OwnerKey` fails the contract test `UpdateAsync_ToTheChannelOfAnotherSubscriptionOfTheOwner_GivesConflict`. A model cache key with no `HasSchemas` fails the test of two dialects of one type. | A change of the code for each test, and then the change back |
+| MySQL applies the assignments of an `UPDATE` from left to right. The retry set `Status` first, so the new try limit read the new status, and a failed message kept 8 tries in place of 11. 2 retry contract tests failed until the try limit came first. | The first run of the MySQL store project |
+| MySQL refuses the channel check with a subquery of the latest version: "You can't specify target table 'm' for update in FROM clause" (error 1093). 5 channel check contract tests failed until the store read the latest version first. | A probe test of the store error |
+| The provider locks the migrations with `GET_LOCK('__{database}_EFMigrationsLock')`, and MySQL refuses a lock name with more than 64 characters. A test database name of 46 characters failed, and one of 43 characters passed. So a database name has at most 45 characters, and the prefix of a test database of 42 characters left 3 characters for a name. | The first run of the MySQL store project, and the strings of the provider assembly |
+| With a reset that deletes the rows, the test of two parallel `SetChannelDownAsync` calls failed in 3 of 4 runs with the deadlock 1213. 200 isolated runs with new channel names gave no error. InnoDB keeps a deleted key as a delete-marked record, and the two inserts of that key take shared gap locks. With `TRUNCATE TABLE`, 9 of 9 runs passed. A truncate of each table made a run of the MySQL store project last about 1 minute 50 seconds, and a truncate of only the tables with a row about 21 seconds. | The runs of the MySQL store project with a message of the error in the test |
+| On this machine `localhost` gives `::1` and then `127.0.0.1`. A connect to `::1:3306` was refused after about 2,050 ms, and a connect to `127.0.0.1:3306` took 0 ms. dev-mysql listens only on `127.0.0.1`. | A TCP connect to each address |
+| The MySQL store project passes 324 tests, the MySQL subscription project 47, the base store project 917 on SQL Server, PostgreSQL, and MySQL, the base subscription project 120, and `SchemaMigrator.Tests.Integration` 12. The SQL Server packages pass 604 and 76 tests, and the PostgreSQL packages 613 and 77. | `dotnet test` of each project |
+| The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 40 unit test projects pass 6,536 tests and skip 1, the path limit test of the named pipe signal. The line coverage is 98.3 %. | `dotnet build`, `pwsh ./coverage.ps1` |
+| `pwsh ./pack.ps1` passes with 42 packages of version 0.7.0. The pack warning "packaging has been disabled" names only the 4 web examples, as in phase 51. | `pwsh ./pack.ps1` |
+
+Checks that the phase did not do:
+- A run on MariaDB.
+- A run of the MySQL tests through Testcontainers.
+- A run on Linux before the push. The workflow run of the push builds and tests on Linux, with no integration project.
+
+Commit 1 is `cce104f`, commit 2 `a6cbd94`, commit 3 `a9f7dac`, commit 4 `8d89900`, commit 5 `c60132c`, commit 6 `7431b33`, and commit 7 `834b112`. The plan of this phase is in `5aa5df8`.
+
+The implementation changed the plan in these points:
+- The owner: "Yes, change MySQL". So the commit `f4c0158` after commit 3 puts `127.0.0.1` in place of `localhost` in the connection string example of the compose file, because `localhost` gives `::1` first (checked fact). The `appsettings.json` examples of commits 4 and 6 also use `127.0.0.1`.
+- The owner: "Yes, Adminer". So the commit `9543913` adds the container dev-adminer from `adminer:6.3.1` on `127.0.0.1:8082`, with dev-mysql as its default server, to `docker/mysql.compose.yml` of item 6.
+- The commit `00e7737` before commit 4 changes the base package, because two contracts failed on MySQL (checked facts): the retry sets the new try limit before the status, and the channel check reads the latest version first, as the MongoDB store does. The README of `MsgHatch.Data.EFCore` gets a line in the entry 0.7.0.
+- The MySQL package has a model customizer, which the plan did not name. It puts the character set on each table and not on the database, and it makes each fixed-length text column `varchar`, so a message id and a claim token are `varchar(36)` on MySQL (checked facts).
+- The setup of the MySQL packages uses the fixed server version 8.4, with no parameter, so the public API has no type of the provider (D325).
+- The name of a MySQL test database has at most 45 characters, because of the migration lock of the provider (checked fact). So its prefix is the prefix of D180 with no `_data_efcore`, for example `msghatch_subscriptions_mysql__`, and not the prefix of item 7. The README of `MsgHatch.Data.EFCore.MySql` gives the limit of 45 characters to a host.
+- A reset of a MySQL test database empties the tables that have a row with `TRUNCATE TABLE`, because a reset with `DELETE` gave the deadlock 1213 (checked fact).
+- The base projects run the contracts on MySQL with no dialect on a connection with `GuidFormat=None`, because MySqlConnector reads a `char(36)` column as a `Guid` (checked fact).
+- The test line "Before the hash column, the insert fails on SQL Server" is wrong, because a real key of the old index has at most 1,553 bytes (checked fact). The hash column stays for MySQL and for one rule on each provider. Commit 7 corrects the sentence of D327.
+- The example of the classifier in the README of `MsgHatch.Data.EFCore.MySql` rejects the error 1290, `OptionPreventsStatement`, of a server with the option `read_only`.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.7.0, and the EF Core integration projects pass on SQL Server, PostgreSQL, and MySQL.
 
