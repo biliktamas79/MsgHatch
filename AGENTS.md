@@ -26,8 +26,8 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | Core | `MsgHatch.Domain`, `MsgHatch.SourceGeneration`, `MsgHatch.AspNetCore` |
 | Templates | `MsgHatch.Templates`, `MsgHatch.Templates.Liquid`, `MsgHatch.Templates.AspNetCore` |
 | Channels | `MsgHatch.Channels.Email`, `MsgHatch.Channels.Email.AmazonSes`, `MsgHatch.Channels.Email.Resend`, `MsgHatch.Channels.SignalR`, `MsgHatch.Channels.Broker`, `MsgHatch.Channels.Broker.Wolverine`, `MsgHatch.Channels.Broker.AmazonSns` |
-| Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.EFCore.SqlServer`, `MsgHatch.Data.EFCore.PostgreSql`, `MsgHatch.Data.MongoDb` |
-| Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer`, `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
+| Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.EFCore.SqlServer`, `MsgHatch.Data.EFCore.PostgreSql`, `MsgHatch.Data.EFCore.MySql`, `MsgHatch.Data.MongoDb` |
+| Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer`, `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`, `MsgHatch.Subscriptions.Data.EFCore.MySql`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 | Dispatch signal | `MsgHatch.Dispatch.NamedPipes`, `MsgHatch.Dispatch.RabbitMq` |
 | API contracts | `MsgHatch.Api.Contracts`, `MsgHatch.Subscriptions.Api.Contracts`, `MsgHatch.Templates.Api.Contracts` |
 | API clients | `MsgHatch.Api.Client`, `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
@@ -51,7 +51,7 @@ The coverage report of the unit tests (PowerShell 7). It writes `artifacts/cover
 pwsh ./coverage.ps1
 ```
 
-From phase 41 on, the pack check (PowerShell 7). It packs the 40 packages in Release into `artifacts/packages`, and fails when a package has a wrong version, wrong metadata, or missing content (section 5.6 of the design). The GitHub workflow `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1 -VersionSuffix ci.<run number>` on `ubuntu-latest` on each push of a branch and each pull request, and publishes to nuget.org only on a tag `v<version>`. Never push a tag `v*` unless the owner asks:
+From phase 41 on, the pack check (PowerShell 7). It packs the 42 packages in Release into `artifacts/packages`, and fails when a package has a wrong version, wrong metadata, or missing content (section 5.6 of the design). The GitHub workflow `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1 -VersionSuffix ci.<run number>` on `ubuntu-latest` on each push of a branch and each pull request, and publishes to nuget.org only on a tag `v<version>`. Never push a tag `v*` unless the owner asks:
 
 ```bash
 pwsh ./pack.ps1
@@ -126,6 +126,13 @@ dotnet test tests/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integratio
 ```
 
 From phase 50 on, the EF Core tables are in the schema of the options with no prefix `MsgHatch`, for example `msghatch.Outbox` and `msghatch.__StoreMigrations` (D321). The SQLite and MongoDB stores keep the prefix. The provider integration projects also run the contract bases with the option `JsonColumnType`: `jsonb` on PostgreSQL, and `json` on SQL Server, which needs SQL Server 2025 or Azure SQL (D323). Keep the name of a PostgreSQL test database short, for example `subs_jsonb`, because the prefix of the subscription project has 47 bytes. The design-time contexts of the EF Core tools set `JsonColumnType` to `json`, and the generator writes `JsonColumnType` in its place, as it does for the schema and the collation.
+
+From phase 52 on, the EF Core integration projects also use the MySQL of `MySqlIntegration:ConnectionString` in `appsettings.Local.json` of `tests/MsgHatch.Data.EFCore.Tests.Integration` and of `tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration`, for example the local container dev-mysql of `docker/mysql.compose.yml` with `Server=127.0.0.1;Port=3306;User ID=root;Password=...`. Use `127.0.0.1`, not `localhost`: the port listens only on IPv4, and Windows needs about 2 seconds to refuse `::1`. The user needs the right to create databases. On MySQL, the EF Core tables keep the prefix `MsgHatch` (D326). The provider locks the migrations with `GET_LOCK('__{database}_EFMigrationsLock')`, and MySQL allows at most 64 characters in a lock name. So the name of a MySQL test database has at most 45 characters: the prefix of the PostgreSQL rule with no `_data_efcore`, for example `msghatch_subscriptions_mysql__`, and then the name. The tests drop and create only these databases. Each test database has a pool of at most 10 connections, because MySQL allows 151 connections by default. A reset empties the tables with `TRUNCATE TABLE`, because two parallel inserts of a key that a `DELETE` removed deadlock in InnoDB. With no connection string, Testcontainers starts MySQL from the image `mysql:8.4`, and pulls the image only when it is missing. The two base projects run the contracts on MySQL with no dialect in their folder `MySql`, and the MySQL packages have their own projects:
+
+```bash
+dotnet test tests/MsgHatch.Data.EFCore.MySql.Tests.Integration
+dotnet test tests/MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Integration
+```
 
 From phase 19 on, the MongoDB integration tests use the MongoDB of `MongoDbIntegration:ConnectionString` in `appsettings.Local.json` of each MongoDB integration project, which git ignores, for example the local container dev-mongo with `mongodb://localhost:27017/?replicaSet=rs0`. `appsettings.json` next to it describes the key. The tests drop only the databases whose names start with the name of their project, at the start and at the end of a run (D183). MongoDB allows at most 63 characters in a database name, so the name of a test database adds at most 9 characters to the 54 of the subscription project. The server must be a replica set, because the tests of the MongoDB dispatch signal open a change stream. With no connection string, Testcontainers starts MongoDB from the image `mongo:8.3` as a replica set with one member:
 
