@@ -2,7 +2,7 @@
 
 The EF Core stores of [MsgHatch](https://github.com/biliktamas79/MsgHatch), on each relational EF Core provider. The package implements `IInboxStore`, `IOutboxStore`, and `IRegistrySettingsStore` of `MsgHatch.Domain` on the tables of `MsgHatchDbContext`, through a pooled `IDbContextFactory`. It has no SQL text and no provider name: the claim, the adds, and the writes of the publish tries are LINQ queries and EF Core writes.
 
-For SQL Server, use the package `MsgHatch.Data.EFCore.SqlServer`. It adds the claim with `READPAST`, the binary collation, the schema migrations, and a setup with one call. For PostgreSQL, use the package `MsgHatch.Data.EFCore.PostgreSql`, with the claim with `SKIP LOCKED` and the collation `C`. For another provider, add the EF Core provider and the migrations of the host.
+For SQL Server, use the package `MsgHatch.Data.EFCore.SqlServer`. It adds the claim with `READPAST`, the binary collation, the schema migrations, and a setup with one call. For PostgreSQL, use the package `MsgHatch.Data.EFCore.PostgreSql`, with the claim with `SKIP LOCKED` and the collation `C`. For MySQL, use the package `MsgHatch.Data.EFCore.MySql`, with the collation `utf8mb4_bin` and the tables with the prefix `MsgHatch`. For another provider, add the EF Core provider and the migrations of the host.
 
 ## Install
 
@@ -21,6 +21,12 @@ For PostgreSQL:
 
 ```shell
 dotnet add package MsgHatch.Data.EFCore.PostgreSql
+```
+
+For MySQL:
+
+```shell
+dotnet add package MsgHatch.Data.EFCore.MySql
 ```
 
 ## Setup
@@ -55,6 +61,14 @@ The PostgreSQL package does the same with the dialect of PostgreSQL. Each time i
 ```csharp
 services.AddMsgHatch()
     .UseEntityFrameworkPostgreSqlStores(connectionString);
+```
+
+The MySQL package does the same with the dialect of MySQL. A schema of MySQL is a database, so the tables have the prefix `MsgHatch` in the database of the connection, for example `MsgHatchOutbox`. Each time is a `datetime(6)` there, which keeps microseconds:
+
+[//]: # (snippet: setup-mysql)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkMySqlStores(connectionString);
 ```
 
 ## Claim
@@ -145,6 +159,7 @@ A database with no schemas inside it, for example MySQL, where a schema is a dat
 
 ### 0.7.0 (2026-11-25)
 
+- The new package `MsgHatch.Data.EFCore.MySql` ships the dialect and the migrations for MySQL.
 - `IEntityFrameworkStoreDialect` gets the default property `HasSchemas`, which gives true. With false, each table and each history table gets the prefix `MsgHatch` and no schema, for example `MsgHatchOutbox` and `__MsgHatchStoreMigrations`, and the startup validation fails when the option `Schema` is not the default `msghatch`.
 - A retry of a failed message and the start of a channel check also work on MySQL. The retry sets the new try limit before the status, because MySQL applies the assignments of an `UPDATE` from left to right. The channel check reads the latest version first, because MySQL refuses a subquery on the table of an `UPDATE` (error 1093).
 

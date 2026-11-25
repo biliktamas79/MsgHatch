@@ -28,6 +28,7 @@
   </Folder>
   <Folder Name="/src/Data/">
     <Project Path="src/MsgHatch.Data.EFCore/MsgHatch.Data.EFCore.csproj" />
+    <Project Path="src/MsgHatch.Data.EFCore.MySql/MsgHatch.Data.EFCore.MySql.csproj" />
     <Project Path="src/MsgHatch.Data.EFCore.PostgreSql/MsgHatch.Data.EFCore.PostgreSql.csproj" />
     <Project Path="src/MsgHatch.Data.EFCore.SqlServer/MsgHatch.Data.EFCore.SqlServer.csproj" />
     <Project Path="src/MsgHatch.Data.FileSystem/MsgHatch.Data.FileSystem.csproj" />
@@ -92,6 +93,7 @@
     <Project Path="tests/MsgHatch.Channels.SignalR.Tests.Unit/MsgHatch.Channels.SignalR.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/tests/Data/">
+    <Project Path="tests/MsgHatch.Data.EFCore.MySql.Tests.Integration/MsgHatch.Data.EFCore.MySql.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration/MsgHatch.Data.EFCore.SqlServer.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.Tests.Integration/MsgHatch.Data.EFCore.Tests.Integration.csproj" />

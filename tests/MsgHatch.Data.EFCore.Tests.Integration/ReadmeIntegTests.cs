@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
+using MsgHatch.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
@@ -23,6 +24,8 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
     private const string _testConnectionString = "Data Source=msghatch.db";
 
     private const string _postgreSqlConnectionString = "Host=localhost;Database=msghatch";
+
+    private const string _mySqlConnectionString = "Server=localhost;Database=msghatch";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -132,6 +135,27 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
         // Assert
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
         Assert.Equal("Npgsql.EntityFrameworkCore.PostgreSQL", context.Database.ProviderName);
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkMySqlStores_SetupOfTheReadme_GivesTheContextsTheTablesWithThePrefix()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        var connectionString = _mySqlConnectionString;
+
+        // Act
+        #region readme:setup-mysql
+        services.AddMsgHatch()
+            .UseEntityFrameworkMySqlStores(connectionString);
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+        Assert.Equal(
+            ("Microting.EntityFrameworkCore.MySql", "MsgHatchOutbox"),
+            (context.Database.ProviderName, context.Model.GetEntityTypes().Single(static type => type.ClrType.Name == "OutboxRow").GetTableName()));
     }
 
     [Fact]

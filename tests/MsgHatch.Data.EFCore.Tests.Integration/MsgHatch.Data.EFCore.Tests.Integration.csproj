@@ -4,12 +4,14 @@
     <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore\MsgHatch.Data.EFCore.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.SqlServer\MsgHatch.Data.EFCore.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.PostgreSql\MsgHatch.Data.EFCore.PostgreSql.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.MySql\MsgHatch.Data.EFCore.MySql.csproj" />
     <ProjectReference Include="..\MsgHatch.Domain.Tests.Unit\MsgHatch.Domain.Tests.Unit.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.MySql" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />

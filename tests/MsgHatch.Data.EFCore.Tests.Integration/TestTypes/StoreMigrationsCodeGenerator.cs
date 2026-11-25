@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations.Design;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using MsgHatch.Data.EFCore.Migrations;
+using MsgHatch.Data.EFCore.MySql;
 using MsgHatch.Data.EFCore.PostgreSql;
 using MsgHatch.Data.EFCore.SqlServer;
 
@@ -23,7 +24,7 @@ public sealed class StoreMigrationsCodeGenerator(
     private const string _designTimeJsonColumnType = "json";
 
     private static readonly string[] _dialectCollations =
-        [SqlServerStoreDialect.Instance.TextCollation!, PostgreSqlStoreDialect.Instance.TextCollation!];
+        [SqlServerStoreDialect.Instance.TextCollation!, PostgreSqlStoreDialect.Instance.TextCollation!, MySqlStoreDialect.Instance.TextCollation!];
 
     public override string GenerateMigration(
         string? migrationNamespace, string migrationName, IReadOnlyList<MigrationOperation> upOperations,
