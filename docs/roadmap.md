@@ -4083,6 +4083,37 @@ Commits:
 
 The plan of this phase and D324 are in their own commit before commit 1.
 
+Checked facts (2026-11-25), on Windows 11 build 26300 with the .NET SDK 10.0.404 and Git 2.56.0:
+
+| Fact | Source |
+|---|---|
+| Before the code, 274 files named an old package, project, or namespace: 72 in `src`, 169 in `tests`, 26 in `examples`, 3 in `docs`, and `AGENTS.md`, `Directory.Packages.props`, `MsgHatch.slnx`, and `README.md`. | `git grep` of the old names |
+| A `git mv` of a folder also moves the files of the folder that git ignores. So item 5 of the plan is wrong: a folder move of an integration project moves its `appsettings.Local.json` too. | A test with a tracked file and an ignored file in a scratch repository |
+| Only 3 `appsettings.Local.json` files exist, of the SES, Resend, and Wolverine integration projects. The SNS integration project has none. | The untracked files of the old folders, listed by name only |
+| One test used the partly qualified name `SignalR.SignalRChannel`, which resolved to the old namespace `MsgHatch.SignalR` from inside the namespace `MsgHatch.Subscriptions.Tests.Unit.Resolution`. The build failed with CS0246 and CS0103 until the name became `Channels.SignalR.SignalRChannel`. The files of the folders `Channels` of `examples/ExampleApp` and `examples/WolverineExample.Consumer` build with the new `using` directives. | `dotnet build` of the solution |
+| A text replacement of the old names also changes the names of earlier packages that never get the new names: `MsgHatch.Email.Razor`, `MsgHatch.Email.Liquid`, and the namespace `MsgHatch.Email.Templates` in `README.md` and in D196, D204, D205, D215, and D216 of the design. The phase keeps these names. | `git grep` of each distinct new name |
+| A folder that moved as a whole keeps its old `bin` and `obj`. The build of the new project does not remove the old assemblies, for example `MsgHatch.Email.dll`, and coverlet gives each of them a line coverage of 0 %. The first coverage run gave 93.8 %. With no `bin` and `obj` in the 15 folders that moved as a whole, it gives 98.3 %. 5 other integration and performance projects also had old assemblies in `bin`. | The assemblies of `artifacts/coverage/Summary.json`, and the second run of `pwsh ./coverage.ps1` |
+| The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 40 unit test projects pass 6,527 tests and skip 1, the path limit test of the named pipe signal. The line coverage is 98.3 %. | `dotnet build`, `pwsh ./coverage.ps1` |
+| `pwsh ./pack.ps1` passes with 40 packages of version 0.6.0, with the 7 new channel ids. The pack warning "packaging has been disabled" names only the 4 web examples, as in phase 50. | `pwsh ./pack.ps1` |
+| The SES integration project passes 4 tests, and the Wolverine integration project passes 3 tests on the local container dev-rabbit. The Resend integration project fails 4 of 6 tests with `Resend: HTTP 401 validation_error`, as in phase 6, with the same `appsettings.Local.json` of 2026-11-02 23:44. So Resend refuses the API key of that file. | `dotnet test` of each project, on the word of the owner |
+| No file names an old package id, project, or namespace, except the "Breaking:" entries of the 7 READMEs and the done phases of this roadmap. | `git grep` of the old names |
+
+The phase adds no test, because it changes no behavior.
+
+Checks that the phase did not do:
+- The SNS integration project, which needs the AWS resources of the owner.
+- A pass of the Resend integration project, which needs a new API key.
+- A run on Linux before the push. The workflow run of the push builds and tests on Linux, with no integration project.
+
+Commit 1 is `a4161f8`, and commit 2 `bc8730f`. The plan of this phase is in `5aa5df8`.
+
+The implementation changed the plan in these points:
+- The 4 integration projects moved file by file, because a folder move also moves the ignored files (checked fact). The other 15 folders moved as a whole.
+- The owner: "yes, move the appsettings.Local.json files and cleanup orphaned project folders". So the phase moved the 3 files with no read, and removed the 4 old integration folders, which then held only build output.
+- The owner: "run the SES, Resend and Wolverine integration tests and cleanup stale bin and obj folders". So the phase ran these 3 projects, and removed `bin` and `obj` of the 15 folders that moved as a whole and of the 5 projects with old assemblies.
+- Section 5.3 of the design gets the naming rule of a channel package, because its example of the project names was `MsgHatch.Email.AmazonSES`.
+- The section "Later phases" names the planned MassTransit client `MsgHatch.Channels.Broker.MassTransit`.
+
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 40 packages of 0.6.0.
 
 ### Phase 52: MySQL packages of the EF Core stores
@@ -4195,5 +4226,5 @@ These items are on the roadmap with no detailed plan yet. Each one becomes its o
 - SMS and push channels.
 - Batched try records: one store call records the tries of several sent messages, for more throughput on one channel.
 - More direct broker clients, one for each SDK, with the same pattern as SNS: `Azure.Messaging.ServiceBus`, `Confluent.Kafka`, and `RabbitMQ.Client`.
-- More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
+- More framework clients: Rebus, SlimMessageBus, and `MsgHatch.Channels.Broker.MassTransit` on MassTransit 8 (section 6). SlimMessageBus is a light publish abstraction with transport plugins. Its phase first checks that the client uses no outbox of SlimMessageBus.
 - AOT for the other packages (D237): each package outside the API boundary sets `IsAotCompatible` when its dependencies allow it, or the design records why not.
