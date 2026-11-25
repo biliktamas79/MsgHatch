@@ -25,7 +25,7 @@ Read the current phase in the roadmap, and the design sections that it refers to
 |---|---|
 | Core | `MsgHatch.Domain`, `MsgHatch.SourceGeneration`, `MsgHatch.AspNetCore` |
 | Templates | `MsgHatch.Templates`, `MsgHatch.Templates.Liquid`, `MsgHatch.Templates.AspNetCore` |
-| Channels | `MsgHatch.Email`, `MsgHatch.Email.AmazonSES`, `MsgHatch.Email.Resend`, `MsgHatch.SignalR`, `MsgHatch.Broker`, `MsgHatch.Broker.Wolverine`, `MsgHatch.Broker.AmazonSns` |
+| Channels | `MsgHatch.Channels.Email`, `MsgHatch.Channels.Email.AmazonSes`, `MsgHatch.Channels.Email.Resend`, `MsgHatch.Channels.SignalR`, `MsgHatch.Channels.Broker`, `MsgHatch.Channels.Broker.Wolverine`, `MsgHatch.Channels.Broker.AmazonSns` |
 | Stores | `MsgHatch.Data.FileSystem`, `MsgHatch.Data.Sqlite`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.EFCore.SqlServer`, `MsgHatch.Data.EFCore.PostgreSql`, `MsgHatch.Data.MongoDb` |
 | Subscriptions | `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Data.FileSystem`, `MsgHatch.Subscriptions.Data.Sqlite`, `MsgHatch.Subscriptions.Data.EFCore`, `MsgHatch.Subscriptions.Data.EFCore.SqlServer`, `MsgHatch.Subscriptions.Data.EFCore.PostgreSql`, `MsgHatch.Subscriptions.Data.MongoDb`, `MsgHatch.Subscriptions.Caching.Hybrid`, `MsgHatch.Subscriptions.Caching.FusionCache`, `MsgHatch.Subscriptions.AspNetCore` |
 | Dispatch signal | `MsgHatch.Dispatch.NamedPipes`, `MsgHatch.Dispatch.RabbitMq` |
@@ -57,29 +57,29 @@ From phase 41 on, the pack check (PowerShell 7). It packs the 40 packages in Rel
 pwsh ./pack.ps1
 ```
 
-From phase 4 on, the SES integration tests need an Amazon SES account. Put its settings into `tests/MsgHatch.Email.AmazonSES.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. With no account, each test is skipped:
+From phase 4 on, the SES integration tests need an Amazon SES account. Put its settings into `tests/MsgHatch.Channels.Email.AmazonSes.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. With no account, each test is skipped:
 
 ```bash
-dotnet test tests/MsgHatch.Email.AmazonSES.Tests.Integration
+dotnet test tests/MsgHatch.Channels.Email.AmazonSes.Tests.Integration
 ```
 
-The Resend integration tests need a Resend API key. Put it into `tests/MsgHatch.Email.Resend.Tests.Integration/appsettings.Local.json`, which git ignores. Each run sends 3 emails to the Resend test address `delivered@resend.dev`. With no key, each test is skipped:
+The Resend integration tests need a Resend API key. Put it into `tests/MsgHatch.Channels.Email.Resend.Tests.Integration/appsettings.Local.json`, which git ignores. Each run sends 3 emails to the Resend test address `delivered@resend.dev`. With no key, each test is skipped:
 
 ```bash
-dotnet test tests/MsgHatch.Email.Resend.Tests.Integration
+dotnet test tests/MsgHatch.Channels.Email.Resend.Tests.Integration
 ```
 
-From phase 6 on, the Wolverine integration tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://localhost:5672`, into `tests/MsgHatch.Broker.Wolverine.Tests.Integration/appsettings.Local.json`, which git ignores. The tests declare only exclusive queues. With no URI, each test is skipped:
+From phase 6 on, the Wolverine integration tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://localhost:5672`, into `tests/MsgHatch.Channels.Broker.Wolverine.Tests.Integration/appsettings.Local.json`, which git ignores. The tests declare only exclusive queues. With no URI, each test is skipped:
 
 ```bash
-dotnet test tests/MsgHatch.Broker.Wolverine.Tests.Integration
+dotnet test tests/MsgHatch.Channels.Broker.Wolverine.Tests.Integration
 ```
 
 From phase 13 on, the benchmarks run in the Release configuration. Run one project at a time, because each run builds the project again. Section 4.11 of the design records the results:
 
 ```bash
 dotnet run -c Release --project tests/MsgHatch.Domain.Tests.Performance
-dotnet run -c Release --project tests/MsgHatch.Email.Tests.Performance
+dotnet run -c Release --project tests/MsgHatch.Channels.Email.Tests.Performance
 dotnet run -c Release --project tests/MsgHatch.Subscriptions.Tests.Performance
 ```
 
@@ -134,10 +134,10 @@ dotnet test tests/MsgHatch.Data.MongoDb.Tests.Integration
 dotnet test tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration
 ```
 
-From phase 38 on, the SNS integration tests need a standard SNS topic and an SQS queue with a raw message delivery subscription to the topic. The owner creates them, because the tests create no AWS resource. Put the access key, the region, the topic ARN, and the queue URL into `tests/MsgHatch.Broker.AmazonSns.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. The tests delete each message that they receive from the queue. With no settings, each test is skipped:
+From phase 38 on, the SNS integration tests need a standard SNS topic and an SQS queue with a raw message delivery subscription to the topic. The owner creates them, because the tests create no AWS resource. Put the access key, the region, the topic ARN, and the queue URL into `tests/MsgHatch.Channels.Broker.AmazonSns.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes each key. The tests delete each message that they receive from the queue. With no settings, each test is skipped:
 
 ```bash
-dotnet test tests/MsgHatch.Broker.AmazonSns.Tests.Integration
+dotnet test tests/MsgHatch.Channels.Broker.AmazonSns.Tests.Integration
 ```
 
 From phase 40 on, the RabbitMQ dispatch signal tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://localhost:5672`, into `RabbitMqIntegration:Uri` of `tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes the key. Each test uses its own auto-delete exchange, and the signals declare only exclusive queues. The tests of a lost connection need the scheme `amqp`, and are skipped with `amqps`. With no URI, each test is skipped:
