@@ -1,8 +1,8 @@
 using MongoDB.Bson;
 using MongoDB.Driver;
+using MsgHatch.Channels.Email;
 using MsgHatch.Data.MongoDb.Tests.Integration.TestTypes;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration.TestTypes;
 using MsgHatch.Subscriptions.Tests.Unit.Contracts;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;

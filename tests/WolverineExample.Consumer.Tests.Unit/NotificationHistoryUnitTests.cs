@@ -1,9 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
-using MsgHatch.SignalR;
 using Wolverine;
 using WolverineExample.Consumer.Notifications;
 using WolverineExample.Consumer.Tests.Unit.TestTypes;

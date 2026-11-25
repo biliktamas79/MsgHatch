@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using MsgHatch.SignalR;
+using MsgHatch.Channels.SignalR;
 
 namespace SignalRDemo.Notices;
 

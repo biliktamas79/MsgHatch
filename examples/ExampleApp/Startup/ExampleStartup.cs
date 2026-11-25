@@ -2,6 +2,8 @@ using ExampleApp.Channels;
 using ExampleApp.Notices;
 using ExampleApp.PasswordResets;
 using ExampleApp.Recipients;
+using MsgHatch.Channels.Email;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
@@ -9,8 +11,6 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Pipeline;
-using MsgHatch.Email;
-using MsgHatch.SignalR;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Verification;
 

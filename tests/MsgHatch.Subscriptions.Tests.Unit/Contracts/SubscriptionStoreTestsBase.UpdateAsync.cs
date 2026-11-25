@@ -1,4 +1,4 @@
-using MsgHatch.Email;
+using MsgHatch.Channels.Email;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Subscriptions.Tests.Unit.Contracts;

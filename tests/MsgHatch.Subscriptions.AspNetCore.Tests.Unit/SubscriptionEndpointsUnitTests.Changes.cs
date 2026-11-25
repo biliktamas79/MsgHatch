@@ -1,8 +1,8 @@
 using System.Net;
+using MsgHatch.Channels.Email;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
-using MsgHatch.SignalR;
 using MsgHatch.Subscriptions.AspNetCore.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 using NSubstitute;

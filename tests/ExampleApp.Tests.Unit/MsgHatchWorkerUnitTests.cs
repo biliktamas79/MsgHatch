@@ -3,6 +3,7 @@ using ExampleApp.Notices;
 using ExampleApp.Tests.Unit.TestTypes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MsgHatch.Channels.Email.DependencyInjection;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
 using MsgHatch.Dispatch.NamedPipes.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
@@ -10,7 +11,6 @@ using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
-using MsgHatch.Email.DependencyInjection;
 using static ExampleApp.Tests.Unit.TestTypes.ExampleHost;
 
 namespace ExampleApp.Tests.Unit;

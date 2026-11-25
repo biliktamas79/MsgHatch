@@ -18,13 +18,13 @@
     <Project Path="src/MsgHatch.SourceGeneration/MsgHatch.SourceGeneration.csproj" />
   </Folder>
   <Folder Name="/src/Channels/">
-    <Project Path="src/MsgHatch.Broker/MsgHatch.Broker.csproj" />
-    <Project Path="src/MsgHatch.Broker.AmazonSns/MsgHatch.Broker.AmazonSns.csproj" />
-    <Project Path="src/MsgHatch.Broker.Wolverine/MsgHatch.Broker.Wolverine.csproj" />
-    <Project Path="src/MsgHatch.Email/MsgHatch.Email.csproj" />
-    <Project Path="src/MsgHatch.Email.AmazonSES/MsgHatch.Email.AmazonSES.csproj" />
-    <Project Path="src/MsgHatch.Email.Resend/MsgHatch.Email.Resend.csproj" />
-    <Project Path="src/MsgHatch.SignalR/MsgHatch.SignalR.csproj" />
+    <Project Path="src/MsgHatch.Channels.Broker/MsgHatch.Channels.Broker.csproj" />
+    <Project Path="src/MsgHatch.Channels.Broker.AmazonSns/MsgHatch.Channels.Broker.AmazonSns.csproj" />
+    <Project Path="src/MsgHatch.Channels.Broker.Wolverine/MsgHatch.Channels.Broker.Wolverine.csproj" />
+    <Project Path="src/MsgHatch.Channels.Email/MsgHatch.Channels.Email.csproj" />
+    <Project Path="src/MsgHatch.Channels.Email.AmazonSes/MsgHatch.Channels.Email.AmazonSes.csproj" />
+    <Project Path="src/MsgHatch.Channels.Email.Resend/MsgHatch.Channels.Email.Resend.csproj" />
+    <Project Path="src/MsgHatch.Channels.SignalR/MsgHatch.Channels.SignalR.csproj" />
   </Folder>
   <Folder Name="/src/Data/">
     <Project Path="src/MsgHatch.Data.EFCore/MsgHatch.Data.EFCore.csproj" />
@@ -78,18 +78,18 @@
     <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/tests/Channels/">
-    <Project Path="tests/MsgHatch.Broker.AmazonSns.Tests.Integration/MsgHatch.Broker.AmazonSns.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Broker.AmazonSns.Tests.Unit/MsgHatch.Broker.AmazonSns.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Broker.Tests.Unit/MsgHatch.Broker.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Integration/MsgHatch.Broker.Wolverine.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Broker.Wolverine.Tests.Unit/MsgHatch.Broker.Wolverine.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Integration/MsgHatch.Email.AmazonSES.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Email.AmazonSES.Tests.Unit/MsgHatch.Email.AmazonSES.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Email.Resend.Tests.Integration/MsgHatch.Email.Resend.Tests.Integration.csproj" />
-    <Project Path="tests/MsgHatch.Email.Resend.Tests.Unit/MsgHatch.Email.Resend.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.Email.Tests.Performance/MsgHatch.Email.Tests.Performance.csproj" />
-    <Project Path="tests/MsgHatch.Email.Tests.Unit/MsgHatch.Email.Tests.Unit.csproj" />
-    <Project Path="tests/MsgHatch.SignalR.Tests.Unit/MsgHatch.SignalR.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Broker.AmazonSns.Tests.Integration/MsgHatch.Channels.Broker.AmazonSns.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Broker.AmazonSns.Tests.Unit/MsgHatch.Channels.Broker.AmazonSns.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Broker.Tests.Unit/MsgHatch.Channels.Broker.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Broker.Wolverine.Tests.Integration/MsgHatch.Channels.Broker.Wolverine.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Broker.Wolverine.Tests.Unit/MsgHatch.Channels.Broker.Wolverine.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Email.AmazonSes.Tests.Integration/MsgHatch.Channels.Email.AmazonSes.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Email.AmazonSes.Tests.Unit/MsgHatch.Channels.Email.AmazonSes.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Email.Resend.Tests.Integration/MsgHatch.Channels.Email.Resend.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Email.Resend.Tests.Unit/MsgHatch.Channels.Email.Resend.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Email.Tests.Performance/MsgHatch.Channels.Email.Tests.Performance.csproj" />
+    <Project Path="tests/MsgHatch.Channels.Email.Tests.Unit/MsgHatch.Channels.Email.Tests.Unit.csproj" />
+    <Project Path="tests/MsgHatch.Channels.SignalR.Tests.Unit/MsgHatch.Channels.SignalR.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/tests/Data/">
     <Project Path="tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.csproj" />

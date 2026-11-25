@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
-using MsgHatch.SignalR;
+using MsgHatch.Channels.SignalR;
 
 namespace WolverineExample.Consumer.Channels;
 

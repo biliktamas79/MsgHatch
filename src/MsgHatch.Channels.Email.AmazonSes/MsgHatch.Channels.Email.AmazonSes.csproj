@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The Amazon SES client of the MsgHatch email channel.</Description>
+    <PackageTags>messaging;email;aws;ses</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Channels.Email\MsgHatch.Channels.Email.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.SimpleEmailV2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\AwsRetryAfter.cs" Link="Shared\AwsRetryAfter.cs" />
+  </ItemGroup>
+
+</Project>

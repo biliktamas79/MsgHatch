@@ -1,6 +1,6 @@
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
-using MsgHatch.Email;
 
 namespace WolverineExample.Consumer.Channels;
 

@@ -1,10 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Channels.Email;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
-using MsgHatch.Email;
-using MsgHatch.SignalR;
 using Wolverine;
 using WolverineExample.Consumer.Notifications;
 using WolverineExample.Consumer.Tests.Unit.TestTypes;

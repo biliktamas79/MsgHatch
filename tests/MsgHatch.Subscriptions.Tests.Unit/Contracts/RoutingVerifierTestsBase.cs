@@ -5,7 +5,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email.DependencyInjection;
+using MsgHatch.Channels.Email.DependencyInjection;
 using MsgHatch.Subscriptions.DependencyInjection;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Verification;

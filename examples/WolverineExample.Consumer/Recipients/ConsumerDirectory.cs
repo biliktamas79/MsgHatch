@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
+using MsgHatch.Channels.Email;
 using MsgHatch.Data.Sqlite;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions;
 
 namespace WolverineExample.Consumer.Recipients;

@@ -1,11 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Channels.Email.DependencyInjection;
+using MsgHatch.Channels.Email.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
-using MsgHatch.Email.DependencyInjection;
-using MsgHatch.Email.Tests.Unit.TestTypes;
 using OrderEmail = MsgHatch.Templates.Tests.Unit.TestTypes.OrderEmail;
 using MsgHatch.Tests.Shared;
-using OrderEmailLoader = MsgHatch.Email.Tests.Unit.TestTypes.TestOrderLoader;
+using OrderEmailLoader = MsgHatch.Channels.Email.Tests.Unit.TestTypes.TestOrderLoader;
 
 namespace MsgHatch.Templates.Liquid.Tests.Unit;
 

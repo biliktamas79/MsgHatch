@@ -1,9 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 using NSubstitute;

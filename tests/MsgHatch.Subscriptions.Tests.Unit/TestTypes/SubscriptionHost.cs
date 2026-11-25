@@ -1,13 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Templates.DependencyInjection;
-using MsgHatch.Broker.DependencyInjection;
+using MsgHatch.Channels.Broker.DependencyInjection;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
-using MsgHatch.Email.DependencyInjection;
-using MsgHatch.SignalR.DependencyInjection;
+using MsgHatch.Channels.Email.DependencyInjection;
+using MsgHatch.Channels.SignalR.DependencyInjection;
 using MsgHatch.Subscriptions.DependencyInjection;
 
 namespace MsgHatch.Subscriptions.Tests.Unit.TestTypes;

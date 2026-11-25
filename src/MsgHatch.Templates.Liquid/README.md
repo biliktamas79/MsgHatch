@@ -10,7 +10,7 @@ dotnet add package MsgHatch.Templates.Liquid
 
 ## Setup
 
-The package has no setup method. A registration selects the engine with `LiquidTemplates.Engine`, for example on the email channel of `MsgHatch.Email`:
+The package has no setup method. A registration selects the engine with `LiquidTemplates.Engine`, for example on the email channel of `MsgHatch.Channels.Email`:
 
 [//]: # (snippet: email)
 ```csharp

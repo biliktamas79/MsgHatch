@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.Api.Client.DependencyInjection;
 using MsgHatch.Subscriptions.Api.Client.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Management;

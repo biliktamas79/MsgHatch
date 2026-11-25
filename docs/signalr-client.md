@@ -1,6 +1,6 @@
 # Consume the SignalR notifications in a browser
 
-This guide tells a front-end developer how a browser page gets the MsgHatch notifications of the SignalR channel at the three target levels: a tenant, a company, and a user. The server side is in the README of [`MsgHatch.SignalR`](../src/MsgHatch.SignalR/README.md). The working example is the [SignalR demo](../examples/SignalRDemo/README.md).
+This guide tells a front-end developer how a browser page gets the MsgHatch notifications of the SignalR channel at the three target levels: a tenant, a company, and a user. The server side is in the README of [`MsgHatch.Channels.SignalR`](../src/MsgHatch.Channels.SignalR/README.md). The working example is the [SignalR demo](../examples/SignalRDemo/README.md).
 
 The TypeScript sample is [`msghatch-signalr-client.ts`](../examples/SignalRDemo/client-ts/msghatch-signalr-client.ts). It uses the npm package `@microsoft/signalr`, and it is the same flow as `wwwroot/js/session.js` of the demo.
 

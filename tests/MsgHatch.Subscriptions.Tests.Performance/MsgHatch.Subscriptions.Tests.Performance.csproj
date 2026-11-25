@@ -2,7 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
-    <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Channels.Email\MsgHatch.Channels.Email.csproj" />
   </ItemGroup>
 
   <ItemGroup>

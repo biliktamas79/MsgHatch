@@ -1,6 +1,6 @@
 # MsgHatch.Templates
 
-The template library of [MsgHatch](https://github.com/biliktamas79/MsgHatch), which knows no channel. The package has the template engine contract `ITemplateEngine<TPayload>`, the template stores, the template selector with its fallback, the placeholder engine, and the template management API (`ITemplateQueries` and `ITemplateCommands`). The email channel of `MsgHatch.Email` renders its parts through it.
+The template library of [MsgHatch](https://github.com/biliktamas79/MsgHatch), which knows no channel. The package has the template engine contract `ITemplateEngine<TPayload>`, the template stores, the template selector with its fallback, the placeholder engine, and the template management API (`ITemplateQueries` and `ITemplateCommands`). The email channel of `MsgHatch.Channels.Email` renders its parts through it.
 
 The package carries the source generator of MsgHatch. It writes the placeholder writer of each payload type with the attribute `[PlaceholderPayload]`, so the placeholder engine reads the properties with no reflection.
 

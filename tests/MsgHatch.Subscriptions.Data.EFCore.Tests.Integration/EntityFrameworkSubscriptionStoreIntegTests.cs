@@ -1,7 +1,7 @@
+using MsgHatch.Channels.Email;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Subscriptions.Tests.Unit.Contracts;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;

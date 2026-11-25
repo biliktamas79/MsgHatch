@@ -1,9 +1,9 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.Api.Client.DependencyInjection;
 using MsgHatch.Subscriptions.Api.Client.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Api.Contracts;

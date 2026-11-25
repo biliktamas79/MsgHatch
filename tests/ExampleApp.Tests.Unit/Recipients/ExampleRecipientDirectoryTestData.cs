@@ -1,9 +1,9 @@
 using System.Globalization;
 using ExampleApp.Recipients;
 using Microsoft.Extensions.Options;
+using MsgHatch.Channels.Email;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions;
 using MsgHatch.Subscriptions.Tests.Unit.Contracts;
 

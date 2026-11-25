@@ -7,9 +7,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.AspNetCore\MsgHatch.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Data.Sqlite\MsgHatch.Data.Sqlite.csproj" />
-    <ProjectReference Include="..\..\src\MsgHatch.Email\MsgHatch.Email.csproj" />
-    <ProjectReference Include="..\..\src\MsgHatch.SignalR\MsgHatch.SignalR.csproj" />
-    <ProjectReference Include="..\..\src\MsgHatch.Broker.Wolverine\MsgHatch.Broker.Wolverine.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Channels.Email\MsgHatch.Channels.Email.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Channels.SignalR\MsgHatch.Channels.SignalR.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Channels.Broker.Wolverine\MsgHatch.Channels.Broker.Wolverine.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions\MsgHatch.Subscriptions.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Data.Sqlite\MsgHatch.Subscriptions.Data.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Caching.FusionCache\MsgHatch.Subscriptions.Caching.FusionCache.csproj" />

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Identity;
-using MsgHatch.SignalR;
 using SignalRDemo.Tenants;
 
 namespace SignalRDemo.Sessions;

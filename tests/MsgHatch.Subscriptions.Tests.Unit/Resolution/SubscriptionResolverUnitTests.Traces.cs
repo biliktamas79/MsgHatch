@@ -1,7 +1,7 @@
+using MsgHatch.Channels.Email;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email;
-using MsgHatch.SignalR;
 using MsgHatch.Subscriptions.Resolution;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 

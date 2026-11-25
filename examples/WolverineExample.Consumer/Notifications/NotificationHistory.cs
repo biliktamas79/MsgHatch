@@ -1,10 +1,10 @@
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Routing;
-using MsgHatch.SignalR;
 using WolverineExample.Contracts;
 
 namespace WolverineExample.Consumer.Notifications;

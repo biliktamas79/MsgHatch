@@ -1,7 +1,7 @@
 using JasperFx.CodeGeneration;
 using Microsoft.AspNetCore.SignalR;
-using MsgHatch.Email.DependencyInjection;
-using MsgHatch.SignalR.DependencyInjection;
+using MsgHatch.Channels.Email.DependencyInjection;
+using MsgHatch.Channels.SignalR.DependencyInjection;
 using Wolverine;
 using Wolverine.RabbitMQ;
 using WolverineExample.Consumer.Channels;

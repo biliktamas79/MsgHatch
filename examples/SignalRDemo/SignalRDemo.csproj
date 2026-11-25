@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MsgHatch.SignalR\MsgHatch.SignalR.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Channels.SignalR\MsgHatch.Channels.SignalR.csproj" />
   </ItemGroup>
 
   <ItemGroup>

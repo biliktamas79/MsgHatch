@@ -4,12 +4,12 @@ using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email.DependencyInjection;
+using MsgHatch.Channels.Email.DependencyInjection;
 using MsgHatch.Templates;
 using MsgHatch.Templates.Liquid;
 using MsgHatch.Templates.Liquid.Tests.Unit.TestTypes;
 using MsgHatch.Templates.Tests.Unit.Contracts;
-using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Channels.Email.Tests.Unit.TestTypes;
 using NSubstitute;
 using MsgHatch.Templates.Tests.Unit.TestTypes;
 

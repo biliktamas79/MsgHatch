@@ -1,6 +1,6 @@
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.Resolution;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 
@@ -81,7 +81,7 @@ public sealed partial class SubscriptionResolverUnitTests
         // Arrange
         var forTheCompanyOnSignalR = Scenario.S10 with
         {
-            Id = Scenario.LabelId(30), Type = new MessageType("A"), Channel = SignalR.SignalRChannel.Id, Settings = new SignalR.SignalRChannelSettings(),
+            Id = Scenario.LabelId(30), Type = new MessageType("A"), Channel = Channels.SignalR.SignalRChannel.Id, Settings = new Channels.SignalR.SignalRChannelSettings(),
         };
 
         // Act

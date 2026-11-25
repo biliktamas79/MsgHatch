@@ -1,8 +1,8 @@
 using System.Net;
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.AspNetCore.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Management;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;

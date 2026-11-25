@@ -3,7 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Templates.Liquid\MsgHatch.Templates.Liquid.csproj" />
     <ProjectReference Include="..\MsgHatch.Templates.Tests.Unit\MsgHatch.Templates.Tests.Unit.csproj" />
-    <ProjectReference Include="..\MsgHatch.Email.Tests.Unit\MsgHatch.Email.Tests.Unit.csproj" />
+    <ProjectReference Include="..\MsgHatch.Channels.Email.Tests.Unit\MsgHatch.Channels.Email.Tests.Unit.csproj" />
   </ItemGroup>
 
   <ItemGroup>

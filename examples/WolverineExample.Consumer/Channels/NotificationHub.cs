@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Identity;
-using MsgHatch.SignalR;
 using MsgHatch.Subscriptions;
 using WolverineExample.Consumer.Notifications;
 using WolverineExample.Contracts;

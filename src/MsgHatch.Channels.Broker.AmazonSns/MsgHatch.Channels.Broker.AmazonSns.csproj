@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>The Amazon SNS client of the MsgHatch broker channel, on the AWS SDK.</Description>
+    <PackageTags>messaging;broker;aws;sns</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsgHatch.Channels.Broker\MsgHatch.Channels.Broker.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.SimpleNotificationService" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\AwsRetryAfter.cs" Link="Shared\AwsRetryAfter.cs" />
+  </ItemGroup>
+
+</Project>

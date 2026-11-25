@@ -1,7 +1,7 @@
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Routing;
-using MsgHatch.SignalR;
 
 namespace SignalRDemo.Notices;
 

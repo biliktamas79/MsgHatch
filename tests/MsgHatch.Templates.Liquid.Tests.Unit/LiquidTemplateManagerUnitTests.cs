@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using MsgHatch.Channels.Email.DependencyInjection;
+using MsgHatch.Channels.Email.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email.DependencyInjection;
-using MsgHatch.Email.Tests.Unit.TestTypes;
 using MsgHatch.Templates.DependencyInjection;
 using MsgHatch.Templates.Management;
 using MsgHatch.Templates.Tests.Unit.TestTypes;

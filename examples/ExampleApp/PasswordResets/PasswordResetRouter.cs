@@ -1,8 +1,8 @@
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
-using MsgHatch.Email;
 
 namespace ExampleApp.PasswordResets;
 

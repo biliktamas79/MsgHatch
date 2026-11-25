@@ -1,5 +1,5 @@
+using MsgHatch.Channels.Email;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
 
 namespace MsgHatch.Subscriptions.Tests.Performance;
 

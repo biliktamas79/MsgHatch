@@ -1,6 +1,6 @@
+using MsgHatch.Channels.Email;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
-using MsgHatch.SignalR;
 using MsgHatch.Subscriptions;
 using WolverineExample.Contracts;
 

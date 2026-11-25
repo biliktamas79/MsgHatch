@@ -1,6 +1,6 @@
+using MsgHatch.Channels.Email;
+using MsgHatch.Channels.SignalR;
 using MsgHatch.Domain.Identity;
-using MsgHatch.Email;
-using MsgHatch.SignalR;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Subscriptions.Tests.Unit.Contracts;

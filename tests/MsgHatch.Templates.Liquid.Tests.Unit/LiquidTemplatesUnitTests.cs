@@ -5,11 +5,11 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Pipeline;
-using MsgHatch.Email;
-using MsgHatch.Email.DependencyInjection;
+using MsgHatch.Channels.Email;
+using MsgHatch.Channels.Email.DependencyInjection;
 using MsgHatch.Templates.Liquid;
 using MsgHatch.Templates.Liquid.Tests.Unit.TestTypes;
-using MsgHatch.Email.Tests.Unit.TestTypes;
+using MsgHatch.Channels.Email.Tests.Unit.TestTypes;
 using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Templates.Liquid.Tests.Unit;

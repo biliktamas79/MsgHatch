@@ -1,9 +1,9 @@
+using MsgHatch.Channels.Email;
 using MsgHatch.Data.Sqlite;
 using MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Persistence;
-using MsgHatch.Email;
 using MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Tests.Unit.Contracts;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;

@@ -8,7 +8,7 @@ The core of [MsgHatch](https://github.com/biliktamas79/MsgHatch), a .NET library
 - The delivery management API and the registry API (`IDeliveryQueries`, `IDeliveryCommands`, `IRegistryQueries`, and `IRegistryCommands`).
 - The traces and the metrics of `MsgHatchTelemetry`.
 
-A host adds a channel package (for example `MsgHatch.Email`), a store package (for example `MsgHatch.Data.Sqlite`), and a router (for example `MsgHatch.Subscriptions`).
+A host adds a channel package (for example `MsgHatch.Channels.Email`), a store package (for example `MsgHatch.Data.Sqlite`), and a router (for example `MsgHatch.Subscriptions`).
 
 ## Install
 
