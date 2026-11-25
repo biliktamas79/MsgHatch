@@ -147,10 +147,10 @@ internal static class MessageQueries
                 && (row.LeaseUntilUtc == null || row.LeaseUntilUtc <= nowUtc) && (row.ExpiresAtUtc == null || row.ExpiresAtUtc > nowUtc))
             .ExecuteUpdateAsync(
                 set => set
+                    .SetProperty(static row => row.MaxTryCount, row => row.Status == _failed ? row.TryCount + addedTries : row.MaxTryCount)
                     .SetProperty(static row => row.Status, Pending)
                     .SetProperty(static row => row.NextTryAtUtc, nowUtc)
-                    .SetProperty(static row => row.LeaseUntilUtc, (DateTime?)null)
-                    .SetProperty(static row => row.MaxTryCount, row => row.Status == _failed ? row.TryCount + addedTries : row.MaxTryCount),
+                    .SetProperty(static row => row.LeaseUntilUtc, (DateTime?)null),
                 ct);
     }
 

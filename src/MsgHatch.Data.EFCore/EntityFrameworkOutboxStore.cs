@@ -158,10 +158,9 @@ public sealed class EntityFrameworkOutboxStore : IOutboxDispatchStore
     public ValueTask<ErrorOr<bool>> TryStartChannelCheckAsync(
         ChannelId channel, DateTime nowUtc, DateTime nextCheckAtUtc, CancellationToken ct) =>
         _contexts.RunAsync<bool>(
-            async context => await context.ChannelStates
-                .Where(row => row.Channel == channel.Name && row.Kind == nameof(ChannelStateKind.Down)
-                    && row.Reason == nameof(ChannelDownReason.Errors) && row.NextCheckAtUtc <= nowUtc
-                    && row.Version == context.ChannelStates.Where(other => other.Channel == channel.Name).Max(static other => other.Version))
+            async context => await LatestStateAsync(context, channel, ct) is { } latest && await context.ChannelStates
+                .Where(row => row.Channel == channel.Name && row.Version == latest.Version && row.Kind == nameof(ChannelStateKind.Down)
+                    && row.Reason == nameof(ChannelDownReason.Errors) && row.NextCheckAtUtc <= nowUtc)
                 .ExecuteUpdateAsync(set => set.SetProperty(static row => row.NextCheckAtUtc, nextCheckAtUtc), ct) > 0,
             ct);
 

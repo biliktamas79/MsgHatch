@@ -146,6 +146,7 @@ A database with no schemas inside it, for example MySQL, where a schema is a dat
 ### 0.7.0 (2026-11-25)
 
 - `IEntityFrameworkStoreDialect` gets the default property `HasSchemas`, which gives true. With false, each table and each history table gets the prefix `MsgHatch` and no schema, for example `MsgHatchOutbox` and `__MsgHatchStoreMigrations`, and the startup validation fails when the option `Schema` is not the default `msghatch`.
+- A retry of a failed message and the start of a channel check also work on MySQL. The retry sets the new try limit before the status, because MySQL applies the assignments of an `UPDATE` from left to right. The channel check reads the latest version first, because MySQL refuses a subquery on the table of an `UPDATE` (error 1093).
 
 ### 0.5.0 (2026-11-24)
 
