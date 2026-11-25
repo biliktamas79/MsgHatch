@@ -4095,14 +4095,13 @@ Checked facts (2026-11-25), on Windows 11 build 26300 with the .NET SDK 10.0.404
 | A folder that moved as a whole keeps its old `bin` and `obj`. The build of the new project does not remove the old assemblies, for example `MsgHatch.Email.dll`, and coverlet gives each of them a line coverage of 0 %. The first coverage run gave 93.8 %. With no `bin` and `obj` in the 15 folders that moved as a whole, it gives 98.3 %. 5 other integration and performance projects also had old assemblies in `bin`. | The assemblies of `artifacts/coverage/Summary.json`, and the second run of `pwsh ./coverage.ps1` |
 | The build of the solution with `--artifacts-path` in a scratch folder has no errors and no warnings. The 40 unit test projects pass 6,527 tests and skip 1, the path limit test of the named pipe signal. The line coverage is 98.3 %. | `dotnet build`, `pwsh ./coverage.ps1` |
 | `pwsh ./pack.ps1` passes with 40 packages of version 0.6.0, with the 7 new channel ids. The pack warning "packaging has been disabled" names only the 4 web examples, as in phase 50. | `pwsh ./pack.ps1` |
-| The SES integration project passes 4 tests, and the Wolverine integration project passes 3 tests on the local container dev-rabbit. The Resend integration project fails 4 of 6 tests with `Resend: HTTP 401 validation_error`, as in phase 6, with the same `appsettings.Local.json` of 2026-11-02 23:44. So Resend refuses the API key of that file. | `dotnet test` of each project, on the word of the owner |
+| The SES integration project passes 4 tests, and the Wolverine integration project passes 3 tests on the local container dev-rabbit. The Resend integration project first failed 4 of 6 tests with `Resend: HTTP 401 validation_error`, as in phase 6, with the same `appsettings.Local.json` of 2026-11-02 23:44. So Resend refused the API key of that file. With the new API key of the owner, it passes 6 tests. | `dotnet test` of each project, on the word of the owner |
 | No file names an old package id, project, or namespace, except the "Breaking:" entries of the 7 READMEs and the done phases of this roadmap. | `git grep` of the old names |
 
 The phase adds no test, because it changes no behavior.
 
 Checks that the phase did not do:
 - The SNS integration project, which needs the AWS resources of the owner.
-- A pass of the Resend integration project, which needs a new API key.
 - A run on Linux before the push. The workflow run of the push builds and tests on Linux, with no integration project.
 
 Commit 1 is `a4161f8`, and commit 2 `bc8730f`. The plan of this phase is in `5aa5df8`.
@@ -4113,6 +4112,7 @@ The implementation changed the plan in these points:
 - The owner: "run the SES, Resend and Wolverine integration tests and cleanup stale bin and obj folders". So the phase ran these 3 projects, and removed `bin` and `obj` of the 15 folders that moved as a whole and of the 5 projects with old assemblies.
 - Section 5.3 of the design gets the naming rule of a channel package, because its example of the project names was `MsgHatch.Email.AmazonSES`.
 - The section "Later phases" names the planned MassTransit client `MsgHatch.Channels.Broker.MassTransit`.
+- The owner: "Updated Resend api key, retry running its tests". So a fifth commit records the second run of the Resend integration project.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 40 packages of 0.6.0.
 
