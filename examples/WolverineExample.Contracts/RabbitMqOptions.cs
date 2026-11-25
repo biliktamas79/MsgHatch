@@ -13,7 +13,7 @@ public sealed class RabbitMqOptions
     /// <summary>The queue of the domain events. The publisher sends to it, and the consumer listens to it.</summary>
     public const string EventQueue = "msghatch-example-events";
 
-    /// <summary>The AMQP URI of the broker, for example <c>amqp://localhost:5672</c>.</summary>
+    /// <summary>The AMQP URI of the broker, for example <c>amqp://127.0.0.1:5672</c>.</summary>
     [Required]
     public Uri? Uri { get; set; }
 

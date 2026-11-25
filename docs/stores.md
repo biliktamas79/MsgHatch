@@ -559,7 +559,7 @@ For a provider with no MsgHatch package, the host generates the migrations of th
 
 ## 5. MongoDB stores
 
-`MsgHatch.Data.MongoDb` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in one MongoDB database through the official driver `MongoDB.Driver` (D121). `UseMongoDbStores(o => o.ConnectionString = "mongodb://localhost:27017")` selects them. `MsgHatch.Subscriptions.Data.MongoDb` adds the subscription store with `UseMongoDbSubscriptionStore()`.
+`MsgHatch.Data.MongoDb` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in one MongoDB database through the official driver `MongoDB.Driver` (D121). `UseMongoDbStores(o => o.ConnectionString = "mongodb://127.0.0.1:27017")` selects them. `MsgHatch.Subscriptions.Data.MongoDb` adds the subscription store with `UseMongoDbSubscriptionStore()`.
 
 ### 5.1 Options and collections
 

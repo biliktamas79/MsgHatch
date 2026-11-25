@@ -1,8 +1,9 @@
 # Local RabbitMQ for the Wolverine and the RabbitMQ dispatch signal integration tests, with the management UI.
 # Run from the repository root:
 #   docker compose -f docker/rabbitmq.compose.yml up -d
-# URI: amqp://localhost:5672, with the default user guest, which the image allows from outside the container.
-# Management UI: http://localhost:15672 (guest / guest).
+# URI: amqp://127.0.0.1:5672, with the default user guest, which the image allows from outside the container.
+# Management UI: http://127.0.0.1:15672 (guest / guest).
+# Use 127.0.0.1, not localhost: the ports listen only on IPv4, and Windows needs about 2 seconds to refuse ::1.
 name: msghatch-rabbitmq
 
 services:

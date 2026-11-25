@@ -32,7 +32,7 @@ public sealed class ReadmeUnitTests
 
         // Assert
         var options = provider.GetRequiredService<IOptions<RabbitMqSignalOptions>>().Value;
-        Assert.Equal(new Uri("amqp://localhost:5672"), options.Uri);
+        Assert.Equal(new Uri("amqp://127.0.0.1:5672"), options.Uri);
         Assert.Equal("msghatch.dispatch", options.ExchangeName);
     }
 

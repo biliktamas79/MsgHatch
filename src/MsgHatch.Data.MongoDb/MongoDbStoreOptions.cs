@@ -12,7 +12,7 @@ public sealed class MongoDbStoreOptions
     public const string DefaultDatabaseName = "msghatch";
 
     /// <summary>
-    /// The connection string of the MongoDB server, for example <c>mongodb://localhost:27017</c>. The setup method makes
+    /// The connection string of the MongoDB server, for example <c>mongodb://127.0.0.1:27017</c>. The setup method makes
     /// the <c>IMongoClient</c> from it when the host has not registered one.
     /// </summary>
     [Required]

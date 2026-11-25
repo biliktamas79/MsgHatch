@@ -1,8 +1,9 @@
 # Local MongoDB for the MongoDB integration tests, as a replica set with one member, with mongo-express.
 # The tests of the change stream signal need a replica set. Run from the repository root:
 #   docker compose -f docker/mongodb.compose.yml up -d
-# Connection string: mongodb://localhost:27017/?replicaSet=rs0
-# mongo-express: http://localhost:8081 (no login).
+# Connection string: mongodb://127.0.0.1:27017/?replicaSet=rs0
+# mongo-express: http://127.0.0.1:8081 (no login).
+# Use 127.0.0.1, not localhost: the ports listen only on IPv4, and Windows needs about 2 seconds to refuse ::1.
 name: msghatch-mongodb
 
 services:
@@ -15,8 +16,8 @@ services:
     volumes:
       - dev-mongodb-data:/data/db
     healthcheck:
-      # The first check starts the replica set. Its member is localhost:27017, so a client on the host reaches it.
-      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"]
+      # The first check starts the replica set. Its member is 127.0.0.1:27017, so a client on the host reaches it.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: '127.0.0.1:27017' }] }).ok }"]
       interval: 5s
       timeout: 10s
       retries: 30
@@ -26,7 +27,7 @@ services:
     image: mongo-express:1.0
     container_name: dev-mongodb-express
     environment:
-      # A direct connection, because the member name localhost means the mongo-express container itself.
+      # A direct connection, because the member name 127.0.0.1 means the mongo-express container itself.
       ME_CONFIG_MONGODB_URL: mongodb://dev-mongodb:27017/?directConnection=true
       ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
     ports:

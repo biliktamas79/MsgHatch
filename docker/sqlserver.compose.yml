@@ -3,7 +3,8 @@
 #   docker compose -f docker/sqlserver.compose.yml up -d
 # The password needs at least 8 characters from 3 of these sets: upper case, lower case, digits, and symbols.
 # ACCEPT_EULA=Y accepts the license of SQL Server. The Developer edition is free only for development and tests.
-# Connection string: Server=localhost,1433;User Id=sa;Password=<password>;TrustServerCertificate=True
+# Connection string: Server=127.0.0.1,1433;User Id=sa;Password=<password>;TrustServerCertificate=True
+# Use 127.0.0.1, not localhost: the port listens only on IPv4, and Windows needs about 2 seconds to refuse ::1.
 name: msghatch-sqlserver
 
 services:

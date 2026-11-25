@@ -29,7 +29,7 @@ The options are `MongoDbStoreOptions` of `MsgHatch.Data.MongoDb`:
 {
   "MsgHatch": {
     "MongoDb": {
-      "ConnectionString": "mongodb://localhost:27017",
+      "ConnectionString": "mongodb://127.0.0.1:27017",
       "DatabaseName": "msghatch"
     }
   }

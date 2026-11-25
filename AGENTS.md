@@ -69,7 +69,7 @@ The Resend integration tests need a Resend API key. Put it into `tests/MsgHatch.
 dotnet test tests/MsgHatch.Channels.Email.Resend.Tests.Integration
 ```
 
-From phase 6 on, the Wolverine integration tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://localhost:5672`, into `tests/MsgHatch.Channels.Broker.Wolverine.Tests.Integration/appsettings.Local.json`, which git ignores. The tests declare only exclusive queues. With no URI, each test is skipped:
+From phase 6 on, the Wolverine integration tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://127.0.0.1:5672`, into `tests/MsgHatch.Channels.Broker.Wolverine.Tests.Integration/appsettings.Local.json`, which git ignores. The tests declare only exclusive queues. With no URI, each test is skipped:
 
 ```bash
 dotnet test tests/MsgHatch.Channels.Broker.Wolverine.Tests.Integration
@@ -134,7 +134,7 @@ dotnet test tests/MsgHatch.Data.EFCore.MySql.Tests.Integration
 dotnet test tests/MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Integration
 ```
 
-From phase 19 on, the MongoDB integration tests use the MongoDB of `MongoDbIntegration:ConnectionString` in `appsettings.Local.json` of each MongoDB integration project, which git ignores, for example the local container dev-mongo with `mongodb://localhost:27017/?replicaSet=rs0`. `appsettings.json` next to it describes the key. The tests drop only the databases whose names start with the name of their project, at the start and at the end of a run (D183). MongoDB allows at most 63 characters in a database name, so the name of a test database adds at most 9 characters to the 54 of the subscription project. The server must be a replica set, because the tests of the MongoDB dispatch signal open a change stream. With no connection string, Testcontainers starts MongoDB from the image `mongo:8.3` as a replica set with one member:
+From phase 19 on, the MongoDB integration tests use the MongoDB of `MongoDbIntegration:ConnectionString` in `appsettings.Local.json` of each MongoDB integration project, which git ignores, for example the local container dev-mongo with `mongodb://127.0.0.1:27017/?replicaSet=rs0`. `appsettings.json` next to it describes the key. The tests drop only the databases whose names start with the name of their project, at the start and at the end of a run (D183). MongoDB allows at most 63 characters in a database name, so the name of a test database adds at most 9 characters to the 54 of the subscription project. The server must be a replica set, because the tests of the MongoDB dispatch signal open a change stream. With no connection string, Testcontainers starts MongoDB from the image `mongo:8.3` as a replica set with one member:
 
 ```bash
 dotnet test tests/MsgHatch.Data.MongoDb.Tests.Integration
@@ -147,7 +147,7 @@ From phase 38 on, the SNS integration tests need a standard SNS topic and an SQS
 dotnet test tests/MsgHatch.Channels.Broker.AmazonSns.Tests.Integration
 ```
 
-From phase 40 on, the RabbitMQ dispatch signal tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://localhost:5672`, into `RabbitMqIntegration:Uri` of `tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes the key. Each test uses its own auto-delete exchange, and the signals declare only exclusive queues. The tests of a lost connection need the scheme `amqp`, and are skipped with `amqps`. With no URI, each test is skipped:
+From phase 40 on, the RabbitMQ dispatch signal tests need a RabbitMQ broker, for example a local container. Put its URI, for example `amqp://127.0.0.1:5672`, into `RabbitMqIntegration:Uri` of `tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration/appsettings.Local.json`, which git ignores. `appsettings.json` next to it describes the key. Each test uses its own auto-delete exchange, and the signals declare only exclusive queues. The tests of a lost connection need the scheme `amqp`, and are skipped with `amqps`. With no URI, each test is skipped:
 
 ```bash
 dotnet test tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration

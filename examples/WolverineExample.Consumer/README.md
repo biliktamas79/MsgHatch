@@ -17,7 +17,7 @@ The apps need a RabbitMQ broker. A local container is enough:
 docker run -d --name dev-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:4.3-management
 ```
 
-The URI of the broker comes from the setting `RabbitMq:Uri` in `appsettings.json` of each app. The default is `amqp://localhost:5672`. To use another broker, set the environment variable `RabbitMq__Uri`, or a user secret.
+The URI of the broker comes from the setting `RabbitMq:Uri` in `appsettings.json` of each app. The default is `amqp://127.0.0.1:5672`. To use another broker, set the environment variable `RabbitMq__Uri`, or a user secret.
 
 Start the consumer first, and leave it open:
 

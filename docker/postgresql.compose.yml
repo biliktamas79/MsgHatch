@@ -1,8 +1,9 @@
 # Local PostgreSQL for the EF Core integration tests, with pgAdmin.
 # Put POSTGRES_PASSWORD=<password> into docker/.env (git ignores it), then run from the repository root:
 #   docker compose -f docker/postgresql.compose.yml up -d
-# Connection string: Host=localhost;Port=5432;Username=postgres;Password=<password>
-# pgAdmin: http://localhost:5050 (desktop mode, no login).
+# Connection string: Host=127.0.0.1;Port=5432;Username=postgres;Password=<password>
+# pgAdmin: http://127.0.0.1:5050 (desktop mode, no login).
+# Use 127.0.0.1, not localhost: the ports listen only on IPv4, and Windows needs about 2 seconds to refuse ::1.
 name: msghatch-postgresql
 
 services:

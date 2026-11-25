@@ -41,7 +41,7 @@ services.AddMsgHatch()
 {
   "MsgHatch": {
     "RabbitMqSignal": {
-      "Uri": "amqp://localhost:5672",
+      "Uri": "amqp://127.0.0.1:5672",
       "ExchangeName": "msghatch.dispatch"
     }
   }
