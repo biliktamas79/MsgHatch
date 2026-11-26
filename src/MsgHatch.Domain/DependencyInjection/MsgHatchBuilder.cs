@@ -239,7 +239,7 @@ public sealed class MsgHatchBuilder
         UseRegistrySettingsStore(
             static services => services.GetRequiredService<InMemoryRegistrySettingsStore>(), nameof(UseInMemoryStores));
         AddInboxStore(
-            static (tenantServices, key) => tenantServices.GetRequiredService<InMemoryInboxStore>().For(key),
+            ServiceLifetime.Singleton, static (tenantServices, key) => tenantServices.GetRequiredService<InMemoryInboxStore>().For(key),
             nameof(UseInMemoryStores));
         AddInboxDispatchStore(static services => services.GetRequiredService<InMemoryInboxStore>(), nameof(UseInMemoryStores));
         AddOutboxStore(
@@ -349,12 +349,19 @@ public sealed class MsgHatchBuilder
         where TStore : class, IInboxStore =>
         UseInboxStore(static (tenantServices, _) => ActivatorUtilities.CreateInstance<TStore>(tenantServices));
 
-    /// <summary>Registers an inbox tenant store with a factory, for example for a test substitute.</summary>
+    /// <summary>
+    /// Registers an inbox tenant store with a factory, for example for a test substitute, with its logging wrapper (D127).
+    /// A storage package selects <see cref="ServiceLifetime.Scoped"/> for a store that adds to a scoped service of the
+    /// host, for example the context of the host with the inbox in the transaction of the host (D332). The other stores
+    /// stay singletons (D130).
+    /// </summary>
     /// <param name="factory">The factory of the store of one tenant key. Its service provider gives the tenant services of that key.</param>
     /// <param name="setupMethod">The setup method of a storage package that calls this method, so that a second selection names it (D62).</param>
+    /// <param name="lifetime">The lifetime of the store of one tenant key, by default <see cref="ServiceLifetime.Singleton"/>.</param>
     /// <returns>This builder.</returns>
-    public MsgHatchBuilder UseInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory, string? setupMethod = null) =>
-        AddInboxStore(factory, setupMethod ?? nameof(UseInboxStore));
+    public MsgHatchBuilder UseInboxStore(
+        Func<IServiceProvider, TenantKey, IInboxStore> factory, string? setupMethod = null, ServiceLifetime lifetime = ServiceLifetime.Singleton) =>
+        AddInboxStore(lifetime, factory, setupMethod ?? nameof(UseInboxStore));
 
     /// <summary>Registers the inbox dispatch store as a singleton, with its logging wrapper (D127, D130).</summary>
     /// <typeparam name="TStore">The store type.</typeparam>
@@ -456,6 +463,7 @@ public sealed class MsgHatchBuilder
             services.GetRequiredService<ITenantSource>(), key => outboxDispatch(services, key),
             MaxPollIntervalOf(services, OptionNames.Outbox), Loggers.For<TenantOutboxDispatchStore>(services)));
         AddInboxStore(
+            ServiceLifetime.Singleton,
             (tenantServices, key) => tenantServices.GetRequiredService<TenantInboxDispatchStore>().TellingNewMessages(inbox(tenantServices, key), key),
             method);
         AddInboxDispatchStore(static services => services.GetRequiredService<TenantInboxDispatchStore>(), method);
@@ -617,12 +625,12 @@ public sealed class MsgHatchBuilder
         Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TestDeliveryOptions>, TestDeliveryOptionsValidator>());
     }
 
-    private MsgHatchBuilder AddInboxStore(Func<IServiceProvider, TenantKey, IInboxStore> factory, string setupMethod)
+    private MsgHatchBuilder AddInboxStore(ServiceLifetime lifetime, Func<IServiceProvider, TenantKey, IInboxStore> factory, string setupMethod)
     {
         ArgumentNullException.ThrowIfNull(factory);
         Setup.Select(typeof(IInboxStore), setupMethod);
         TenantServices.Add(
-            Services, Setup, ServiceLifetime.Singleton, factory,
+            Services, Setup, lifetime, factory,
             static (tenantServices, key, inner) => new InboxStoreLoggingWrapper(
                 inner, key, Loggers.For<InboxStoreLoggingWrapper>(tenantServices),
                 tenantServices.GetRequiredService<TimeProvider>()));

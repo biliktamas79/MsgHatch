@@ -139,6 +139,10 @@ The sections of a channel under the root, for example `Retry:Email`, `ChannelDow
 
 ## Version history
 
+### 0.9.0 (2026-11-26)
+
+- Breaking: `MsgHatchBuilder.UseInboxStore` with a factory has the optional parameter `lifetime`, by default `ServiceLifetime.Singleton`. A caller compiled against 0.8.0 must compile again, and its source does not change. A storage package selects a scoped inbox tenant store with it, for example the inbox in the transaction of the host of `MsgHatch.Data.EFCore` (D332). The other stores stay singletons.
+
 ### 0.8.0 (2026-11-26)
 
 - Breaking: the constant `SectionName` is removed from each options class. `MsgHatchOptions.DefaultSectionKey` is the default root, `MsgHatch`, and each other options class has the constant `SectionKey`, the key of its section under the root, for example `RetryOptions.SectionKey`. The default paths do not change.

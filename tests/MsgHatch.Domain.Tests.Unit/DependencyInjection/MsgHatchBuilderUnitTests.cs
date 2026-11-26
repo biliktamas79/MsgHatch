@@ -193,6 +193,56 @@ public sealed partial class MsgHatchBuilderUnitTests
     }
 
     [Fact]
+    public async Task UseInboxStore_ScopedLifetime_CreatesOneStoreForEachScopeAndKey()
+    {
+        // Arrange
+        var t2 = TenantKey.For(new TenantId("t2"));
+        var created = new List<TenantKey>();
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static o => o.EnableLogging = false).UseInboxStore(
+            (_, key) =>
+            {
+                created.Add(key);
+                return Substitute.For<IInboxStore>();
+            },
+            lifetime: ServiceLifetime.Scoped);
+        await using var provider = services.Build();
+        await using var first = provider.CreateAsyncScope();
+        await using var second = provider.CreateAsyncScope();
+
+        // Act
+        IInboxStore[] stores =
+        [
+            first.ServiceProvider.GetRequiredKeyedService<IInboxStore>(_t1), first.ServiceProvider.GetRequiredKeyedService<IInboxStore>(_t1),
+            first.ServiceProvider.GetRequiredKeyedService<IInboxStore>(t2), second.ServiceProvider.GetRequiredKeyedService<IInboxStore>(_t1),
+        ];
+
+        // Assert
+        Assert.Equal([_t1, t2, _t1], created);
+        Assert.Same(stores[0], stores[1]);
+        Assert.Equal(3, stores.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task UseInboxStore_ScopedLifetime_WrapsTheStoreOfAScopeWithItsLoggingWrapper()
+    {
+        // Arrange
+        var inner = Substitute.For<IInboxStore>();
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch().UseInboxStore((_, _) => inner, lifetime: ServiceLifetime.Scoped);
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+        var message = TestMessages.AReceivedMessage(new TestEvent("text"), _t1.Tenant);
+
+        // Act
+        await scope.ServiceProvider.GetRequiredKeyedService<IInboxStore>(_t1).AddAsync(message, Ct);
+
+        // Assert
+        Assert.Equal([1200], provider.LogRecords().Select(static record => record.Id.Id));
+        _ = inner.Received(1).AddAsync(message, Ct);
+    }
+
+    [Fact]
     public async Task UseOutboxDispatchStore_StoreType_CreatesOneStoreOfThatType()
     {
         // Arrange
