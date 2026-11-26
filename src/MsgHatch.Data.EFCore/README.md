@@ -129,7 +129,7 @@ await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
 
 ## Provider packages
 
-A provider package implements `IEntityFrameworkStoreDialect` of the namespace `MsgHatch.Data.EFCore.Providers`: the name of the EF Core provider that it serves, the default collation, the error type of a database exception, and an optional claim statement. Its migrations derive from `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` of the namespace `MsgHatch.Data.EFCore.Migrations`, so each migration takes the schema and the collation of the options at run time. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context.
+A provider package implements `IEntityFrameworkStoreDialect` of the namespace `MsgHatch.Data.EFCore.Providers`: the name of the EF Core provider that it serves, the default collation, the error type of a database exception, and an optional claim statement. Its migrations derive from `EntityFrameworkStoreMigration` and `EntityFrameworkStoreModelSnapshot` of the namespace `MsgHatch.Data.EFCore.Migrations`, so each migration takes the schema and the collation of the options at run time. The package gives the dialect to the contexts with `UseEntityFrameworkStoreDialect`. The base package gives the claim statement the quoted names of the table, the columns, and the parameters in `ClaimStatementNames`, and runs it with `FromSqlRaw`. The startup validation fails when the dialect serves another provider than the provider of the context. With `CustomizeEntity`, a dialect changes the inbox table in a context of the host for its provider, for example the type of a column. The default does nothing.
 
 A database with no schemas inside it, for example MySQL, where a schema is a database, has a dialect with `HasSchemas` false. Then each table and each history table gets the prefix `MsgHatch` and no schema, for example `MsgHatchOutbox` and `__MsgHatchStoreMigrations`, in the database of the connection. The names of the indexes do not change. The option `Schema` then has no effect, so the startup validation fails when it is not the default `msghatch`.
 
@@ -156,6 +156,11 @@ A database with no schemas inside it, for example MySQL, where a schema is a dat
 ```
 
 ## Version history
+
+### 0.9.0 (2026-11-26)
+
+- `MapMsgHatchInbox`, an extension method of `ModelBuilder`, maps the inbox table of the stores in a context of the host, with the table, the columns, the key, and the indexes of `MsgHatchDbContext` (D331). The migrations of the host never contain the table, and the other tables and the conventions of the host do not change.
+- `IEntityFrameworkStoreDialect` has the default method `CustomizeEntity`, which changes the inbox table in a context of the host for one provider. The default does nothing, so a dialect of a host still compiles.
 
 ### 0.8.0 (2026-11-26)
 

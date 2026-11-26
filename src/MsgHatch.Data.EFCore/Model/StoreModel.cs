@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
@@ -50,6 +51,29 @@ internal static class StoreModel
         if (textCollation is not null)
         {
             builder.Properties<string>().UseCollation(textCollation);
+        }
+    }
+
+    /// <summary>
+    /// The rules of <see cref="ConfigureConventions"/> on one entity type only, for a table in a context of the host
+    /// (D331): each time gets the kind UTC, and each text column gets the collation. So the other tables and the
+    /// conventions of the host do not change. Call it before the mapping of the columns, so that a JSON column ends with
+    /// no collation.
+    /// </summary>
+    /// <param name="entity">The entity type, with its properties.</param>
+    /// <param name="textCollation">The collation of each text column, or null for the collation of the database.</param>
+    public static void UseColumnRules(IMutableEntityType entity, string? textCollation)
+    {
+        foreach (var property in entity.GetProperties())
+        {
+            if ((Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType) == typeof(DateTime))
+            {
+                property.SetValueConverter(typeof(UtcTimeConverter));
+            }
+            else if (property.ClrType == typeof(string) && textCollation is not null)
+            {
+                property.SetCollation(textCollation);
+            }
         }
     }
 

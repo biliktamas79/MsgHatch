@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Metadata;
 using MsgHatch.Domain.Failures;
 
 namespace MsgHatch.Data.EFCore.Providers;
@@ -38,6 +39,16 @@ public interface IEntityFrameworkStoreDialect
     /// startup validation fails when it is not the default. The default gives true, so a dialect of a host still compiles.
     /// </summary>
     bool HasSchemas => true;
+
+    /// <summary>
+    /// Changes one entity type of a MsgHatch table for the provider, for example the character set of the table (D331).
+    /// <c>MapMsgHatchInbox</c> calls it for the inbox in a context of the host, after the mapping of the columns, so that
+    /// the change stays on that table. The default does nothing, so a dialect of a host still compiles.
+    /// </summary>
+    /// <param name="entity">The entity type, with its columns.</param>
+    void CustomizeEntity(IMutableEntityType entity)
+    {
+    }
 
     /// <summary>
     /// Gives the claim statement of one message table, or null for the claim of the base package: a LINQ read of the

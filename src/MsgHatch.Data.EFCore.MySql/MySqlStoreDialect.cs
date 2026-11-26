@@ -1,4 +1,6 @@
 using System.Data.Common;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Domain.Failures;
 using MySqlConnector;
@@ -16,6 +18,9 @@ namespace MsgHatch.Data.EFCore.MySql;
 /// </summary>
 public sealed class MySqlStoreDialect : IEntityFrameworkStoreDialect
 {
+    /// <summary>The character set of each MsgHatch table.</summary>
+    internal const string CharSet = "utf8mb4";
+
     private MySqlStoreDialect()
     {
     }
@@ -31,6 +36,23 @@ public sealed class MySqlStoreDialect : IEntityFrameworkStoreDialect
 
     /// <inheritdoc />
     public bool HasSchemas => false;
+
+    /// <summary>
+    /// A text of a fixed length, for example an id in the format of a <see cref="Guid"/>, becomes <c>varchar</c>, not
+    /// <c>char</c>. MySqlConnector reads a <c>CHAR(36)</c> column as a <see cref="Guid"/>, and the provider maps the store
+    /// type <c>char(36)</c> of a migration to a <see cref="Guid"/>, not to a text. The character set stays on the model of
+    /// <see cref="MsgHatchDbContext"/>, because only a migration uses it, and the migrations of a host never contain a
+    /// MsgHatch table (D331).
+    /// </summary>
+    /// <param name="entity">The entity type, with its columns.</param>
+    public void CustomizeEntity(IMutableEntityType entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        foreach (var text in entity.GetProperties().Where(static property => property.ClrType == typeof(string) && property.IsFixedLength() == true))
+        {
+            text.SetIsFixedLength(false);
+        }
+    }
 
     /// <inheritdoc />
     public string? ClaimStatement(ClaimStatementNames names) => null;

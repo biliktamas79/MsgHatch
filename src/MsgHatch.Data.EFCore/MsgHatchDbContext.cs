@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MsgHatch.Data.EFCore.Messages;
 using MsgHatch.Data.EFCore.Model;
 using MsgHatch.Data.EFCore.Registry;
@@ -44,15 +43,10 @@ public sealed class MsgHatchDbContext : DbContext
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         var jsonColumnType = _storeOptions.JsonColumnType;
-        modelBuilder.Entity<InboxRow>(inbox =>
-        {
-            Message(inbox, "Inbox", jsonColumnType);
-            inbox.HasIndex(static row => new { row.TenantId, row.Id }).IsUnique().HasDatabaseName("UX_Inbox_Key");
-            inbox.HasIndex(static row => new { row.Status, row.NextTryAtUtc, row.Sequence }).HasDatabaseName("IX_Inbox_Due");
-        });
+        modelBuilder.Entity<InboxRow>(inbox => MessageModel.Inbox(inbox, jsonColumnType));
         modelBuilder.Entity<OutboxRow>(outbox =>
         {
-            Message(outbox, "Outbox", jsonColumnType);
+            MessageModel.Message(outbox, "Outbox", jsonColumnType);
             outbox.Property(static row => row.SourceMessageId).IsGuid();
             outbox.Property(static row => row.MessageType).IsName();
             outbox.Property(static row => row.Channel).IsName();
@@ -96,21 +90,5 @@ public sealed class MsgHatchDbContext : DbContext
             entry.Property(static row => row.Description).HasMaxLength(2000);
         });
         StoreModel.PlaceTables(modelBuilder, _storeOptions);
-    }
-
-    private static void Message<TRow>(EntityTypeBuilder<TRow> message, string table, string? jsonColumnType)
-        where TRow : MessageRow
-    {
-        message.ToTable(table);
-        message.HasKey(static row => row.Sequence);
-        message.Property(static row => row.TenantId).IsId();
-        message.Property(static row => row.Id).IsGuid();
-        message.Property(static row => row.Status).IsEnum();
-        message.Property(static row => row.ClaimToken).IsGuid();
-        message.Property(static row => row.ContentType).IsName();
-        message.Property(static row => row.Flags).IsEnum();
-        message.Property(static row => row.Content).IsJson(jsonColumnType);
-        message.HasIndex(static row => row.Flags).HasDatabaseName($"IX_{table}_Flags");
-        message.HasIndex(static row => new { row.TenantId, row.CreatedAtUtc, row.Id }).HasDatabaseName($"IX_{table}_Created");
     }
 }

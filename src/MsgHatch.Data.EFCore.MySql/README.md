@@ -113,6 +113,10 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ## Version history
 
+### 0.9.0 (2026-11-26)
+
+- `MySqlStoreDialect.CustomizeEntity` makes each text of a fixed length `varchar` on the inbox table in a context of the host (D331). The tables of `MsgHatchDbContext` do not change.
+
 ### 0.7.1 (2026-11-26)
 
 - The package has the MsgHatch icon. The code and the API do not change.
