@@ -15,6 +15,18 @@ namespace MsgHatch.Subscriptions.Tests.Unit.DependencyInjection;
 /// <summary>The setup of the subscription router: <c>UseSubscriptions</c> and <c>WithScope</c>, and the startup validation rules of the package.</summary>
 public sealed class UseSubscriptionsUnitTests
 {
+    public static TheoryData<string, Action<MsgHatchBuilder>> WithScopeAndWithTestEventOrderRows => new()
+    {
+        {
+            "WithScope, then WithTestEvent",
+            static builder => builder.AddMessage("A", 1, SubscriptionTestJson.Default.EventA, static m => m.WithScope(ScopeOfA).WithTestEvent("basic", ATestEvent))
+        },
+        {
+            "WithTestEvent, then WithScope",
+            static builder => builder.AddMessage("A", 1, SubscriptionTestJson.Default.EventA, static m => m.WithTestEvent("basic", ATestEvent).WithScope(ScopeOfA))
+        },
+    };
+
     [Fact]
     public async Task Validate_SubscriptionRouterAndNoWithScope_ThrowsOptionsValidationException()
     {
@@ -82,30 +94,19 @@ public sealed class UseSubscriptionsUnitTests
     }
 
     [Theory]
-    [InlineData("WithScope, then WithTestEvent")]
-    [InlineData("WithTestEvent, then WithScope")]
-    public async Task Validate_WithScopeAndWithTestEventInEachOrder_Passes(string order)
+    [MemberData(nameof(WithScopeAndWithTestEventOrderRows))]
+    public async Task Validate_WithScopeAndWithTestEventInEachOrder_Passes(string order, Action<MsgHatchBuilder> addMessage)
     {
         // Arrange
         var services = TestHost.CreateServices();
-        ARoutingHost(services).AddMessage("A", 1, SubscriptionTestJson.Default.EventA, m =>
-        {
-            if (order.StartsWith("WithScope", StringComparison.Ordinal))
-            {
-                m.WithScope(ScopeOfA).WithTestEvent("basic", ATestEvent);
-            }
-            else
-            {
-                m.WithTestEvent("basic", ATestEvent).WithScope(ScopeOfA);
-            }
-        });
+        addMessage(ARoutingHost(services));
         await using var provider = services.Build();
 
         // Act
         var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
 
         // Assert
-        Assert.Null(exception);
+        Assert.Equal((order, (Exception?)null), (order, exception));
     }
 
     [Fact]

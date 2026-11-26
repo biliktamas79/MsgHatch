@@ -14,10 +14,13 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void Render_DeliveryStatuses_ShowsThePendingCountsAndTheOldestDueTimeOfEachChannel()
     {
+        // Arrange
         GivenStatuses(Status(Email, 3, 1, Now.AddMinutes(-5)), Status(Sms, 0, 0, null));
 
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal(
             [("3", "1", "2029-12-31 23:55:00 UTC"), ("0", "0", ""), ("", "", "")],
             cut.FindAll("tr[data-row]").Select(row => (
@@ -28,10 +31,13 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void Render_DeliveryUnavailable_ShowsTheErrorAboveTheListAndTheRegistryColumns()
     {
+        // Arrange
         DeliveryQueries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<ChannelStatus>>(Errors.Unavailable));
 
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find("[data-delivery-error] .alert-danger").TextContent);
         Assert.Equal(["Email", "Sms", "Fax"], cut.FindAll("tr[data-row]").Select(static row => row.Children[0].TextContent));
     }
@@ -39,10 +45,13 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void Render_UpAndDownChannels_ShowsPauseForAnUpChannelAndResumeForADownChannel()
     {
+        // Arrange
         GivenSmsDown();
 
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal(
             ["pause", "resume", "pause"],
             cut.FindAll("tr[data-row]").Select(static row => row.QuerySelector("[data-action=pause], [data-action=resume]")!.GetAttribute("data-action")));
@@ -51,10 +60,13 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ClickPause_Email_OpensTheDialogOfEmailAndPausesNothing()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
 
+        // Act
         cut.Find("[data-action=pause]").Click();
 
+        // Assert
         Assert.Equal("Pause Email", cut.Find("[data-dialog] .modal-title").TextContent);
         DeliveryCommands.DidNotReceiveWithAnyArgs().PauseChannelAsync(default, default, Arg.Any<CancellationToken>());
     }
@@ -62,12 +74,15 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPause_Note_PausesTheChannelWithTheNoteClosesTheDialogAndReadsTheChannelsAgain()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
         cut.Find("[data-action=pause]").Click();
 
+        // Act
         cut.Find("#msghatch-pause-note").Input(" maintenance ");
         cut.Find("[data-action=confirm-pause]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).PauseChannelAsync(Email, "maintenance", Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
@@ -77,23 +92,29 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPause_NoNote_PausesTheChannelWithNoNote()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
         cut.Find("[data-action=pause]").Click();
 
+        // Act
         cut.Find("[data-action=confirm-pause]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).PauseChannelAsync(Email, null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void ConfirmPause_NoteOf501Characters_ShowsValidationFailedInTheDialogAndPausesNothing()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
         cut.Find("[data-action=pause]").Click();
 
+        // Act
         cut.Find("#msghatch-pause-note").Input(new string('n', 501));
         cut.Find("[data-action=confirm-pause]").Click();
 
+        // Assert
         Assert.Equal("400", cut.Find("[data-dialog] .alert-danger").GetAttribute("data-error-code"));
         DeliveryCommands.DidNotReceiveWithAnyArgs().PauseChannelAsync(default, default, Arg.Any<CancellationToken>());
     }
@@ -101,38 +122,47 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPause_NoteOf500Characters_PausesTheChannel()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
         cut.Find("[data-action=pause]").Click();
 
+        // Act
         cut.Find("#msghatch-pause-note").Input(new string('n', 500));
         cut.Find("[data-action=confirm-pause]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).PauseChannelAsync(Email, new string('n', 500), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void ConfirmPause_Rejected_ShowsTheTextOfRejectedInTheDialog()
     {
+        // Arrange
         DeliveryCommands.PauseChannelAsync(default, default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Rejected)));
         var cut = Render<ChannelListPage>();
         cut.Find("[data-action=pause]").Click();
 
+        // Act
         cut.Find("[data-action=confirm-pause]").Click();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-dialog] .alert-danger").TextContent);
     }
 
     [Fact]
     public void ClickBackThenPause_NoteInTheFirstDialog_ClosesThePauseAndOpensAnEmptyNote()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
         cut.Find("[data-action=pause]").Click();
         cut.Find("#msghatch-pause-note").Input("maintenance");
 
+        // Act
         cut.Find("[data-dialog] [data-action=back]").Click();
         var closed = cut.FindAll("[data-dialog]").Count;
         cut.Find("[data-action=pause]").Click();
 
+        // Assert
         Assert.Equal((0, string.Empty), (closed, cut.Find("#msghatch-pause-note").GetAttribute("value") ?? string.Empty));
         DeliveryCommands.DidNotReceiveWithAnyArgs().PauseChannelAsync(default, default, Arg.Any<CancellationToken>());
     }
@@ -140,11 +170,14 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ClickResume_DownChannel_ResumesTheChannelAndReadsTheChannelsAgain()
     {
+        // Arrange
         GivenSmsDown();
         var cut = Render<ChannelListPage>();
 
+        // Act
         cut.Find("[data-action=resume]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).ResumeChannelAsync(Sms, Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
@@ -153,12 +186,15 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ClickResume_Rejected_ShowsTheTextOfRejectedAboveTheList()
     {
+        // Arrange
         GivenSmsDown();
         DeliveryCommands.ResumeChannelAsync(default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Rejected)));
         var cut = Render<ChannelListPage>();
 
+        // Act
         cut.Find("[data-action=resume]").Click();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-action-error] .alert-danger").TextContent);
     }
 

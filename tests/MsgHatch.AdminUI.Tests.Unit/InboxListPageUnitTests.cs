@@ -18,10 +18,13 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_TestMessage_ShowsTheColumnsOfTheMessageWithTheBadgeTest()
     {
+        // Arrange
         GivenInbox(next: null, Received(1, MessageFlags.Test));
 
+        // Act
         var cut = Render<InboxListPage>();
 
+        // Assert
         var cells = cut.FindAll("tr[data-row] td");
         Assert.Equal(
             ["2030-01-01 10:00:05 UTC", "Requests", "3 / 8", "Timeout of the handler", "View"],
@@ -32,18 +35,23 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Message_LinksViewToThePageOfTheMessage()
     {
+        // Arrange
         GivenInbox(next: null, Received(1));
 
+        // Act
         var cut = Render<InboxListPage>();
 
+        // Assert
         Assert.Equal("msghatch/inbox/00000000-0000-0000-0000-000000000001", cut.Find("[data-action=view]").GetAttribute("href"));
     }
 
     [Fact]
     public void Render_EmptyPage_ShowsTheEmptyTextAndThePager()
     {
+        // Act
         var cut = Render<InboxListPage>();
 
+        // Assert
         Assert.Equal(
             ("There are no received messages.", true),
             (cut.Find("[data-state=empty]").TextContent, cut.Find("[data-list-pager]").QuerySelector("[data-page=older]") is not null));
@@ -52,38 +60,49 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Unavailable_ShowsTheTextOfUnavailable()
     {
+        // Arrange
         DeliveryQueries.GetReceivedMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Fail<MessagePage<ReceivedMessageSummary>>(Errors.Unavailable));
 
+        // Act
         var cut = Render<InboxListPage>();
 
+        // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
     }
 
     [Fact]
     public void Render_Rejected_ShowsTheTextOfRejected()
     {
+        // Arrange
         DeliveryQueries.GetReceivedMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Fail<MessagePage<ReceivedMessageSummary>>(Errors.Rejected));
 
+        // Act
         var cut = Render<InboxListPage>();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
     }
 
     [Fact]
     public void Render_NoAddressFilter_ReadsTheFirstPageWithNoFilter()
     {
+        // Act
         Render<InboxListPage>();
 
+        // Assert
         DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Render_AddressOfInboxOf_StartsWithEachFilterOfTheAddress()
     {
+        // Arrange
         Navigation.NavigateTo(DeliveryAdminRoutes.InboxOf(DeliveryStatus.Failed, _requests, _created, _created.AddDays(1), includeTest: true).TrimStart('/'));
 
+        // Act
         var cut = Render<InboxListPage>();
 
+        // Assert
         DeliveryQueries.Received(1).GetReceivedMessagesAsync(
             new InboxQuery(null, DeliveryStatus.Failed, _requests, _created, _created.AddDays(1), IncludeTest: true), Arg.Any<CancellationToken>());
         Assert.Equal(
@@ -95,22 +114,28 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void ChangeStatus_Failed_ReadsTheFirstPageWithTheStatusAtOnce()
     {
+        // Arrange
         var cut = Render<InboxListPage>();
 
+        // Act
         cut.Find("#msghatch-inbox-status").Change("Failed");
 
+        // Assert
         DeliveryQueries.Received(1).GetReceivedMessagesAsync(_failed, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void ChangeCreatedTimesAndTest_ReadsTheFirstPageWithTheTimesInUtcAndTheTestMessages()
+    public void ChangeCreatedTimesAndTest_TimesAndTestFlag_ReadsTheFirstPageWithTheTimesInUtcAndTheTestMessages()
     {
+        // Arrange
         var cut = Render<InboxListPage>();
 
+        // Act
         cut.Find("#msghatch-inbox-from").Change("2030-01-01T10:00:05");
         cut.Find("#msghatch-inbox-to").Change("2030-01-02T10:00:05");
         cut.Find("#msghatch-inbox-test").Change(true);
 
+        // Assert
         var query = DeliveryQueries.ReceivedCalls().Select(static call => (InboxQuery)call.GetArguments()[0]!).Last();
         Assert.Equal(
             (new InboxQuery(CreatedFromUtc: _created, CreatedToUtc: _created.AddDays(1), IncludeTest: true), DateTimeKind.Utc, DateTimeKind.Utc),
@@ -120,14 +145,17 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void InputType_BeforeAndAfterThePause_ReadsThePageOnlyAfter500Milliseconds()
     {
+        // Arrange
         var cut = Render<InboxListPage>();
         var withType = new InboxQuery(Type: _requests);
 
+        // Act
         cut.Find("#msghatch-inbox-type").Input("Requests");
         Time.Advance(TimeSpan.FromMilliseconds(499));
         var beforeThePause = DeliveryQueries.ReceivedCalls().Count(call => withType.Equals(call.GetArguments()[0]));
         Time.Advance(TimeSpan.FromMilliseconds(1));
 
+        // Assert
         cut.WaitForAssertion(() => DeliveryQueries.Received(1).GetReceivedMessagesAsync(withType, Arg.Any<CancellationToken>()));
         Assert.Equal(0, beforeThePause);
     }
@@ -135,12 +163,15 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void InputType_NotAName_ShowsValidationFailedAndReadsNothing()
     {
+        // Arrange
         var cut = Render<InboxListPage>();
         DeliveryQueries.ClearReceivedCalls();
 
+        // Act
         cut.Find("#msghatch-inbox-type").Input("not a name");
         Time.Advance(TimeSpan.FromMilliseconds(500));
 
+        // Assert
         cut.WaitForAssertion(() => Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code")));
         DeliveryQueries.DidNotReceiveWithAnyArgs().GetReceivedMessagesAsync(default!, Arg.Any<CancellationToken>());
     }
@@ -148,12 +179,15 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickOlderThenNewer_PageWithANextCursor_ReadsThePageAfterTheCursorAndThenTheFirstPage()
     {
+        // Arrange
         GivenInbox(_next, Received(1));
         var cut = Render<InboxListPage>();
 
+        // Act
         cut.Find("[data-page=older]").Click();
         cut.Find("[data-page=newer]").Click();
 
+        // Assert
         DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(After: _next), Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
         Assert.True(cut.Find("[data-page=newer]").HasAttribute("disabled"));
@@ -162,29 +196,37 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_NoFilter_DisablesRetryFilteredAndCancelFiltered()
     {
+        // Act
         var cut = Render<InboxListPage>();
 
+        // Assert
         Assert.Equal((true, true), BulkActionsDisabled(cut));
     }
 
     [Fact]
     public void ChangeStatus_Failed_EnablesRetryFilteredAndCancelFiltered()
     {
+        // Arrange
         var cut = Render<InboxListPage>();
 
+        // Act
         cut.Find("#msghatch-inbox-status").Change("Failed");
 
+        // Assert
         Assert.Equal((false, false), BulkActionsDisabled(cut));
     }
 
     [Fact]
     public void ClickRetryFiltered_StatusFailed_AsksTheQuestionOfTheReceivedMessages()
     {
+        // Arrange
         var cut = Render<InboxListPage>();
         cut.Find("#msghatch-inbox-status").Change("Failed");
 
+        // Act
         cut.Find("[data-action=retry-filtered]").Click();
 
+        // Assert
         Assert.Contains("Retry each received message that matches the filters", cut.Find("[data-question]").TextContent, StringComparison.Ordinal);
         DeliveryCommands.DidNotReceiveWithAnyArgs().RetryReceivedAsync(default!, Arg.Any<CancellationToken>());
     }
@@ -192,13 +234,16 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmRetryFiltered_StatusFailed_RetriesTheFilterShowsTheCountsAndReadsTheListAgain()
     {
+        // Arrange
         DeliveryCommands.RetryReceivedAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new DeliveryActionResult(5, 3)));
         var cut = Render<InboxListPage>();
         cut.Find("#msghatch-inbox-status").Change("Failed");
 
+        // Act
         cut.Find("[data-action=retry-filtered]").Click();
         cut.Find("[data-action=confirm]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).RetryReceivedAsync(_failed, Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetReceivedMessagesAsync(_failed, Arg.Any<CancellationToken>());
         Assert.Equal("Matched 5, changed 3.", cut.Find("[data-action-result]").TextContent);
@@ -207,13 +252,16 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmCancelFiltered_StatusFailed_CancelsTheFilterAndShowsTheCounts()
     {
+        // Arrange
         DeliveryCommands.CancelReceivedAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new DeliveryActionResult(2, 1)));
         var cut = Render<InboxListPage>();
         cut.Find("#msghatch-inbox-status").Change("Failed");
 
+        // Act
         cut.Find("[data-action=cancel-filtered]").Click();
         cut.Find("[data-action=confirm]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).CancelReceivedAsync(_failed, Arg.Any<CancellationToken>());
         Assert.Equal("Matched 2, changed 1.", cut.Find("[data-action-result]").TextContent);
     }

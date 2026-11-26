@@ -14,15 +14,18 @@ public sealed class TemplatesAdminUIExtensionsUnitTests
     [InlineData(" ")]
     public void AddTemplateEditor_NoEngineName_Throws(string? engine)
     {
+        // Act and assert
         Assert.ThrowsAny<ArgumentException>(() => new ServiceCollection().AddTemplateEditor<TestTemplateEditor>(engine!));
     }
 
     [Fact]
     public void ComponentTypes_OfTheLibrary_SetNoRenderMode()
     {
+        // Act
         var withRenderMode = typeof(TemplateAdminRoutes).Assembly.GetTypes()
             .Where(static type => typeof(IComponent).IsAssignableFrom(type) && type.GetCustomAttribute<RenderModeAttribute>(inherit: true) is not null);
 
+        // Assert
         Assert.Empty(withRenderMode);
     }
 }

@@ -26,18 +26,21 @@ public sealed class AdminUiApplicationUnitTests
     [Fact]
     public async Task Build_ClientHost_SendsTheCallOfEachInterfaceOverHttpWithTheTokenOfTheConfiguration()
     {
+        // Arrange
         var handler = new RecordingHandler();
         await using var app = Build(handler);
         await using var scope = app.Services.CreateAsyncScope();
         var ct = TestContext.Current.CancellationToken;
         var id = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
+        // Act
         await Service<ISubscriptionQueries>(scope).GetChannelsAsync(ct);
         await Service<ISubscriptionCommands>(scope).DeleteAsync(id, ct);
         await Service<IRoutingVerifier>(scope).VerifyAsync(new RoutingVerificationRequest([new UserId("1")], ["en"]), ct);
         await Service<ITemplateQueries>(scope).GetTemplatesAsync(new TemplateQuery(), ct);
         await Service<ITemplateCommands>(scope).DeleteTemplateAsync(new TemplateLookup(new MessageType("Requests"), "en", null, "subject", TemplatePartKind.PlainText), ct);
 
+        // Assert
         Assert.Equal(
             [
                 "GET http://localhost:5080/api/subscriptions/channels",
@@ -53,14 +56,17 @@ public sealed class AdminUiApplicationUnitTests
     [Fact]
     public async Task Build_ClientHost_SendsTheRegistryQueriesOverHttpWithTheTokenOfTheConfiguration()
     {
+        // Arrange
         var handler = new RecordingHandler();
         await using var app = Build(handler);
         await using var scope = app.Services.CreateAsyncScope();
         var ct = TestContext.Current.CancellationToken;
 
+        // Act
         await Service<IRegistryQueries>(scope).GetChannelsAsync(ct);
         await Service<IRegistryQueries>(scope).GetMessageTypesAsync(ct);
 
+        // Assert
         Assert.Equal(
             [
                 ("GET http://localhost:5080/api/registry/channels", "Bearer " + _testToken),
@@ -72,14 +78,17 @@ public sealed class AdminUiApplicationUnitTests
     [Fact]
     public async Task Build_ClientHost_SendsTheDeliveryCallsOverHttpWithTheTokenOfTheConfiguration()
     {
+        // Arrange
         var handler = new RecordingHandler();
         await using var app = Build(handler);
         await using var scope = app.Services.CreateAsyncScope();
         var ct = TestContext.Current.CancellationToken;
 
+        // Act
         await Service<IDeliveryQueries>(scope).GetChannelsAsync(ct);
         await Service<IDeliveryCommands>(scope).DeleteTestDataAsync(ct);
 
+        // Assert
         Assert.Equal(
             [
                 ("GET http://localhost:5080/api/delivery/channels", "Bearer " + _testToken),
@@ -91,11 +100,14 @@ public sealed class AdminUiApplicationUnitTests
     [Fact]
     public async Task Get_TemplateListWithNoApi_ShowsTheTextOfUnavailable()
     {
+        // Arrange
         await using var app = Build(new RecordingHandler(available: false));
         await app.StartAsync(TestContext.Current.CancellationToken);
 
+        // Act
         var page = await app.GetTestClient().GetStringAsync(new Uri("/msghatch/templates", UriKind.Relative), TestContext.Current.CancellationToken);
 
+        // Assert
         Assert.Contains(AdminErrors.UnavailableText, page, StringComparison.Ordinal);
         Assert.Contains("bootstrap@5.3.3", page, StringComparison.Ordinal);
     }
@@ -103,11 +115,15 @@ public sealed class AdminUiApplicationUnitTests
     [Fact]
     public async Task Get_Page_LoadsTheThemeScriptBeforeTheStylesAndHasTheThemeSwitch()
     {
+        // Arrange
         await using var app = Build(new RecordingHandler(available: false));
         await app.StartAsync(TestContext.Current.CancellationToken);
+
+        // Act
         var page = await app.GetTestClient().GetStringAsync(new Uri("/msghatch/templates", UriKind.Relative), TestContext.Current.CancellationToken);
         var script = Regex.Match(page, "<script src=\"(?<src>theme[^\"]*\\.js)\"").Groups["src"].Value;
 
+        // Assert
         Assert.Equal(
             (true, true, true),
             (script.Length > 0, page.IndexOf(script, StringComparison.Ordinal) < page.IndexOf("bootstrap@5.3.3", StringComparison.Ordinal),
@@ -117,12 +133,16 @@ public sealed class AdminUiApplicationUnitTests
     [Fact]
     public async Task Get_Home_HasTheMenuLinksInTheOrderOfTheAdminPages()
     {
+        // Arrange
         await using var app = Build(new RecordingHandler(available: false));
         await app.StartAsync(TestContext.Current.CancellationToken);
+
+        // Act
         var page = await app.GetTestClient().GetStringAsync(new Uri("/", UriKind.Relative), TestContext.Current.CancellationToken);
 
         var links = Regex.Matches(page, "<a\\b(?=[^>]*\\bclass=\"nav-link[^\"]*\")[^>]*>(?<text>[^<]*)</a>");
 
+        // Assert
         Assert.Equal(
             ["Channels", "Message types", "Subscriptions", "Templates", "Verification", "Traffic", "Outbox", "Inbox"],
             links.Select(static match => match.Groups["text"].Value));
@@ -145,20 +165,26 @@ public sealed class AdminUiApplicationUnitTests
     [InlineData("/msghatch/inbox/00000000-0000-0000-0000-000000000001", "Inbox")]
     public async Task Get_Page_MarksOnlyTheMenuLinkOfItsPageAsActive(string path, string link)
     {
+        // Arrange
         await using var app = Build(new RecordingHandler(available: false));
         await app.StartAsync(TestContext.Current.CancellationToken);
+
+        // Act
         var page = await app.GetTestClient().GetStringAsync(new Uri(path, UriKind.Relative), TestContext.Current.CancellationToken);
 
         var active = Regex.Matches(page, "<a\\b(?=[^>]*\\bclass=\"nav-link active\")[^>]*>(?<text>[^<]*)</a>");
 
+        // Assert
         Assert.Equal([link], active.Select(static match => match.Groups["text"].Value));
     }
 
     [Fact]
     public async Task Start_NoApiToken_StopsTheStartWithAnOptionsError()
     {
+        // Arrange
         await using var app = Build(new RecordingHandler(), token: null);
 
+        // Act and assert
         await Assert.ThrowsAsync<OptionsValidationException>(() => app.StartAsync(TestContext.Current.CancellationToken));
     }
 

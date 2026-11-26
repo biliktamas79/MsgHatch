@@ -52,7 +52,7 @@ public sealed partial class NotificationServiceUnitTests
         await using var provider = BuildWithInMemoryStoresAndTwoChannels(secondComposer);
         var outbox = provider.GetRequiredService<InMemoryOutboxStore>();
         var context = AContext(_tenant);
-        using var stop = new CancellationTokenSource();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await stop.CancelAsync();
 
         // Act: the host stops while the second channel composes

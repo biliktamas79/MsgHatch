@@ -31,25 +31,15 @@ public sealed class DemoHubUnitTests
         var ct = TestContext.Current.CancellationToken;
         await using var demo = DemoWebApp.Build();
         await demo.App.StartAsync(ct);
-        var sessions = await StartSessionsAsync(demo.App.GetTestServer(), ct);
-        try
-        {
-            // Act
-            var notification = await PublishAsync(demo.App, tenant, new DeliveryTarget(kind, id), ct);
+        await using var sessions = await StartSessionsAsync(demo.App.GetTestServer(), ct);
 
-            // Assert
-            foreach (var session in sessions.Where(session => expected.Contains(session.Name)))
-            {
-                await session.WaitForAsync(notification, ct);
-            }
+        // Act
+        var notification = await PublishAsync(demo.App, tenant, new DeliveryTarget(kind, id), ct);
 
-            await WaitForAMarkerOfEachTenantAsync(demo.App, sessions, ct);
-            Assert.Equal(expected, sessions.Where(session => session.HasReceived(notification)).Select(static session => session.Name).Order(StringComparer.Ordinal));
-        }
-        finally
-        {
-            await DisposeAsync(sessions);
-        }
+        // Assert
+        await Task.WhenAll(sessions.All.Where(session => expected.Contains(session.Name)).Select(session => session.WaitForAsync(notification, ct)));
+        await WaitForAMarkerOfEachTenantAsync(demo.App, sessions.All, ct);
+        Assert.Equal(expected, sessions.All.Where(session => session.HasReceived(notification)).Select(static session => session.Name).Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -61,38 +51,32 @@ public sealed class DemoHubUnitTests
         await demo.App.StartAsync(ct);
 
         // Act
-        var sessions = await StartSessionsAsync(demo.App.GetTestServer(), ct);
+        await using var sessions = await StartSessionsAsync(demo.App.GetTestServer(), ct);
 
         // Assert
-        try
-        {
-            string[] joined = [.. await Task.WhenAll(sessions.Select(static async session => Describe(await session.Joined)))];
-            Assert.Equal(
-                [
-                    "eu acme anna eu:anna | msghatch:tenant:eu msghatch:eu:company:acme",
-                    "eu acme bela eu:bela | msghatch:tenant:eu msghatch:eu:company:acme",
-                    "eu initech cecil eu:cecil | msghatch:tenant:eu msghatch:eu:company:initech",
-                    "eu - - - | msghatch:tenant:eu",
-                    "us globex anna us:anna | msghatch:tenant:us msghatch:us:company:globex",
-                    "us globex - - | msghatch:tenant:us msghatch:us:company:globex",
-                ],
-                joined);
-        }
-        finally
-        {
-            await DisposeAsync(sessions);
-        }
+        string[] joined = [.. await Task.WhenAll(sessions.All.Select(static async session => Describe(await session.Joined)))];
+        Assert.Equal(
+            [
+                "eu acme anna eu:anna | msghatch:tenant:eu msghatch:eu:company:acme",
+                "eu acme bela eu:bela | msghatch:tenant:eu msghatch:eu:company:acme",
+                "eu initech cecil eu:cecil | msghatch:tenant:eu msghatch:eu:company:initech",
+                "eu - - - | msghatch:tenant:eu",
+                "us globex anna us:anna | msghatch:tenant:us msghatch:us:company:globex",
+                "us globex - - | msghatch:tenant:us msghatch:us:company:globex",
+            ],
+            joined);
     }
 
-    private static async Task<DemoSession[]> StartSessionsAsync(TestServer server, CancellationToken ct) =>
-    [
-        await DemoSession.SignInAsync(server, "eu", "anna", "acme", ct),
-        await DemoSession.SignInAsync(server, "eu", "bela", account: null, ct),
-        await DemoSession.SignInAsync(server, "eu", "cecil", account: null, ct),
-        await DemoSession.JoinTenantAsync(server, "eu", ct),
-        await DemoSession.SignInAsync(server, "us", "anna", account: null, ct),
-        await DemoSession.JoinTenantAsync(server, "us", ct),
-    ];
+    private static async Task<StartedSessions> StartSessionsAsync(TestServer server, CancellationToken ct) =>
+        new(
+        [
+            await DemoSession.SignInAsync(server, "eu", "anna", "acme", ct),
+            await DemoSession.SignInAsync(server, "eu", "bela", account: null, ct),
+            await DemoSession.SignInAsync(server, "eu", "cecil", account: null, ct),
+            await DemoSession.JoinTenantAsync(server, "eu", ct),
+            await DemoSession.SignInAsync(server, "us", "anna", account: null, ct),
+            await DemoSession.JoinTenantAsync(server, "us", ct),
+        ]);
 
     private static async Task<Guid> PublishAsync(WebApplication app, string tenant, DeliveryTarget target, CancellationToken ct)
     {
@@ -125,11 +109,16 @@ public sealed class DemoHubUnitTests
     private static string Describe(JoinedSession session) =>
         $"{session.Tenant} {session.Company ?? "-"} {session.User ?? "-"} {session.UserName ?? "-"} | {string.Join(' ', session.Groups)}";
 
-    private static async Task DisposeAsync(DemoSession[] sessions)
+    private sealed class StartedSessions(DemoSession[] all) : IAsyncDisposable
     {
-        foreach (var session in sessions)
+        public DemoSession[] All { get; } = all;
+
+        public async ValueTask DisposeAsync()
         {
-            await session.DisposeAsync();
+            foreach (var session in All)
+            {
+                await session.DisposeAsync();
+            }
         }
     }
 }

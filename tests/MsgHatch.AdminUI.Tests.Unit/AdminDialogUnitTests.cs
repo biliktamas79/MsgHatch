@@ -8,8 +8,10 @@ public sealed class AdminDialogUnitTests : BunitContext
     [Fact]
     public void Render_ActionsWithStartAndEnd_PutsStartOnTheLeftAndEndOnTheRight()
     {
+        // Act
         var cut = Render<AdminActions>(p => p.Add(x => x.Start, Markup("<a data-x>Back</a>")).Add(x => x.End, Markup("<button data-x>Save</button>")).Add(x => x.Class, "mt-3"));
 
+        // Assert
         var bar = cut.Find("[data-actions]");
         Assert.Equal(
             (true, true, "Back", "Save", true),
@@ -21,9 +23,11 @@ public sealed class AdminDialogUnitTests : BunitContext
     [Fact]
     public void Render_ActionsWithMiddle_PutsItBetweenStartAndEndInAColumnThatGrowsAndWraps()
     {
+        // Act
         var cut = Render<AdminActions>(p => p.Add(x => x.Start, Markup("<a>Back</a>")).Add(x => x.Middle, Markup("<span>An error</span>"))
             .Add(x => x.End, Markup("<button>Save</button>")));
 
+        // Assert
         var middle = cut.Find("[data-actions-middle]");
         Assert.Equal(
             ("data-actions-start data-actions-middle data-actions-end", "An error", "flex: 1 1 12rem; min-width: 0", "d-flex flex-column gap-1"),
@@ -34,26 +38,32 @@ public sealed class AdminDialogUnitTests : BunitContext
     [Fact]
     public void Render_ActionsWithNoMiddle_HasNoMiddleArea()
     {
+        // Act
         var cut = Render<AdminActions>(p => p.Add(x => x.Start, Markup("<a>Back</a>")).Add(x => x.End, Markup("<button>Save</button>")));
 
+        // Assert
         Assert.Empty(cut.FindAll("[data-actions-middle]"));
     }
 
     [Fact]
     public void Render_ClosedDialog_ShowsNothing()
     {
+        // Act
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, false).Add(x => x.Title, "New"));
 
+        // Assert
         Assert.Empty(cut.Nodes);
     }
 
     [Fact]
     public void Render_OpenDialog_ShowsTheTitleTheBodyAndTheActionsInTheFooter()
     {
+        // Act
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).Add(x => x.Title, "New template")
             .AddChildContent("<p data-body>Fields</p>")
             .Add(x => x.Start, Markup("<button>Cancel</button>")).Add(x => x.End, Markup("<button>Open the editor</button>")));
 
+        // Assert
         var title = cut.Find(".modal-title");
         Assert.Equal(
             ("New template", title.Id, "Fields", "Cancel", "Open the editor", false),
@@ -66,24 +76,30 @@ public sealed class AdminDialogUnitTests : BunitContext
     [Fact]
     public void Render_OpenDialogWithNoActions_HasNoFooter()
     {
+        // Act
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).AddChildContent("<div data-actions>Own bar</div>"));
 
+        // Assert
         Assert.Equal((0, "Own bar"), (cut.FindAll(".modal-footer").Count, cut.Find(".modal-body [data-actions]").TextContent));
     }
 
     [Fact]
     public void Render_OpenDialog_HasABodyThatIsAFlexColumn()
     {
+        // Act
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true));
 
+        // Assert
         Assert.Equal((true, true), (cut.Find(".modal-body").ClassList.Contains("d-flex"), cut.Find(".modal-body").ClassList.Contains("flex-column")));
     }
 
     [Fact]
     public void Render_WideDialog_HasTheLargeSize()
     {
+        // Act
         var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).Add(x => x.Wide, true));
 
+        // Assert
         Assert.Contains("modal-lg", cut.Find(".modal-dialog").ClassList);
     }
 

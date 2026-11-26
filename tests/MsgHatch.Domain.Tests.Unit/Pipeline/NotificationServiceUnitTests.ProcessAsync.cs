@@ -108,10 +108,7 @@ public sealed partial class NotificationServiceUnitTests
         await using var provider = _doubles.Build(_time);
 
         // Act
-        foreach (var tenant in tenants.Concat(tenants))
-        {
-            await ProcessAsync(provider, AContext(tenant));
-        }
+        await ProcessOneAfterTheOtherAsync(provider, tenants.Concat(tenants));
 
         // Assert
         Assert.Equal(
@@ -124,13 +121,10 @@ public sealed partial class NotificationServiceUnitTests
     public async Task ProcessAsync_MoreTenantsThanTheLimitOfTheKeyBoxes_UsesTheServicesOfTheKeyOfTheLastTenantAtEachCall()
     {
         // Arrange
-        TenantId[] tenants = [.. Enumerable.Range(0, 1_100).Select(static index => new TenantId($"limit-{index}"))]; // more than the 1,024 boxes that are kept
+        TenantId?[] tenants = [.. Enumerable.Range(0, 1_100).Select(static index => new TenantId($"limit-{index}"))]; // more than the 1,024 boxes that are kept
         _doubles.Routes = [ARoute("u1")];
         await using var provider = _doubles.Build(_time, enableLogging: false);
-        foreach (var tenant in tenants)
-        {
-            await ProcessAsync(provider, AContext(tenant));
-        }
+        await ProcessOneAfterTheOtherAsync(provider, tenants);
 
         // Act
         await ProcessAsync(provider, AContext(tenants[^1]));
@@ -372,7 +366,7 @@ public sealed partial class NotificationServiceUnitTests
     public async Task ProcessAsync_CancelledTokenThatTheRouterObserves_ReturnsOperationCancelled()
     {
         // Arrange
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancellation.CancelAsync();
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException(cancellation.Token));
         await using var provider = _doubles.Build(_time);
@@ -502,5 +496,13 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(TestHost.Start.UtcDateTime.AddMinutes(5), Assert.Single(_doubles.Stored).Delivery.ExpiresAtUtc);
+    }
+
+    private static async Task ProcessOneAfterTheOtherAsync(IServiceProvider provider, IEnumerable<TenantId?> tenants)
+    {
+        foreach (var tenant in tenants)
+        {
+            await ProcessAsync(provider, AContext(tenant));
+        }
     }
 }

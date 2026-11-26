@@ -17,6 +17,7 @@ public sealed class LiquidTemplateEditorExtensionsUnitTests : BunitContext
     [Fact]
     public void AddLiquidTemplateEditor_PartThatOnlyTheLiquidEngineReads_ShowsTheLiquidEditorOnTheEditPage()
     {
+        // Arrange
         var type = new MessageType("Requests");
         var queries = Substitute.For<ITemplateQueries>();
         queries.GetTemplatePartsAsync(type, Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult(
@@ -28,17 +29,21 @@ public sealed class LiquidTemplateEditorExtensionsUnitTests : BunitContext
         Services.AddKeyedSingleton(TenantKey.None, Substitute.For<ITemplateCommands>());
         Services.AddMsgHatchTemplatesAdminUI().AddLiquidTemplateEditor();
 
+        // Act
         var cut = Render<TemplateEditPage>(p => p.Add(x => x.TypeName, "Requests").Add(x => x.Language, "en").Add(x => x.Part, "body").Add(x => x.KindName, "Html"));
 
+        // Assert
         Assert.Single(cut.FindAll("[data-editor=liquid]"));
     }
 
     [Fact]
     public void ComponentTypes_OfTheLibrary_SetNoRenderMode()
     {
+        // Act
         var withRenderMode = typeof(LiquidTemplateEditor).Assembly.GetTypes()
             .Where(static type => typeof(IComponent).IsAssignableFrom(type) && type.GetCustomAttribute<RenderModeAttribute>(inherit: true) is not null);
 
+        // Assert
         Assert.Empty(withRenderMode);
     }
 }

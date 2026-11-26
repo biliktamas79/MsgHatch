@@ -246,10 +246,7 @@ public sealed partial class OutboxDispatcherUnitTests
             o => o.EnablePolling = enablePolling, b => b.UseDispatchSignal(_ => signal), TestTransports.For(TestChannel.Id));
         await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
         await _doubles.NextClaimAsync();
-        for (var timer = 0; timer < timers; timer++)
-        {
-            await _doubles.Time.NextWaitAsync();
-        }
+        await Task.WhenAll(Enumerable.Range(0, timers).Select(_ => _doubles.Time.NextWaitAsync()));
 
         // Act
         _doubles.Time.Advance(TimeSpan.FromSeconds(1));

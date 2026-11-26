@@ -19,10 +19,13 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Message_ShowsTheSummary()
     {
+        // Arrange
         GivenMessage(Detail());
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal(
             [
                 ("id", "00000000-0000-0000-0000-000000000001"), ("status", "Failed"), ("type", "Requests"), ("channel", "Email"),
@@ -37,20 +40,26 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Message_LinksTheSourceToThePageOfTheReceivedMessage()
     {
+        // Arrange
         GivenMessage(Detail());
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal("msghatch/inbox/00000000-0000-0000-0000-0000000000aa", cut.Find("[data-action=source]").GetAttribute("href"));
     }
 
     [Fact]
     public void Render_TwoTries_ShowsARowForEachTryInTheOrderOfTheNumbers()
     {
+        // Arrange
         GivenMessage(Detail());
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal(
             [
                 "1 2030-01-01 10:00:10 UTC 2030-01-01 10:00:11 UTC TransientError Timeout: The provider did not answer.",
@@ -62,40 +71,52 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void Render_NoTries_ShowsTheTextOfNoTries()
     {
+        // Arrange
         GivenMessage(Detail() with { Tries = [] });
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal((1, 0), (cut.FindAll("[data-state=no-tries]").Count, cut.FindAll("tr[data-try]").Count));
     }
 
     [Fact]
     public void Render_Trace_ShowsTheTraceAsIndentedJson()
     {
+        // Arrange
         GivenMessage(Detail());
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal("{\n  \"rule\": \"Requests\",\n  \"names\": [\n    \"Zoé\"\n  ]\n}", cut.Find("[data-trace]").TextContent);
     }
 
     [Fact]
     public void Render_NoTrace_ShowsTheTextOfNoTrace()
     {
+        // Arrange
         GivenMessage(Detail() with { Trace = null });
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal((1, 0), (cut.FindAll("[data-state=no-trace]").Count, cut.FindAll("[data-trace]").Count));
     }
 
     [Fact]
     public void Render_Message_ReadsNoContent()
     {
+        // Arrange
         GivenMessage(Detail());
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal((1, 0), (cut.FindAll("[data-action=show-content]").Count, cut.FindAll("[data-content]").Count));
         DeliveryQueries.DidNotReceiveWithAnyArgs().GetOutgoingContentAsync(default, Arg.Any<CancellationToken>());
     }
@@ -103,36 +124,45 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void ClickShowContent_Json_ShowsTheContentAsIndentedJson()
     {
+        // Arrange
         GivenMessage(Detail());
         DeliveryQueries.GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Ok(new MessageContent(_id, "{\"to\":\"a@example.com\"}")));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=show-content]").Click();
 
+        // Assert
         Assert.Equal(("{\n  \"to\": \"a@example.com\"\n}", 0), (cut.Find("[data-content]").TextContent, cut.FindAll("[data-action=show-content]").Count));
     }
 
     [Fact]
     public void ClickShowContent_TextThatIsNotJson_ShowsTheText()
     {
+        // Arrange
         GivenMessage(Detail());
         DeliveryQueries.GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Ok(new MessageContent(_id, "not { json")));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=show-content]").Click();
 
+        // Assert
         Assert.Equal("not { json", cut.Find("[data-content]").TextContent);
     }
 
     [Fact]
     public void ClickShowContent_Rejected_ShowsTheTextOfRejectedOnlyInTheContentArea()
     {
+        // Arrange
         GivenMessage(Detail());
         DeliveryQueries.GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Fail<MessageContent>(Errors.Rejected));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=show-content]").Click();
 
+        // Assert
         Assert.Equal(
             (AdminErrors.RejectedText, 2, "Failed"),
             (cut.Find(".alert-danger").TextContent, cut.FindAll("tr[data-try]").Count, cut.Find("[data-field=status] [data-status]").TextContent));
@@ -141,26 +171,32 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void SetId_OtherMessageAfterShowContent_HidesTheContentOfTheFirstMessage()
     {
+        // Arrange
         GivenMessage(Detail());
         DeliveryQueries.GetOutgoingMessageAsync(_otherId, Arg.Any<CancellationToken>()).Returns(Ok(Detail(_otherId)));
         DeliveryQueries.GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Ok(new MessageContent(_id, "{}")));
         var cut = RenderPage();
         cut.Find("[data-action=show-content]").Click();
 
+        // Act
         cut.Render(p => p.Add(x => x.Id, _otherId));
 
+        // Assert
         Assert.Equal((0, 1), (cut.FindAll("[data-content]").Count, cut.FindAll("[data-action=show-content]").Count));
     }
 
     [Fact]
     public void ClickRetry_ChangedOne_RetriesTheQueryOfTheIdShowsTheCountsAndReadsTheMessageAgain()
     {
+        // Arrange
         GivenMessage(Detail());
         DeliveryCommands.RetryOutgoingAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new DeliveryActionResult(1, 1)));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=retry]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).RetryOutgoingAsync(Arg.Is<OutboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
         Assert.Equal("Matched 1, changed 1.", cut.Find("[data-action-result].alert-success").TextContent);
@@ -169,12 +205,15 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void ClickCancel_ChangedZero_ShowsThatTheMessageDidNotChange()
     {
+        // Arrange
         GivenMessage(Detail());
         DeliveryCommands.CancelOutgoingAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new DeliveryActionResult(1, 0)));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=cancel]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).CancelOutgoingAsync(Arg.Is<OutboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
         DeliveryCommands.DidNotReceiveWithAnyArgs().RetryOutgoingAsync(default!, Arg.Any<CancellationToken>());
         Assert.Equal(
@@ -185,22 +224,28 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void ClickCancel_Rejected_ShowsTheTextOfRejected()
     {
+        // Arrange
         GivenMessage(Detail());
         DeliveryCommands.CancelOutgoingAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Fail<DeliveryActionResult>(Errors.Rejected));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=cancel]").Click();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-action-result].alert-danger").TextContent);
     }
 
     [Fact]
     public void Render_NotFound_ShowsTheErrorAndTheLinkBackWithNoAction()
     {
+        // Arrange
         DeliveryQueries.GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>()).Returns(Fail<OutgoingMessageDetail>(Errors.NotFound));
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal(
             (Errors.NotFound.Code.ToString(System.Globalization.CultureInfo.InvariantCulture), "msghatch/outbox", 0, 0),
             (cut.Find(".alert-danger").GetAttribute("data-error-code"), cut.Find("[data-action=back]").GetAttribute("href"),

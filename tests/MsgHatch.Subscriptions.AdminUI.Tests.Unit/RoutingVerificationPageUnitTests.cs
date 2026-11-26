@@ -15,6 +15,7 @@ public sealed class RoutingVerificationPageUnitTests : SubscriptionPageContext
     [Fact]
     public void ClickRun_UsersLanguagesAndMessageType_SendsTheRequestAndShowsTheReport()
     {
+        // Arrange
         var passed = new RoutingCheck(Requests, "R1", SubscriptionOwner.Default, new DeliveryTarget(DeliveryTargetKind.User, "1"), Fax, "en",
             RoutingCheckOutcome.Passed, null, null, null);
         var failed = passed with { TestCase = "R2", Outcome = RoutingCheckOutcome.Failed, ErrorCode = 404, ErrorName = "NotFound" };
@@ -25,8 +26,10 @@ public sealed class RoutingVerificationPageUnitTests : SubscriptionPageContext
         cut.Find("#msghatch-verify-languages").Change("en\nhu");
         cut.Find("#msghatch-verify-type").Change("Requests");
 
+        // Act
         cut.Find("[data-action=verify]").Click();
 
+        // Assert
         Assert.NotNull(sent);
         Assert.Equal(["1", "2"], sent.TestUsers.Select(static user => user.Value));
         Assert.Equal(["en", "hu"], sent.Languages);
@@ -40,22 +43,28 @@ public sealed class RoutingVerificationPageUnitTests : SubscriptionPageContext
     [Fact]
     public void ClickRun_EmptyReport_ShowsThatTheVerificationFoundNothingToCheck()
     {
+        // Arrange
         Verifier.VerifyAsync(Arg.Any<RoutingVerificationRequest>(), Arg.Any<CancellationToken>()).Returns(Ok(new RoutingVerificationReport([])));
         var cut = Render<RoutingVerificationPage>();
 
+        // Act
         cut.Find("[data-action=verify]").Click();
 
+        // Assert
         Assert.Equal("The verification found nothing to check.", cut.Find("[data-state=empty]").TextContent);
     }
 
     [Fact]
     public void ClickRun_Unavailable_ShowsTheTextOfUnavailable()
     {
+        // Arrange
         Verifier.VerifyAsync(Arg.Any<RoutingVerificationRequest>(), Arg.Any<CancellationToken>()).Returns(Fail<RoutingVerificationReport>(Errors.Unavailable));
         var cut = Render<RoutingVerificationPage>();
 
+        // Act
         cut.Find("[data-action=verify]").Click();
 
+        // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
         Assert.Empty(cut.FindAll("[data-field=totals]"));
     }
@@ -63,11 +72,14 @@ public sealed class RoutingVerificationPageUnitTests : SubscriptionPageContext
     [Fact]
     public void ClickRun_UserIdThatIsNotValid_ShowsValidationFailedAndSendsNothing()
     {
+        // Arrange
         var cut = Render<RoutingVerificationPage>();
         cut.Find("#msghatch-verify-users").Change(new string('u', 257));
 
+        // Act
         cut.Find("[data-action=verify]").Click();
 
+        // Assert
         Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code"));
         Verifier.DidNotReceiveWithAnyArgs().VerifyAsync(default!, Arg.Any<CancellationToken>());
     }

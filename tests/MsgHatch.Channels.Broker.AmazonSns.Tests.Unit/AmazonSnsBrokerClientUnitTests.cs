@@ -432,17 +432,9 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
         string row, string? amazonHeader, string? standardHeader, double? expectedSeconds)
     {
         // Arrange
-        var headers = new Dictionary<string, string>();
-        if (amazonHeader is not null)
-        {
-            headers["x-amz-retry-after"] = amazonHeader;
-        }
-
-        if (standardHeader is not null)
-        {
-            headers["Retry-After"] = standardHeader;
-        }
-
+        var headers = new Dictionary<string, string?> { ["x-amz-retry-after"] = amazonHeader, ["Retry-After"] = standardHeader }
+            .Where(static header => header.Value is not null)
+            .ToDictionary(static header => header.Key, static header => header.Value!, StringComparer.Ordinal);
         using var sns = FakeSnsHttp.ClientThatAnswers(HttpStatusCode.BadRequest, "Throttled", headers);
         var client = new AmazonSnsBrokerClient(sns, Options.Create(AnOptions()));
 

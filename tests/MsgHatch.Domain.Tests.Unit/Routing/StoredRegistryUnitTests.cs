@@ -233,10 +233,10 @@ public sealed partial class StoredRegistryUnitTests
         var store = AStoreThatReads(NoEntries());
         store.GetEntriesAsync(Ct).ReturnsForAnyArgs(
             _ => ValueTask.FromResult(ErrorOr<RegistryEntries>.ForValue(NoEntries())),
-            call =>
+            async ValueTask<ErrorOr<RegistryEntries>> (call) =>
             {
-                _ = writer!.SaveChannelAsync(AChannelEntry(displayName: "Saved during the read"), Ct).AsTask().Result;
-                return ValueTask.FromResult(ErrorOr<RegistryEntries>.ForValue(NoEntries()));
+                _ = await writer!.SaveChannelAsync(AChannelEntry(displayName: "Saved during the read"), Ct);
+                return NoEntries();
             });
         await using var provider = Build(store, time);
         var registry = provider.GetRequiredService<IMessageRegistry>();

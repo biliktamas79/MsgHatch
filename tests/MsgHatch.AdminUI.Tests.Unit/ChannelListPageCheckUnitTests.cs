@@ -13,8 +13,10 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
     [Fact]
     public void Render_Channels_ShowsCheckBetweenHistoryAndViewInEachRow()
     {
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal(
             ["pause history check view edit", "pause history check view edit", "pause history check view edit"],
             cut.FindAll("tr[data-row]").Select(static row => string.Join(' ', row.QuerySelectorAll("[data-action]").Select(static action => action.GetAttribute("data-action")))));
@@ -28,11 +30,14 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
     public void ClickCheck_SecondChannel_ChecksThatChannelAndShowsTheTextAndTheClassOfTheResult(
         int? errorCode, string? errorName, bool changed, string expectedText, string expectedClass)
     {
+        // Arrange
         Commands.CheckChannelAsync(Sms, Arg.Any<CancellationToken>()).Returns(Ok(new ChannelCheck(Sms, errorCode, errorName, changed)));
         var cut = Render<ChannelListPage>();
 
+        // Act
         cut.FindAll("[data-action=check]")[1].Click();
 
+        // Assert
         var alert = cut.Find("[data-check-result]");
         Assert.Equal((expectedText, true), (alert.TextContent, alert.ClassList.Contains(expectedClass)));
     }
@@ -40,12 +45,15 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
     [Fact]
     public void ClickCheck_ErrorOfTheCommand_ShowsTheTextOfTheErrorWithAlertDanger()
     {
+        // Arrange
         Commands.CheckChannelAsync(Email, Arg.Any<CancellationToken>()).Returns(
             ValueTask.FromResult(ErrorOr<ChannelCheck>.ForError(new Error(Errors.Rejected, "The token has no role RegistryAdmin."))));
         var cut = Render<ChannelListPage>();
 
+        // Act
         cut.FindAll("[data-action=check]")[0].Click();
 
+        // Assert
         var alert = cut.Find("[data-check-result]");
         Assert.Equal((AdminErrors.RejectedText, true), (alert.TextContent, alert.ClassList.Contains("alert-danger")));
     }
@@ -53,33 +61,41 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
     [Fact]
     public void ClickCheck_Result_ReadsTheChannelsAgain()
     {
+        // Arrange
         Commands.CheckChannelAsync(Email, Arg.Any<CancellationToken>()).Returns(Ok(new ChannelCheck(Email, 503, "Unavailable", Changed: true)));
         var cut = Render<ChannelListPage>();
 
+        // Act
         cut.FindAll("[data-action=check]")[0].Click();
 
+        // Assert
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void ClickCheck_RunningCheck_DisablesTheCheckButtonsUntilTheResult()
     {
+        // Arrange
         var result = new TaskCompletionSource<ErrorOr<ChannelCheck>>();
         Commands.CheckChannelAsync(Fax, Arg.Any<CancellationToken>()).Returns(new ValueTask<ErrorOr<ChannelCheck>>(result.Task));
         var cut = Render<ChannelListPage>();
 
+        // Act
         cut.FindAll("[data-action=check]")[2].Click();
         var whileRunning = DisabledFlagsOf(cut);
         result.SetResult(ErrorOr<ChannelCheck>.ForValue(new ChannelCheck(Fax, ErrorCode: null, ErrorName: null, Changed: false)));
 
+        // Assert
         cut.WaitForAssertion(() => Assert.Equal(("True True True", "False False False"), (whileRunning, DisabledFlagsOf(cut))));
     }
 
     [Fact]
     public void Render_NoCheck_ShowsNoResult()
     {
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Empty(cut.FindAll("[data-check-result]"));
         Commands.DidNotReceiveWithAnyArgs().CheckChannelAsync(default, Xunit.TestContext.Current.CancellationToken);
     }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using MsgHatch.Templates;
 
 namespace MsgHatch.Templates.Tests.Unit.Contracts;
@@ -50,6 +51,9 @@ public abstract partial class TemplateEngineTestsBase<TEngine>
         var result = await Engine.PrepareAsync(ARequest(), Ct);
 
         // Assert
-        Assert.NotNull(result.Value);
+        var rendered = await result.Value.RenderAsync(APayload(name: "Client 1"), CultureInfo.GetCultureInfo("en"), Ct);
+        Assert.Equal(
+            (new TemplateLookup(Type, "en", Scope: null, Part, TemplatePartKind.PlainText), "Order Client 1"),
+            (result.Value.Lookup, rendered.Value));
     }
 }

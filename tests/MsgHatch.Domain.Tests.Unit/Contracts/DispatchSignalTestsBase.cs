@@ -93,7 +93,7 @@ public abstract class DispatchSignalTestsBase<TSignal>(TSignal signal)
     public async Task WaitAsync_CancelledToken_ReturnsOperationCancelled()
     {
         // Arrange
-        using var stop = new CancellationTokenSource();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await stop.CancelAsync();
 
         // Act

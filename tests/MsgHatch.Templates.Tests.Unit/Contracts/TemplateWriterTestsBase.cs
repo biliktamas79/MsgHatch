@@ -50,15 +50,8 @@ public abstract class TemplateWriterTestsBase<TStore>(TStore store)
     [Fact]
     public async Task SaveAsync_TwentySavesInARow_GiveTwentyVersionsInOrder()
     {
-        // Arrange
-        var versions = new List<long>();
-
         // Act
-        for (var save = 0; save < 20; save++)
-        {
-            var entry = await Store.SaveAsync(ALookup(), $"Text {save}", versions.LastOrDefault(), Ct);
-            versions.Add(entry.Value.Version);
-        }
+        var versions = await SaveInARowAsync(20);
 
         // Assert
         Assert.Equal([.. versions.Distinct().Order()], versions);
@@ -170,17 +163,13 @@ public abstract class TemplateWriterTestsBase<TStore>(TStore store)
     public async Task ListAsync_TypeOfSavedTemplates_GivesTheirEntriesInTheOrderOfScopeLanguagePartAndKind()
     {
         // Arrange
-        var saved = new List<TemplateEntry>();
-        foreach (var lookup in new[]
-        {
-            ALookup("hu", scope: "42", part: "body", kind: TemplatePartKind.Html),
-            ALookup("hu", part: "subject"),
-            ALookup("en", part: "body", kind: TemplatePartKind.PlainText),
-            ALookup("en", part: "body", kind: TemplatePartKind.Html),
-        })
-        {
-            saved.Add((await Store.SaveAsync(lookup, "Text", 0, Ct)).Value);
-        }
+        TemplateEntry[] saved =
+        [
+            (await Store.SaveAsync(ALookup("hu", scope: "42", part: "body", kind: TemplatePartKind.Html), "Text", 0, Ct)).Value,
+            (await Store.SaveAsync(ALookup("hu", part: "subject"), "Text", 0, Ct)).Value,
+            (await Store.SaveAsync(ALookup("en", part: "body", kind: TemplatePartKind.PlainText), "Text", 0, Ct)).Value,
+            (await Store.SaveAsync(ALookup("en", part: "body", kind: TemplatePartKind.Html), "Text", 0, Ct)).Value,
+        ];
 
         // Act
         var entries = await Store.ListAsync(new TemplateQuery(Type), Ct);
@@ -232,4 +221,16 @@ public abstract class TemplateWriterTestsBase<TStore>(TStore store)
     protected TemplateLookup ALookup(
         string language = "en", string? scope = null, string part = "subject", TemplatePartKind kind = TemplatePartKind.PlainText) =>
         new(Type, language, scope, part, kind);
+
+    private async Task<List<long>> SaveInARowAsync(int saves)
+    {
+        var versions = new List<long>();
+        for (var save = 0; save < saves; save++)
+        {
+            var entry = await Store.SaveAsync(ALookup(), $"Text {save}", versions.LastOrDefault(), Ct);
+            versions.Add(entry.Value.Version);
+        }
+
+        return versions;
+    }
 }

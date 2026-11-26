@@ -43,8 +43,10 @@ public sealed class LiquidTokenizerUnitTests
     [MemberData(nameof(SpanRows))]
     public void Tokenize_Text_GivesASpanForEachKindInTheOrderOfTheText(string text, string[] expected)
     {
+        // Act
         var spans = LiquidTokenizer.Tokenize(text);
 
+        // Assert
         Assert.Equal(expected, spans.Select(span => $"{span.Kind}:{text.Substring(span.Start, span.Length)}"));
     }
 
@@ -52,20 +54,24 @@ public sealed class LiquidTokenizerUnitTests
     [MemberData(nameof(IssueRows))]
     public void FindIssues_Text_GivesTheLineTheColumnAndTheMessageOfEachIssue(string text, string[] expected)
     {
+        // Act
         var issues = LiquidTokenizer.FindIssues(text);
 
+        // Assert
         Assert.Equal(expected, issues.Select(static issue => $"{issue.Line}:{issue.Column}:{issue.Message}"));
     }
 
     [Fact]
     public void Tokenize_NullText_Throws()
     {
+        // Act and assert
         Assert.Throws<ArgumentNullException>(() => LiquidTokenizer.Tokenize(null!));
     }
 
     [Fact]
     public void FindIssues_NullText_Throws()
     {
+        // Act and assert
         Assert.Throws<ArgumentNullException>(() => LiquidTokenizer.FindIssues(null!));
     }
 }

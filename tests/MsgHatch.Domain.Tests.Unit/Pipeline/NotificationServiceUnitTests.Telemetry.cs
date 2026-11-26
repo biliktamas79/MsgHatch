@@ -187,7 +187,7 @@ public sealed partial class NotificationServiceUnitTests
     public async Task ProcessAsync_CancelledTokenThatTheRouterObserves_GivesTheErrorTypeOperationCancelledToTheSpanAndTheDuration()
     {
         // Arrange
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancellation.CancelAsync();
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException(cancellation.Token));
         await using var provider = _doubles.Build(_time);

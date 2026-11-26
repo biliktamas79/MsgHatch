@@ -65,7 +65,7 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     {
         // Arrange
         OutgoingMessage[] messages = [AMessage(T1, text: "first"), AMessage(T1, text: "second")];
-        using var stop = new CancellationTokenSource();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await stop.CancelAsync();
         _ = await TenantStore(T1).AddAsync(messages, stop.Token); // the host stops during the write: all, part, or none of the batch is stored
 

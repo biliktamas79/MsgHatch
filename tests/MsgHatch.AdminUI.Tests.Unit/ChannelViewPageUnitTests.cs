@@ -12,8 +12,10 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_KnownChannel_ShowsItsFieldsWithTheFeaturesAsBadges()
     {
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         Assert.Equal(
             ("Email", "Email channel", "Sends emails", "Yes", "2", "Languages,RichText"),
             (Field(cut, "id"), Field(cut, "name"), Field(cut, "description"), Field(cut, "enabled"), Field(cut, "revision"),
@@ -23,11 +25,14 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_PausedChannel_ShowsTheFieldsStateAndSince()
     {
+        // Arrange
         var paused = new ChannelState(Email, 1, ChannelStateKind.Down, Now.AddDays(-2), null, null, ChannelDownReason.Operator, null, null, null, "maintenance");
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryChannel>>([Channels[0] with { Current = paused }]));
 
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         Assert.Equal(
             ("Down Paused maintenance", "2029-12-30 00:00 UTC (2 d 0 h)"),
             (SpacedTextOf(cut.Find("[data-field=state]")), SpacedTextOf(cut.Find("[data-field=since]"))));
@@ -36,10 +41,13 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickHistory_KnownChannel_OpensTheDialogOfTheChannel()
     {
+        // Arrange
         var cut = RenderPage("Email");
 
+        // Act
         cut.Find("[data-actions-end] [data-action=history]").Click();
 
+        // Assert
         Assert.Equal("History of Email", cut.Find("[data-dialog] .modal-title").TextContent);
         Queries.Received(1).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
     }
@@ -47,8 +55,10 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_KnownChannel_HasEditAsTheMainActionOnTheRightAfterHistory()
     {
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         var actions = cut.FindAll("[data-actions-end] > *");
         Assert.Equal(
             ("pause history edit", "btn btn-primary", RegistryAdminRoutes.ChannelEdit(Email).TrimStart('/')),
@@ -58,8 +68,10 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_MessageTypesOfTheChannel_ShowEachWithItsDisplayNameAndItsStateOnTheChannel()
     {
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         Assert.Equal(
             ["Requests|Requests of a client|Enabled", "Notices||Message type disabled", "Invoices|Invoices|Disabled on this channel"],
             cut.FindAll("tr[data-row]").Select(static row => string.Join('|', row.Children.Select(static cell => cell.TextContent))));
@@ -68,16 +80,20 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_ChannelWithNoMessageType_ShowsTheEmptyText()
     {
+        // Act
         var cut = RenderPage("Fax");
 
+        // Assert
         Assert.Equal("No message type registers this channel.", cut.Find("[data-state=empty]").TextContent);
     }
 
     [Fact]
     public void Render_UnknownChannel_ShowsNotFoundAndTheLinkBack()
     {
+        // Act
         var cut = RenderPage("Pager");
 
+        // Assert
         Assert.Equal(
             ("404", RegistryAdminRoutes.Channels.TrimStart('/'), 0),
             (cut.Find(".alert-danger").GetAttribute("data-error-code"), cut.Find("[data-action=back]").GetAttribute("href"), cut.FindAll("dl").Count));
@@ -86,10 +102,13 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Unavailable_ShowsTheTextOfUnavailableAndHasNoMainAction()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<RegistryMessageType>>(Errors.Unavailable));
 
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         Assert.Equal((AdminErrors.UnavailableText, 0), (cut.Find(".alert-danger").TextContent, cut.FindAll("[data-actions-end] > *").Count));
     }
 

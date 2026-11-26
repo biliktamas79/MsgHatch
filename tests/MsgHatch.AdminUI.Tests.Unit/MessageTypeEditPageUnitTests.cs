@@ -23,8 +23,10 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_MessageTypeWithNoEntry_ShowsEmptyTextFieldsTheValuesOfTheCodeAsPlaceholdersAndACheckedBoxForEachChannel()
     {
+        // Act
         var cut = RenderPage("Requests");
 
+        // Assert
         Assert.Equal(
             ("", "Requests of a client", "", "", "Email:True Sms:True", "Send on Email|Send on Sms"),
             (ValueOf(cut, "display-name"), PlaceholderOf(cut, "display-name"), ValueOf(cut, "description"), PlaceholderOf(cut, "description"),
@@ -34,10 +36,13 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_StoredEntryWithADisabledChannel_ShowsTheStoredValuesAndAClearedBoxForTheChannel()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryMessageType>>([_storedRequests]));
 
+        // Act
         var cut = RenderPage("Requests");
 
+        // Assert
         Assert.Equal(
             ("", "Requests of a client", "Stored description", "An empty field gives the value of the code.", false, "Email:True Sms:False", "4"),
             (ValueOf(cut, "display-name"), PlaceholderOf(cut, "display-name"), ValueOf(cut, "description"), PlaceholderOf(cut, "description"),
@@ -47,12 +52,15 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickSave_ClearedBox_SavesItsChannelInDisabledChannelsAndNullForTheEmptyTexts()
     {
+        // Arrange
         Commands.SaveMessageTypeAsync(Arg.Any<MessageTypeEntry>(), Arg.Any<CancellationToken>()).Returns(Ok(_stored));
         var cut = RenderPage("Requests");
         cut.Find("[data-send-on=Sms]").Change(false);
 
+        // Act
         cut.Find("[data-action=save]").Click();
 
+        // Assert
         var entry = Assert.Single(Commands.ReceivedCalls()).GetArguments()[0] as MessageTypeEntry;
         Assert.Equal(
             ("Requests", null, null, true, "Sms", 0),
@@ -63,6 +71,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickSave_CheckedBoxOfADisabledChannel_SavesNoDisabledChannelAndShowsSavedWithTheValuesOfASecondRead()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(
             Ok<IReadOnlyList<RegistryMessageType>>([_storedRequests]),
             Ok<IReadOnlyList<RegistryMessageType>>([_storedRequests with { DisabledChannels = [], Revision = 5, Entry = _stored with { DisabledChannels = [], Revision = 5 } }]));
@@ -70,8 +79,10 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         var cut = RenderPage("Requests");
         cut.Find("[data-send-on=Sms]").Change(true);
 
+        // Act
         cut.Find("[data-action=save]").Click();
 
+        // Assert
         Commands.Received(1).SaveMessageTypeAsync(
             Arg.Is<MessageTypeEntry>(static entry => entry.DisabledChannels.Count == 0 && entry.Revision == 4), Arg.Any<CancellationToken>());
         Assert.Equal(
@@ -82,13 +93,16 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickSave_Conflict_ReadsTheMessageTypeAgainAndShowsTheTextOfConflict()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok(MessageTypes), Ok<IReadOnlyList<RegistryMessageType>>([_storedRequests]));
         Commands.SaveMessageTypeAsync(Arg.Any<MessageTypeEntry>(), Arg.Any<CancellationToken>()).Returns(Fail<MessageTypeEntry>(Errors.Conflict));
         var cut = RenderPage("Requests");
         cut.Find("[data-send-on=Email]").Change(false);
 
+        // Act
         cut.Find("[data-action=save]").Click();
 
+        // Assert
         Assert.Equal(
             (AdminErrors.ConflictText, "Email:True Sms:False", 0),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, BoxesOf(cut), cut.FindAll("[data-state=saved]").Count));
@@ -97,13 +111,16 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickSave_Error_ShowsTheTextOfTheErrorAndKeepsTheFields()
     {
+        // Arrange
         Commands.SaveMessageTypeAsync(Arg.Any<MessageTypeEntry>(), Arg.Any<CancellationToken>()).Returns(
             ValueTask.FromResult(ErrorOr<MessageTypeEntry>.ForError(new Error(Errors.ValidationFailed, "DisabledChannels has only the channels of the message type Requests."))));
         var cut = RenderPage("Requests");
         cut.Find("[data-send-on=Email]").Change(false);
 
+        // Act
         cut.Find("[data-action=save]").Click();
 
+        // Assert
         Assert.Equal(
             ("DisabledChannels has only the channels of the message type Requests.", "Email:False Sms:True", 1),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, BoxesOf(cut), Queries.ReceivedCalls().Count()));
@@ -112,23 +129,28 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_PendingChanges_ShowsTheNamesOfTheChangedFieldsAndBoxes()
     {
+        // Arrange
         var cut = RenderPage("Requests");
 
+        // Act
         cut.Find("[data-field=display-name]").Change("Client requests");
         cut.Find("[data-field=description]").Change("Sent when a client asks");
         cut.Find("[data-field=enabled]").Change(false);
         cut.Find("[data-send-on=Sms]").Change(false);
 
+        // Assert
         Assert.Equal("Changes that are not saved: Display name, Description, Enabled, Send on Sms.", cut.Find("[data-actions-middle] [data-state=pending]").TextContent);
     }
 
     [Fact]
     public void Render_Actions_HaveBackOnTheLeftAndResetOnlyForAStoredEntryBeforeSaveOnTheRight()
     {
+        // Act
         var withNoEntry = RenderPage("Requests");
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryMessageType>>([_storedRequests]));
         var withAnEntry = RenderPage("Requests");
 
+        // Assert
         Assert.Equal(
             (RegistryAdminRoutes.MessageTypes.TrimStart('/'), "save", "reset save"),
             (withAnEntry.Find("[data-actions-start] [data-action=back]").GetAttribute("href"), ActionsOf(withNoEntry), ActionsOf(withAnEntry)));
@@ -137,11 +159,14 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickReset_StoredEntry_AsksWithTheStoredValuesAndThatTheMessageTypeIsEnabledAfterTheReset()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryMessageType>>([_storedRequests]));
         var cut = RenderPage("Requests");
 
+        // Act
         cut.Find("[data-action=reset]").Click();
 
+        // Assert
         Assert.Equal(
             ("Reset", "Do you want to reset the message type Requests?", "Value of the code|Stored description|No|Sms|4"),
             (cut.Find("[data-dialog] .modal-title").TextContent, cut.Find("[data-dialog] .modal-body > p").TextContent,
@@ -153,13 +178,16 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmReset_StoredEntry_ResetsAndShowsTheValuesOfTheCodeOfASecondRead()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryMessageType>>([_storedRequests]), Ok(MessageTypes));
         Commands.ResetMessageTypeAsync(Arg.Any<MessageType>(), Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult<Error?>(null));
         var cut = RenderPage("Requests");
         cut.Find("[data-action=reset]").Click();
 
+        // Act
         cut.Find("[data-action=confirm-delete]").Click();
 
+        // Assert
         Commands.Received(1).ResetMessageTypeAsync(_requests, Arg.Any<CancellationToken>());
         Assert.Equal(
             ("", "Email:True Sms:True", true, "save", 0),
@@ -169,20 +197,25 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_UnknownMessageType_ShowsNotFoundAndNoSave()
     {
+        // Act
         var cut = RenderPage("Payments");
 
+        // Assert
         Assert.Equal(("404", ""), (cut.Find(".alert-danger").GetAttribute("data-error-code"), ActionsOf(cut)));
     }
 
     [Fact]
     public void Change_FieldAndBox_MarksOnlyTheChangedFieldAndBoxWithAYellowBorder()
     {
+        // Arrange
         var cut = RenderPage("Requests");
         var before = MarkedOf(cut);
 
+        // Act
         cut.Find("[data-field=display-name]").Change("Client requests");
         cut.Find("[data-send-on=Sms]").Change(false);
 
+        // Assert
         Assert.Equal(("", "display-name Sms"), (before, MarkedOf(cut)));
     }
 

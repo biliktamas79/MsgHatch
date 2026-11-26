@@ -14,11 +14,14 @@ public sealed class ChannelViewPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void Render_DeliveryStatus_ShowsThePendingCountsAndTheOldestDueTime()
     {
+        // Arrange
         DeliveryQueries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<ChannelStatus>>(
             [Status(Sms, 7, 2, null), Status(Email, 3, 1, Now.AddMinutes(-5))]));
 
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         Assert.Equal(
             ("3", "1", "2029-12-31 23:55:00 UTC"),
             (cut.Find("[data-field=pending]").TextContent, cut.Find("[data-field=pending-test]").TextContent, cut.Find("[data-field=oldest-due]").TextContent));
@@ -27,10 +30,13 @@ public sealed class ChannelViewPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void Render_DeliveryRejected_ShowsTheErrorAndTheFieldsOfTheRegistry()
     {
+        // Arrange
         DeliveryQueries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<ChannelStatus>>(Errors.Rejected));
 
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         Assert.Equal(
             (AdminErrors.RejectedText, "Email channel", string.Empty),
             (cut.Find("[data-delivery-error] .alert-danger").TextContent, cut.Find("[data-field=name]").TextContent, cut.Find("[data-field=pending]").TextContent));
@@ -39,12 +45,15 @@ public sealed class ChannelViewPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPause_UpChannel_PausesTheChannelAndReadsTheChannelAgain()
     {
+        // Arrange
         var cut = RenderPage("Email");
         cut.Find("[data-action=pause]").Click();
 
+        // Act
         cut.Find("#msghatch-pause-note").Input("maintenance");
         cut.Find("[data-action=confirm-pause]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).PauseChannelAsync(Email, "maintenance", Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
@@ -54,21 +63,27 @@ public sealed class ChannelViewPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void Render_DownChannel_HasResumeAndNoPause()
     {
+        // Arrange
         GivenEmailDown();
 
+        // Act
         var cut = RenderPage("Email");
 
+        // Assert
         Assert.Equal((1, 0), (cut.FindAll("[data-action=resume]").Count, cut.FindAll("[data-action=pause]").Count));
     }
 
     [Fact]
     public void ClickResume_DownChannel_ResumesTheChannelAndReadsTheChannelAgain()
     {
+        // Arrange
         GivenEmailDown();
         var cut = RenderPage("Email");
 
+        // Act
         cut.Find("[data-action=resume]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).ResumeChannelAsync(Email, Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
@@ -77,12 +92,15 @@ public sealed class ChannelViewPageDeliveryUnitTests : RegistryPageContext
     [Fact]
     public void ClickResume_Rejected_ShowsTheTextOfRejected()
     {
+        // Arrange
         GivenEmailDown();
         DeliveryCommands.ResumeChannelAsync(default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Rejected)));
         var cut = RenderPage("Email");
 
+        // Act
         cut.Find("[data-action=resume]").Click();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-action-error] .alert-danger").TextContent);
     }
 

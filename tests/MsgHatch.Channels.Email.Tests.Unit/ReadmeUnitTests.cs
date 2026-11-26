@@ -22,7 +22,7 @@ public sealed class ReadmeUnitTests
     {
         // Arrange
         var services = TestHost.CreateServices();
-        services.AddMsgHatch().UseInMemoryStores();
+        services.AddMsgHatch(static o => o.EnableLogging = false).UseInMemoryStores();
 
         // Act
         #region readme:setup
@@ -32,7 +32,7 @@ public sealed class ReadmeUnitTests
         await using var provider = services.Build();
 
         // Assert
-        Assert.NotNull(provider.GetRequiredService<IEmailClient>());
+        Assert.IsType<SmtpEmailClient>(provider.GetRequiredService<IEmailClient>());
     }
 
     private sealed class SmtpEmailClient : IEmailClient

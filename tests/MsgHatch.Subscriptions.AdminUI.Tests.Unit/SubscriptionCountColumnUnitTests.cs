@@ -30,13 +30,16 @@ public sealed class SubscriptionCountColumnUnitTests : SubscriptionPageContext
     [Fact]
     public void Render_StoredSubscriptions_ShowsTheCountOfEachLevelAlsoForZero()
     {
+        // Arrange
         GivenSubscriptions(
             Subscription(SubscriptionOwner.ForCompany(new CompanyId("42"))),
             Subscription(SubscriptionOwner.ForCompany(new CompanyId("43"))),
             Subscription(SubscriptionOwner.ForUser(new UserId("7"))));
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(
             ["Default 0|Company 2|User 1", "Default 0|Company 0|User 0"],
             cut.FindAll("tr[data-row]").Select(static row => string.Join('|', row.QuerySelectorAll("td[data-column=Subscriptions] [data-item]").Select(static item => item.TextContent))));
@@ -46,10 +49,13 @@ public sealed class SubscriptionCountColumnUnitTests : SubscriptionPageContext
     [Fact]
     public void Render_Counts_LinkEachCountToTheSubscriptionListWithItsMessageTypeAndLevel()
     {
+        // Arrange
         GivenSubscriptions();
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(
             [
                 "msghatch/subscriptions?type=Requests&level=Default",
@@ -62,10 +68,13 @@ public sealed class SubscriptionCountColumnUnitTests : SubscriptionPageContext
     [Fact]
     public void Render_SubscriptionsUnavailable_ShowsTheErrorOfTheColumnAboveTheList()
     {
+        // Arrange
         Queries.GetSubscriptionsAsync(Arg.Any<SubscriptionQuery>(), Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<Subscription>>(Errors.Unavailable));
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(
             ($"Subscriptions: {AdminErrors.UnavailableText}", 2),
             (cut.Find("[data-column-error=Subscriptions]").TextContent, cut.FindAll("tr[data-row]").Count));
@@ -74,13 +83,16 @@ public sealed class SubscriptionCountColumnUnitTests : SubscriptionPageContext
     [Fact]
     public void Render_RegisteredMessageTypesThatTheColumnCannotRead_ShowsTheErrorOfTheColumn()
     {
+        // Arrange
         GivenSubscriptions();
         _registry.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(
             Ok<IReadOnlyList<RegistryMessageType>>([new RegistryMessageType(Requests, null, null, [Fax], Enabled: true, [], Revision: 0)]),
             Fail<IReadOnlyList<RegistryMessageType>>(Errors.Rejected));
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal($"Subscriptions: {AdminErrors.RejectedText}", cut.Find("[data-column-error=Subscriptions]").TextContent);
     }
 

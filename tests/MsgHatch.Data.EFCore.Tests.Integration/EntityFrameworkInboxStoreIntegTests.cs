@@ -40,7 +40,7 @@ public sealed class EntityFrameworkInboxStoreIntegTests(SqlServerFixture server)
     public async Task ClaimDueAsync_CancelledToken_GivesOperationCancelled()
     {
         // Arrange
-        using var cancelled = new CancellationTokenSource();
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancelled.CancelAsync();
 
         // Act

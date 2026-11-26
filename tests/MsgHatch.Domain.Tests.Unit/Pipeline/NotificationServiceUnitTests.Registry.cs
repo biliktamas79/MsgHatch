@@ -190,14 +190,14 @@ public sealed partial class NotificationServiceUnitTests
     private static InMemoryRegistrySettingsStore StoreWith(MessageTypeEntry entry)
     {
         var store = new InMemoryRegistrySettingsStore();
-        _ = store.SaveMessageTypeEntryAsync(entry, CancellationToken.None);
+        _ = store.SaveMessageTypeEntryAsync(entry, Ct);
         return store;
     }
 
     private static InMemoryRegistrySettingsStore StoreWith(ChannelEntry entry)
     {
         var store = new InMemoryRegistrySettingsStore();
-        _ = store.SaveChannelEntryAsync(entry, CancellationToken.None);
+        _ = store.SaveChannelEntryAsync(entry, Ct);
         return store;
     }
 

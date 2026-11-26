@@ -30,7 +30,8 @@ public static class SignalWatch
     /// </summary>
     public static async Task OpenAsync(IDispatchSignal signal, TestDatabase database)
     {
-        using var guard = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+        using var hang = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken, hang.Token);
         var wait = signal.WaitAsync(WarmUp, guard.Token).AsTask();
         while (wait.IsCompleted)
         {

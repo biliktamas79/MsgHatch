@@ -12,8 +12,10 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Channels_ShowsEachRowWithItsFeaturesItsEnabledFlagItsMessageTypeCountAndTheAddressesOfViewAndEdit()
     {
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         var rows = cut.FindAll("tr[data-row]");
         Assert.Equal(
             ["Email", "Email channel", "LanguagesRichText", "Yes", "3", "Up", "No down state recorded", "1 day: 100 %1 week: 100 %30 days: 100 %", "", "", "", "PauseHistory Check View Edit"], rows[0].Children.Select(SpacedTextOf));
@@ -28,6 +30,7 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_ChannelStates_ShowsTheBadgeTheReasonAndTheSinceTextOfEachChannel()
     {
+        // Arrange
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryChannel>>(
         [
             Channels[0] with { Current = new(Email, 1, ChannelStateKind.Down, Now.AddHours(-76), null, null, ChannelDownReason.Errors, Now, 503, "Unavailable", null) },
@@ -40,8 +43,10 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
             Channels[2] with { Current = new(Fax, 2, ChannelStateKind.Up, Now.AddMinutes(-12), ChannelStateKind.Down, TimeSpan.FromMinutes(4), null, null, null, null, null) },
         ]));
 
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal(
             [
                 ("Down Unavailable", "text-bg-danger", "2029-12-28 20:00 UTC (3 d 4 h)"),
@@ -56,12 +61,15 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickHistory_SecondChannel_OpensTheDialogWithTheHistoryOfThatChannel()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
         Assert.Empty(cut.FindAll("[data-dialog]"));
         Queries.ClearReceivedCalls();
 
+        // Act
         cut.FindAll("[data-action=history]")[1].Click();
 
+        // Assert
         Assert.Equal("History of Sms", cut.Find("[data-dialog] .modal-title").TextContent);
         Queries.Received(1).GetChannelHistoryAsync(Sms, Arg.Any<CancellationToken>());
     }
@@ -69,41 +77,53 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
     [Fact]
     public void ClickClose_OpenHistory_ClosesTheDialog()
     {
+        // Arrange
         var cut = Render<ChannelListPage>();
         cut.FindAll("[data-action=history]")[0].Click();
 
+        // Act
         cut.Find("[data-dialog] [data-action=close]").Click();
 
+        // Assert
         Assert.Empty(cut.FindAll("[data-dialog]"));
     }
 
     [Fact]
     public void Render_NoChannel_ShowsTheEmptyText()
     {
+        // Arrange
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryChannel>>([]));
 
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal("There are no channels.", cut.Find("[data-state=empty]").TextContent);
     }
 
     [Fact]
     public void Render_ChannelsUnavailable_ShowsTheTextOfUnavailable()
     {
+        // Arrange
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<RegistryChannel>>(Errors.Unavailable));
 
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
     }
 
     [Fact]
     public void Render_MessageTypesRejected_ShowsTheTextOfRejected()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<RegistryMessageType>>(Errors.Rejected));
 
+        // Act
         var cut = Render<ChannelListPage>();
 
+        // Assert
         Assert.Equal((AdminErrors.RejectedText, 0), (cut.Find(".alert-danger").TextContent, cut.FindAll("tr[data-row]").Count));
     }
 }

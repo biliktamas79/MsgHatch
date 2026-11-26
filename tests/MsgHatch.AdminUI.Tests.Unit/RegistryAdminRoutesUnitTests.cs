@@ -13,24 +13,28 @@ public sealed class RegistryAdminRoutesUnitTests
     [Fact]
     public void Channel_Id_GivesTheAddressOfTheViewPage()
     {
+        // Act and assert
         Assert.Equal("/msghatch/channels/Email", RegistryAdminRoutes.Channel(new ChannelId("Email")));
     }
 
     [Fact]
     public void ChannelEdit_Id_GivesTheAddressOfTheEditPage()
     {
+        // Act and assert
         Assert.Equal("/msghatch/channels/Email/edit", RegistryAdminRoutes.ChannelEdit(new ChannelId("Email")));
     }
 
     [Fact]
     public void MessageTypeEdit_Type_GivesTheAddressOfTheEditPage()
     {
+        // Act and assert
         Assert.Equal("/msghatch/message-types/Invoices/edit", RegistryAdminRoutes.MessageTypeEdit(new MessageType("Invoices")));
     }
 
     [Fact]
     public void Pages_RouteTemplates_AreTheAddressesOfTheRouteBuilders()
     {
+        // Act and assert
         Assert.Equal([RegistryAdminRoutes.Channels], TemplatesOf<ChannelListPage>());
         Assert.Equal([RegistryAdminRoutes.Channels + "/{ChannelName}"], TemplatesOf<ChannelViewPage>());
         Assert.Equal([RegistryAdminRoutes.Channels + "/{ChannelName}/edit"], TemplatesOf<ChannelEditPage>());
@@ -41,6 +45,7 @@ public sealed class RegistryAdminRoutesUnitTests
     [Fact]
     public void AddMsgHatchAdminUI_DynamicDependencies_KeepEachPageOfTheLibrary()
     {
+        // Act
         var pages = typeof(RegistryAdminRoutes).Assembly.GetTypes()
             .Where(static type => type.GetCustomAttributes<RouteAttribute>().Any())
             .Select(static type => type.Name);
@@ -48,6 +53,7 @@ public sealed class RegistryAdminRoutesUnitTests
             .GetCustomAttributes<DynamicDependencyAttribute>()
             .Select(static dependency => dependency.Type!.Name);
 
+        // Assert
         Assert.Equal(pages.Order(StringComparer.Ordinal), kept.Order(StringComparer.Ordinal));
     }
 
@@ -56,18 +62,23 @@ public sealed class RegistryAdminRoutesUnitTests
     [Fact]
     public void AddMsgHatchAdminUI_HostWithNoClock_AddsTheSystemClock()
     {
+        // Act
         using var provider = new ServiceCollection().AddMsgHatchAdminUI().BuildServiceProvider();
 
+        // Assert
         Assert.Same(TimeProvider.System, provider.GetRequiredService<TimeProvider>());
     }
 
     [Fact]
     public void AddMsgHatchAdminUI_HostWithAClock_KeepsTheClockOfTheHost()
     {
+        // Arrange
         var clock = new FakeTimeProvider();
 
+        // Act
         using var provider = new ServiceCollection().AddSingleton<TimeProvider>(clock).AddMsgHatchAdminUI().BuildServiceProvider();
 
+        // Assert
         Assert.Same(clock, provider.GetRequiredService<TimeProvider>());
     }
 }

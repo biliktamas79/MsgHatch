@@ -15,28 +15,35 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
     [Fact]
     public void Input_NewText_GivesTheTextToTextChanged()
     {
+        // Arrange
         var texts = new List<string>();
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup()).Add(x => x.Text, "a").Add(x => x.TextChanged, texts.Add));
 
+        // Act
         cut.Find("textarea").Input("ab");
 
+        // Assert
         Assert.Equal(["ab"], texts);
     }
 
     [Fact]
     public void Render_Disabled_DisablesTheTextArea()
     {
+        // Act
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup()).Add(x => x.Disabled, true));
 
+        // Assert
         Assert.True(cut.Find("textarea").HasAttribute("disabled"));
     }
 
     [Fact]
     public void Render_IssuesWithAndWithNoPosition_ShowsEachIssueUnderTheText()
     {
+        // Act
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup())
             .Add(x => x.Issues, [new TemplateIssue("The tag has no end.", 3, 9), new TemplateIssue("The filter is not known.", null, null)]));
 
+        // Assert
         Assert.Equal(["Line 3, column 9: The tag has no end.", "The filter is not known."], cut.FindAll("[data-issue]").Select(static issue => issue.TextContent));
         Assert.Contains("is-invalid", cut.Find("textarea").ClassList);
     }
@@ -48,18 +55,23 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
     [InlineData(TemplatePartKind.Html, true, false, "border-warning")]
     public void Render_ChangedText_MarksTheTextAreaWithAYellowBorderUnlessTheTextHasAnIssue(TemplatePartKind kind, bool changed, bool issue, string expected)
     {
+        // Arrange
         IReadOnlyList<TemplateIssue> issues = issue ? [new TemplateIssue("The tag has no end.", null, null)] : [];
 
+        // Act
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup(part: "body", kind: kind)).Add(x => x.Changed, changed).Add(x => x.Issues, issues));
 
+        // Assert
         Assert.Equal(expected, string.Join(' ', cut.Find("textarea").ClassList.Where(static name => name is "border-warning" or "is-invalid")));
     }
 
     [Fact]
     public void Render_HtmlPart_HighlightsTheHtmlOverTheTextArea()
     {
+        // Act
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup(part: "body", kind: TemplatePartKind.Html)).Add(x => x.Text, _html));
 
+        // Assert
         Assert.Equal(["p", "p"], cut.FindAll(".html-tagname").Select(static span => span.TextContent));
         Assert.Equal("class", cut.Find(".html-attribute").TextContent);
         Assert.Equal("\"a\"", cut.Find(".html-value").TextContent);
@@ -71,8 +83,10 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
     [Fact]
     public void Render_PlainTextPart_ShowsATextAreaWithNoHighlight()
     {
+        // Act
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup()).Add(x => x.Text, _html));
 
+        // Assert
         Assert.Empty(cut.FindAll("pre"));
         Assert.Equal("plain", cut.Find("textarea").GetAttribute("data-editor"));
     }
@@ -80,21 +94,26 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
     [Fact]
     public void Input_HtmlPart_GivesTheTextToTextChanged()
     {
+        // Arrange
         var texts = new List<string>();
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup(part: "body", kind: TemplatePartKind.Html))
             .Add(x => x.Text, "<p>").Add(x => x.TextChanged, texts.Add));
 
+        // Act
         cut.Find("textarea").Input("<p>a");
 
+        // Assert
         Assert.Equal(["<p>a"], texts);
     }
 
     [Fact]
     public void Render_HtmlPartWithAnIssueAndDisabled_MarksTheTextAreaAndShowsTheIssue()
     {
+        // Act
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup(part: "body", kind: TemplatePartKind.Html))
             .Add(x => x.Disabled, true).Add(x => x.Issues, [new TemplateIssue("The tag has no end.", null, null)]));
 
+        // Assert
         Assert.Contains("is-invalid", cut.Find("textarea").ClassList);
         Assert.True(cut.Find("textarea").HasAttribute("disabled"));
         Assert.Equal("The tag has no end.", cut.Find("[data-issue]").TextContent);

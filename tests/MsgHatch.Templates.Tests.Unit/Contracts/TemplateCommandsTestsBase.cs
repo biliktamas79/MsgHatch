@@ -239,14 +239,9 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
         // Arrange
         var engines = new Dictionary<TenantKey, ITemplateEngine<OrderEmail>>
         {
-            [TenantKey.None] = Substitute.For<ITemplateEngine<OrderEmail>>(),
-            [_t1] = Substitute.For<ITemplateEngine<OrderEmail>>(),
+            [TenantKey.None] = AnEngineWithNoIssues(),
+            [_t1] = AnEngineWithNoIssues(),
         };
-        foreach (var engine in engines.Values)
-        {
-            engine.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues());
-        }
-
         await using var host = await StartAsync(ManagerHost.Services(b => b
             .UseTenantTemplateStore((_, key) => new FileSystemTemplateStore(Path.Combine(folder.Parent, "tenants", key.Tenant!.Value.Value)))
             .AddOrderEmailEngine((_, key) => engines[key], _type.Name)));
@@ -337,6 +332,13 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
 
     private static ValueTask<ErrorOr<IReadOnlyList<TemplateIssue>>> Issues(params TemplateIssue[] issues) =>
         ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForValue(issues));
+
+    private static ITemplateEngine<OrderEmail> AnEngineWithNoIssues()
+    {
+        var engine = Substitute.For<ITemplateEngine<OrderEmail>>();
+        engine.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues());
+        return engine;
+    }
 
     private ValueTask<IManagementTestHost<T>> AHostAsync() =>
         StartAsync(ManagerHost.Services(b => b

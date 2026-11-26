@@ -143,14 +143,10 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     {
         // Arrange
         var kept = await Store.SaveAsync(ALookup(scope: "junk"), "Kept", 0, Ct);
-        foreach (var name in new[]
-        {
+        WriteJunkFiles(
+            "junk",
             "readme.md", $"{Type.Name}.en.subject.txt.tmp", $".{Type.Name}.tmp", $"{Type.Name}.en.sub.ject.txt", $"{Type.Name}.en.subject.pdf",
-            $"{Type.Name}..subject.txt", "1Bad.en.subject.txt", $"{Type.Name}.en%2.subject.txt",
-        })
-        {
-            folder.Write(name, "Junk", DateTime.UnixEpoch, Path.Combine(folder.Root, "junk"));
-        }
+            $"{Type.Name}..subject.txt", "1Bad.en.subject.txt", $"{Type.Name}.en%2.subject.txt");
 
         // Act
         var entries = await Store.ListAsync(new TemplateQuery(Scope: "junk"), Ct);
@@ -207,24 +203,10 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
         // Arrange
         Assert.SkipUnless(OperatingSystem.IsWindows(), "The test denies the listing of a folder with a Windows access rule.");
         await Store.SaveAsync(ALookup(scope: "unlisted"), "Text", 0, Ct);
-        var companyFolder = new DirectoryInfo(Path.Combine(folder.Root, "unlisted"));
-        using var user = WindowsIdentity.GetCurrent();
-        var denial = new FileSystemAccessRule(user.User!, FileSystemRights.ListDirectory, AccessControlType.Deny);
-        var security = companyFolder.GetAccessControl();
-        security.AddAccessRule(denial);
-        companyFolder.SetAccessControl(security);
-        ErrorOr<IReadOnlyList<TemplateEntry>> entries;
+        using var denial = new ListingDenial(new DirectoryInfo(Path.Combine(folder.Root, "unlisted")));
 
         // Act
-        try
-        {
-            entries = await Store.ListAsync(new TemplateQuery(Scope: "unlisted"), Ct);
-        }
-        finally
-        {
-            security.RemoveAccessRule(denial);
-            companyFolder.SetAccessControl(security);
-        }
+        var entries = await Store.ListAsync(new TemplateQuery(Scope: "unlisted"), Ct);
 
         // Assert
         Assert.Equal(503, entries.Error?.Type.Code);
@@ -232,4 +214,36 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
 
     private string PathOf(string? folderName = null) =>
         Path.Combine(folderName is null ? folder.Root : Path.Combine(folder.Root, folderName), $"{Type.Name}.en.subject.txt");
+
+    private void WriteJunkFiles(string folderName, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            folder.Write(name, "Junk", DateTime.UnixEpoch, Path.Combine(folder.Root, folderName));
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private sealed class ListingDenial : IDisposable
+    {
+        private readonly DirectoryInfo _folder;
+        private readonly DirectorySecurity _security;
+        private readonly FileSystemAccessRule _denial;
+
+        public ListingDenial(DirectoryInfo folder)
+        {
+            using var user = WindowsIdentity.GetCurrent();
+            _folder = folder;
+            _denial = new FileSystemAccessRule(user.User!, FileSystemRights.ListDirectory, AccessControlType.Deny);
+            _security = folder.GetAccessControl();
+            _security.AddAccessRule(_denial);
+            folder.SetAccessControl(_security);
+        }
+
+        public void Dispose()
+        {
+            _security.RemoveAccessRule(_denial);
+            _folder.SetAccessControl(_security);
+        }
+    }
 }

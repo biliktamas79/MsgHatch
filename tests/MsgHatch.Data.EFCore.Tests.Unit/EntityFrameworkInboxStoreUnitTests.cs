@@ -70,11 +70,10 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
         var interceptor = new FirstClaimUpdateInterceptor(_database, "UPDATE Inbox SET NextTryAtUtc = '2030-01-01 00:00:30' WHERE Sequence <= 2");
         var store = new EntityFrameworkInboxStore(
             _database.ContextsOf<MsgHatchDbContext>(o => o.AddInterceptors(interceptor)), new MsgHatchJson(TestContentTypes.ARegistry()));
-        var messages = new[] { AMessage(T1), AMessage(T1), AMessage(T1), AMessage(T1) };
-        foreach (var message in messages)
+        var messages = new[]
         {
-            await AddAsync(message);
-        }
+            await AddAsync(AMessage(T1)), await AddAsync(AMessage(T1)), await AddAsync(AMessage(T1)), await AddAsync(AMessage(T1)),
+        };
 
         // Act
         var result = await store.ClaimDueAsync(2, Now, TimeSpan.FromSeconds(30), Ct);
@@ -106,7 +105,7 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
     public async Task ClaimDueAsync_CancelledToken_GivesOperationCancelled()
     {
         // Arrange
-        using var cancelled = new CancellationTokenSource();
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancelled.CancelAsync();
 
         // Act

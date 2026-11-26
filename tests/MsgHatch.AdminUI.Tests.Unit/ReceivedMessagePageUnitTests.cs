@@ -16,20 +16,26 @@ public sealed class ReceivedMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Message_ReadsAPageOfItsOneIdWithTheTestMessages()
     {
+        // Arrange
         GivenMessage(Summary());
 
+        // Act
         RenderPage();
 
+        // Assert
         DeliveryQueries.Received(1).GetReceivedMessagesAsync(Arg.Is<InboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Render_Message_ShowsTheSummary()
     {
+        // Arrange
         GivenMessage(Summary());
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal(
             [
                 ("id", "00000000-0000-0000-0000-000000000001"), ("status", "Pending"), ("type", "Requests"), ("tenant", "Tenant1"),
@@ -43,57 +49,72 @@ public sealed class ReceivedMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Message_LinksToTheOutboxListOfItsSourceMessage()
     {
+        // Arrange
         GivenMessage(Summary());
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal("msghatch/outbox?source=00000000-0000-0000-0000-000000000001", cut.Find("[data-action=outgoing]").GetAttribute("href"));
     }
 
     [Fact]
     public void Render_TestMessage_LinksToTheOutboxListWithTheTestMessages()
     {
+        // Arrange
         GivenMessage(Summary(MessageFlags.Test));
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal("msghatch/outbox?source=00000000-0000-0000-0000-000000000001&test=true", cut.Find("[data-action=outgoing]").GetAttribute("href"));
     }
 
     [Fact]
     public void ClickShowContent_Event_ReadsTheEventOnlyAfterTheClick()
     {
+        // Arrange
         GivenMessage(Summary());
         DeliveryQueries.GetReceivedContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Ok(new MessageContent(_id, "{\"id\":1}")));
         var cut = RenderPage();
         var beforeTheClick = DeliveryQueries.ReceivedCalls().Count(static call => call.GetMethodInfo().Name == nameof(IDeliveryQueries.GetReceivedContentAsync));
 
+        // Act
         cut.Find("[data-action=show-content]").Click();
 
+        // Assert
         Assert.Equal((0, "{\n  \"id\": 1\n}"), (beforeTheClick, cut.Find("[data-content]").TextContent));
     }
 
     [Fact]
     public void ClickShowContent_Rejected_ShowsTheTextOfRejectedAndKeepsTheSummary()
     {
+        // Arrange
         GivenMessage(Summary());
         DeliveryQueries.GetReceivedContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Fail<MessageContent>(Errors.Rejected));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=show-content]").Click();
 
+        // Assert
         Assert.Equal((AdminErrors.RejectedText, "Requests"), (cut.Find(".alert-danger").TextContent, cut.Find("[data-field=type]").TextContent));
     }
 
     [Fact]
     public void ClickRetry_ChangedOne_RetriesTheQueryOfTheIdShowsTheCountsAndReadsTheMessageAgain()
     {
+        // Arrange
         GivenMessage(Summary());
         DeliveryCommands.RetryReceivedAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new DeliveryActionResult(1, 1)));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=retry]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).RetryReceivedAsync(Arg.Is<InboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetReceivedMessagesAsync(Arg.Any<InboxQuery>(), Arg.Any<CancellationToken>());
         Assert.Equal("Matched 1, changed 1.", cut.Find("[data-action-result].alert-success").TextContent);
@@ -102,12 +123,15 @@ public sealed class ReceivedMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void ClickCancel_ChangedZero_ShowsThatTheMessageDidNotChange()
     {
+        // Arrange
         GivenMessage(Summary());
         DeliveryCommands.CancelReceivedAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new DeliveryActionResult(1, 0)));
         var cut = RenderPage();
 
+        // Act
         cut.Find("[data-action=cancel]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).CancelReceivedAsync(Arg.Is<InboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
         Assert.Equal("The message did not change, because it is done, cancelled, leased, or expired.", cut.Find("[data-action-result]").TextContent);
     }
@@ -115,8 +139,10 @@ public sealed class ReceivedMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void Render_EmptyPage_ShowsNotFoundAndTheLinkBackWithNoAction()
     {
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal(
             (Errors.NotFound.Code.ToString(System.Globalization.CultureInfo.InvariantCulture), "msghatch/inbox", 0),
             (cut.Find(".alert-danger").GetAttribute("data-error-code"), cut.Find("[data-action=back]").GetAttribute("href"), cut.FindAll("[data-action=retry]").Count));
@@ -125,10 +151,13 @@ public sealed class ReceivedMessagePageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Unavailable_ShowsTheTextOfUnavailable()
     {
+        // Arrange
         DeliveryQueries.GetReceivedMessagesAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Fail<MessagePage<ReceivedMessageSummary>>(Errors.Unavailable));
 
+        // Act
         var cut = RenderPage();
 
+        // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
     }
 

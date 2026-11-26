@@ -11,12 +11,14 @@ public sealed class SubscriptionAdminRoutesUnitTests
     [Fact]
     public void Edit_Id_GivesTheAddressOfTheEditPage()
     {
+        // Act and assert
         Assert.Equal("/msghatch/subscriptions/3f2c6b1e-7a40-4c1d-9a7e-1b2c3d4e5f60", SubscriptionAdminRoutes.Edit(SubscriptionTestData.Id));
     }
 
     [Fact]
     public void Pages_RouteTemplates_AreTheAddressesOfTheRouteBuilders()
     {
+        // Act and assert
         Assert.Equal([SubscriptionAdminRoutes.List], TemplatesOf<SubscriptionListPage>());
         Assert.Equal([SubscriptionAdminRoutes.Verification], TemplatesOf<RoutingVerificationPage>());
         Assert.Equal([SubscriptionAdminRoutes.List + "/{Id:guid}"], TemplatesOf<SubscriptionEditPage>());
@@ -25,6 +27,7 @@ public sealed class SubscriptionAdminRoutesUnitTests
     [Fact]
     public void New_List_GivesTheListAddressWithTheQueryThatOpensTheDialog()
     {
+        // Act and assert
         Assert.Equal("/msghatch/subscriptions?new=true", SubscriptionAdminRoutes.New);
     }
 
@@ -33,21 +36,25 @@ public sealed class SubscriptionAdminRoutesUnitTests
     [InlineData(SubscriptionLevel.User, "/msghatch/subscriptions?type=Requests&level=User")]
     public void ListOf_MessageTypeAndLevel_GivesTheListAddressWithTheQueryOfBothFilters(SubscriptionLevel level, string expected)
     {
+        // Act and assert
         Assert.Equal(expected, SubscriptionAdminRoutes.ListOf(SubscriptionTestData.Requests, level));
     }
 
     [Fact]
     public void ComponentTypes_OfTheLibrary_SetNoRenderMode()
     {
+        // Act
         var withRenderMode = typeof(SubscriptionAdminRoutes).Assembly.GetTypes()
             .Where(static type => typeof(IComponent).IsAssignableFrom(type) && type.GetCustomAttribute<RenderModeAttribute>(inherit: true) is not null);
 
+        // Assert
         Assert.Empty(withRenderMode);
     }
 
     [Fact]
     public void AddMsgHatchSubscriptionsAdminUI_DynamicDependencies_KeepEachPageOfTheLibrary()
     {
+        // Act
         var pages = typeof(SubscriptionAdminRoutes).Assembly.GetTypes()
             .Where(static type => type.GetCustomAttributes<RouteAttribute>().Any())
             .Select(static type => type.Name);
@@ -55,6 +62,7 @@ public sealed class SubscriptionAdminRoutesUnitTests
             .GetCustomAttributes<DynamicDependencyAttribute>()
             .Select(static dependency => dependency.Type!.Name);
 
+        // Assert
         Assert.Equal(pages.Order(StringComparer.Ordinal), kept.Order(StringComparer.Ordinal));
     }
 

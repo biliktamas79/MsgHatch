@@ -84,32 +84,23 @@ public sealed class SqliteOutboxStoreUnitTests()
     public async Task SetChannelDownAsync_DatabaseWithADownRowOfPhase31_AddsTheStateTableAndReadsNoDownState()
     {
         // Arrange
-        var connectionString = TestDatabases.NewOptions().ConnectionString;
-        TestDatabases.Execute(connectionString, $"""
+        TestDatabases.Execute(Store.ConnectionString, $"""
             CREATE TABLE MsgHatchSchema (Version INTEGER);
             INSERT INTO MsgHatchSchema (Version) VALUES (1);
             CREATE TABLE MsgHatchChannelDown (
                 Channel TEXT PRIMARY KEY, Reason TEXT, SinceUtc TEXT, NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT, Note TEXT);
             INSERT INTO MsgHatchChannelDown VALUES ('Test', 'Operator', '{_isoTime}', NULL, NULL, NULL, 'maintenance');
             """);
-        var store = new SqliteOutboxStore(connectionString, new MsgHatchJson(TestContentTypes.ARegistry()));
 
-        try
-        {
-            // Act
-            var before = await store.GetDownChannelsAsync(Ct);
-            var added = await store.SetChannelDownAsync(
-                new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "new"), Ct);
+        // Act
+        var before = await Store.GetDownChannelsAsync(Ct);
+        var added = await Store.SetChannelDownAsync(
+            new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "new"), Ct);
 
-            // Assert
-            Assert.Empty(before.Value);
-            Assert.True(added.Value);
-            Assert.Equal("new", Assert.Single((await store.GetDownChannelsAsync(Ct)).Value).Note);
-        }
-        finally
-        {
-            TestDatabases.Delete(connectionString);
-        }
+        // Assert
+        Assert.Empty(before.Value);
+        Assert.True(added.Value);
+        Assert.Equal("new", Assert.Single((await Store.GetDownChannelsAsync(Ct)).Value).Note);
     }
 
     [Fact]

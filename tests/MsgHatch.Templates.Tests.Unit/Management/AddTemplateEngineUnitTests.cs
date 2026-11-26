@@ -11,6 +11,14 @@ namespace MsgHatch.Templates.Tests.Unit.Management;
 /// <summary>The registration of a template engine with the parts that a channel reads (D220).</summary>
 public sealed class AddTemplateEngineUnitTests
 {
+    public static TheoryData<string, Action<MsgHatchBuilder>> TemplateSetupRows => new()
+    {
+        { "shared store", static builder => UseSharedStore(builder) },
+        { "store of each tenant", static builder => UseStoreOfEachTenant(builder) },
+        { "engine", static builder => AddEngine(builder) },
+        { "all three", static builder => AddEngine(UseStoreOfEachTenant(UseSharedStore(builder))) },
+    };
+
     [Theory]
     [InlineData("")]
     [InlineData("1subject")]
@@ -59,31 +67,15 @@ public sealed class AddTemplateEngineUnitTests
     }
 
     [Theory]
-    [InlineData("shared store")]
-    [InlineData("store of each tenant")]
-    [InlineData("engine")]
-    [InlineData("all three")]
-    public void TemplateSetupMethods_AnySetup_RegisterTheQueriesAndTheCommandsOneTime(string setup)
+    [MemberData(nameof(TemplateSetupRows))]
+    public void TemplateSetupMethods_AnySetup_RegisterTheQueriesAndTheCommandsOneTime(string setup, Action<MsgHatchBuilder> callSetupMethods)
     {
         // Arrange
         var services = TestHost.CreateServices();
         var builder = services.AddMsgHatch();
 
         // Act
-        if (setup is "shared store" or "all three")
-        {
-            builder.UseFileTemplates(Path.Combine(Path.GetTempPath(), "msghatch-tests", "manager"));
-        }
-
-        if (setup is "store of each tenant" or "all three")
-        {
-            builder.UseTenantTemplateStore(static (_, _) => new FileSystemTemplateStore(Path.Combine(Path.GetTempPath(), "msghatch-tests", "manager")));
-        }
-
-        if (setup is "engine" or "all three")
-        {
-            builder.AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>);
-        }
+        callSetupMethods(builder);
 
         // Assert
         Assert.Equal(
@@ -106,6 +98,15 @@ public sealed class AddTemplateEngineUnitTests
         // Assert
         Assert.Equal(new MessageType("OrderShipped"), type);
     }
+
+    private static MsgHatchBuilder UseSharedStore(MsgHatchBuilder builder) =>
+        builder.UseFileTemplates(Path.Combine(Path.GetTempPath(), "msghatch-tests", "manager"));
+
+    private static MsgHatchBuilder UseStoreOfEachTenant(MsgHatchBuilder builder) =>
+        builder.UseTenantTemplateStore(static (_, _) => new FileSystemTemplateStore(Path.Combine(Path.GetTempPath(), "msghatch-tests", "manager")));
+
+    private static MsgHatchBuilder AddEngine(MsgHatchBuilder builder) =>
+        builder.AddOrderEmailEngine(PlaceholderTemplates.Engine<OrderEmail>);
 
     private static int CountOf<TService>(IServiceCollection services, bool keyed) =>
         services.Count(descriptor => descriptor.ServiceType == typeof(TService) && descriptor.IsKeyedService == keyed);

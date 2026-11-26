@@ -196,7 +196,7 @@ public sealed partial class HttpApiClientGeneratorUnitTests
     {
         // Arrange
         var (api, _) = AnApi(static _ => Json(HttpStatusCode.OK, _entryJson));
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancellation.CancelAsync();
 
         // Act

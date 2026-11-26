@@ -40,8 +40,10 @@ public sealed class HtmlTokenizerUnitTests
     [MemberData(nameof(SpanRows))]
     public void Tokenize_Text_GivesASpanForEachKindInTheOrderOfTheText(string text, string[] expected)
     {
+        // Act
         var spans = HtmlTokenizer.Tokenize(text);
 
+        // Assert
         Assert.Equal(expected, spans.Select(span => $"{span.Kind}:{text.Substring(span.Start, span.Length)}"));
     }
 
@@ -49,12 +51,14 @@ public sealed class HtmlTokenizerUnitTests
     [MemberData(nameof(CssClassRows))]
     public void CssClassOf_Kind_GivesTheClassOfTheHighlight(HtmlSpanKind kind, string expected)
     {
+        // Act and assert
         Assert.Equal(expected, HtmlTokenizer.CssClassOf(kind));
     }
 
     [Fact]
     public void Tokenize_NullText_Throws()
     {
+        // Act and assert
         Assert.Throws<ArgumentNullException>(() => HtmlTokenizer.Tokenize(null!));
     }
 }

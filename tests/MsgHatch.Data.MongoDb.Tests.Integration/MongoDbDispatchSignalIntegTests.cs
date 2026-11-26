@@ -213,18 +213,30 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
     {
         // Arrange
         using var signal = new MongoDbDispatchSignal(UnreachableServer.Database, _time, new FakeLogger<MongoDbDispatchSignal>());
-        using var guard = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
 
         // Act
         var first = await signal.NotifyAsync(_topic, Ct);
+        var error = await NotifyUntilAnErrorAsync(signal);
+
+        // Assert
+        Assert.Equal((null, Errors.Unavailable), (first?.Type, error.Type));
+    }
+
+    /// <summary>
+    /// Notifies until a notification returns an error. The signal inserts the notifications in the background, and only the
+    /// result of the next notification shows that an insert failed.
+    /// </summary>
+    private static async Task<Error> NotifyUntilAnErrorAsync(MongoDbDispatchSignal signal)
+    {
+        using var hang = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(Ct, hang.Token);
         Error? error;
-        while ((error = await signal.NotifyAsync(_topic, Ct)) is null)
+        while ((error = await signal.NotifyAsync(_topic, guard.Token)) is null)
         {
             await Task.Delay(OneTry, TimeProvider.System, guard.Token);
         }
 
-        // Assert
-        Assert.Equal((null, Errors.Unavailable), (first?.Type, error.Type));
+        return error;
     }
 
     private IMongoCollection<BsonDocument> Collection(string name) => _database.Collection(name);
@@ -232,7 +244,8 @@ public sealed class MongoDbDispatchSignalIntegTests : DispatchSignalTestsBase<Mo
     /// <summary>Waits until the signal collection holds a number of documents, because a signal inserts them in the background.</summary>
     private async Task<List<BsonDocument>> StoredSignalsAsync(int count)
     {
-        using var guard = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+        using var hang = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(Ct, hang.Token);
         var signals = await _database.DocumentsAsync(MongoDbDispatchSignal.SignalCollectionName, guard.Token);
         while (signals.Count < count)
         {

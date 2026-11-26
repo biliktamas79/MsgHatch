@@ -8,8 +8,10 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void Render_NoItemsYet_ShowsTheLoadingState()
     {
+        // Act
         var cut = RenderList(null);
 
+        // Assert
         Assert.Single(cut.FindAll("[data-state=loading]"));
         Assert.Empty(cut.FindAll("table"));
     }
@@ -17,24 +19,30 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void Render_Rejected_ShowsTheTextOfRejected()
     {
+        // Act
         var cut = RenderList(new Error(Errors.Rejected));
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
     }
 
     [Fact]
     public void Render_EmptyList_ShowsTheEmptyText()
     {
+        // Act
         var cut = RenderList(Items(0), emptyText: "There are no templates.");
 
+        // Assert
         Assert.Equal("There are no templates.", cut.Find("[data-state=empty]").TextContent);
     }
 
     [Fact]
     public void Render_ThreeItems_ShowsTheHeadAndARowForEachItem()
     {
+        // Act
         var cut = RenderList(Items(3));
 
+        // Assert
         Assert.Equal("Name", cut.Find("thead th").TextContent);
         Assert.Equal(["item0", "item1", "item2"], cut.FindAll("tbody td").Select(static cell => cell.TextContent));
         Assert.Empty(cut.FindAll("nav"));
@@ -43,8 +51,10 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void Render_ThirtyItems_ShowsTheFirstPageOf25Items()
     {
+        // Act
         var cut = RenderList(Items(30));
 
+        // Assert
         Assert.Equal(25, cut.FindAll("tbody tr").Count);
         Assert.Contains("Page 1 of 2", cut.Markup, StringComparison.Ordinal);
     }
@@ -52,8 +62,10 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void Render_ThirtyItems_PutsTheTableInTheScrollAreaAndThePagerUnderIt()
     {
+        // Act
         var cut = RenderList(Items(30));
 
+        // Assert
         var scroll = cut.Find("[data-list-scroll]");
         var pager = cut.Find("[data-list-pager]");
         Assert.Equal(
@@ -65,8 +77,10 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void Render_ThirtyItems_FramesTheScrollAreaWithARoundedBorder()
     {
+        // Act
         var cut = RenderList(Items(30));
 
+        // Assert
         var scroll = cut.Find("[data-list-scroll]");
         Assert.Equal((true, true), (scroll.ClassList.Contains("border"), scroll.ClassList.Contains("rounded")));
     }
@@ -74,29 +88,37 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void ClickNext_ThirtyItems_ShowsTheLastFiveItems()
     {
+        // Arrange
         var cut = RenderList(Items(30));
 
+        // Act
         cut.Find("[data-page=next]").Click();
 
+        // Assert
         Assert.Equal(["item25", "item26", "item27", "item28", "item29"], cut.FindAll("tbody td").Select(static cell => cell.TextContent));
     }
 
     [Fact]
     public void SetItems_FewerItemsThanTheShownPage_ShowsTheLastPageThatExists()
     {
+        // Arrange
         var cut = RenderList(Items(30));
         cut.Find("[data-page=next]").Click();
 
+        // Act
         cut.Render(p => p.Add(x => x.Items, Items(3)));
 
+        // Assert
         Assert.Equal(3, cut.FindAll("tbody tr").Count);
     }
 
     [Fact]
     public void Render_ThirtyItemsWithAPager_ShowsEachItemAndThePagerInPlaceOfThePageNumbers()
     {
+        // Act
         var cut = RenderList(Items(30), pager: "<button data-server-pager>Older</button>");
 
+        // Assert
         Assert.Equal(
             (30, true, false),
             (cut.FindAll("tbody tr").Count, cut.Find("[data-list-pager]").QuerySelector("[data-server-pager]") is not null,
@@ -106,8 +128,10 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void Render_EmptyListWithAPager_ShowsThePagerUnderTheEmptyText()
     {
+        // Act
         var cut = RenderList(Items(0), pager: "<button data-server-pager>Newer</button>");
 
+        // Assert
         Assert.Equal(
             (true, true),
             (cut.Find("[data-state=empty]") is not null, cut.Find("[data-list-pager]").QuerySelector("[data-server-pager]") is not null));

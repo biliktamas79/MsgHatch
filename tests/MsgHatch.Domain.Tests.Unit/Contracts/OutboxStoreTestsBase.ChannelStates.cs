@@ -261,27 +261,29 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     {
         // Arrange
         const int rounds = 50;
-        using var start = new Barrier(2);
-        var lostPauses = 0;
-        var errors = 0;
 
         // Act
+        var outcomes = await RunPauseAndErrorsRoundsAsync(rounds);
+
+        // Assert
+        Assert.Equal(Enumerable.Repeat((PauseKept: true, Errors: 0), rounds), outcomes);
+    }
+
+    private async Task<List<(bool PauseKept, int Errors)>> RunPauseAndErrorsRoundsAsync(int rounds)
+    {
+        using var start = new Barrier(2);
+        var outcomes = new List<(bool PauseKept, int Errors)>();
         for (var round = 0; round < rounds; round++)
         {
             var added = await Task.WhenAll(
                 SetChannelDownWith(start, ADown(ChannelDownReason.Operator)),
                 SetChannelDownWith(start, ADown(ChannelDownReason.Errors)));
-            errors += added.Count(static result => result.IsError);
-            if ((await Store.GetDownChannelsAsync(Ct)).Value is not [{ Reason: ChannelDownReason.Operator }])
-            {
-                lostPauses++;
-            }
-
+            var down = (await Store.GetDownChannelsAsync(Ct)).Value;
+            outcomes.Add((down is [{ Reason: ChannelDownReason.Operator }], added.Count(static result => result.IsError)));
             await Store.SetChannelUpAsync(TestChannel.Id, reason: null, Now, Ct);
         }
 
-        // Assert
-        Assert.Equal((0, 0), (lostPauses, errors));
+        return outcomes;
     }
 
     private Task<ErrorOr<bool>> SetChannelDownWith(Barrier start, ChannelDown down) =>

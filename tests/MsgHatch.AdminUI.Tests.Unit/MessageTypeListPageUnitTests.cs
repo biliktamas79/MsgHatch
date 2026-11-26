@@ -14,11 +14,14 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_MessageTypes_ShowsEachRowWithItsDisplayNameItsDescriptionItsEnabledFlagAndItsChannels()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryMessageType>>(
             [MessageTypes[0] with { Description = "Sent when a client asks" }, MessageTypes[1]]));
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         var rows = cut.FindAll("tr[data-row]");
         Assert.Equal(["Requests", "Requests of a client", "Sent when a client asks", "Yes", "Email Sms", "Edit"], rows[0].Children.Select(TextOf));
         Assert.Equal(["Notices", "", "", "No", "Email", "Edit"], rows[1].Children.Select(TextOf));
@@ -28,8 +31,10 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_ChannelsOfAMessageType_LinkToTheirViewPages()
     {
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(
             [RegistryAdminRoutes.Channel(Email).TrimStart('/'), RegistryAdminRoutes.Channel(Sms).TrimStart('/')],
             cut.FindAll("tr[data-row]")[0].QuerySelectorAll("[data-channel] a").Select(static link => link.GetAttribute("href")));
@@ -38,8 +43,10 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_MessageTypes_EndEachRowWithTheAddressOfItsEditPage()
     {
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(
             MessageTypes.Select(static type => RegistryAdminRoutes.MessageTypeEdit(type.Type).TrimStart('/')),
             cut.FindAll("tr[data-row]").Select(static row => row.Children[^1].QuerySelector("[data-action=edit]")?.GetAttribute("href")));
@@ -48,8 +55,10 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_DisabledChannelOfAMessageType_HasTheMarkDisabled()
     {
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(
             ("disabled", 1),
             (cut.Find("tr[data-row]:nth-child(3) [data-channel=Email] [data-disabled]").TextContent, cut.FindAll("[data-disabled]").Count));
@@ -58,30 +67,39 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_NoMessageType_ShowsTheEmptyText()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryMessageType>>([]));
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal("There are no message types.", cut.Find("[data-state=empty]").TextContent);
     }
 
     [Fact]
     public void Render_Rejected_ShowsTheTextOfRejected()
     {
+        // Arrange
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Fail<IReadOnlyList<RegistryMessageType>>(Errors.Rejected));
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
     }
 
     [Fact]
     public void Render_TwoColumns_ShowsThemAfterTheOwnColumnsInTheOrderOfRegistration()
     {
+        // Arrange
         AddColumns(Ok(), Ok());
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Equal(
             ["Message type", "Display name", "Description", "Enabled", "Channels", "First", "Second", ""],
             cut.FindAll("thead th").Select(static header => header.TextContent.Trim()));
@@ -90,10 +108,13 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_ColumnItems_ShowsEachItemAsABadgeAndAnItemWithAnAddressAsALink()
     {
+        // Arrange
         AddColumns(Ok((MessageTypes[0].Type, [new("Default 1", "msghatch/subscriptions?type=Requests&level=Default"), new("Note", null)])), Ok());
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         var items = cut.FindAll("tr[data-row]")[0].QuerySelectorAll("td[data-column=First] [data-item]");
         Assert.Equal(
             [("A", "Default 1", "msghatch/subscriptions?type=Requests&level=Default", true), ("SPAN", "Note", null, true)],
@@ -104,12 +125,15 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_ColumnError_ShowsTheErrorAboveTheListWithItsHeaderAndTheOtherColumnStillShows()
     {
+        // Arrange
         AddColumns(
             ErrorOr<IReadOnlyDictionary<MessageType, IReadOnlyList<MessageTypeCellItem>>>.ForError(new Error(Errors.Unavailable)),
             Ok((MessageTypes[0].Type, [new("Second item", null)])));
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         var row = cut.FindAll("tr[data-row]")[0];
         Assert.Equal(
             ($"First: {AdminErrors.UnavailableText}", "First", 0, "Second item"),
@@ -120,11 +144,14 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     [Fact]
     public void AddMessageTypeColumn_SameColumnTwoTimes_AddsItOneTime()
     {
+        // Arrange
         AddColumns(Ok(), Ok());
         Services.AddMessageTypeColumn<FirstTestColumn>();
 
+        // Act
         var cut = Render<MessageTypeListPage>();
 
+        // Assert
         Assert.Single(cut.FindAll("thead th[data-column=First]"));
     }
 

@@ -210,7 +210,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
         var classifier = Substitute.For<IExceptionClassifier<MsgHatchDbContext>>();
         classifier.Classify(Arg.Any<Exception>()).Returns(Errors.Conflict);
         await using var provider = Build(o => o.UseSqlite(_database.ConnectionString), builder => builder.Services.AddSingleton(classifier));
-        using var cancelled = new CancellationTokenSource();
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancelled.CancelAsync();
 
         // Act

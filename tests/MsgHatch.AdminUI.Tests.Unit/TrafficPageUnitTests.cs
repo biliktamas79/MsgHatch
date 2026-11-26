@@ -26,16 +26,20 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_NoFilter_ReadsTheTrafficWithNoFilter()
     {
+        // Act
         Render<TrafficPage>();
 
+        // Assert
         DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Render_Report_ShowsTheRowsOfTheInboxAndOfTheOutbox()
     {
+        // Act
         var cut = Render<TrafficPage>();
 
+        // Assert
         Assert.Equal(["Requests Failed Yes 4"], cut.FindAll("tr[data-inbox-row]").Select(SpacedTextOf));
         Assert.Equal(
             ["Requests Email Pending Yes 7 2029-12-31 23:55:00 UTC", "Requests Sms Done No 12"],
@@ -45,10 +49,13 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_TimeFilters_LinksEachCountToItsListWithTheFiltersOfItsRow()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
 
+        // Act
         cut.Find("#msghatch-traffic-from").Change("2030-01-01T10:00:05");
 
+        // Assert
         Assert.Equal(
             [
                 DeliveryAdminRoutes.InboxOf(DeliveryStatus.Failed, _requests, _from, includeTest: true).TrimStart('/'),
@@ -61,23 +68,29 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void ChangeStatus_Failed_ReadsTheTrafficWithTheStatusAtOnce()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
 
+        // Act
         cut.Find("#msghatch-traffic-status").Change("Failed");
 
+        // Assert
         DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(Status: DeliveryStatus.Failed), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void ChangeFilters_StatusTimesAndTest_ReadsTheTrafficWithEachFilter()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
 
+        // Act
         cut.Find("#msghatch-traffic-status").Change("Failed");
         cut.Find("#msghatch-traffic-from").Change("2030-01-01T10:00:05");
         cut.Find("#msghatch-traffic-to").Change("2030-01-02T10:00:05");
         cut.Find("#msghatch-traffic-test").Change(true);
 
+        // Assert
         var query = DeliveryQueries.ReceivedCalls().Select(static call => (TrafficQuery)call.GetArguments()[0]!).Last();
         Assert.Equal(
             (new TrafficQuery(_from, _from.AddDays(1), DeliveryStatus.Failed, IncludeTest: true), DateTimeKind.Utc),
@@ -87,54 +100,69 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void Render_Unavailable_ShowsTheTextOfUnavailableAndNoList()
     {
+        // Arrange
         DeliveryQueries.GetTrafficAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Fail<TrafficReport>(Errors.Unavailable));
 
+        // Act
         var cut = Render<TrafficPage>();
 
+        // Assert
         Assert.Equal((AdminErrors.UnavailableText, 0), (cut.Find(".alert-danger").TextContent, cut.FindAll("[data-section]").Count));
     }
 
     [Fact]
     public void Render_ReportNotReadYet_ShowsTheLoadingStateOfEachStore()
     {
+        // Arrange
         DeliveryQueries.GetTrafficAsync(default!, Arg.Any<CancellationToken>())
             .ReturnsForAnyArgs(new ValueTask<ErrorOr<TrafficReport>>(new TaskCompletionSource<ErrorOr<TrafficReport>>().Task));
 
+        // Act
         var cut = Render<TrafficPage>();
 
+        // Assert
         Assert.Equal(2, cut.FindAll("[data-state=loading]").Count);
     }
 
     [Fact]
     public void Render_EmptyReport_ShowsTheEmptyTextOfEachStore()
     {
+        // Arrange
         DeliveryQueries.GetTrafficAsync(default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new TrafficReport([], [])));
 
+        // Act
         var cut = Render<TrafficPage>();
 
+        // Assert
         Assert.Equal(["There are no received messages.", "There are no outgoing messages."], cut.FindAll("[data-state=empty]").Select(static text => text.TextContent));
     }
 
     [Fact]
-    public void ClickDeleteTestData_AsksTheQuestionAndDeletesNothing()
+    public void ClickDeleteTestData_TestDataOfAllTenants_AsksTheQuestionAndDeletesNothing()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
 
+        // Act
         cut.Find("[data-action=delete-test-data]").Click();
 
+        // Assert
         Assert.Contains("Delete each test message of all tenants", cut.Find("[data-dialog]").TextContent, StringComparison.Ordinal);
         DeliveryCommands.DidNotReceiveWithAnyArgs().DeleteTestDataAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public void ConfirmDeleteTestData_DeletesShowsTheCountsAndReadsTheTrafficAgain()
+    public void ConfirmDeleteTestData_TestDataOfAllTenants_DeletesShowsTheCountsAndReadsTheTrafficAgain()
     {
+        // Arrange
         DeliveryCommands.DeleteTestDataAsync(Arg.Any<CancellationToken>()).Returns(Ok(new DeletedMessages(3, 5)));
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=delete-test-data]").Click();
 
+        // Act
         cut.Find("[data-action=confirm-delete]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).DeleteTestDataAsync(Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
         Assert.Equal(
@@ -143,13 +171,16 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     }
 
     [Fact]
-    public void CancelDeleteTestData_ClosesTheQuestionAndDeletesNothing()
+    public void CancelDeleteTestData_TestDataOfAllTenants_ClosesTheQuestionAndDeletesNothing()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=delete-test-data]").Click();
 
+        // Act
         cut.Find("[data-action=cancel-delete]").Click();
 
+        // Assert
         Assert.Empty(cut.FindAll("[data-dialog]"));
         DeliveryCommands.DidNotReceiveWithAnyArgs().DeleteTestDataAsync(Arg.Any<CancellationToken>());
     }
@@ -157,23 +188,29 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmDeleteTestData_Rejected_ShowsTheTextOfRejected()
     {
+        // Arrange
         DeliveryCommands.DeleteTestDataAsync(Arg.Any<CancellationToken>()).Returns(Fail<DeletedMessages>(Errors.Rejected));
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=delete-test-data]").Click();
 
+        // Act
         cut.Find("[data-action=confirm-delete]").Click();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-deleted-result].alert-danger").TextContent);
     }
 
     [Fact]
-    public void ClickPurge_OpensTheDialogWithTheCurrentTimeAndAMaximumOf1000()
+    public void ClickPurge_ButtonOfTheTrafficPage_OpensTheDialogWithTheCurrentTimeAndAMaximumOf1000()
     {
+        // Arrange
         Time.Advance(TimeSpan.FromMilliseconds(1500));
         var cut = Render<TrafficPage>();
 
+        // Act
         cut.Find("[data-action=purge]").Click();
 
+        // Assert
         Assert.Equal(
             ("Purge", "2030-01-01T00:00:01", "1000"),
             (cut.Find("[data-dialog] .modal-title").TextContent, cut.Find("#msghatch-purge-before").GetAttribute("value"),
@@ -183,14 +220,17 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPurge_TimeAndMaximum_PurgesShowsTheCountsAndReadsTheTrafficAgain()
     {
+        // Arrange
         DeliveryCommands.PurgeAsync(default, default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Ok(new DeletedMessages(10, 20)));
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=purge]").Click();
 
+        // Act
         cut.Find("#msghatch-purge-before").Change("2029-12-01T00:00:00");
         cut.Find("#msghatch-purge-max").Change("50");
         cut.Find("[data-action=confirm-purge]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).PurgeAsync(
             Arg.Is<DateTime>(time => time == new DateTime(2029, 12, 1, 0, 0, 0, DateTimeKind.Utc) && time.Kind == DateTimeKind.Utc), 50, Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
@@ -202,24 +242,30 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPurge_DefaultValues_PurgesBeforeTheCurrentTimeToTheSecondWithAMaximumOf1000()
     {
+        // Arrange
         Time.Advance(TimeSpan.FromMilliseconds(1500));
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=purge]").Click();
 
+        // Act
         cut.Find("[data-action=confirm-purge]").Click();
 
+        // Assert
         DeliveryCommands.Received(1).PurgeAsync(new DateTime(2030, 1, 1, 0, 0, 1, DateTimeKind.Utc), 1000, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void ConfirmPurge_MaximumZero_ShowsValidationFailedInTheDialogAndPurgesNothing()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=purge]").Click();
 
+        // Act
         cut.Find("#msghatch-purge-max").Change("0");
         cut.Find("[data-action=confirm-purge]").Click();
 
+        // Assert
         Assert.Equal("400", cut.Find("[data-dialog] .alert-danger").GetAttribute("data-error-code"));
         DeliveryCommands.DidNotReceiveWithAnyArgs().PurgeAsync(default, default, Arg.Any<CancellationToken>());
     }
@@ -227,12 +273,15 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPurge_NoTime_ShowsValidationFailedInTheDialogAndPurgesNothing()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=purge]").Click();
 
+        // Act
         cut.Find("#msghatch-purge-before").Change(string.Empty);
         cut.Find("[data-action=confirm-purge]").Click();
 
+        // Assert
         Assert.Equal("400", cut.Find("[data-dialog] .alert-danger").GetAttribute("data-error-code"));
         DeliveryCommands.DidNotReceiveWithAnyArgs().PurgeAsync(default, default, Arg.Any<CancellationToken>());
     }
@@ -240,23 +289,29 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
     [Fact]
     public void ConfirmPurge_Rejected_ShowsTheTextOfRejectedInTheDialog()
     {
+        // Arrange
         DeliveryCommands.PurgeAsync(default, default, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(Fail<DeletedMessages>(Errors.Rejected));
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=purge]").Click();
 
+        // Act
         cut.Find("[data-action=confirm-purge]").Click();
 
+        // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-dialog] .alert-danger").TextContent);
     }
 
     [Fact]
     public void ClickBack_PurgeDialog_ClosesTheDialogAndPurgesNothing()
     {
+        // Arrange
         var cut = Render<TrafficPage>();
         cut.Find("[data-action=purge]").Click();
 
+        // Act
         cut.Find("[data-dialog] [data-action=back]").Click();
 
+        // Assert
         Assert.Empty(cut.FindAll("[data-dialog]"));
         DeliveryCommands.DidNotReceiveWithAnyArgs().PurgeAsync(default, default, Arg.Any<CancellationToken>());
     }

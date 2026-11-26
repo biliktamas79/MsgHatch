@@ -66,7 +66,7 @@ public sealed class InboxProcessorLoggingWrapperUnitTests
     {
         // Arrange
         await using var provider = BuildWith(AStore(new ClaimResult<ReceivedMessage>([], null)));
-        using var stop = new CancellationTokenSource();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await stop.CancelAsync();
 
         // Act
