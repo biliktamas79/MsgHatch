@@ -7,6 +7,7 @@ using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Unit.DependencyInjection;
 
@@ -33,7 +34,7 @@ public sealed class EntityFrameworkPostgreSqlSubscriptionStoreExtensionsUnitTest
     public async Task UseEntityFrameworkPostgreSqlSubscriptionStore_Alone_PassesTheStartupValidation()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .UseInMemoryStores()
             .UseEntityFrameworkPostgreSqlSubscriptionStore(_connectionString);
@@ -65,7 +66,7 @@ public sealed class EntityFrameworkPostgreSqlSubscriptionStoreExtensionsUnitTest
     public async Task RequireCurrentSchema_SubscriptionMigrationThatIsNotApplied_FailsTheStartupWithTheContextAndTheMigration()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_requireCurrentSchemaKey] = "true" });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { [_requireCurrentSchemaKey] = "true" });
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .UseInMemoryStores()
             .UseEntityFrameworkPostgreSqlSubscriptionStore(_connectionString);

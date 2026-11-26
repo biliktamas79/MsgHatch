@@ -5,6 +5,7 @@ using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 [assembly: AssemblyFixture(typeof(PostgreSqlFixture))]
 [assembly: DesignTimeServicesReference(
@@ -23,7 +24,7 @@ public sealed class PostgreSqlDesignTimeContexts : IDesignTimeDbContextFactory<M
 {
     public MsgHatchDbContext CreateDbContext(string[] args)
     {
-        var services = TestHost.CreateServices(configuration: StoreMigrationsCodeGenerator.DesignTimeOptions);
+        var services = EntityFrameworkTestHost.CreateServices(configuration: StoreMigrationsCodeGenerator.DesignTimeOptions);
         services.AddMsgHatch().UseEntityFrameworkPostgreSqlStores("Host=localhost;Database=msghatch-design-time");
         return services.Build().GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContext();
     }

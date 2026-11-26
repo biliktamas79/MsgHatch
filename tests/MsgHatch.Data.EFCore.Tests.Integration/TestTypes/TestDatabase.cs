@@ -1,3 +1,4 @@
+using MsgHatch.Tests.Shared;
 using System.Globalization;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +36,7 @@ public sealed class TestDatabase(string connectionString, Func<TestDatabase, Can
     public static IDbContextFactory<TContext> ContextsOf<TContext>(Action<MsgHatchBuilder> setup)
         where TContext : DbContext
     {
-        var services = TestHost.CreateServices(
+        var services = EntityFrameworkTestHost.CreateServices(
             configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:TextCollation"] = TextCollation });
         setup(services.AddMsgHatch());
         return services.Build().GetRequiredService<IDbContextFactory<TContext>>();

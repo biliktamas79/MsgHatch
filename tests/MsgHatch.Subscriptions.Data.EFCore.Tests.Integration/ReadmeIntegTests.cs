@@ -32,7 +32,7 @@ public sealed class ReadmeIntegTests(SqlServerFixture server)
     {
         // Arrange
         var database = server.Database("readme_migrate");
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().UseEntityFrameworkSqlServerSubscriptionStore(database.ConnectionString);
         await using var serviceProvider = services.Build();
         var cancellationToken = Ct;

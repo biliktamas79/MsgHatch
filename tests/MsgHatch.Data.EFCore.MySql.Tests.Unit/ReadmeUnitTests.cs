@@ -32,7 +32,7 @@ public sealed class ReadmeUnitTests
     public async Task AddExceptionClassifier_ClassifierOfTheReadme_IsRegisteredForTheStores()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _connectionString;
 
         // Act
@@ -51,7 +51,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkMySqlStores_SettingsOfTheReadme_RequiresTheCurrentSchema()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
+        var services = EntityFrameworkTestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
         var connectionString = _connectionString;
 
         // Act
@@ -69,7 +69,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkMySqlStores_OptionsInCode_UsesTheJsonTypeOfTheCode()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _connectionString;
 
         // Act

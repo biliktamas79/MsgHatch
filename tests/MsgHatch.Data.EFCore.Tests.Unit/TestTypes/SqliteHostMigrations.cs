@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 
@@ -21,7 +22,7 @@ public sealed class SqliteHostMigrations : IDesignTimeDbContextFactory<MsgHatchD
 
     public MsgHatchDbContext CreateDbContext(string[] args)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().UseEntityFrameworkStores(static o => UseSqlite(o, "Data Source=msghatch-design-time.db"));
         return services.Build().GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContext();
     }

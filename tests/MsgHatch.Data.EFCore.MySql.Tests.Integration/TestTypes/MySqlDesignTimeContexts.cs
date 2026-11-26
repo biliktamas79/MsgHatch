@@ -5,6 +5,7 @@ using MsgHatch.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 [assembly: AssemblyFixture(typeof(MySqlFixture))]
 [assembly: DesignTimeServicesReference(
@@ -23,7 +24,7 @@ public sealed class MySqlDesignTimeContexts : IDesignTimeDbContextFactory<MsgHat
 {
     public MsgHatchDbContext CreateDbContext(string[] args)
     {
-        var services = TestHost.CreateServices(configuration: StoreMigrationsCodeGenerator.DesignTimeOptions);
+        var services = EntityFrameworkTestHost.CreateServices(configuration: StoreMigrationsCodeGenerator.DesignTimeOptions);
         services.AddMsgHatch().UseEntityFrameworkMySqlStores("Server=localhost;Database=msghatch-design-time");
         return services.Build().GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContext();
     }

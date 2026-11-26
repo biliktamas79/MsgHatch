@@ -8,6 +8,7 @@ using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.Tests.Integration.DependencyInjection;
@@ -77,7 +78,7 @@ public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture se
     private static ServiceProvider Build(
         Action<DbContextOptionsBuilder> configure, bool enableLogging, Action<EntityFrameworkStoreOptions>? configureOptions = null)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(o => o.EnableLogging = enableLogging)
             .AddTestChannel()
             .UseEntityFrameworkStores(configure, configureOptions)

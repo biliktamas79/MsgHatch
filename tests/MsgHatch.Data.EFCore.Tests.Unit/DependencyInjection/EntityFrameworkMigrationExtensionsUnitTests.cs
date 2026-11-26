@@ -7,6 +7,7 @@ using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit.DependencyInjection;
 
@@ -217,7 +218,7 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure, bool requireCurrentSchema = false)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(static o => (o.EnableLogging, o.Roles) = (false, MsgHatchRoles.Consumer))
             .UseEntityFrameworkStores(configure, o => o.RequireCurrentSchema = requireCurrentSchema)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => NSubstitute.Substitute.For<MsgHatch.Domain.Routing.IMessageRouter<TestEvent>>()));

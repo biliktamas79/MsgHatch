@@ -6,6 +6,7 @@ using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Data.EFCore.DependencyInjection;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.PostgreSql.DependencyInjection;
 
@@ -22,7 +23,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(Postgre
     {
         // Arrange
         var database = server.Database("setup_alone");
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().AddScenarioMessages().UseEntityFrameworkSubscriptionStore(o => o.UseNpgsql(database.ConnectionString));
         await using var provider = services.Build();
         await CreateTablesAsync(provider);
@@ -42,7 +43,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(Postgre
         // Arrange
         const string schema = "shared";
         var database = server.Database("setup_schema");
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch()
             .AddScenarioMessages()
             .UseEntityFrameworkStores(o => o.UseNpgsql(database.ConnectionString), o => o.Schema = schema)

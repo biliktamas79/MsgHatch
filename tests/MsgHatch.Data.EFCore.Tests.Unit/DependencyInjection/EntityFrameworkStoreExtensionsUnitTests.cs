@@ -12,6 +12,7 @@ using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit.DependencyInjection;
@@ -42,7 +43,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     {
         // Arrange
         const string schema = "root";
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
             ["Messaging:EntityFramework:Schema"] = schema,
             ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM",
@@ -133,7 +134,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     {
         // Arrange
         const string schema = "other";
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = schema });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = schema });
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkStores(
             o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
         await using var provider = services.Build();
@@ -226,7 +227,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure, Action<MsgHatchBuilder>? setup = null)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var builder = services.AddMsgHatch(static o => (o.EnableLogging, o.Roles) = (false, MsgHatchRoles.Consumer));
         setup?.Invoke(builder);
         builder

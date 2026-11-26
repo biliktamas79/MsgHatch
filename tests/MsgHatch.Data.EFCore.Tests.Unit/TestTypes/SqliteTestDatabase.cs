@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 
@@ -30,6 +31,7 @@ public sealed class SqliteTestDatabase
         where TContext : DbContext
     {
         var options = new DbContextOptionsBuilder<TContext>().UseSqlite(ConnectionString);
+        options.IgnoreManyServiceProvidersWarning();
         configure?.Invoke(options);
         return new PooledDbContextFactory<TContext>(options.Options);
     }

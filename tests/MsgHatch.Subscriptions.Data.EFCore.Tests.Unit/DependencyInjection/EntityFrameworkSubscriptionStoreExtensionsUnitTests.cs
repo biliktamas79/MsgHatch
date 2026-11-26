@@ -11,6 +11,7 @@ using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Data.EFCore.DependencyInjection;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Subscriptions.Data.EFCore.Tests.Unit.DependencyInjection;
 
@@ -29,7 +30,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     {
         // Arrange
         const string schema = "root";
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
             ["Messaging:EntityFramework:Schema"] = schema,
             ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM",
@@ -61,7 +62,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_Sqlite_StoresTheSubscriptionOfAKeyWithItsTenant()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().AddScenarioMessages().UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(_database.ConnectionString));
         await using var provider = services.Build();
         await _database.ResetAsync(provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>(), Ct);
@@ -78,7 +79,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_TextCollationOfTheSharedOptions_IsTheCollationOfEachTextColumnAndNoJsonColumn()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM" });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM" });
         services.AddMsgHatch().UseEntityFrameworkSubscriptionStore(
             o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(textCollation: "NOCASE")));
         await using var provider = services.Build();
@@ -118,7 +119,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_Schema_HoldsTheTableAndTheHistoryTableWithNoPrefix(string? option, string schema)
     {
         // Arrange
-        var services = TestHost.CreateServices(
+        var services = EntityFrameworkTestHost.CreateServices(
             configuration: option is null ? null : new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = option });
         services.AddMsgHatch().UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(_database.ConnectionString));
         await using var provider = services.Build();
@@ -177,7 +178,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_DialectWithNoSchemasAndASchemaThatIsNotTheDefault_FailsTheStartupValidationAndNamesTheOption()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = "other" });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = "other" });
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseInMemoryStores().UseEntityFrameworkSubscriptionStore(
             o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
         await using var provider = services.Build();
@@ -196,7 +197,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_ClassifierOfTheSubscriptionContext_ClassifiesTheExceptionsOfTheStore()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().AddScenarioMessages()
             .UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(_database.ConnectionString))
             .AddExceptionClassifier<MsgHatchSubscriptionDbContext, Domain.Tests.Unit.TestTypes.ConflictClassifier<MsgHatchSubscriptionDbContext>>();
@@ -216,7 +217,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_JsonColumnTypeOfTheSharedOptions_IsTheTypeOfEachJsonColumnOnly(string? option, string expected)
     {
         // Arrange
-        var services = TestHost.CreateServices(
+        var services = EntityFrameworkTestHost.CreateServices(
             configuration: option is null ? null : new Dictionary<string, string?> { ["MsgHatch:EntityFramework:JsonColumnType"] = option });
         services.AddMsgHatch().UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(_database.ConnectionString));
         await using var provider = services.Build();
@@ -234,7 +235,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .UseInMemoryStores()
             .UseEntityFrameworkSubscriptionStore(configure);

@@ -31,7 +31,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkMySqlSubscriptionStore_SetupOfTheReadme_GivesTheContextTheProviderAndTheTableWithThePrefix()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _connectionString;
 
         // Act

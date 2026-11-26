@@ -8,6 +8,7 @@ using MsgHatch.Domain.Outbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit.DependencyInjection;
@@ -47,7 +48,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     {
         // Arrange
         const string schema = "from_section";
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = schema });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = schema });
         services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(_sqlServerConnectionString));
         await using var provider = services.Build();
 
@@ -63,7 +64,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     {
         // Arrange
         const string schema = "from_code";
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "from_section" });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "from_section" });
         services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(_sqlServerConnectionString), o => o.Schema = schema);
         await using var provider = services.Build();
 
@@ -78,7 +79,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     public async Task UseEntityFrameworkStores_SchemaThatIsNotAnIdentifier_FailsTheValidationOnSchema()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "msg-hatch" });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "msg-hatch" });
         services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(_sqlServerConnectionString));
         await using var provider = services.Build();
 
@@ -95,7 +96,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     {
         // Arrange
         const string names = "UseInMemoryStores and UseEntityFrameworkStores select an implementation of ";
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().UseInMemoryStores().UseEntityFrameworkStores(o => o.UseSqlServer(_sqlServerConnectionString));
         await using var provider = services.Build();
 
@@ -113,7 +114,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure, bool enableLogging)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(o => o.EnableLogging = enableLogging)
             .AddTestChannel()
             .UseEntityFrameworkStores(configure)

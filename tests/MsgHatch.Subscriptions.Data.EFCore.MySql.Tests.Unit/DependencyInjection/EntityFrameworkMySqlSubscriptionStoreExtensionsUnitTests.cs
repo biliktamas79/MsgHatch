@@ -7,6 +7,7 @@ using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Unit.DependencyInjection;
 
@@ -34,7 +35,7 @@ public sealed class EntityFrameworkMySqlSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkMySqlSubscriptionStore_Alone_PassesTheStartupValidation()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .UseInMemoryStores()
             .UseEntityFrameworkMySqlSubscriptionStore(_connectionString);
@@ -67,7 +68,7 @@ public sealed class EntityFrameworkMySqlSubscriptionStoreExtensionsUnitTests
     public async Task RequireCurrentSchema_SubscriptionMigrationThatIsNotApplied_FailsTheStartupWithTheContextAndTheMigration()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_requireCurrentSchemaKey] = "true" });
+        var services = EntityFrameworkTestHost.CreateServices(configuration: new Dictionary<string, string?> { [_requireCurrentSchemaKey] = "true" });
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
             .UseInMemoryStores()
             .UseEntityFrameworkMySqlSubscriptionStore(_connectionString);

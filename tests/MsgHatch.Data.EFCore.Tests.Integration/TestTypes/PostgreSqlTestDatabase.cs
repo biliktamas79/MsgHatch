@@ -1,3 +1,4 @@
+using MsgHatch.Tests.Shared;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,7 +34,7 @@ public sealed class PostgreSqlTestDatabase(string connectionString, Func<Postgre
     public static IDbContextFactory<TContext> ContextsOf<TContext>(Action<MsgHatchBuilder> setup)
         where TContext : DbContext
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         setup(services.AddMsgHatch());
         return services.Build().GetRequiredService<IDbContextFactory<TContext>>();
     }

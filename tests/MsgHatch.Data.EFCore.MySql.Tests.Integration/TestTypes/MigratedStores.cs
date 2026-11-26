@@ -1,3 +1,4 @@
+using MsgHatch.Tests.Shared;
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,7 +39,7 @@ public static class MigratedStores
     /// <summary>New services of <c>UseEntityFrameworkMySqlStores</c> with the role Consumer, which needs no transport.</summary>
     public static ServiceProvider Build(string connectionString, Action<EntityFrameworkStoreOptions>? configureOptions = null)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkMySqlStores(connectionString, configureOptions);
         return services.Build();
     }

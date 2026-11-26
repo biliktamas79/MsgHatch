@@ -42,7 +42,7 @@ public sealed class ReadmeUnitTests
     public async Task AddExceptionClassifier_ClassifierOfTheReadme_RejectsAReadOnlyDatabase()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _testConnectionString;
 
         // Act
@@ -64,7 +64,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkStores_SettingsOfTheReadme_ResolvesTheOutboxStore()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
+        var services = EntityFrameworkTestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
         var connectionString = _testConnectionString;
 
         // Act
@@ -86,7 +86,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkStores_SchemaInCode_UsesTheValueOfTheCode()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _testConnectionString;
 
         // Act
@@ -106,7 +106,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkSqlServerStores_SetupOfTheReadme_GivesTheContextsTheDialectOfSqlServer()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _connectionString;
 
         // Act
@@ -125,7 +125,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkPostgreSqlStores_SetupOfTheReadme_GivesTheContextsTheDialectOfPostgreSql()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _postgreSqlConnectionString;
 
         // Act
@@ -144,7 +144,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkMySqlStores_SetupOfTheReadme_GivesTheContextsTheTablesWithThePrefix()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _mySqlConnectionString;
 
         // Act

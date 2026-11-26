@@ -7,6 +7,7 @@ using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit;
 
@@ -54,7 +55,7 @@ public sealed class MsgHatchDbContextUnitTests
         string row, string? option, string? dialectCollation, string? expected)
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().UseEntityFrameworkStores(
             o => o.UseSqlite(_connectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(textCollation: dialectCollation)),
             o => o.TextCollation = option);
@@ -77,7 +78,7 @@ public sealed class MsgHatchDbContextUnitTests
     public async Task Model_Schema_HoldsEachTableAndTheHistoryTableWithNoPrefix(string? option, string schema)
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlite(_connectionString), o => o.Schema = option ?? o.Schema);
         await using var provider = services.Build();
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
@@ -95,7 +96,7 @@ public sealed class MsgHatchDbContextUnitTests
     public async Task Model_DialectWithNoSchemas_HoldsEachTableAndTheHistoryTableWithThePrefixMsgHatchAndNoSchema()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().UseEntityFrameworkStores(
             static o => o.UseSqlite(_connectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
         await using var provider = services.Build();
@@ -116,7 +117,7 @@ public sealed class MsgHatchDbContextUnitTests
         // Arrange
         async Task<string> TableOfTheInboxAsync(SqliteTestDialect dialect)
         {
-            var services = TestHost.CreateServices();
+            var services = EntityFrameworkTestHost.CreateServices();
             services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlite(_connectionString).UseEntityFrameworkStoreDialect(dialect));
             await using var provider = services.Build();
             await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
@@ -136,7 +137,7 @@ public sealed class MsgHatchDbContextUnitTests
     public async Task Model_JsonColumnType_IsTheTypeOfEachJsonColumnOnly(string row, string? option, string? dialectType, string expected)
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch().UseEntityFrameworkStores(
             o => _ = dialectType is null
                 ? o.UseSqlite(_connectionString)

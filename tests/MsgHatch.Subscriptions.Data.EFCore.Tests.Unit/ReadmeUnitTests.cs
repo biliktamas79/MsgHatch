@@ -43,7 +43,7 @@ public sealed class ReadmeUnitTests
     public async Task AddExceptionClassifier_ClassifierOfTheReadme_RejectsAReadOnlyDatabase()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _testConnectionString;
 
         // Act
@@ -68,7 +68,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_SettingsOfTheReadme_SharesTheSchemaOfTheStores()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
+        var services = EntityFrameworkTestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
         var connectionString = _testConnectionString;
 
         // Act
@@ -88,7 +88,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkSqlServerSubscriptionStore_SetupOfTheReadme_GivesTheContextTheCollationOfTheDialect()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _connectionString;
 
         // Act
@@ -109,7 +109,7 @@ public sealed class ReadmeUnitTests
     public async Task UseEntityFrameworkPostgreSqlSubscriptionStore_SetupOfTheReadme_GivesTheContextTheProviderOfPostgreSql()
     {
         // Arrange
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         var connectionString = _postgreSqlConnectionString;
 
         // Act

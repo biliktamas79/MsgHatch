@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Data.EFCore.MySql.Tests.Unit.TestTypes;
 
@@ -28,7 +29,7 @@ public static class MigratedStores
 
     private static IServiceCollection Services(string connectionString, Action<EntityFrameworkStoreOptions>? configureOptions)
     {
-        var services = TestHost.CreateServices();
+        var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkMySqlStores(connectionString, configureOptions);
         return services;
     }
