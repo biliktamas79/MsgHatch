@@ -43,4 +43,24 @@ public sealed class ReadmeUnitTests
         Assert.Equal(10, provider.GetRequiredService<IOptionsMonitor<RetryOptions>>().Get("Inbox").MaxTryCount);
         Assert.Equal(TimeSpan.FromMinutes(1), provider.GetRequiredService<IOptions<RegistryOptions>>().Value.RefreshInterval);
     }
+
+    [Fact]
+    public async Task AddMsgHatch_RootOfTheReadme_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("root.json"));
+
+        // Act
+        #region readme:root
+        services.AddMsgHatch(configSectionPath: "App:Messaging")
+            .UseInMemoryStores();
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        Assert.Equal(
+            ("de", 10),
+            (provider.GetRequiredService<IOptions<MsgHatchOptions>>().Value.DefaultLanguage,
+                provider.GetRequiredService<IOptionsMonitor<RetryOptions>>().Get("Inbox").MaxTryCount));
+    }
 }

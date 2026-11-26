@@ -32,7 +32,25 @@ public sealed class MsgHatchBuilder
     /// <summary>The service collection, for the setup methods of other packages.</summary>
     public IServiceCollection Services { get; }
 
+    /// <summary>
+    /// The root of all configuration sections of MsgHatch, which the first call of <c>AddMsgHatch</c> sets (D328), by
+    /// default <see cref="MsgHatchOptions.DefaultSectionKey"/>.
+    /// </summary>
+    public string ConfigSectionPath => Setup.ConfigSectionPath;
+
     internal MsgHatchSetup Setup { get; }
+
+    /// <summary>
+    /// The path of a section under the root: <c>{ConfigSectionPath}:{sectionKey}</c>, for example <c>MsgHatch:Resend</c>
+    /// (D329). A setup method binds its options from this path.
+    /// </summary>
+    /// <param name="sectionKey">The section key of an options class, for example <c>ResendOptions.SectionKey</c>.</param>
+    /// <returns>The full path of the section.</returns>
+    public string SectionPathOf(string sectionKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sectionKey);
+        return Setup.SectionPathOf(sectionKey);
+    }
 
     /// <summary>
     /// Registers a channel: its descriptor, the content type <c>Settings:{Channel}</c> of its settings type, and its
@@ -234,13 +252,14 @@ public sealed class MsgHatchBuilder
     /// <summary>
     /// Selects the stored registry as <see cref="IMessageRegistry"/> and <see cref="IRegistryWriter"/> (D118, section
     /// 4.20): the registrations of the code with the entries of the registered <see cref="IRegistrySettingsStore"/> on
-    /// top. The writer has its logging wrapper. The options bind from the section <c>MsgHatch:Registry</c>.
+    /// top. The writer has its logging wrapper. The options bind from the section <c>Registry</c> under the root of
+    /// <c>AddMsgHatch</c>, by default <c>MsgHatch:Registry</c>.
     /// </summary>
     /// <returns>This builder.</returns>
     public MsgHatchBuilder UseStoredRegistry()
     {
         Setup.Select(typeof(IRegistryWriter), nameof(UseStoredRegistry));
-        Services.AddOptions<RegistryOptions>().BindConfiguration(RegistryOptions.SectionName).ValidateOnStart();
+        Services.AddOptions<RegistryOptions>().BindConfiguration(SectionPathOf(RegistryOptions.SectionKey)).ValidateOnStart();
         Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RegistryOptions>, RegistryOptionsValidator>());
         Services.TryAddSingleton(services => new StoredRegistry(
             new InMemoryMessageRegistry(Setup.Channels, Setup.Messages.Select(static message => message.Descriptor)),
@@ -491,7 +510,10 @@ public sealed class MsgHatchBuilder
         return this;
     }
 
-    /// <summary>Changes the dispatch options of the inbox processor. A value from code wins over the section <c>MsgHatch:Dispatch:Inbox</c>.</summary>
+    /// <summary>
+    /// Changes the dispatch options of the inbox processor. A value from code wins over the section <c>Dispatch:Inbox</c>
+    /// under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:Dispatch:Inbox</c>.
+    /// </summary>
     /// <param name="configure">The change of the options.</param>
     /// <returns>This builder.</returns>
     public MsgHatchBuilder ConfigureInboxDispatch(Action<DispatchOptions> configure)
@@ -501,7 +523,10 @@ public sealed class MsgHatchBuilder
         return this;
     }
 
-    /// <summary>Changes the dispatch options of the outbox dispatcher. A value from code wins over the section <c>MsgHatch:Dispatch:Outbox</c>.</summary>
+    /// <summary>
+    /// Changes the dispatch options of the outbox dispatcher. A value from code wins over the section
+    /// <c>Dispatch:Outbox</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:Dispatch:Outbox</c>.
+    /// </summary>
     /// <param name="configure">The change of the options.</param>
     /// <returns>This builder.</returns>
     public MsgHatchBuilder ConfigureOutboxDispatch(Action<DispatchOptions> configure)
@@ -513,7 +538,8 @@ public sealed class MsgHatchBuilder
 
     /// <summary>
     /// Changes the error threshold and the check interval of the down state of one channel (D86). A value from code
-    /// wins over the section <c>MsgHatch:ChannelDown:{Channel}</c>.
+    /// wins over the section <c>ChannelDown:{Channel}</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:ChannelDown:{Channel}</c>.
     /// </summary>
     /// <param name="channel">The channel.</param>
     /// <param name="configure">The change of the options.</param>
@@ -528,7 +554,7 @@ public sealed class MsgHatchBuilder
 
     /// <summary>
     /// Changes the test delivery of one channel (D83). A value from code wins over the section
-    /// <c>MsgHatch:TestDelivery:{Channel}</c>.
+    /// <c>TestDelivery:{Channel}</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:TestDelivery:{Channel}</c>.
     /// </summary>
     /// <param name="channel">The channel.</param>
     /// <param name="configure">The change of the options.</param>
@@ -582,11 +608,11 @@ public sealed class MsgHatchBuilder
         }
 
         Services.AddOptions<ChannelDownOptions>(channel.Name)
-            .BindConfiguration($"{ChannelDownOptions.SectionName}:{channel.Name}")
+            .BindConfiguration($"{SectionPathOf(ChannelDownOptions.SectionKey)}:{channel.Name}")
             .ValidateOnStart();
         Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ChannelDownOptions>, ChannelDownOptionsValidator>());
         Services.AddOptions<TestDeliveryOptions>(channel.Name)
-            .BindConfiguration($"{TestDeliveryOptions.SectionName}:{channel.Name}")
+            .BindConfiguration($"{SectionPathOf(TestDeliveryOptions.SectionKey)}:{channel.Name}")
             .ValidateOnStart();
         Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<TestDeliveryOptions>, TestDeliveryOptionsValidator>());
     }

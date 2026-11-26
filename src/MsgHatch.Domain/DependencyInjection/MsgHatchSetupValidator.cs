@@ -7,9 +7,9 @@ using MsgHatch.Domain.Routing;
 namespace MsgHatch.Domain.DependencyInjection;
 
 /// <summary>
-/// The startup validation of the setup (section 4.7): the outbox stores, one selection for each interface (D62), one
-/// value in code for each shared options class (D150), a registry settings store for the stored registry (section 4.20),
-/// one transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
+/// The startup validation of the setup (section 4.7): the outbox stores, one root of the configuration sections (D328),
+/// one selection for each interface (D62), one value in code for each shared options class (D150), a registry settings
+/// store for the stored registry (section 4.20), one transport for each channel (D129), unique content types, unique message type names, and the rules of the channel
 /// registrations and the payload loaders of each message type (D135). With the role
 /// <see cref="MsgHatchRoles.Consumer"/>, a router for each message type (D95), and with the role
 /// <see cref="MsgHatchRoles.Publisher"/>, at least one transport (D105). With no role, no message type and no outbox store
@@ -24,6 +24,7 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         [
             .. roles == MsgHatchRoles.None ? MessageTypesOfAHostWithNoRole() : MissingOutboxStores(),
             .. MissingRegistrySettingsStore(),
+            .. OtherConfigSectionPaths(),
             .. Duplicates(setup.Selections, "select an implementation of"),
             .. Duplicates(setup.SharedOptionsValues, "give a value in code to"),
             .. DuplicateTransports(),
@@ -54,6 +55,11 @@ internal sealed class MsgHatchSetupValidator(IServiceProvider services, MsgHatch
         IsSelected(typeof(IRegistryWriter)) && !IsSelected(typeof(IRegistrySettingsStore))
             ? ["UseStoredRegistry needs a registry settings store, for example UseInMemoryStores, UseFileStores, or UseSqliteStores."]
             : [];
+
+    private IEnumerable<string> OtherConfigSectionPaths() =>
+        setup.OtherConfigSectionPaths.Count == 0
+            ? []
+            : [$"The calls of AddMsgHatch give the roots {string.Join(" and ", [setup.ConfigSectionPath, .. setup.OtherConfigSectionPaths.Distinct(StringComparer.OrdinalIgnoreCase)])} of the configuration sections. A later call gives the root of the first call, or null (D328)."];
 
     private bool IsSelected(Type service) => setup.Selections.Exists(selection => selection.Service == service);
 

@@ -27,20 +27,34 @@ public static class ServiceCollectionExtensions
     /// default of <see cref="MsgHatchBuilder.UseRegistryCommands"/> (D283), the in-process <see cref="IDeliveryQueries"/> and
     /// <see cref="IDeliveryCommands"/> as the defaults of <see cref="MsgHatchBuilder.UseDeliveryQueries"/> and
     /// <see cref="MsgHatchBuilder.UseDeliveryCommands"/> (D289), and <see cref="TimeProvider.System"/>
-    /// if the host has registered no <see cref="TimeProvider"/>. The options bind from the section <c>MsgHatch</c>
-    /// of the <c>IConfiguration</c> of the host. Only the first call binds the options, and a later call reuses the
-    /// setup of the first call (D314).
+    /// if the host has registered no <see cref="TimeProvider"/>. The options bind from the root of the configuration
+    /// sections of MsgHatch in the <c>IConfiguration</c> of the host, by default the section <c>MsgHatch</c> (D328). Each
+    /// other section of MsgHatch is under this root. Only the first call binds the options and sets the root, and a later
+    /// call reuses the setup of the first call (D314).
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">
     /// An optional change of the options in code. A value from code wins over the configuration in each order of the
     /// calls, and the value of a later call wins over the value of an earlier call.
     /// </param>
+    /// <param name="configSectionPath">
+    /// The root of all configuration sections of MsgHatch as a full path, for example <c>Messaging</c> or
+    /// <c>App:Messaging</c>, or null for <see cref="MsgHatchOptions.DefaultSectionKey"/>. A later call with null keeps the
+    /// root of the first call. A later call with another root fails the startup validation (D62, D328).
+    /// </param>
     /// <returns>The builder for the other setup methods.</returns>
-    public static MsgHatchBuilder AddMsgHatch(this IServiceCollection services, Action<MsgHatchOptions>? configure = null)
+    /// <exception cref="ArgumentException"><paramref name="configSectionPath"/> is empty or white space.</exception>
+    public static MsgHatchBuilder AddMsgHatch(
+        this IServiceCollection services, Action<MsgHatchOptions>? configure = null, string? configSectionPath = null)
     {
         ArgumentNullException.ThrowIfNull(services);
-        var setup = ExistingSetup(services) ?? AddSetup(services);
+        if (configSectionPath is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(configSectionPath);
+        }
+
+        var setup = ExistingSetup(services) ?? AddSetup(services, configSectionPath ?? MsgHatchOptions.DefaultSectionKey);
+        setup.UseConfigSectionPath(configSectionPath);
         if (configure is not null)
         {
             services.AddOptions<MsgHatchOptions>().Configure(configure);
@@ -78,34 +92,36 @@ public static class ServiceCollectionExtensions
                 ServiceLifetime.Scoped, static (tenantServices, key) => DeliveryManager.Create(tenantServices, key), DeliveryCommandsLoggingWrapper.Wrap);
     }
 
-    private static void AddCoreOptions(IServiceCollection services)
+    private static void AddCoreOptions(IServiceCollection services, MsgHatchSetup setup)
     {
-        services.AddOptions<MsgHatchOptions>().BindConfiguration(MsgHatchOptions.SectionName).ValidateOnStart();
+        services.AddOptions<MsgHatchOptions>().BindConfiguration(setup.ConfigSectionPath).ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchOptions>, MsgHatchOptionsValidator>());
         services.AddOptions<RetryOptions>(OptionNames.Inbox)
-            .BindConfiguration($"{RetryOptions.SectionName}:{OptionNames.Inbox}")
+            .BindConfiguration($"{setup.SectionPathOf(RetryOptions.SectionKey)}:{OptionNames.Inbox}")
             .Validate(static options => options.Expiry is null, _inboxHasNoExpiry)
             .ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RetryOptions>, RetryOptionsValidator>());
-        AddDispatchOptions(services, OptionNames.Inbox);
-        AddDispatchOptions(services, OptionNames.Outbox);
+        AddDispatchOptions(services, setup, OptionNames.Inbox);
+        AddDispatchOptions(services, setup, OptionNames.Outbox);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<DispatchOptions>, DispatchOptionsValidator>());
         services.AddOptions<MsgHatchSetupCheck>().ValidateOnStart();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MsgHatchSetupCheck>, MsgHatchSetupValidator>());
     }
 
-    private static void AddDispatchOptions(IServiceCollection services, string name) =>
-        services.AddOptions<DispatchOptions>(name).BindConfiguration($"{DispatchOptions.SectionName}:{name}").ValidateOnStart();
+    private static void AddDispatchOptions(IServiceCollection services, MsgHatchSetup setup, string name) =>
+        services.AddOptions<DispatchOptions>(name)
+            .BindConfiguration($"{setup.SectionPathOf(DispatchOptions.SectionKey)}:{name}")
+            .ValidateOnStart();
 
     private static MsgHatchSetup? ExistingSetup(IServiceCollection services) =>
         services.FirstOrDefault(static descriptor => descriptor.ServiceType == typeof(MsgHatchSetup))?.ImplementationInstance
             as MsgHatchSetup;
 
-    private static MsgHatchSetup AddSetup(IServiceCollection services)
+    private static MsgHatchSetup AddSetup(IServiceCollection services, string configSectionPath)
     {
-        var setup = new MsgHatchSetup();
+        var setup = new MsgHatchSetup(configSectionPath);
         services.AddSingleton(setup);
-        AddCoreOptions(services);
+        AddCoreOptions(services, setup);
         return setup;
     }
 }

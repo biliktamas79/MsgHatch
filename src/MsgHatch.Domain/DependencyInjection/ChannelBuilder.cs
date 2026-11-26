@@ -41,7 +41,8 @@ public sealed class ChannelBuilder<TEnvelope>
 
     /// <summary>
     /// Changes the retry options of this registration (D87). A value from this action wins over the configuration
-    /// sections <c>MsgHatch:Retry:{Channel}</c> and <c>MsgHatch:Retry:{ContentType}</c>.
+    /// sections <c>Retry:{Channel}</c> and <c>Retry:{ContentType}</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:Retry:{Channel}</c> and <c>MsgHatch:Retry:{ContentType}</c>.
     /// </summary>
     /// <param name="configure">The change of the retry options.</param>
     /// <returns>This builder.</returns>

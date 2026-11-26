@@ -1,0 +1,12 @@
+{
+  "App": {
+    "Messaging": {
+      "DefaultLanguage": "de",
+      "Retry": {
+        "Inbox": {
+          "MaxTryCount": 10
+        }
+      }
+    }
+  }
+}

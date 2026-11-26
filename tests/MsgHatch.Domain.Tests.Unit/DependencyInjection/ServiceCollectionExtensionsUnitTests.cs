@@ -11,6 +11,95 @@ namespace MsgHatch.Domain.Tests.Unit.DependencyInjection;
 
 public sealed class ServiceCollectionExtensionsUnitTests
 {
+    private static readonly CoreValues _configuredValues =
+        new("de", 11, TimeSpan.FromSeconds(2), 3, 3, 4, 7, TestDeliveryMode.Deliver, TimeSpan.FromMinutes(1));
+
+    private static readonly CoreValues _defaultValues =
+        new("en", 8, TimeSpan.FromSeconds(5), 8, 8, 8, 5, TestDeliveryMode.Suppress, TimeSpan.FromSeconds(30));
+
+    public static TheoryData<string?, string> RootRows => new()
+    {
+        { null, "MsgHatch" },
+        { "Messaging", "Messaging" },
+        { "App:Messaging", "App:Messaging" },
+    };
+
+    [Theory]
+    [MemberData(nameof(RootRows))]
+    public async Task AddMsgHatch_ConfigSectionPath_BindsTheCoreOptionsUnderTheRoot(string? configSectionPath, string root)
+    {
+        // Arrange
+        await using var provider = BuildWithCoreSettings(configSectionPath, CoreSettingsUnder(root));
+
+        // Act
+        var values = CoreValuesOf(provider);
+
+        // Assert
+        Assert.Equal(_configuredValues, values);
+    }
+
+    [Fact]
+    public async Task AddMsgHatch_ConfigSectionPath_IgnoresTheValuesUnderTheDefaultRoot()
+    {
+        // Arrange
+        await using var provider = BuildWithCoreSettings("Messaging", CoreSettingsUnder(MsgHatchOptions.DefaultSectionKey));
+
+        // Act
+        var values = CoreValuesOf(provider);
+
+        // Assert
+        Assert.Equal(_defaultValues, values);
+    }
+
+    [Fact]
+    public async Task AddMsgHatch_SecondCallWithNoRoot_KeepsTheRootOfTheFirstCall()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["Messaging:DefaultLanguage"] = "de" });
+        services.AddMsgHatch(static options => options.Roles = MsgHatchRoles.None, "Messaging");
+        var builder = services.AddMsgHatch();
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.Equal(
+            ("Messaging", "de", (Exception?)null),
+            (builder.ConfigSectionPath, provider.GetRequiredService<IOptions<MsgHatchOptions>>().Value.DefaultLanguage, exception));
+    }
+
+    [Fact]
+    public async Task AddMsgHatch_SecondCallWithAnotherRoot_FailsTheStartupValidation()
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+        services.AddMsgHatch(static options => options.Roles = MsgHatchRoles.None);
+        services.AddMsgHatch(configSectionPath: "Messaging");
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.IsType<OptionsValidationException>(exception);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void AddMsgHatch_EmptyOrWhiteSpaceRoot_ThrowsArgumentException(string configSectionPath)
+    {
+        // Arrange
+        var services = TestHost.CreateServices();
+
+        // Act
+        var exception = Record.Exception(() => services.AddMsgHatch(configSectionPath: configSectionPath));
+
+        // Assert
+        Assert.IsType<ArgumentException>(exception);
+    }
+
     [Fact]
     public async Task AddMsgHatch_SecondCall_KeepsTheRegistrationsOfTheFirstCall()
     {
@@ -89,6 +178,58 @@ public sealed class ServiceCollectionExtensionsUnitTests
         var failure = Assert.Single(validation.Failures);
         Assert.Equal(("Inbox", "Expiry"), (validation.OptionsName, failure[..failure.IndexOf(':', StringComparison.Ordinal)]));
     }
+
+    private static Dictionary<string, string?> CoreSettingsUnder(string root) => new()
+    {
+        [$"{root}:DefaultLanguage"] = "de",
+        [$"{root}:Retry:Inbox:MaxTryCount"] = "11",
+        [$"{root}:Retry:Test:BaseDelay"] = "00:00:02",
+        [$"{root}:Retry:Test:TestEnvelope:MaxTryCount"] = "3",
+        [$"{root}:Dispatch:Inbox:MaxDegreeOfParallelism"] = "3",
+        [$"{root}:Dispatch:Outbox:MaxDegreeOfParallelism"] = "4",
+        [$"{root}:ChannelDown:Test:ErrorThreshold"] = "7",
+        [$"{root}:TestDelivery:Test:Mode"] = "Deliver",
+        [$"{root}:Registry:RefreshInterval"] = "00:01:00",
+    };
+
+    private static ServiceProvider BuildWithCoreSettings(string? configSectionPath, Dictionary<string, string?> configuration)
+    {
+        var services = TestHost.CreateServices(configuration: configuration);
+        services.AddMsgHatch(configSectionPath: configSectionPath)
+            .AddTestChannel()
+            .UseInMemoryStores()
+            .UseStoredRegistry()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+                .AsChannel(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope, TestChannel.AnyComposer<TestEvent>()));
+        return services.Build();
+    }
+
+    private static CoreValues CoreValuesOf(IServiceProvider provider)
+    {
+        var retry = provider.GetRequiredService<IOptionsMonitor<RetryOptions>>();
+        var dispatch = provider.GetRequiredService<IOptionsMonitor<DispatchOptions>>();
+        return new CoreValues(
+            provider.GetRequiredService<IOptions<MsgHatchOptions>>().Value.DefaultLanguage,
+            retry.Get("Inbox").MaxTryCount,
+            retry.Get("Test:TestEnvelope").BaseDelay,
+            retry.Get("Test:TestEnvelope").MaxTryCount,
+            dispatch.Get("Inbox").MaxDegreeOfParallelism,
+            dispatch.Get("Outbox").MaxDegreeOfParallelism,
+            provider.GetRequiredService<IOptionsMonitor<ChannelDownOptions>>().Get("Test").ErrorThreshold,
+            provider.GetRequiredService<IOptionsMonitor<TestDeliveryOptions>>().Get("Test").Mode,
+            provider.GetRequiredService<IOptions<RegistryOptions>>().Value.RefreshInterval);
+    }
+
+    private sealed record CoreValues(
+        string DefaultLanguage,
+        int InboxMaxTryCount,
+        TimeSpan ChannelBaseDelay,
+        int ContentTypeMaxTryCount,
+        int InboxMaxDegreeOfParallelism,
+        int OutboxMaxDegreeOfParallelism,
+        int ChannelErrorThreshold,
+        TestDeliveryMode ChannelTestDeliveryMode,
+        TimeSpan RegistryRefreshInterval);
 
     private sealed class OtherDispatchSignal : IDispatchSignal
     {

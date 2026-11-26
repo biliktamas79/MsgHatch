@@ -218,8 +218,8 @@ public sealed class MessageBuilder<TEvent>
         }
 
         options
-            .BindConfiguration($"{RetryOptions.SectionName}:{channel.Name}")
-            .BindConfiguration($"{RetryOptions.SectionName}:{contentType}");
+            .BindConfiguration($"{_parent.SectionPathOf(RetryOptions.SectionKey)}:{channel.Name}")
+            .BindConfiguration($"{_parent.SectionPathOf(RetryOptions.SectionKey)}:{contentType}");
         if (withRetry is not null)
         {
             options.Configure(withRetry);

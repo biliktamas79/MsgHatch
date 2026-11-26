@@ -9,8 +9,11 @@ namespace MsgHatch.Domain.Dispatch;
 /// </summary>
 public sealed class DispatchOptions : IValidatableObject
 {
-    /// <summary>The configuration section. The section of a name is <c>MsgHatch:Dispatch:{Name}</c>.</summary>
-    public const string SectionName = "MsgHatch:Dispatch";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329). The section of a name is
+    /// <c>{root}:Dispatch:{Name}</c>, by default <c>MsgHatch:Dispatch:{Name}</c>.
+    /// </summary>
+    public const string SectionKey = "Dispatch";
 
     /// <summary>The number of send workers of each dispatch loop.</summary>
     [Range(1, 256)]

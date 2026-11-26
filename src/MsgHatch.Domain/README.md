@@ -24,7 +24,33 @@ services.AddMsgHatch(o => o.DefaultLanguage = "hu")
     .UseInMemoryStores();
 ```
 
-`AddMsgHatch` binds `MsgHatchOptions` from the section `MsgHatch`, and validates all options at the start of the host. A value from code wins over the configuration, also when the host calls `AddMsgHatch` more than one time. The in-memory stores are not durable: a restart loses each message in the inbox or the outbox, so use them only for tests and demos.
+`AddMsgHatch` binds `MsgHatchOptions` from the root of the configuration sections of MsgHatch, by default the section `MsgHatch`, and validates all options at the start of the host. A value from code wins over the configuration, also when the host calls `AddMsgHatch` more than one time. The in-memory stores are not durable: a restart loses each message in the inbox or the outbox, so use them only for tests and demos.
+
+A host that keeps the settings of its parts under its own sections gives another root with `configSectionPath`. Each section of MsgHatch is then under this root, also the sections of the other MsgHatch packages, for example `App:Messaging:Retry:Inbox` and `App:Messaging:Resend`:
+
+[//]: # (snippet: root)
+```csharp
+services.AddMsgHatch(configSectionPath: "App:Messaging")
+    .UseInMemoryStores();
+```
+
+[//]: # (snippet: root)
+```json
+{
+  "App": {
+    "Messaging": {
+      "DefaultLanguage": "de",
+      "Retry": {
+        "Inbox": {
+          "MaxTryCount": 10
+        }
+      }
+    }
+  }
+}
+```
+
+The first call of `AddMsgHatch` sets the root. A later call with no root keeps it, and a later call with another root fails the startup validation. To move one section only, the host adds its own `services.Configure<TOptions>(configuration.GetSection(...))` after the setup call, because a later configure step wins.
 
 A host with only one role sets `Roles`: a consumer host takes the events into the inbox and routes them, and a publisher host sends the outgoing messages. A host that only calls the API clients sets `MsgHatchRoles.None`.
 
@@ -39,7 +65,7 @@ The example app of the repository shows a complete host with message types, chan
 | `EnableLogging` | `bool` | `true` | Adds or removes all logging wrappers. |
 | `Roles` | `MsgHatchRoles` | `Consumer, Publisher` | The roles of the host. |
 
-The dispatch loops of the inbox and the outbox have the named options `Inbox` and `Outbox` in the section `MsgHatch:Dispatch`:
+The dispatch loops of the inbox and the outbox have the named options `Inbox` and `Outbox` in the section `Dispatch` under the root, by default `MsgHatch:Dispatch`:
 
 [//]: # (options: DispatchOptions)
 | Option | Type | Default | Rule |
@@ -52,7 +78,7 @@ The dispatch loops of the inbox and the outbox have the named options `Inbox` an
 | `MaxPollInterval` | `TimeSpan` | `00:00:30` | 10 milliseconds to 1 hour, and not less than `PollInterval`. |
 | `EnablePolling` | `bool` | `true` | Set it to false only where a signal reaches each loop, for example in one process. |
 
-The retries have the named options `Inbox`, a channel name, or the content type of one registration in the section `MsgHatch:Retry`:
+The retries have the named options `Inbox`, a channel name, or the content type of one registration in the section `Retry` under the root, by default `MsgHatch:Retry`:
 
 [//]: # (options: RetryOptions)
 | Option | Type | Default | Rule |
@@ -62,7 +88,7 @@ The retries have the named options `Inbox`, a channel name, or the content type 
 | `MaxDelay` | `TimeSpan` | `00:15:00` | 1 second to 7 days, and not less than `BaseDelay`. |
 | `Expiry` | `TimeSpan?` | none | 1 second to 30 days. The time after the accept of the event after which a message is not sent. Not for `Inbox`. |
 
-The automatic down state of a channel has the named options of the channel name in the section `MsgHatch:ChannelDown`:
+The automatic down state of a channel has the named options of the channel name in the section `ChannelDown` under the root, by default `MsgHatch:ChannelDown`:
 
 [//]: # (options: ChannelDownOptions)
 | Option | Type | Default | Rule |
@@ -70,7 +96,7 @@ The automatic down state of a channel has the named options of the channel name 
 | `ErrorThreshold` | `int` | `5` | 1 to 1000. The transient errors in a row after which a dispatch loop marks the channel down. |
 | `CheckInterval` | `TimeSpan` | `00:00:30` | 1 second to 1 hour. The time between two health checks of a down channel. |
 
-A test message, with `MessageFlags.Test`, follows the named options of the channel name in the section `MsgHatch:TestDelivery`:
+A test message, with `MessageFlags.Test`, follows the named options of the channel name in the section `TestDelivery` under the root, by default `MsgHatch:TestDelivery`:
 
 [//]: # (options: TestDeliveryOptions)
 | Option | Type | Default | Rule |
@@ -78,7 +104,7 @@ A test message, with `MessageFlags.Test`, follows the named options of the chann
 | `Mode` | `TestDeliveryMode` | `Suppress` | How the channel handles a test message. |
 | `RedirectTo` | `string?` | none | At most 256 characters. The test address or group of the mode `Redirect`, which needs it. |
 
-The stored registry, of `UseStoredRegistry`, reads its settings again after an interval:
+The stored registry, of `UseStoredRegistry`, reads its settings again after an interval. Its section is `Registry` under the root, by default `MsgHatch:Registry`:
 
 [//]: # (options: RegistryOptions)
 | Option | Type | Default | Rule |
@@ -109,9 +135,14 @@ The stored registry, of `UseStoredRegistry`, reads its settings again after an i
 }
 ```
 
-The sections of a channel, for example `MsgHatch:Retry:Email`, `MsgHatch:ChannelDown:Email`, and `MsgHatch:TestDelivery:Email`, bind for each message type that the host registers on that channel.
+The sections of a channel under the root, for example `Retry:Email`, `ChannelDown:Email`, and `TestDelivery:Email`, by default `MsgHatch:Retry:Email`, `MsgHatch:ChannelDown:Email`, and `MsgHatch:TestDelivery:Email`, bind for each message type that the host registers on that channel.
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `SectionName` is removed from each options class. `MsgHatchOptions.DefaultSectionKey` is the default root, `MsgHatch`, and each other options class has the constant `SectionKey`, the key of its section under the root, for example `RetryOptions.SectionKey`. The default paths do not change.
+- `AddMsgHatch` has the parameter `configSectionPath`, the root of all configuration sections of MsgHatch, for example `App:Messaging`. The sections of the core and of the other MsgHatch packages follow the root. `MsgHatchBuilder` has `ConfigSectionPath` and `SectionPathOf`. The first call of `AddMsgHatch` sets the root, and a later call with another root fails the startup validation.
 
 ### 0.7.1 (2026-11-26)
 

@@ -6,8 +6,11 @@ namespace MsgHatch.Domain.DependencyInjection;
 /// <summary>The core settings of MsgHatch.</summary>
 public sealed class MsgHatchOptions : IValidatableObject
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch";
+    /// <summary>
+    /// The default root of all configuration sections of MsgHatch (D328, D329). The parameter <c>configSectionPath</c> of
+    /// <c>AddMsgHatch</c> replaces it. The options of this class bind from the root.
+    /// </summary>
+    public const string DefaultSectionKey = "MsgHatch";
 
     /// <summary>The language when no other rule gives one. The culture must be known to <see cref="CultureInfo"/>.</summary>
     [Required]

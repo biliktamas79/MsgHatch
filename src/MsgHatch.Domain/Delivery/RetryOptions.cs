@@ -9,8 +9,11 @@ namespace MsgHatch.Domain.Delivery;
 /// </summary>
 public sealed class RetryOptions : IValidatableObject
 {
-    /// <summary>The configuration section. The section of a name is <c>MsgHatch:Retry:{Name}</c>.</summary>
-    public const string SectionName = "MsgHatch:Retry";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329). The section of a name is
+    /// <c>{root}:Retry:{Name}</c>, by default <c>MsgHatch:Retry:{Name}</c>.
+    /// </summary>
+    public const string SectionKey = "Retry";
 
     /// <summary>The maximum number of tries of one message.</summary>
     [Range(1, 100)]
