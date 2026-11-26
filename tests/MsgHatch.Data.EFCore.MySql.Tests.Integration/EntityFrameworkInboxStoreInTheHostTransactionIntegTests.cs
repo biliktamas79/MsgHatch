@@ -1,11 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Data.EFCore.MySql.Tests.Integration.TestTypes;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
+using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.Contracts;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
 using MySqlConnector;
+using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.MySql.Tests.Integration;
 
@@ -74,6 +78,30 @@ public sealed class EntityFrameworkInboxStoreInTheHostTransactionIntegTests(MySq
         // Assert
         Assert.Equal(MySqlErrorCode.DuplicateKeyEntry, Assert.IsType<MySqlException>(Assert.IsType<DbUpdateException>(exception).InnerException).ErrorCode);
         Assert.Equal([["0", "1"]], await CountsAsync(order));
+    }
+
+    [Fact]
+    public async Task CommitAsync_TransactionOfTheHostWithAnInboxRow_NotifiesTheInboxTopicOnlyAfterTheCommit()
+    {
+        // Arrange
+        var signal = Substitute.For<IDispatchSignal>();
+        await using var provider = MigratedStores.BuildWithHostContext(_database, signal);
+        await using var scope = provider.CreateAsyncScope();
+        var host = scope.ServiceProvider.GetRequiredService<TestHostContext>();
+        await using var transaction = await host.Database.BeginTransactionAsync(Ct);
+        await scope.ServiceProvider.GetRequiredService<IInboxStore>().AddAsync(TestMessages.AReceivedMessage(new TestEvent("text")), Ct);
+
+        // Act: the save
+        await host.SaveChangesAsync(Ct);
+
+        // Assert: no wake before the commit
+        _ = signal.DidNotReceive().NotifyAsync(Arg.Any<DispatchTopic>(), Arg.Any<CancellationToken>());
+
+        // Act: the commit
+        await transaction.CommitAsync(Ct);
+
+        // Assert: one wake after the commit
+        _ = signal.Received(1).NotifyAsync(DispatchTopic.Inbox, Ct);
     }
 
     private static TestOrder AnOrder() => new() { Text = $"order {Guid.NewGuid():N}", CreatedAtUtc = TestHost.Start.UtcDateTime };

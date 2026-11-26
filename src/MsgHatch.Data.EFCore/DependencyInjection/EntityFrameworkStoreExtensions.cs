@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.Model;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Inbox;
@@ -43,14 +46,15 @@ public static class EntityFrameworkStoreExtensions
 
     /// <summary>
     /// Selects the EF Core stores as
-    /// <see cref="UseEntityFrameworkStores(MsgHatchBuilder, Action{DbContextOptionsBuilder}, Action{EntityFrameworkStoreOptions})"/> does, with the inbox in the transaction of the
-    /// context <typeparamref name="TContext"/> of the host (D331, D332). The setup method of a provider package calls it,
-    /// for example <c>UseEntityFrameworkPostgreSqlStores&lt;AppDbContext&gt;</c>. The model of the context maps the inbox
-    /// with <c>modelBuilder.MapMsgHatchInbox(this)</c>. The inbox tenant store is scoped: its <c>AddAsync</c> adds the row to
-    /// the scoped context, and the <c>SaveChangesAsync</c> of the host writes it with the rows of the host. The other stores
-    /// and the inbox loop use the store contexts. The context gets the MsgHatch options and the dialect of the store
-    /// contexts. The startup validation fails when the context is not a scoped service, when its model has no inbox, and
-    /// when it uses another database than the store contexts.
+    /// <see cref="UseEntityFrameworkStores(MsgHatchBuilder, Action{DbContextOptionsBuilder}, Action{EntityFrameworkStoreOptions})"/>
+    /// does, with the inbox in the transaction of the context <typeparamref name="TContext"/> of the host (D331, D332). The
+    /// setup method of a provider package calls it, for example <c>UseEntityFrameworkPostgreSqlStores&lt;AppDbContext&gt;</c>.
+    /// The model of the context maps the inbox with <c>modelBuilder.MapMsgHatchInbox(this)</c>. The inbox tenant store is
+    /// scoped: its <c>AddAsync</c> adds the row to the scoped context, and the <c>SaveChangesAsync</c> of the host writes it
+    /// with the rows of the host. The other stores and the inbox loop use the store contexts. The context gets the MsgHatch
+    /// options and the dialect of the store contexts, and an interceptor that wakes the inbox loop after the commit of a save
+    /// with an inbox row (D333). The startup validation fails when the context is not a scoped service, when its provider is
+    /// not relational, when its model has no inbox, and when it uses another database than the store contexts.
     /// </summary>
     /// <typeparam name="TContext">The context of the host, which the host registers, for example with <c>AddDbContext</c>.</typeparam>
     /// <param name="builder">The builder of the setup.</param>
@@ -64,8 +68,14 @@ public static class EntityFrameworkStoreExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
         var setupMethod = $"{nameof(UseEntityFrameworkStores)}<{typeof(TContext).Name}>";
+        builder.Services.TryAddSingleton(static services => new InboxWakeInterceptor(
+            services.GetRequiredService<IDispatchSignal>(),
+            services.GetService<ILogger<InboxWakeInterceptor>>() ?? NullLogger<InboxWakeInterceptor>.Instance));
         builder.Services.ConfigureDbContext<TContext>(static (services, options) =>
-            StoreOptionsExtension.CopyTo(options, services.GetRequiredService<DbContextOptions<MsgHatchDbContext>>()));
+        {
+            StoreOptionsExtension.CopyTo(options, services.GetRequiredService<DbContextOptions<MsgHatchDbContext>>());
+            options.AddInterceptors(services.GetRequiredService<InboxWakeInterceptor>());
+        });
         builder.Services.AddOptions<HostContextSetupCheck<TContext>>().Configure(check => check.SetupMethod = setupMethod).ValidateOnStart();
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<HostContextSetupCheck<TContext>>, HostContextSetupValidator<TContext>>());

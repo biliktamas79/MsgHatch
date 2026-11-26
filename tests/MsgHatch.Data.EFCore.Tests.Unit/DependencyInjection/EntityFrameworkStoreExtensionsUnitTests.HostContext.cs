@@ -2,11 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Pipeline;
 using MsgHatch.Domain.Routing;
@@ -281,10 +283,12 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     /// <summary>
     /// New services of <c>UseEntityFrameworkStores&lt;TestHostContext&gt;</c> on the file of the test, with the registration of
     /// the context of the host, by default <c>AddDbContext</c> on the same file. The store contexts create their tables,
-    /// and the context of the host creates only its own table, because the inbox is excluded from its migrations.
+    /// and the context of the host creates only its own table, because the inbox is excluded from its migrations. A
+    /// dispatch signal replaces the registration of the setup.
     /// </summary>
     private async Task<ServiceProvider> BuildWithHostContextAsync(
-        Action<IServiceCollection>? registerHost = null, Action<EntityFrameworkStoreOptions>? configureOptions = null, bool createTables = true)
+        Action<IServiceCollection>? registerHost = null, Action<EntityFrameworkStoreOptions>? configureOptions = null, bool createTables = true,
+        IDispatchSignal? signal = null)
     {
         var services = EntityFrameworkTestHost.CreateServices();
         (registerHost ?? (s => s.AddDbContext<TestHostContext>(o => o.UseSqlite(_database.ConnectionString))))(services);
@@ -294,6 +298,11 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, m => m
                 .WithRouter((_, _) => _router)
                 .AsChannel<TestEnvelope, TestEnvelopeComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope));
+        if (signal is not null)
+        {
+            services.Replace(ServiceDescriptor.Singleton(signal));
+        }
+
         var provider = services.Build();
         if (createTables)
         {

@@ -4,12 +4,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using MsgHatch.Data.EFCore.DependencyInjection;
-using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
+using MsgHatch.Data.EFCore.Providers;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
+using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.TestTypes;
 
@@ -42,6 +46,21 @@ public static class MigratedStores
             await using var host = HostContextOf(database);
             await host.GetService<IRelationalDatabaseCreator>().CreateTablesAsync(ct);
         });
+
+    /// <summary>
+    /// New services of <c>UseEntityFrameworkPostgreSqlStores&lt;TestHostContext&gt;</c> on the database, with the role Consumer, the
+    /// context of the host on the same database, and a dispatch signal that replaces the registration of the setup.
+    /// </summary>
+    internal static ServiceProvider BuildWithHostContext(PostgreSqlTestDatabase database, IDispatchSignal signal)
+    {
+        var services = EntityFrameworkTestHost.CreateServices();
+        services.AddDbContext<TestHostContext>(o => o.UseNpgsql(database.ConnectionString));
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
+            .UseEntityFrameworkPostgreSqlStores<TestHostContext>(database.ConnectionString)
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => Substitute.For<IMessageRouter<TestEvent>>()));
+        services.Replace(ServiceDescriptor.Singleton(signal));
+        return services.Build();
+    }
 
     /// <summary>A new context of the host on the database, with the dialect of the package, as the generic setup method gives it.</summary>
     internal static TestHostContext HostContextOf(PostgreSqlTestDatabase database)
