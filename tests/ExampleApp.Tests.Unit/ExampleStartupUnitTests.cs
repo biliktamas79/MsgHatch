@@ -88,11 +88,11 @@ public sealed class ExampleStartupUnitTests : IDisposable
         // Assert
         Assert.Equal(
             [
-                "Information 9002: Routing verification: 1 passed, 1 failed, 1 skipped",
-                "Warning 9003: Routing check failed: type A, test case basic, level , channel , language hu: 404 NotFound",
-                "Information 9004: Routing check skipped: type A, test case (null), level Company, channel Email, language (null)",
+                "Information 9002: Passed=1 Failed=1 Skipped=1",
+                "Warning 9003: MessageType=A TestCase=basic Level= Channel= Language=hu ErrorCode=404 ErrorName=NotFound",
+                "Information 9004: MessageType=A TestCase= Level=Company Channel=Email Language=",
             ],
-            logger.Collector.GetSnapshot().Select(static record => $"{record.Level} {record.Id.Id}: {record.Message}"));
+            logger.Collector.GetSnapshot().Select(static record => $"{record.Level} {record.Id.Id}: {StructuredValuesOf(record)}"));
     }
     [Fact]
     public async Task SeedChannelHistoryAsync_NewFile_WritesTheRowsOfEmailAndSignalRWithTheirTimesAndNoRowOfBroker_D288()
@@ -165,6 +165,9 @@ public sealed class ExampleStartupUnitTests : IDisposable
     }
 
     private static IOutboxDispatchStore Store(IServiceProvider provider) => provider.GetRequiredService<IOutboxDispatchStore>();
+
+    private static string StructuredValuesOf(FakeLogRecord record) =>
+        string.Join(" ", record.StructuredState!.Where(static state => state.Key != "{OriginalFormat}").Select(static state => $"{state.Key}={state.Value}"));
 
     /// <summary>The state rows of each channel as text, by channel and version: the kind, the reason, the start before now, and the error name or the note.</summary>
     private async Task<List<string>> RowsAsync(IServiceProvider provider)
