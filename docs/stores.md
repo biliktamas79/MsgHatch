@@ -331,7 +331,7 @@ A state row is one `INSERT OR IGNORE`, and a changed row count of 0 means that a
 
 ### 3.9 A file for each tenant
 
-`UseSqliteTenantStores<TTenantSource>` keeps one database file for each tenant (section 1.10, D125). `SqliteTenantStoreOptions` binds from the section `MsgHatch:SqliteTenants`:
+`UseSqliteTenantStores<TTenantSource>` keeps one database file for each tenant (section 1.10, D125). `SqliteTenantStoreOptions` binds from the section `SqliteTenants` under the root of `AddMsgHatch`, by default `MsgHatch:SqliteTenants`:
 
 | Option | Example | Rule |
 |---|---|---|
@@ -363,7 +363,7 @@ The base package has feature folders, and the path of each folder is its namespa
 
 ### 4.1 Model and tables
 
-`MsgHatchDbContext` maps the tables of section 3.1 with the same column names, in the schema of `EntityFrameworkStoreOptions.Schema`. The options bind from the section `MsgHatch:EntityFramework`, and the default schema is `msghatch`. The schema keeps the tables apart from the tables of the host, so the table names have no prefix `MsgHatch`: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, and `MessageTypeEntry` (D321). A name such as `msghatch.MsgHatchOutbox` repeats the schema. The names keep PascalCase on each provider. The SQLite and MongoDB stores keep the prefix, because their databases have no schemas. In MySQL a schema is a database, so the MySQL dialect gives `HasSchemas` false, and the tables keep the prefix in the database of the connection: `MsgHatchInbox`, `MsgHatchOutbox`, `MsgHatchChannelState`, `MsgHatchChannelEntry`, and `MsgHatchMessageTypeEntry` (D326). The option `Schema` then has no effect, so the startup validation fails when it is not the default `msghatch`. There is no table `MsgHatchSchema`: the history table of the migrations of each context keeps the version of its schema (section 4.9). SQLite has no schemas, so EF Core ignores the schema there.
+`MsgHatchDbContext` maps the tables of section 3.1 with the same column names, in the schema of `EntityFrameworkStoreOptions.Schema`. The options bind from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`, and the default schema is `msghatch`. The schema keeps the tables apart from the tables of the host, so the table names have no prefix `MsgHatch`: `Inbox`, `Outbox`, `ChannelState`, `ChannelEntry`, and `MessageTypeEntry` (D321). A name such as `msghatch.MsgHatchOutbox` repeats the schema. The names keep PascalCase on each provider. The SQLite and MongoDB stores keep the prefix, because their databases have no schemas. In MySQL a schema is a database, so the MySQL dialect gives `HasSchemas` false, and the tables keep the prefix in the database of the connection: `MsgHatchInbox`, `MsgHatchOutbox`, `MsgHatchChannelState`, `MsgHatchChannelEntry`, and `MsgHatchMessageTypeEntry` (D326). The option `Schema` then has no effect, so the startup validation fails when it is not the default `msghatch`. There is no table `MsgHatchSchema`: the history table of the migrations of each context keeps the version of its schema (section 4.9). SQLite has no schemas, so EF Core ignores the schema there.
 
 | Value | Column | Rule |
 |---|---|---|
@@ -563,7 +563,7 @@ For a provider with no MsgHatch package, the host generates the migrations of th
 
 ### 5.1 Options and collections
 
-`MongoDbStoreOptions` binds from the section `MsgHatch:MongoDb`:
+`MongoDbStoreOptions` binds from the section `MongoDb` under the root of `AddMsgHatch`, by default `MsgHatch:MongoDb`:
 
 | Option | Default | Rule |
 |---|---|---|
