@@ -146,14 +146,15 @@ public sealed partial class StoredRegistryUnitTests
     public async Task SaveChannelAsync_SavedEntry_TheReaderGivesItAtOnce()
     {
         // Arrange
+        const string displayName = "Saved now";
         await using var provider = Build();
         var registry = provider.GetRequiredService<IMessageRegistry>();
 
         // Act
-        await provider.GetRequiredService<IRegistryWriter>().SaveChannelAsync(AChannelEntry(displayName: "Saved now", enabled: false), Ct);
+        await provider.GetRequiredService<IRegistryWriter>().SaveChannelAsync(AChannelEntry(displayName: displayName, enabled: false), Ct);
 
         // Assert
-        Assert.Equal(("Saved now", false), (registry.FindChannel(TestChannel.Id)!.Name, registry.FindChannel(TestChannel.Id)!.Enabled));
+        Assert.Equal((displayName, false), (registry.FindChannel(TestChannel.Id)!.Name, registry.FindChannel(TestChannel.Id)!.Enabled));
     }
 
     [Fact]
@@ -174,16 +175,17 @@ public sealed partial class StoredRegistryUnitTests
     public async Task SaveChannelAsync_ExpectedRevisionThatIsNotStored_GivesConflictAndKeepsTheStoredValues()
     {
         // Arrange
+        const string first = "First";
         await using var provider = Build();
         var registry = provider.GetRequiredService<IMessageRegistry>();
         var writer = provider.GetRequiredService<IRegistryWriter>();
-        await writer.SaveChannelAsync(AChannelEntry(displayName: "First", revision: 0), Ct);
+        await writer.SaveChannelAsync(AChannelEntry(displayName: first, revision: 0), Ct);
 
         // Act
         var saved = await writer.SaveChannelAsync(AChannelEntry(displayName: "Second", revision: 0), Ct);
 
         // Assert
-        Assert.Equal((Errors.Conflict, "First"), (saved.Error?.Type, registry.FindChannel(TestChannel.Id)!.Name));
+        Assert.Equal((Errors.Conflict, first), (saved.Error?.Type, registry.FindChannel(TestChannel.Id)!.Name));
     }
 
     [Fact]
@@ -260,8 +262,9 @@ public sealed partial class StoredRegistryUnitTests
     public async Task ResetChannelAsync_StoreError_GivesTheErrorAndKeepsTheStoredValues()
     {
         // Arrange
+        const string stored = "Stored";
         var expected = new Error(Errors.Unavailable);
-        var store = AStoreThatReads(new RegistryEntries([AChannelEntry(displayName: "Stored", revision: 1)], []));
+        var store = AStoreThatReads(new RegistryEntries([AChannelEntry(displayName: stored, revision: 1)], []));
         store.DeleteChannelEntryAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(expected));
         await using var provider = Build(store);
         var registry = provider.GetRequiredService<IMessageRegistry>();
@@ -270,7 +273,7 @@ public sealed partial class StoredRegistryUnitTests
         var error = await provider.GetRequiredService<IRegistryWriter>().ResetChannelAsync(TestChannel.Id, Ct);
 
         // Assert
-        Assert.Equal((expected, "Stored"), (error, registry.FindChannel(TestChannel.Id)!.Name));
+        Assert.Equal((expected, stored), (error, registry.FindChannel(TestChannel.Id)!.Name));
         _ = store.Received(1).DeleteChannelEntryAsync(TestChannel.Id, Ct);
     }
 

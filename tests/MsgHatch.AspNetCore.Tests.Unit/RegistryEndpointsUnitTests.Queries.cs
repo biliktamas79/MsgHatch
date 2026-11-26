@@ -18,10 +18,14 @@ public sealed partial class RegistryEndpointsUnitTests
     public async Task GetChannels_SelectedQueries_GivesTheChannelsOfTheQueriesOfTenantKeyNoneAndCallsNoWriter()
     {
         // Arrange
+        const string channel = "Sms";
+        const string name = "Text messages";
+        const string description = "Short texts";
+        const int revision = 7;
         var keys = new List<TenantKey>();
         var queries = Substitute.For<IRegistryQueries>();
         queries.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<RegistryChannel>>.ForValue(
-            [new RegistryChannel(new ChannelId("Sms"), "Text messages", "Short texts", ChannelFeatures.Languages, Enabled: false, Revision: 7)])));
+            [new RegistryChannel(new ChannelId(channel), name, description, ChannelFeatures.Languages, Enabled: false, revision)])));
         await using var host = await RegistryHost.StartAsync(configure: builder => builder.UseRegistryQueries((_, key) =>
         {
             keys.Add(key);
@@ -33,7 +37,7 @@ public sealed partial class RegistryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            ("""[{"id":"Sms","name":"Text messages","description":"Short texts","features":"Languages","enabled":false,"revision":7,"current":null,"entry":null}]""", 1, 0),
+            ($$"""[{"id":"{{channel}}","name":"{{name}}","description":"{{description}}","features":"Languages","enabled":false,"revision":{{revision}},"current":null,"entry":null}]""", 1, 0),
             (json, keys.Count(static key => key == TenantKey.None), host.Writer.ReceivedCalls().Count()));
         await queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
@@ -42,12 +46,17 @@ public sealed partial class RegistryEndpointsUnitTests
     public async Task GetChannels_DownChannel_WritesItsCurrentStateRow()
     {
         // Arrange
+        const string channel = "Sms";
+        const string name = "Text messages";
+        const int version = 3;
+        const int errorCode = 503;
+        const string errorName = "Unavailable";
         var queries = Substitute.For<IRegistryQueries>();
         var current = new ChannelState(
-            new ChannelId("Sms"), 3, ChannelStateKind.Down, _sinceUtc, ChannelStateKind.Up, TimeSpan.FromMinutes(4), ChannelDownReason.Errors,
-            _sinceUtc.AddSeconds(30), 503, "Unavailable", null);
+            new ChannelId(channel), version, ChannelStateKind.Down, _sinceUtc, ChannelStateKind.Up, TimeSpan.FromMinutes(4), ChannelDownReason.Errors,
+            _sinceUtc.AddSeconds(30), errorCode, errorName, null);
         queries.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<RegistryChannel>>.ForValue(
-            [new RegistryChannel(current.Channel, "Text messages", null, ChannelFeatures.None, Enabled: true, Revision: 0, current)])));
+            [new RegistryChannel(current.Channel, name, null, ChannelFeatures.None, Enabled: true, Revision: 0, current)])));
         await using var host = await RegistryHost.StartAsync(configure: builder => builder.UseRegistryQueries((_, _) => queries));
 
         // Act
@@ -55,9 +64,9 @@ public sealed partial class RegistryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            """[{"id":"Sms","name":"Text messages","description":null,"features":"None","enabled":true,"revision":0,"current":{"channel":"Sms","version":3,"ki"""
+            $$"""[{"id":"{{channel}}","name":"{{name}}","description":null,"features":"None","enabled":true,"revision":0,"current":{"channel":"{{channel}}","version":{{version}},"ki"""
             + """nd":"Down","sinceUtc":"2026-11-18T13:32:00Z","previousKind":"Up","previousDurationMs":240000,"reason":"Errors","nextCheck"""
-            + """AtUtc":"2026-11-18T13:32:30Z","errorCode":503,"errorName":"Unavailable","note":null},"entry":null}]""",
+            + $$"""AtUtc":"2026-11-18T13:32:30Z","errorCode":{{errorCode}},"errorName":"{{errorName}}","note":null},"entry":null}]""",
             json);
         await queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
@@ -66,10 +75,12 @@ public sealed partial class RegistryEndpointsUnitTests
     public async Task GetChannelHistory_SelectedQueries_GivesTheStateRowsOfTheChannelFromTheQueriesOfTenantKeyNone()
     {
         // Arrange
+        const string channel = "Sms";
+        const int version = 2;
         var keys = new List<TenantKey>();
         var queries = Substitute.For<IRegistryQueries>();
-        queries.GetChannelHistoryAsync(new ChannelId("Sms"), Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue(
-            [new ChannelState(new ChannelId("Sms"), 2, ChannelStateKind.Up, _sinceUtc, ChannelStateKind.Down, TimeSpan.FromMinutes(90), null, null, null, null, null)])));
+        queries.GetChannelHistoryAsync(new ChannelId(channel), Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelState>>.ForValue(
+            [new ChannelState(new ChannelId(channel), version, ChannelStateKind.Up, _sinceUtc, ChannelStateKind.Down, TimeSpan.FromMinutes(90), null, null, null, null, null)])));
         await using var host = await RegistryHost.StartAsync(configure: builder => builder.UseRegistryQueries((_, key) =>
         {
             keys.Add(key);
@@ -77,11 +88,11 @@ public sealed partial class RegistryEndpointsUnitTests
         }));
 
         // Act
-        var json = await host.Client.GetStringAsync(new Uri("/registry/channels/Sms/history", UriKind.Relative), Ct);
+        var json = await host.Client.GetStringAsync(new Uri($"/registry/channels/{channel}/history", UriKind.Relative), Ct);
 
         // Assert
         Assert.Equal(
-            ("""[{"channel":"Sms","version":2,"kind":"Up","sinceUtc":"2026-11-18T13:32:00Z","previousKind":"Down","previousDurationMs":5400000,"reason":null,"next"""
+            ($$"""[{"channel":"{{channel}}","version":{{version}},"kind":"Up","sinceUtc":"2026-11-18T13:32:00Z","previousKind":"Down","previousDurationMs":5400000,"reason":null,"next"""
                 + """CheckAtUtc":null,"errorCode":null,"errorName":null,"note":null}]""", 1),
             (json, keys.Count(static key => key == TenantKey.None)));
     }
@@ -105,10 +116,14 @@ public sealed partial class RegistryEndpointsUnitTests
     public async Task GetMessageTypes_SelectedQueries_GivesTheMessageTypesOfTheQueriesOfTenantKeyNoneAndCallsNoWriter()
     {
         // Arrange
+        const string type = "Invoices";
+        const string displayName = "Invoices";
+        const string channel = "Sms";
+        const int revision = 2;
         var keys = new List<TenantKey>();
         var queries = Substitute.For<IRegistryQueries>();
         queries.GetMessageTypesAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<RegistryMessageType>>.ForValue(
-            [new RegistryMessageType(new MessageType("Invoices"), "Invoices", null, [new ChannelId("Sms")], Enabled: true, [new ChannelId("Sms")], Revision: 2)])));
+            [new RegistryMessageType(new MessageType(type), displayName, null, [new ChannelId(channel)], Enabled: true, [new ChannelId(channel)], revision)])));
         await using var host = await RegistryHost.StartAsync(configure: builder => builder.UseRegistryQueries((_, key) =>
         {
             keys.Add(key);
@@ -120,7 +135,7 @@ public sealed partial class RegistryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            ("""[{"name":"Invoices","displayName":"Invoices","description":null,"channels":["Sms"],"enabled":true,"disabledChannels":["Sms"],"revision":2,"entry":null}]""", 1, 0),
+            ($$"""[{"name":"{{type}}","displayName":"{{displayName}}","description":null,"channels":["{{channel}}"],"enabled":true,"disabledChannels":["{{channel}}"],"revision":{{revision}},"entry":null}]""", 1, 0),
             (json, keys.Count(static key => key == TenantKey.None), host.Writer.ReceivedCalls().Count()));
         await queries.Received(1).GetMessageTypesAsync(Arg.Any<CancellationToken>());
     }

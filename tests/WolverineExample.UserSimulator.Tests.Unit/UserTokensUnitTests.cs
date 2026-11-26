@@ -31,7 +31,7 @@ public sealed class UserTokensUnitTests
         // Assert
         var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, SignatureAndAudienceValidation());
         Assert.Equal(
-            (true, "1", "north"),
+            (true, "1", user.Tenant),
             (result.IsValid, result.ClaimsIdentity?.FindFirst("sub")?.Value, result.ClaimsIdentity?.FindFirst("tenant")?.Value));
     }
 

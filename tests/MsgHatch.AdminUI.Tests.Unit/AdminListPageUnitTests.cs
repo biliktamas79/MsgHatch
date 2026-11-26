@@ -7,18 +7,22 @@ public sealed class AdminListPageUnitTests : BunitContext
     [Fact]
     public void Render_AllParts_PutsTheTitleTheFiltersLeftTheActionsRightAndTheListUnderThem()
     {
+        // Arrange
+        const string titleText = "Templates";
+        const string actionText = "+ New template";
+
         // Act
-        var cut = Render<AdminListPage>(p => p.Add(x => x.Title, "Templates")
+        var cut = Render<AdminListPage>(p => p.Add(x => x.Title, titleText)
             .Add(x => x.Links, builder => builder.AddMarkupContent(0, "<a data-link>Message types</a>"))
             .Add(x => x.Filters, builder => builder.AddMarkupContent(0, "<select data-filter></select>"))
-            .Add(x => x.Actions, builder => builder.AddMarkupContent(0, "<button data-new>+ New template</button>"))
+            .Add(x => x.Actions, builder => builder.AddMarkupContent(0, $"<button data-new>{actionText}</button>"))
             .AddChildContent("<table data-table></table>"));
 
         // Assert
         var header = cut.Find("[data-list-header]");
         var actions = cut.Find("[data-list-toolbar] [data-list-actions]");
         Assert.Equal(
-            ("Templates", true, true, "+ New template", true, true),
+            (titleText, true, true, actionText, true, true),
             (header.QuerySelector("h1")!.TextContent, header.QuerySelector("[data-link]") is not null,
                 cut.Find("[data-list-toolbar] [data-list-filters]").QuerySelector("[data-filter]") is not null, actions.TextContent,
                 actions.ClassList.Contains("ms-auto"), cut.Find("[data-list-body]").QuerySelector("[data-table]") is not null));

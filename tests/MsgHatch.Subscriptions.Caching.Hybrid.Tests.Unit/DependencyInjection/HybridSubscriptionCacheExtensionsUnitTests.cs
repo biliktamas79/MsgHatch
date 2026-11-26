@@ -107,15 +107,16 @@ public sealed class HybridSubscriptionCacheExtensionsUnitTests
     public async Task UseHybridSubscriptionCache_SubscriptionCacheOptionsInCode_ReachTheOptions()
     {
         // Arrange
+        const string keyPrefix = "app:subs";
         var services = TestHost.CreateServices();
-        services.AddMsgHatch().UseHybridSubscriptionCache(static o => o.KeyPrefix = "app:subs");
+        services.AddMsgHatch().UseHybridSubscriptionCache(static o => o.KeyPrefix = keyPrefix);
         await using var provider = services.Build();
 
         // Act
         var options = provider.GetRequiredService<IOptions<SubscriptionCacheOptions>>().Value;
 
         // Assert
-        Assert.Equal("app:subs", options.KeyPrefix);
+        Assert.Equal(keyPrefix, options.KeyPrefix);
     }
 
     private static ISubscriptionStore AStoreOfOneUser()

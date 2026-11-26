@@ -14,9 +14,11 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
 {
     private const string _faxSettingsText = "{\n  \"number\": \"123\"\n}";
 
+    private readonly Subscription _stored = Subscription();
+
     public SubscriptionEditPageUnitTests()
     {
-        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Ok(_stored));
     }
 
     [Fact]
@@ -26,12 +28,12 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
         var cut = RenderEdit();
 
         // Assert
-        Assert.Equal("Company", cut.Find("#msghatch-edit-level").GetAttribute("value"));
-        Assert.Equal("42", cut.Find("#msghatch-edit-company").GetAttribute("value"));
-        Assert.Equal("Requests", cut.Find("#msghatch-edit-type").GetAttribute("value"));
-        Assert.Equal("Fax", cut.Find("#msghatch-edit-channel").GetAttribute("value"));
+        Assert.Equal($"{_stored.Owner.Level}", cut.Find("#msghatch-edit-level").GetAttribute("value"));
+        Assert.Equal(_stored.Owner.Company?.Value, cut.Find("#msghatch-edit-company").GetAttribute("value"));
+        Assert.Equal(_stored.Type.Name, cut.Find("#msghatch-edit-type").GetAttribute("value"));
+        Assert.Equal(_stored.Channel?.Name, cut.Find("#msghatch-edit-channel").GetAttribute("value"));
         Assert.Equal(_faxSettingsText, cut.Find("#msghatch-edit-settings").GetAttribute("value"));
-        Assert.Equal("3", cut.Find("[data-field=revision]").TextContent);
+        Assert.Equal($"{_stored.Revision}", cut.Find("[data-field=revision]").TextContent);
         Assert.Equal("This host reads the settings as FaxSettings.", cut.Find("[data-field=settings-type]").TextContent);
     }
 
@@ -96,13 +98,14 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     public void Render_NotFound_ShowsTheMessageOfTheError()
     {
         // Arrange
-        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.NotFound, "The subscription does not exist."));
+        const string message = "The subscription does not exist.";
+        Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Fail<Subscription>(Errors.NotFound, message));
 
         // Act
         var cut = RenderEdit();
 
         // Assert
-        Assert.Equal("The subscription does not exist.", cut.Find(".alert-danger").TextContent);
+        Assert.Equal(message, cut.Find(".alert-danger").TextContent);
         Assert.Empty(cut.FindAll("[data-action=save]"));
     }
 
@@ -137,18 +140,19 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     public void ClickSave_ChangedSettings_SendsTheExpectedRevisionAndTheTypedSettings()
     {
         // Arrange
-        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.Channel, Fax,
-            new FaxSettings("456"), SubscriptionRecipients.ScopeUsers);
-        Commands.UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>()).Returns(Ok(Subscription(settings: new FaxSettings("456"), revision: 4)));
+        const string number = "456";
+        var expected = DraftOfTheStoredSubscription() with { Settings = new FaxSettings(number) };
+        var saved = Subscription(settings: expected.Settings, revision: _stored.Revision + 1);
+        Commands.UpdateAsync(Id, _stored.Revision, expected, Arg.Any<CancellationToken>()).Returns(Ok(saved));
         var cut = RenderEdit();
-        cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
+        cut.Find("#msghatch-edit-settings").Change($$"""{"number":"{{number}}"}""");
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
-        Assert.Equal("4", cut.Find("[data-field=revision]").TextContent);
+        Commands.Received(1).UpdateAsync(Id, _stored.Revision, expected, Arg.Any<CancellationToken>());
+        Assert.Equal($"{saved.Revision}", cut.Find("[data-field=revision]").TextContent);
         Assert.Single(cut.FindAll("[data-actions-middle] [data-state=saved]"));
         Assert.Empty(cut.FindAll("[data-state=pending]"));
     }
@@ -157,17 +161,18 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     public void ClickSave_ChannelWithNoSettingsTypeInTheHost_SendsTheSettingsAsJsonChannelSettings()
     {
         // Arrange
-        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+        const string settings = """{"code":7}""";
+        Commands.UpdateAsync(Id, _stored.Revision, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
         var cut = RenderEdit();
-        cut.Find("#msghatch-edit-channel").Change("Pager");
-        cut.Find("#msghatch-edit-settings").Change("""{"code":7}""");
+        cut.Find("#msghatch-edit-channel").Change(Pager.Name);
+        cut.Find("#msghatch-edit-settings").Change(settings);
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Commands.Received(1).UpdateAsync(Id, 3, Arg.Is<SubscriptionDraft>(draft =>
-            draft.Channel == Pager && draft.Settings is JsonChannelSettings && ((JsonChannelSettings)draft.Settings).Json.GetRawText() == """{"code":7}"""),
+        Commands.Received(1).UpdateAsync(Id, _stored.Revision, Arg.Is<SubscriptionDraft>(draft =>
+            draft.Channel == Pager && draft.Settings is JsonChannelSettings && ((JsonChannelSettings)draft.Settings).Json.GetRawText() == settings),
             Arg.Any<CancellationToken>());
     }
 
@@ -175,9 +180,8 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     public void ClickSave_OptOutWithNoChannelAndNoSettings_SendsNoChannelAndNoSettings()
     {
         // Arrange
-        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.OptOut, Channel: null,
-            Settings: null, SubscriptionRecipients.ScopeUsers);
-        Commands.UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
+        var expected = DraftOfTheStoredSubscription() with { Kind = SubscriptionKind.OptOut, Channel = null, Settings = null };
+        Commands.UpdateAsync(Id, _stored.Revision, expected, Arg.Any<CancellationToken>()).Returns(Ok(Subscription()));
         var cut = RenderEdit();
         cut.Find("#msghatch-edit-kind").Change("OptOut");
         cut.Find("#msghatch-edit-channel").Change("");
@@ -187,17 +191,18 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
+        Commands.Received(1).UpdateAsync(Id, _stored.Revision, expected, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void ClickSave_Conflict_LoadsTheStoredVersionAgainAndShowsTheTextOfConflict()
     {
         // Arrange
-        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult(
+        const string number = "456";
+        Commands.UpdateAsync(Id, _stored.Revision, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>()).Returns(ValueTask.FromResult(
             ErrorOr<Subscription>.ForError(new Error(Errors.Conflict, "The stored revision is not the expected one, or another subscription of the owner conflicts."))));
         var cut = RenderEdit();
-        cut.Find("#msghatch-edit-settings").Change("""{"number":"456"}""");
+        cut.Find("#msghatch-edit-settings").Change($$"""{"number":"{{number}}"}""");
         Queries.GetSubscriptionAsync(Id, Arg.Any<CancellationToken>()).Returns(Ok(Subscription(settings: new FaxSettings("789"), revision: 5)));
 
         // Act
@@ -207,9 +212,8 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
         Assert.Equal("5", cut.Find("[data-field=revision]").TextContent);
         Assert.Equal("{\n  \"number\": \"789\"\n}", cut.Find("#msghatch-edit-settings").GetAttribute("value"));
         Assert.Equal(AdminErrors.ConflictText, cut.Find(".alert-danger").TextContent);
-        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.Channel, Fax,
-            new FaxSettings("456"), SubscriptionRecipients.ScopeUsers);
-        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
+        var expected = DraftOfTheStoredSubscription() with { Settings = new FaxSettings(number) };
+        Commands.Received(1).UpdateAsync(Id, _stored.Revision, expected, Arg.Any<CancellationToken>());
         Queries.Received(2).GetSubscriptionAsync(Id, Arg.Any<CancellationToken>());
     }
 
@@ -217,18 +221,17 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     public void ClickSave_ValidationFailedOfTheServer_ShowsTheMessageInTheActionBar()
     {
         // Arrange
-        Commands.UpdateAsync(Id, 3, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>())
-            .Returns(Fail<Subscription>(Errors.ValidationFailed, "A mandatory subscription is a default or company subscription for the scope users."));
+        const string message = "A mandatory subscription is a default or company subscription for the scope users.";
+        Commands.UpdateAsync(Id, _stored.Revision, Arg.Any<SubscriptionDraft>(), Arg.Any<CancellationToken>())
+            .Returns(Fail<Subscription>(Errors.ValidationFailed, message));
         var cut = RenderEdit();
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Assert.Equal("A mandatory subscription is a default or company subscription for the scope users.", cut.Find("[data-actions-middle] .alert-danger").TextContent);
-        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.Channel, Fax,
-            new FaxSettings("123"), SubscriptionRecipients.ScopeUsers);
-        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
+        Assert.Equal(message, cut.Find("[data-actions-middle] .alert-danger").TextContent);
+        Commands.Received(1).UpdateAsync(Id, _stored.Revision, DraftOfTheStoredSubscription(), Arg.Any<CancellationToken>());
         Queries.Received(1).GetSubscriptionAsync(Id, Arg.Any<CancellationToken>());
     }
 
@@ -343,4 +346,7 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
     private static string MarkedOf(IRenderedComponent<SubscriptionEditPage> cut) => string.Join(' ', cut.FindAll(".border-warning").Select(static field => field.Id));
 
     private IRenderedComponent<SubscriptionEditPage> RenderEdit() => Render<SubscriptionEditPage>(p => p.Add(x => x.Id, Id));
+
+    private SubscriptionDraft DraftOfTheStoredSubscription() =>
+        new(_stored.Owner, _stored.Type, _stored.Kind, _stored.Channel, _stored.Settings, _stored.Recipients, _stored.Mandatory);
 }

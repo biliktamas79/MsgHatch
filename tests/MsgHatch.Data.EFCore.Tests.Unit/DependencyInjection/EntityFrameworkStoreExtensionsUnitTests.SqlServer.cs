@@ -46,7 +46,8 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     public async Task UseEntityFrameworkStores_SchemaInTheSection_ReachesTheOptions()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "from_section" });
+        const string schema = "from_section";
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = schema });
         services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(_sqlServerConnectionString));
         await using var provider = services.Build();
 
@@ -54,22 +55,23 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal("from_section", options.Schema);
+        Assert.Equal(schema, options.Schema);
     }
 
     [Fact]
     public async Task UseEntityFrameworkStores_SchemaFromCode_WinsOverTheSection()
     {
         // Arrange
+        const string schema = "from_code";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "from_section" });
-        services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(_sqlServerConnectionString), o => o.Schema = "from_code");
+        services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(_sqlServerConnectionString), o => o.Schema = schema);
         await using var provider = services.Build();
 
         // Act
         var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal("from_code", options.Schema);
+        Assert.Equal(schema, options.Schema);
     }
 
     [Fact]

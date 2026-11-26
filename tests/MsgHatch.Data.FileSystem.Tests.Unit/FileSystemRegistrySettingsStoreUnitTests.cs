@@ -13,15 +13,16 @@ public sealed class FileSystemRegistrySettingsStoreUnitTests()
     public async Task SaveChannelEntryAsync_NewEntry_WritesTheFileOfTheChannelWithCamelCaseNames()
     {
         // Arrange
-        var entry = AChannelEntry(Email, displayName: "Shop email", description: null, enabled: false);
+        const string displayName = "Shop email";
+        var entry = AChannelEntry(Email, displayName: displayName, description: null, enabled: false);
 
         // Act
         await Store.SaveChannelEntryAsync(entry, Ct);
 
         // Assert
         Assert.Equal(
-            """{"channel":"Email","displayName":"Shop email","description":null,"enabled":false,"revision":1,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}""",
-            await File.ReadAllTextAsync(Path.Combine(Store.RootPath, "registry", "channels", "Email.json"), Ct));
+            $$"""{"channel":"{{Email.Name}}","displayName":"{{displayName}}","description":null,"enabled":false,"revision":{{entry.Revision}},"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}""",
+            await File.ReadAllTextAsync(Path.Combine(Store.RootPath, "registry", "channels", $"{Email.Name}.json"), Ct));
     }
 
     [Fact]

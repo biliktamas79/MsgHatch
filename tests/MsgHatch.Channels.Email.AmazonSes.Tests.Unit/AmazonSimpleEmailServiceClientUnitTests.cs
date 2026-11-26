@@ -110,10 +110,10 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
         // Assert
         var request = SentRequest();
         Assert.Equal([email.To], request.Destination.ToAddresses);
-        Assert.Equal(["cc1@example.com", "cc2@example.com"], request.Destination.CcAddresses);
-        Assert.Equal(["bcc1@example.com", "bcc2@example.com"], request.Destination.BccAddresses);
+        Assert.Equal(email.Cc, request.Destination.CcAddresses);
+        Assert.Equal(email.Bcc, request.Destination.BccAddresses);
         Assert.Equal(
-            ("Ödön Űr rendelése", "UTF-8", email.HtmlBody, "UTF-8", email.TextBody, "UTF-8"),
+            (email.Subject, "UTF-8", email.HtmlBody, "UTF-8", email.TextBody, "UTF-8"),
             (request.Content.Simple.Subject.Data, request.Content.Simple.Subject.Charset, request.Content.Simple.Body.Html.Data,
              request.Content.Simple.Body.Html.Charset, request.Content.Simple.Body.Text.Data, request.Content.Simple.Body.Text.Charset));
     }
@@ -167,12 +167,13 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
     {
         // Arrange
         Driver.Accepts("ses-1");
+        var email = TestMessages.AnEmail() with { From = "Sales <sales@example.com>" };
 
         // Act
-        await Client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail() with { From = "Sales <sales@example.com>" }, Ct);
+        await Client.SendAsync(Guid.NewGuid(), email, Ct);
 
         // Assert
-        Assert.Equal("Sales <sales@example.com>", SentRequest().FromEmailAddress);
+        Assert.Equal(email.From, SentRequest().FromEmailAddress);
     }
 
     [Theory]

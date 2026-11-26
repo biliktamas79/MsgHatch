@@ -44,7 +44,8 @@ public abstract partial class OutboxStoreTestsBase<TStore>
     public async Task SetChannelDownAsync_PauseOnAPausedChannel_AddsNoRowAndKeepsTheFirstNote()
     {
         // Arrange
-        await Store.SetChannelDownAsync(ADown(ChannelDownReason.Operator, note: "first"), Ct);
+        const string firstNote = "first";
+        await Store.SetChannelDownAsync(ADown(ChannelDownReason.Operator, note: firstNote), Ct);
         Time.Advance(TimeSpan.FromMinutes(1));
 
         // Act
@@ -52,7 +53,7 @@ public abstract partial class OutboxStoreTestsBase<TStore>
 
         // Assert
         Assert.False(added.Value);
-        Assert.Equal("first", Assert.Single(await RowsAsync()).Note);
+        Assert.Equal(firstNote, Assert.Single(await RowsAsync()).Note);
     }
 
     [Fact]

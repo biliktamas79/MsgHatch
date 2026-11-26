@@ -215,15 +215,20 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     public async Task PublishAsync_RealWolverine_SendsTheHeadersAndTheTenantIdInTheEnvelope()
     {
         // Arrange
+        const string idHeader = "msghatch-id";
+        const string id = "id-1";
+        const string sourceHeader = "x-source";
+        const string source = "orders";
+        const string tenant = "t1";
         await using var wolverine = await WolverineTestHost.StartAsync(Ct);
-        var headers = new Dictionary<string, string> { ["msghatch-id"] = "id-1", ["x-source"] = "orders" };
+        var headers = new Dictionary<string, string> { [idHeader] = id, [sourceHeader] = source };
 
         // Act
-        await wolverine.Client.PublishAsync(APublish(tenant: new TenantId("t1"), headers: headers), Ct);
+        await wolverine.Client.PublishAsync(APublish(tenant: new TenantId(tenant), headers: headers), Ct);
 
         // Assert
         var sent = Assert.Single(wolverine.Transport.Sent);
-        Assert.Equal(("id-1", "orders", "t1"), (sent.Headers["msghatch-id"], sent.Headers["x-source"], sent.TenantId));
+        Assert.Equal((id, source, tenant), (sent.Headers[idHeader], sent.Headers[sourceHeader], sent.TenantId));
     }
 
     [Fact]

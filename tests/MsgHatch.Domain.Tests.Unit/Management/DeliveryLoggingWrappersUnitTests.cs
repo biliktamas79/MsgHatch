@@ -127,8 +127,9 @@ public sealed class DeliveryLoggingWrappersUnitTests : IAsyncDisposable
     public async Task RetryOutgoingAsync_Filters_LogsTheFiltersAndTheCountsAndNoTargetId()
     {
         // Arrange
+        const string targetId = "user-42";
         ConfigureSuccess();
-        var query = new OutboxQuery(Status: DeliveryStatus.Failed, Channel: TestChannel.Id, Target: new(DeliveryTargetKind.User, "user-42"));
+        var query = new OutboxQuery(Status: DeliveryStatus.Failed, Channel: TestChannel.Id, Target: new(DeliveryTargetKind.User, targetId));
 
         // Act
         await Commands().RetryOutgoingAsync(query, Ct);
@@ -138,7 +139,7 @@ public sealed class DeliveryLoggingWrappersUnitTests : IAsyncDisposable
         Assert.Equal(
             ("status: Failed, channel: Test, target: User", "1", "1"),
             (record.GetStructuredStateValue("Filters"), record.GetStructuredStateValue("Matched"), record.GetStructuredStateValue("Changed")));
-        Assert.False(record.ContainsText("user-42"));
+        Assert.False(record.ContainsText(targetId));
     }
 
     [Fact]

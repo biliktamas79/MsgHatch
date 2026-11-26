@@ -88,15 +88,16 @@ public sealed class AddTemplateEngineUnitTests
     public void PayloadBuilder_MessageOfAName_GivesThatMessageTypeAsItsType()
     {
         // Arrange
+        const string messageName = "OrderShipped";
         MessageType? type = null;
 
         // Act
         TestHost.CreateServices().AddMsgHatch().AddMessage(
-            "OrderShipped", 1, Domain.Tests.Unit.TestTypes.TestJsonContext.Default.TestEvent,
+            messageName, 1, Domain.Tests.Unit.TestTypes.TestJsonContext.Default.TestEvent,
             m => m.WithPayload<OrderEmail>(static (_, _) => null!, p => type = p.Type));
 
         // Assert
-        Assert.Equal(new MessageType("OrderShipped"), type);
+        Assert.Equal(new MessageType(messageName), type);
     }
 
     private static MsgHatchBuilder UseSharedStore(MsgHatchBuilder builder) =>

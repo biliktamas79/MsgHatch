@@ -68,7 +68,9 @@ public sealed class SubscriptionRequestUnitTests(ScenarioRegistry scenario) : IC
     public void From_JsonChannelSettings_WritesTheJsonWithNoChange()
     {
         // Arrange
-        using var document = JsonDocument.Parse("""{"phone":"+3612345678"}""");
+        const string property = "phone";
+        const string phone = "+3612345678";
+        using var document = JsonDocument.Parse($$"""{"{{property}}":"{{phone}}"}""");
         var draft = new SubscriptionDraft(
             SubscriptionOwner.ForUser(new UserId("1")), new MessageType("A"), SubscriptionKind.Channel, new ChannelId("Sms"), new JsonChannelSettings(document.RootElement));
 
@@ -79,8 +81,8 @@ public sealed class SubscriptionRequestUnitTests(ScenarioRegistry scenario) : IC
         // Assert
         using var written = JsonDocument.Parse(json);
         Assert.Equal(
-            ("+3612345678", null),
-            (written.RootElement.GetProperty("settings").GetProperty("phone").GetString(), request.SettingsType));
+            (phone, null),
+            (written.RootElement.GetProperty("settings").GetProperty(property).GetString(), request.SettingsType));
     }
 
     [Theory]

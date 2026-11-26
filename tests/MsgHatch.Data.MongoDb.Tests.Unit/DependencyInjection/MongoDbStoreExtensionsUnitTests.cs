@@ -24,9 +24,10 @@ public sealed class MongoDbStoreExtensionsUnitTests
     public async Task UseMongoDbStores_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string connectionString = "mongodb://root.example.com:27017";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:MongoDb:ConnectionString"] = "mongodb://root.example.com:27017",
+            ["Messaging:MongoDb:ConnectionString"] = connectionString,
             ["MsgHatch:MongoDb:DatabaseName"] = "default",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseMongoDbStores();
@@ -36,14 +37,15 @@ public sealed class MongoDbStoreExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal(("mongodb://root.example.com:27017", "msghatch"), (options.ConnectionString, options.DatabaseName));
+        Assert.Equal((connectionString, "msghatch"), (options.ConnectionString, options.DatabaseName));
     }
 
     [Fact]
     public async Task UseMongoDbStores_DatabaseNameInTheSection_ReachesTheOptions()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: Section(databaseName: "from_section"));
+        const string databaseName = "from_section";
+        var services = TestHost.CreateServices(configuration: Section(databaseName: databaseName));
         services.AddMsgHatch().UseMongoDbStores();
         await using var provider = services.Build();
 
@@ -51,22 +53,23 @@ public sealed class MongoDbStoreExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal(("from_section", _connectionString), (options.DatabaseName, options.ConnectionString));
+        Assert.Equal((databaseName, _connectionString), (options.DatabaseName, options.ConnectionString));
     }
 
     [Fact]
     public async Task UseMongoDbStores_DatabaseNameFromCode_WinsOverTheSection()
     {
         // Arrange
+        const string databaseName = "from_code";
         var services = TestHost.CreateServices(configuration: Section(databaseName: "from_section"));
-        services.AddMsgHatch().UseMongoDbStores(static o => o.DatabaseName = "from_code");
+        services.AddMsgHatch().UseMongoDbStores(static o => o.DatabaseName = databaseName);
         await using var provider = services.Build();
 
         // Act
         var options = provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal("from_code", options.DatabaseName);
+        Assert.Equal(databaseName, options.DatabaseName);
     }
 
     [Fact]

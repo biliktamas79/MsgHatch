@@ -17,11 +17,14 @@ public sealed class DeleteDialogUnitTests : BunitContext
     [Fact]
     public void Render_Open_ShowsTheQuestion()
     {
+        // Arrange
+        const string question = "Delete the subject?";
+
         // Act
-        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true).Add(x => x.Question, "Delete the subject?"));
+        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true).Add(x => x.Question, question));
 
         // Assert
-        Assert.Equal("Delete the subject?", cut.Find(".modal-body p").TextContent);
+        Assert.Equal(question, cut.Find(".modal-body p").TextContent);
     }
 
     [Fact]
@@ -62,12 +65,15 @@ public sealed class DeleteDialogUnitTests : BunitContext
     [Fact]
     public void Render_ActionReset_ShowsResetInTheTitleTheButtonAndTheWarning()
     {
+        // Arrange
+        const string action = "Reset";
+
         // Act
-        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true).Add(x => x.Action, "Reset"));
+        var cut = Render<DeleteDialog>(p => p.Add(x => x.Open, true).Add(x => x.Action, action));
 
         // Assert
         Assert.Equal(
-            ("Reset", "Reset", "The reset cannot be undone."),
+            (action, action, "The reset cannot be undone."),
             (cut.Find(".modal-title").TextContent, cut.Find("[data-action=confirm-delete]").TextContent, cut.Find("[data-delete-warning]").TextContent));
     }
 

@@ -14,16 +14,18 @@ public sealed class DemoLoginUnitTests
     public async Task Login_UserWithOneAccountInTheTenant_GivesATokenOfThatAccount()
     {
         // Arrange
+        const string tenant = "eu";
+        const string user = "bela";
         await using var demo = DemoWebApp.Build();
         await demo.App.StartAsync(TestContext.Current.CancellationToken);
         using var client = demo.App.GetTestClient();
 
         // Act
-        using var response = await client.PostAsJsonAsync(DemoLogin.Route, new LoginRequest("eu", "bela"), TestContext.Current.CancellationToken);
+        using var response = await client.PostAsJsonAsync(DemoLogin.Route, new LoginRequest(tenant, user), TestContext.Current.CancellationToken);
 
         // Assert
         var login = await response.Content.ReadFromJsonAsync<LoginResponse>(TestContext.Current.CancellationToken);
-        Assert.Equal((HttpStatusCode.OK, "eu", "acme", "bela", true), (response.StatusCode, login!.Tenant, login.Company, login.User, login.Token.Length > 0));
+        Assert.Equal((HttpStatusCode.OK, tenant, "acme", user, true), (response.StatusCode, login!.Tenant, login.Company, login.User, login.Token.Length > 0));
     }
 
     [Theory]

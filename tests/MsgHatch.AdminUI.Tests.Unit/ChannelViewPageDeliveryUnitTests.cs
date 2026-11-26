@@ -46,15 +46,16 @@ public sealed class ChannelViewPageDeliveryUnitTests : RegistryPageContext
     public void ConfirmPause_UpChannel_PausesTheChannelAndReadsTheChannelAgain()
     {
         // Arrange
+        const string note = "maintenance";
         var cut = RenderPage("Email");
         cut.Find("[data-action=pause]").Click();
 
         // Act
-        cut.Find("#msghatch-pause-note").Input("maintenance");
+        cut.Find("#msghatch-pause-note").Input(note);
         cut.Find("[data-action=confirm-pause]").Click();
 
         // Assert
-        DeliveryCommands.Received(1).PauseChannelAsync(Email, "maintenance", Arg.Any<CancellationToken>());
+        DeliveryCommands.Received(1).PauseChannelAsync(Email, note, Arg.Any<CancellationToken>());
         DeliveryQueries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
         Assert.Empty(cut.FindAll("[data-dialog]"));

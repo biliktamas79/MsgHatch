@@ -11,17 +11,19 @@ public sealed class HighlightedTextAreaUnitTests : BunitContext
     {
         // Arrange
         JSInterop.Mode = JSRuntimeMode.Loose;
+        const string text = "xy";
+        const string issueMark = "1:2";
+        IReadOnlyList<TextSegment> segments = [new TextSegment(0, 1, "a"), new TextSegment(1, 1, "b", issueMark)];
 
         // Act
-        var cut = Render<HighlightedTextArea>(p => p.Add(x => x.Text, "xy")
-            .Add(x => x.Segments, [new TextSegment(0, 1, "a"), new TextSegment(1, 1, "b", "1:2")]));
+        var cut = Render<HighlightedTextArea>(p => p.Add(x => x.Text, text).Add(x => x.Segments, segments));
 
         // Assert
         Assert.Equal("x", cut.Find("pre span.a").TextContent);
         var mark = cut.Find("pre mark.template-issue.b");
         Assert.Equal("y", mark.TextContent);
-        Assert.Equal("1:2", mark.GetAttribute("data-mark"));
-        Assert.Equal("xy", cut.Find("textarea").GetAttribute("value"));
+        Assert.Equal(issueMark, mark.GetAttribute("data-mark"));
+        Assert.Equal(text, cut.Find("textarea").GetAttribute("value"));
     }
 
     [Fact]
@@ -75,14 +77,15 @@ public sealed class HighlightedTextAreaUnitTests : BunitContext
     {
         // Arrange
         JSInterop.Mode = JSRuntimeMode.Loose;
+        const string newText = "ab";
         var texts = new List<string>();
         var cut = Render<HighlightedTextArea>(p => p.Add(x => x.Text, "a").Add(x => x.Segments, [new TextSegment(0, 1, "a")])
             .Add(x => x.TextChanged, texts.Add));
 
         // Act
-        cut.Find("textarea").Input("ab");
+        cut.Find("textarea").Input(newText);
 
         // Assert
-        Assert.Equal(["ab"], texts);
+        Assert.Equal([newText], texts);
     }
 }

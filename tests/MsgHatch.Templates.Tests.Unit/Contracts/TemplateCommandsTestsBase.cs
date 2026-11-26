@@ -49,17 +49,18 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
     public async Task SaveTemplateAsync_ValidText_GivesTheEntryAndTheNextPrepareRendersEachNewText()
     {
         // Arrange
+        const string clientName = "Client 1";
         await using var host = await AHostAsync();
         var commands = host.Service(TenantKey.None);
 
         // Act
         var first = await commands.SaveTemplateAsync(ALookup(), "Order of {{Name}}", 0, Ct);
-        var firstText = await RenderAsync(host);
+        var firstText = await RenderAsync(host, clientName);
         await commands.SaveTemplateAsync(ALookup(), "Changed order of {{Name}}", first.Value.Version, Ct);
-        var secondText = await RenderAsync(host);
+        var secondText = await RenderAsync(host, clientName);
 
         // Assert
-        Assert.Equal(("Order of Client 1", "Changed order of Client 1"), (firstText, secondText));
+        Assert.Equal(($"Order of {clientName}", $"Changed order of {clientName}"), (firstText, secondText));
     }
 
     [Fact]
@@ -204,16 +205,17 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
     public async Task SaveTemplateAsync_CommandsOfATenant_WriteIntoTheStoreOfTheTenantAndNotIntoTheSharedStore()
     {
         // Arrange
+        const string tenantText = "Tenant text";
         await using var host = await AHostAsync();
 
         // Act
-        await host.Service(_t1).SaveTemplateAsync(ALookup(), "Tenant text", 0, Ct);
+        await host.Service(_t1).SaveTemplateAsync(ALookup(), tenantText, 0, Ct);
 
         // Assert
         var tenant = await host.Server.GetRequiredKeyedService<ITemplateQueries>(_t1).GetTemplateAsync(ALookup(), Ct);
         var shared = await host.Server.GetRequiredKeyedService<ITemplateQueries>(TenantKey.None).GetTemplateAsync(ALookup(), Ct);
         Assert.Equal(
-            ("Tenant text", 404, true),
+            (tenantText, 404, true),
             (tenant.Value?.Text, shared.Error?.Type.Code, File.Exists(Path.Combine(folder.Parent, "tenants", "t1", $"{_type.Name}.en.subject.txt"))));
     }
 
@@ -237,6 +239,7 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
     public async Task SaveTemplateAsync_CommandsOfATenant_CheckTheTextWithTheEngineOfThatTenant()
     {
         // Arrange
+        const string text = "Text";
         var engines = new Dictionary<TenantKey, ITemplateEngine<OrderEmail>>
         {
             [TenantKey.None] = AnEngineWithNoIssues(),
@@ -247,10 +250,10 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
             .AddOrderEmailEngine((_, key) => engines[key], _type.Name)));
 
         // Act
-        await host.Service(_t1).SaveTemplateAsync(ALookup(), "Text", 0, Ct);
+        await host.Service(_t1).SaveTemplateAsync(ALookup(), text, 0, Ct);
 
         // Assert
-        await engines[_t1].Received(1).CheckAsync(ALookup(), "Text", Arg.Any<CancellationToken>());
+        await engines[_t1].Received(1).CheckAsync(ALookup(), text, Arg.Any<CancellationToken>());
         Assert.Empty(engines[TenantKey.None].ReceivedCalls());
     }
 
@@ -350,12 +353,12 @@ public abstract class TemplateCommandsTestsBase<T>(TemplateFolder folder) : ICla
         string language = "en", string? scope = null, string part = "subject", TemplatePartKind kind = TemplatePartKind.PlainText) =>
         new(_type, language, scope, part, kind);
 
-    private async Task<string> RenderAsync(IManagementTestHost<T> host)
+    private async Task<string> RenderAsync(IManagementTestHost<T> host, string clientName)
     {
         var engine = host.Server.GetRequiredKeyedService<ITemplateEngine<OrderEmail>>(TenantKey.None);
         var template = await engine.PrepareAsync(new TemplateRequest(_type, "en", Scope: null, "subject", TemplatePartKind.PlainText), Ct);
         var rendered = await template.Value.RenderAsync(
-            new OrderEmail("Client 1", 3, 1234.5m, DateTime.UnixEpoch), CultureInfo.GetCultureInfo("en"), Ct);
+            new OrderEmail(clientName, 3, 1234.5m, DateTime.UnixEpoch), CultureInfo.GetCultureInfo("en"), Ct);
         return rendered.Value;
     }
 

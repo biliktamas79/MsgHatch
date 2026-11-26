@@ -15,14 +15,15 @@ public sealed class SqliteRegistrySettingsStoreUnitTests()
     public async Task SaveChannelEntryAsync_NewEntry_WritesTheColumnsAsTextAndIntegers()
     {
         // Arrange
-        var entry = AChannelEntry(Email, displayName: "Shop email", description: null, enabled: false);
+        const string displayName = "Shop email";
+        var entry = AChannelEntry(Email, displayName: displayName, description: null, enabled: false);
 
         // Act
         await Store.SaveChannelEntryAsync(entry, Ct);
 
         // Assert
         Assert.Equal(
-            ["Email", "Shop email", null, "0", "1", _isoTime],
+            [Email.Name, displayName, null, "0", $"{entry.Revision}", _isoTime],
             Assert.Single(TestDatabases.Rows(
                 Store.ConnectionString,
                 "SELECT Channel, DisplayName, Description, CAST(Enabled AS TEXT), CAST(Revision AS TEXT), LastModifiedAtUtc FROM MsgHatchChannelEntry")));

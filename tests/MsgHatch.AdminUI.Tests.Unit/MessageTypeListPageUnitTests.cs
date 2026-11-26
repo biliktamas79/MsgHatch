@@ -15,15 +15,16 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     public void Render_MessageTypes_ShowsEachRowWithItsDisplayNameItsDescriptionItsEnabledFlagAndItsChannels()
     {
         // Arrange
+        const string description = "Sent when a client asks";
         Queries.GetMessageTypesAsync(Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<RegistryMessageType>>(
-            [MessageTypes[0] with { Description = "Sent when a client asks" }, MessageTypes[1]]));
+            [MessageTypes[0] with { Description = description }, MessageTypes[1]]));
 
         // Act
         var cut = Render<MessageTypeListPage>();
 
         // Assert
         var rows = cut.FindAll("tr[data-row]");
-        Assert.Equal(["Requests", "Requests of a client", "Sent when a client asks", "Yes", "Email Sms", "Edit"], rows[0].Children.Select(TextOf));
+        Assert.Equal(["Requests", "Requests of a client", description, "Yes", "Email Sms", "Edit"], rows[0].Children.Select(TextOf));
         Assert.Equal(["Notices", "", "", "No", "Email", "Edit"], rows[1].Children.Select(TextOf));
         Assert.Equal("Message types", cut.Find("[data-list-header] h1").TextContent);
     }
@@ -109,7 +110,10 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     public void Render_ColumnItems_ShowsEachItemAsABadgeAndAnItemWithAnAddressAsALink()
     {
         // Arrange
-        AddColumns(Ok((MessageTypes[0].Type, [new("Default 1", "msghatch/subscriptions?type=Requests&level=Default"), new("Note", null)])), Ok());
+        const string linkText = "Default 1";
+        const string address = "msghatch/subscriptions?type=Requests&level=Default";
+        const string badgeText = "Note";
+        AddColumns(Ok((MessageTypes[0].Type, [new(linkText, address), new(badgeText, null)])), Ok());
 
         // Act
         var cut = Render<MessageTypeListPage>();
@@ -117,7 +121,7 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
         // Assert
         var items = cut.FindAll("tr[data-row]")[0].QuerySelectorAll("td[data-column=First] [data-item]");
         Assert.Equal(
-            [("A", "Default 1", "msghatch/subscriptions?type=Requests&level=Default", true), ("SPAN", "Note", null, true)],
+            [("A", linkText, address, true), ("SPAN", badgeText, null, true)],
             items.Select(static item => (item.TagName, item.TextContent, item.GetAttribute("href"), item.ClassList.Contains("badge"))));
         Assert.Empty(cut.FindAll("tr[data-row]")[1].QuerySelectorAll("td[data-column=First] [data-item]"));
     }
@@ -126,9 +130,10 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
     public void Render_ColumnError_ShowsTheErrorAboveTheListWithItsHeaderAndTheOtherColumnStillShows()
     {
         // Arrange
+        const string itemText = "Second item";
         AddColumns(
             ErrorOr<IReadOnlyDictionary<MessageType, IReadOnlyList<MessageTypeCellItem>>>.ForError(new Error(Errors.Unavailable)),
-            Ok((MessageTypes[0].Type, [new("Second item", null)])));
+            Ok((MessageTypes[0].Type, [new(itemText, null)])));
 
         // Act
         var cut = Render<MessageTypeListPage>();
@@ -136,7 +141,7 @@ public sealed class MessageTypeListPageUnitTests : RegistryPageContext
         // Assert
         var row = cut.FindAll("tr[data-row]")[0];
         Assert.Equal(
-            ($"First: {AdminErrors.UnavailableText}", "First", 0, "Second item"),
+            ($"First: {AdminErrors.UnavailableText}", "First", 0, itemText),
             (cut.Find("[data-column-error]").TextContent, cut.Find("[data-column-error]").GetAttribute("data-column-error"),
                 row.QuerySelectorAll("td[data-column=First] [data-item]").Length, row.QuerySelector("td[data-column=Second] [data-item]")!.TextContent));
     }

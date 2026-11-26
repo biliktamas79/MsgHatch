@@ -122,10 +122,11 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
     public async Task PrepareAsync_SourceWithTheKeyOfAParsedTemplate_UsesTheParsedTemplate()
     {
         // Arrange
+        const string firstText = "First";
         var key = new TemplateKey(Guid.NewGuid().ToString(), 7);
         var store = Substitute.For<ITemplateStore>();
         store.FindAsync(default, Ct).ReturnsForAnyArgs(
-            ValueTask.FromResult(ErrorOr<TemplateSource?>.ForValue(new TemplateSource(key, "First"))),
+            ValueTask.FromResult(ErrorOr<TemplateSource?>.ForValue(new TemplateSource(key, firstText))),
             ValueTask.FromResult(ErrorOr<TemplateSource?>.ForValue(new TemplateSource(key, "Second"))));
         var engine = EngineWith(tenantStore: null, store);
         await engine.PrepareAsync(ARequest(), Ct);
@@ -134,7 +135,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
         var outcome = await OutcomeOfAsync(engine, ARequest());
 
         // Assert
-        Assert.Equal("First", outcome);
+        Assert.Equal(firstText, outcome);
         await store.Received(2).FindAsync(ALookup(), Ct);
     }
 
@@ -142,11 +143,12 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
     public async Task PrepareAsync_SourceWithANewVersion_ParsesItAgain()
     {
         // Arrange
+        const string secondText = "Second";
         var id = Guid.NewGuid().ToString();
         var store = Substitute.For<ITemplateStore>();
         store.FindAsync(default, Ct).ReturnsForAnyArgs(
             ValueTask.FromResult(ErrorOr<TemplateSource?>.ForValue(new TemplateSource(new(id, 1), "First"))),
-            ValueTask.FromResult(ErrorOr<TemplateSource?>.ForValue(new TemplateSource(new(id, 2), "Second"))));
+            ValueTask.FromResult(ErrorOr<TemplateSource?>.ForValue(new TemplateSource(new(id, 2), secondText))));
         var engine = EngineWith(tenantStore: null, store);
         await engine.PrepareAsync(ARequest(), Ct);
 
@@ -154,7 +156,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
         var outcome = await OutcomeOfAsync(engine, ARequest());
 
         // Assert
-        Assert.Equal("Second", outcome);
+        Assert.Equal(secondText, outcome);
         await store.Received(2).FindAsync(ALookup(), Ct);
     }
 
@@ -228,22 +230,24 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
     public async Task PrepareAsync_NoTemplate_LooksUpTheEightTemplatesInTheOrderOfD123AndGivesNotFound()
     {
         // Arrange
+        const string language = "hu";
+        const string scope = "acme";
         var stores = new FallbackStores([]);
         await using var host = new EngineHost(stores.Tenant, stores.Shared);
 
         // Act
-        var result = await host.Engine(_t1).PrepareAsync(ARequest("hu") with { Scope = "acme" }, Ct);
+        var result = await host.Engine(_t1).PrepareAsync(ARequest(language) with { Scope = scope }, Ct);
 
         // Assert
         Assert.Equal(404, CodeOf(result));
         Assert.Equal(_tenantWithScope, stores.Lookups);
-        await stores.Tenant.Received(1).FindAsync(ALookupIn("hu", "acme"), Ct);
-        await stores.Tenant.Received(1).FindAsync(ALookupIn("hu", scope: null), Ct);
-        await stores.Tenant.Received(1).FindAsync(ALookupIn("en", "acme"), Ct);
+        await stores.Tenant.Received(1).FindAsync(ALookupIn(language, scope), Ct);
+        await stores.Tenant.Received(1).FindAsync(ALookupIn(language, scope: null), Ct);
+        await stores.Tenant.Received(1).FindAsync(ALookupIn("en", scope), Ct);
         await stores.Tenant.Received(1).FindAsync(ALookupIn("en", scope: null), Ct);
-        await stores.Shared.Received(1).FindAsync(ALookupIn("hu", "acme"), Ct);
-        await stores.Shared.Received(1).FindAsync(ALookupIn("hu", scope: null), Ct);
-        await stores.Shared.Received(1).FindAsync(ALookupIn("en", "acme"), Ct);
+        await stores.Shared.Received(1).FindAsync(ALookupIn(language, scope), Ct);
+        await stores.Shared.Received(1).FindAsync(ALookupIn(language, scope: null), Ct);
+        await stores.Shared.Received(1).FindAsync(ALookupIn("en", scope), Ct);
         await stores.Shared.Received(1).FindAsync(ALookupIn("en", scope: null), Ct);
     }
 
@@ -294,14 +298,15 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
     public async Task PrepareAsync_OptionalRequestWithATemplateOfItsLanguageAndScopeInTheSharedStore_GivesIt()
     {
         // Arrange
-        var stores = new FallbackStores(["shared:hu:acme"]);
+        const string seeded = "shared:hu:acme";
+        var stores = new FallbackStores([seeded]);
         await using var host = new EngineHost(stores.Tenant, stores.Shared);
 
         // Act
         var outcome = await OutcomeOfAsync(host.Engine(_t1), ARequest("hu") with { Scope = "acme", Optional = true });
 
         // Assert
-        Assert.Equal("shared:hu:acme", outcome);
+        Assert.Equal(seeded, outcome);
         Assert.Equal(["tenant:hu:acme", "shared:hu:acme"], stores.Lookups);
     }
 

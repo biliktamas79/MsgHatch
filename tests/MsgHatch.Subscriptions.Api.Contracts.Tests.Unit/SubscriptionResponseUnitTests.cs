@@ -43,7 +43,8 @@ public sealed class SubscriptionResponseUnitTests(ScenarioRegistry scenario) : I
     public void ToSubscription_SettingsOfAChannelWithNoSettingsType_GivesJsonChannelSettingsWithTheSameJson()
     {
         // Arrange
-        using var document = JsonDocument.Parse("""{"phone":"+3612345678","priority":2}""");
+        const string json = """{"phone":"+3612345678","priority":2}""";
+        using var document = JsonDocument.Parse(json);
         var subscription = Scenario.S6 with { Channel = new ChannelId("Sms"), Settings = new JsonChannelSettings(document.RootElement.Clone()) };
 
         // Act
@@ -53,7 +54,7 @@ public sealed class SubscriptionResponseUnitTests(ScenarioRegistry scenario) : I
         // Assert
         var settings = Assert.IsType<JsonChannelSettings>(roundTrip.Value.Settings);
         Assert.Equal(
-            ("""{"phone":"+3612345678","priority":2}""", subscription with { Settings = null }),
+            (json, subscription with { Settings = null }),
             (settings.Json.GetRawText(), roundTrip.Value with { Settings = null }));
     }
 

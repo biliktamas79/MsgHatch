@@ -46,14 +46,15 @@ public abstract partial class TemplateEngineTestsBase<TEngine>
     {
         // Arrange
         TestData.Seed(Type, "en", Part, TemplatePartKind.PlainText, "Order {Name}");
+        var payload = APayload();
 
         // Act
         var result = await Engine.PrepareAsync(ARequest(), Ct);
 
         // Assert
-        var rendered = await result.Value.RenderAsync(APayload(name: "Client 1"), CultureInfo.GetCultureInfo("en"), Ct);
+        var rendered = await result.Value.RenderAsync(payload, CultureInfo.GetCultureInfo("en"), Ct);
         Assert.Equal(
-            (new TemplateLookup(Type, "en", Scope: null, Part, TemplatePartKind.PlainText), "Order Client 1"),
+            (new TemplateLookup(Type, "en", Scope: null, Part, TemplatePartKind.PlainText), $"Order {payload.Name}"),
             (result.Value.Lookup, rendered.Value));
     }
 }

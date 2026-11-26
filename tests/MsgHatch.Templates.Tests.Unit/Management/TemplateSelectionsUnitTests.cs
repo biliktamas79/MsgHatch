@@ -205,19 +205,20 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => queries).UseTemplateCommands((_, _) => commands), false, true);
         await using var scope = provider.CreateAsyncScope();
         var lookup = _lookup with { Scope = "acme-company" };
+        const string text = "Secret text";
 
         // Act
-        await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().CheckTemplateAsync(lookup, "Secret text", Ct);
-        await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().PreviewTemplateAsync(lookup, "Secret text", Ct);
-        await scope.ServiceProvider.GetRequiredService<ITemplateCommands>().SaveTemplateAsync(lookup, "Secret text", 0, Ct);
+        await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().CheckTemplateAsync(lookup, text, Ct);
+        await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().PreviewTemplateAsync(lookup, text, Ct);
+        await scope.ServiceProvider.GetRequiredService<ITemplateCommands>().SaveTemplateAsync(lookup, text, 0, Ct);
 
         // Assert
         Assert.Equal(
             (3, false),
             (ManagementRecords(provider).Count, provider.LogRecords().Any(static record => record.ContainsText("Secret") || record.ContainsText("acme"))));
-        await queries.Received(1).CheckTemplateAsync(lookup, "Secret text", Ct);
-        await queries.Received(1).PreviewTemplateAsync(lookup, "Secret text", Ct);
-        await commands.Received(1).SaveTemplateAsync(lookup, "Secret text", 0, Ct);
+        await queries.Received(1).CheckTemplateAsync(lookup, text, Ct);
+        await queries.Received(1).PreviewTemplateAsync(lookup, text, Ct);
+        await commands.Received(1).SaveTemplateAsync(lookup, text, 0, Ct);
     }
 
     private static int LogLevelOf(LogLevel level) => (int)level;

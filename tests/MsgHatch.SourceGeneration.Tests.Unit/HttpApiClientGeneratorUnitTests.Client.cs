@@ -10,7 +10,10 @@ namespace MsgHatch.SourceGeneration.Tests.Unit;
 /// <summary>The generated client <c>ShapesApi</c>: the request of each shape, and the error of each failure (D233, D236).</summary>
 public sealed partial class HttpApiClientGeneratorUnitTests
 {
-    private const string _entryJson = """{"messageType":"A","language":"en","companyId":null,"part":"subject","kind":"PlainText","version":7}""";
+    private const string _entryMessageType = "A";
+
+    private const string _entryJson =
+        $$"""{"messageType":"{{_entryMessageType}}","language":"en","companyId":null,"part":"subject","kind":"PlainText","version":7}""";
 
     private static readonly Guid _id = new("0b9d3a4e-1c2f-4e5a-9b8c-7d6e5f4a3b2c");
 
@@ -67,15 +70,18 @@ public sealed partial class HttpApiClientGeneratorUnitTests
     public async Task SaveAsync_Body_SendsItAsJsonAndReadsTheResponseBody()
     {
         // Arrange
+        const string text = "Order";
+        const long version = 3;
         var (api, handler) = AnApi(static _ => Json(HttpStatusCode.OK, _entryJson));
+        var save = new TemplateSaveRequest(text, version);
 
         // Act
-        var entry = await api.SaveAsync(new TemplateSaveRequest("Order", 3), Ct);
+        var entry = await api.SaveAsync(save, Ct);
 
         // Assert
         var (request, body) = Assert.Single(handler.Requests);
         Assert.Equal(
-            (HttpMethod.Put, "http://host/api/shapes/items", "application/json", """{"text":"Order","version":3}""", "A"),
+            (HttpMethod.Put, "http://host/api/shapes/items", "application/json", $$"""{"text":"{{text}}","version":{{version}}}""", _entryMessageType),
             (request.Method, request.RequestUri!.AbsoluteUri, request.Content!.Headers.ContentType!.MediaType, body, entry.Value.MessageType));
     }
 

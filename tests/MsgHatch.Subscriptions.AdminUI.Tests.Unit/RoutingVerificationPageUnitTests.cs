@@ -16,14 +16,15 @@ public sealed class RoutingVerificationPageUnitTests : SubscriptionPageContext
     public void ClickRun_UsersLanguagesAndMessageType_SendsTheRequestAndShowsTheReport()
     {
         // Arrange
+        const string errorName = "NotFound";
         var passed = new RoutingCheck(Requests, "R1", SubscriptionOwner.Default, new DeliveryTarget(DeliveryTargetKind.User, "1"), Fax, "en",
             RoutingCheckOutcome.Passed, null, null, null);
-        var failed = passed with { TestCase = "R2", Outcome = RoutingCheckOutcome.Failed, ErrorCode = 404, ErrorName = "NotFound" };
+        var failed = passed with { TestCase = "R2", Outcome = RoutingCheckOutcome.Failed, ErrorCode = 404, ErrorName = errorName };
         Verifier.VerifyAsync(Arg.Any<RoutingVerificationRequest>(), Arg.Any<CancellationToken>()).Returns(Ok(new RoutingVerificationReport([passed, failed])));
         var cut = Render<RoutingVerificationPage>();
         cut.Find("#msghatch-verify-users").Change("1\n2");
         cut.Find("#msghatch-verify-languages").Change("en\nhu");
-        cut.Find("#msghatch-verify-type").Change("Requests");
+        cut.Find("#msghatch-verify-type").Change(Requests.Name);
 
         // Act
         cut.Find("[data-action=verify]").Click();
@@ -31,8 +32,8 @@ public sealed class RoutingVerificationPageUnitTests : SubscriptionPageContext
         // Assert
         Assert.Equal("Passed: 1. Failed: 1. Skipped: 0.", cut.Find("[data-field=totals]").TextContent);
         var rows = cut.FindAll("tr[data-row]");
-        Assert.Equal(["Passed", "Requests", "R1", "Default", "User 1", "Fax", "en", ""], rows[0].Children.Select(static cell => cell.TextContent));
-        Assert.Equal("NotFound", rows[1].Children[7].TextContent);
+        Assert.Equal(["Passed", Requests.Name, "R1", "Default", "User 1", Fax.Name, "en", ""], rows[0].Children.Select(static cell => cell.TextContent));
+        Assert.Equal(errorName, rows[1].Children[7].TextContent);
         Verifier.Received(1).VerifyAsync(ARequestOf([new UserId("1"), new UserId("2")], ["en", "hu"], Requests), Arg.Any<CancellationToken>());
     }
 

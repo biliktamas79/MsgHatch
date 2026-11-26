@@ -186,7 +186,8 @@ public abstract class DeliveryQueriesTestsBase<T>
     {
         // Arrange
         await using var host = await StartHostAsync();
-        var message = TestMessages.AnOutgoingMessage(new TestEnvelope("client1@example.com"), trace: new TestTrace("rule 7"));
+        var trace = new TestTrace("rule 7");
+        var message = TestMessages.AnOutgoingMessage(new TestEnvelope("client1@example.com"), trace: trace);
         IReadOnlyList<PublishTry> tries = [PublishTry.Cancel(message.Delivery.Id, 1, Now)];
         _services.Outbox.GetAsync(message.Delivery.Id, Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult(ErrorOr<OutgoingMessageHistory?>.ForValue(new OutgoingMessageHistory(message, tries))));
@@ -196,7 +197,7 @@ public abstract class DeliveryQueriesTestsBase<T>
 
         // Assert
         Assert.Equal(
-            (OutgoingMessageSummary.Of(message), JsonSerializer.Serialize(new TestTrace("rule 7"), TestJsonContext.Default.TestTrace)),
+            (OutgoingMessageSummary.Of(message), JsonSerializer.Serialize(trace, TestJsonContext.Default.TestTrace)),
             (detail.Value.Summary, detail.Value.Trace));
         Assert.Equal(tries, detail.Value.Tries);
     }

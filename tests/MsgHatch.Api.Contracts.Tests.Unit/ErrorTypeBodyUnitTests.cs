@@ -40,13 +40,15 @@ public sealed class ErrorTypeBodyUnitTests
     public void ToErrorType_TypeOfTheConsumer_GivesAnEqualTypeWithTheNameAndTheFlagOfTheBody()
     {
         // Arrange
-        var consumerType = new ErrorType(600, "OrderLocked", IsTransient: true);
+        const int code = 600;
+        const string name = "OrderLocked";
+        var consumerType = new ErrorType(code, name, IsTransient: true);
 
         // Act
         var type = ErrorTypeBody.From(consumerType).ToErrorType();
 
         // Assert
-        Assert.Equal((consumerType, 600, "OrderLocked", true), (type, type.Code, type.Name, type.IsTransient));
+        Assert.Equal((consumerType, code, name, true), (type, type.Code, type.Name, type.IsTransient));
     }
 
     [Fact]

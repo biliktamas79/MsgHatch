@@ -97,16 +97,17 @@ public sealed class RegistryQueriesLoggingWrapperUnitTests
     public async Task GetChannelHistoryAsync_ChannelThatIsNotRegistered_LogsOneRecordWithTheErrorType()
     {
         // Arrange
+        const string unknown = "Unknown";
         await using var provider = AProvider();
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        await scope.ServiceProvider.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None).GetChannelHistoryAsync(new ChannelId("Unknown"), Ct);
+        await scope.ServiceProvider.GetRequiredKeyedService<IRegistryQueries>(TenantKey.None).GetChannelHistoryAsync(new ChannelId(unknown), Ct);
 
         // Assert
         var record = Assert.Single(RecordsOf(provider));
         Assert.Equal(
-            (2914, Errors.NotFound.Code.ToString(CultureInfo.InvariantCulture), "Unknown"),
+            (2914, Errors.NotFound.Code.ToString(CultureInfo.InvariantCulture), unknown),
             (record.Id.Id, record.GetStructuredStateValue("ErrorCode"), record.GetStructuredStateValue("Channel")));
     }
 

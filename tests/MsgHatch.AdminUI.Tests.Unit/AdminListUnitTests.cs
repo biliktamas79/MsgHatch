@@ -29,11 +29,14 @@ public sealed class AdminListUnitTests : BunitContext
     [Fact]
     public void Render_EmptyList_ShowsTheEmptyText()
     {
+        // Arrange
+        const string emptyText = "There are no templates.";
+
         // Act
-        var cut = RenderList(Items(0), emptyText: "There are no templates.");
+        var cut = RenderList(Items(0), emptyText: emptyText);
 
         // Assert
-        Assert.Equal("There are no templates.", cut.Find("[data-state=empty]").TextContent);
+        Assert.Equal(emptyText, cut.Find("[data-state=empty]").TextContent);
     }
 
     [Fact]

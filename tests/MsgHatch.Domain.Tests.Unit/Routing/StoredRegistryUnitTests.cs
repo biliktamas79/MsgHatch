@@ -23,7 +23,9 @@ public sealed partial class StoredRegistryUnitTests
     public async Task FindChannel_EntryWithAllValues_GivesTheNameTheDescriptionAndTheEnabledFlagOfTheEntry()
     {
         // Arrange
-        var entry = AChannelEntry(displayName: "Shop channel", description: "Stored description", enabled: false, revision: 1);
+        const string displayName = "Shop channel";
+        const string description = "Stored description";
+        var entry = AChannelEntry(displayName: displayName, description: description, enabled: false, revision: 1);
         var store = AStoreThatReads(new RegistryEntries([entry], []));
         await using var provider = Build(store);
 
@@ -32,7 +34,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal<ChannelDescriptor?>(
-            TestChannel.Descriptor with { Name = "Shop channel", Description = "Stored description", Enabled = false },
+            TestChannel.Descriptor with { Name = displayName, Description = description, Enabled = false },
             channel);
         _ = store.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
     }
@@ -57,7 +59,8 @@ public sealed partial class StoredRegistryUnitTests
     public async Task Channels_OneChannelWithAnEntry_KeepsTheValuesOfTheCodeForTheOtherChannels()
     {
         // Arrange
-        var entry = AChannelEntry(TestChannel.SecondId, displayName: "Group channel", revision: 1);
+        const string displayName = "Group channel";
+        var entry = AChannelEntry(TestChannel.SecondId, displayName: displayName, revision: 1);
         var store = AStoreThatReads(new RegistryEntries([entry], []));
         await using var provider = Build(store);
 
@@ -66,7 +69,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal(
-            [TestChannel.Descriptor, TestChannel.SecondDescriptor with { Name = "Group channel", Description = "Stored description" }, TestChannel.ThirdDescriptor, DescribedChannel],
+            [TestChannel.Descriptor, TestChannel.SecondDescriptor with { Name = displayName, Description = entry.Description }, TestChannel.ThirdDescriptor, DescribedChannel],
             channels);
         _ = store.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
     }
@@ -75,8 +78,10 @@ public sealed partial class StoredRegistryUnitTests
     public async Task FindMessageType_EntryWithAllValues_GivesTheValuesOfTheEntryAndKeepsTheChannelsOfTheCode()
     {
         // Arrange
+        const string displayName = "Shop event";
+        const string description = "Stored description";
         var entry = AMessageTypeEntry(
-            disabledChannels: [TestChannel.ThirdId], displayName: "Shop event", description: "Stored description", enabled: false,
+            disabledChannels: [TestChannel.ThirdId], displayName: displayName, description: description, enabled: false,
             revision: 1);
         var store = AStoreThatReads(new RegistryEntries([], [entry]));
         await using var provider = Build(store);
@@ -86,7 +91,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal(
-            ("TestEvent", "Test,Third", "Shop event", "Stored description", false, "Third"),
+            ("TestEvent", "Test,Third", displayName, description, false, "Third"),
             (type!.Type.Name, string.Join(',', type.Channels.Select(static c => c.Name)), type.DisplayName, type.Description,
                 type.Enabled, string.Join(',', type.DisabledChannels!.Select(static c => c.Name))));
         _ = store.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
@@ -96,7 +101,8 @@ public sealed partial class StoredRegistryUnitTests
     public async Task MessageTypes_OneMessageTypeWithAnEntry_KeepsTheValuesOfTheCodeForTheOtherMessageType()
     {
         // Arrange
-        var store = AStoreThatReads(new RegistryEntries([], [AMessageTypeEntry(enabled: false, revision: 1)]));
+        var entry = AMessageTypeEntry(enabled: false, revision: 1);
+        var store = AStoreThatReads(new RegistryEntries([], [entry]));
         await using var provider = Build(store);
 
         // Act
@@ -104,7 +110,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal(
-            [("TestEvent", false, "Shop event"), ("OtherTestEvent", true, null)],
+            [("TestEvent", false, entry.DisplayName), ("OtherTestEvent", true, null)],
             types.Select(static type => (type.Type.Name, type.Enabled, type.DisplayName)));
         Assert.Null(types[1].DisabledChannels);
         _ = store.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
@@ -173,14 +179,15 @@ public sealed partial class StoredRegistryUnitTests
         var time = TestHost.NewFakeTime();
         await using var provider = Build(time: time);
         var registry = provider.GetRequiredService<IMessageRegistry>();
-        await provider.GetRequiredService<InMemoryRegistrySettingsStore>().SaveChannelEntryAsync(AChannelEntry(revision: 1), Ct);
+        var entry = AChannelEntry(revision: 1);
+        await provider.GetRequiredService<InMemoryRegistrySettingsStore>().SaveChannelEntryAsync(entry, Ct);
         var before = registry.FindChannel(TestChannel.Id)!.Name;
 
         // Act
         time.Advance(_interval);
 
         // Assert
-        Assert.Equal(("Test channel", "Shop channel"), (before, registry.FindChannel(TestChannel.Id)!.Name));
+        Assert.Equal(("Test channel", entry.DisplayName), (before, registry.FindChannel(TestChannel.Id)!.Name));
     }
 
     [Fact]
@@ -188,9 +195,10 @@ public sealed partial class StoredRegistryUnitTests
     {
         // Arrange
         var time = TestHost.NewFakeTime();
+        var entry = AChannelEntry(revision: 1);
         var store = Substitute.For<IRegistrySettingsStore>();
         store.GetEntriesAsync(Ct).ReturnsForAnyArgs(
-            ValueTask.FromResult(ErrorOr<RegistryEntries>.ForValue(new RegistryEntries([AChannelEntry(revision: 1)], []))),
+            ValueTask.FromResult(ErrorOr<RegistryEntries>.ForValue(new RegistryEntries([entry], []))),
             ValueTask.FromResult(ErrorOr<RegistryEntries>.ForError(new Error(Errors.Unavailable))));
         await using var provider = Build(store, time, enableLogging: false);
         var registry = provider.GetRequiredService<IMessageRegistry>();
@@ -200,7 +208,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
-        Assert.Equal(("Shop channel", LogLevel.Warning, 2908), (registry.FindChannel(TestChannel.Id)!.Name, record.Level, record.Id.Id));
+        Assert.Equal((entry.DisplayName, LogLevel.Warning, 2908), (registry.FindChannel(TestChannel.Id)!.Name, record.Level, record.Id.Id));
         _ = store.Received(2).GetEntriesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -243,6 +251,7 @@ public sealed partial class StoredRegistryUnitTests
     public async Task Refresh_ReadThatAnOwnWriteOvertakes_DoesNotHideTheWrite()
     {
         // Arrange
+        const string displayName = "Saved during the read";
         var time = TestHost.NewFakeTime();
         IRegistryWriter? writer = null;
         var store = AStoreThatReads(NoEntries());
@@ -250,7 +259,7 @@ public sealed partial class StoredRegistryUnitTests
             _ => ValueTask.FromResult(ErrorOr<RegistryEntries>.ForValue(NoEntries())),
             async ValueTask<ErrorOr<RegistryEntries>> (call) =>
             {
-                _ = await writer!.SaveChannelAsync(AChannelEntry(displayName: "Saved during the read"), Ct);
+                _ = await writer!.SaveChannelAsync(AChannelEntry(displayName: displayName), Ct);
                 return NoEntries();
             });
         await using var provider = Build(store, time);
@@ -261,10 +270,10 @@ public sealed partial class StoredRegistryUnitTests
         time.Advance(_interval);
 
         // Assert
-        Assert.Equal("Saved during the read", registry.FindChannel(TestChannel.Id)!.Name);
+        Assert.Equal(displayName, registry.FindChannel(TestChannel.Id)!.Name);
         _ = store.Received(2).GetEntriesAsync(Arg.Any<CancellationToken>());
         _ = store.Received(1).SaveChannelEntryAsync(
-            Arg.Is<ChannelEntry>(entry => entry.Channel == TestChannel.Id && entry.DisplayName == "Saved during the read" && entry.Revision == 1), Ct);
+            Arg.Is<ChannelEntry>(entry => entry.Channel == TestChannel.Id && entry.DisplayName == displayName && entry.Revision == 1), Ct);
     }
 
     [Fact]

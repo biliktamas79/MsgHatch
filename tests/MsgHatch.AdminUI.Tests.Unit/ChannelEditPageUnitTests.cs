@@ -79,20 +79,21 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
     public void ClickSave_TypedText_SavesItAndShowsSavedWithTheValuesOfASecondRead()
     {
         // Arrange
+        const string typedName = "Shop email";
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok(Channels), Ok<IReadOnlyList<RegistryChannel>>([_storedEmail]));
         Commands.SaveChannelAsync(Arg.Any<ChannelEntry>(), Arg.Any<CancellationToken>()).Returns(Ok(_stored));
         var cut = RenderPage("Email");
-        cut.Find("[data-field=display-name]").Change("Shop email");
+        cut.Find("[data-field=display-name]").Change(typedName);
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
         Assert.Equal(
-            ("Saved.", "Shop email", "2", 1, 0),
+            ("Saved.", _stored.DisplayName, "2", 1, 0),
             (cut.Find("[data-actions-middle] [data-state=saved]").TextContent, ValueOf(cut, "display-name"), cut.Find("[data-field=revision]").TextContent,
                 cut.FindAll("[data-action=reset]").Count, cut.FindAll("[data-state=pending]").Count));
-        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, "Shop email", null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
+        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, typedName, null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
@@ -100,19 +101,20 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
     public void ClickSave_Conflict_ReadsTheChannelAgainAndShowsTheTextOfConflict()
     {
         // Arrange
+        const string typedName = "My name";
         Queries.GetChannelsAsync(Arg.Any<CancellationToken>()).Returns(Ok(Channels), Ok<IReadOnlyList<RegistryChannel>>([_storedEmail]));
         Commands.SaveChannelAsync(Arg.Any<ChannelEntry>(), Arg.Any<CancellationToken>()).Returns(Fail<ChannelEntry>(Errors.Conflict));
         var cut = RenderPage("Email");
-        cut.Find("[data-field=display-name]").Change("My name");
+        cut.Find("[data-field=display-name]").Change(typedName);
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
         Assert.Equal(
-            (AdminErrors.ConflictText, "Shop email", 0),
+            (AdminErrors.ConflictText, _stored.DisplayName, 0),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, ValueOf(cut, "display-name"), cut.FindAll("[data-state=saved]").Count));
-        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, "My name", null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
+        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, typedName, null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
@@ -120,19 +122,21 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
     public void ClickSave_Error_ShowsTheTextOfTheErrorAndKeepsTheFields()
     {
         // Arrange
+        const string errorText = "DisplayName has at most 200 characters.";
+        const string typedName = "My name";
         Commands.SaveChannelAsync(Arg.Any<ChannelEntry>(), Arg.Any<CancellationToken>()).Returns(
-            ValueTask.FromResult(ErrorOr<ChannelEntry>.ForError(new Error(Errors.ValidationFailed, "DisplayName has at most 200 characters."))));
+            ValueTask.FromResult(ErrorOr<ChannelEntry>.ForError(new Error(Errors.ValidationFailed, errorText))));
         var cut = RenderPage("Email");
-        cut.Find("[data-field=display-name]").Change("My name");
+        cut.Find("[data-field=display-name]").Change(typedName);
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
         Assert.Equal(
-            ("DisplayName has at most 200 characters.", "My name"),
+            (errorText, typedName),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, ValueOf(cut, "display-name")));
-        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, "My name", null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
+        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, typedName, null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
         Queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 

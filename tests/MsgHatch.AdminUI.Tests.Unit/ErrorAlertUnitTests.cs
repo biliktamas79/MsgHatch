@@ -40,11 +40,14 @@ public sealed class ErrorAlertUnitTests : BunitContext
     [Fact]
     public void Render_ConflictWithAText_ShowsTheTextInPlaceOfTheTextOfConflict()
     {
+        // Arrange
+        const string text = "A duplicate.";
+
         // Act
-        var cut = Render<ErrorAlert>(p => p.Add(x => x.Error, new Error(Errors.Conflict, "A duplicate.")).Add(x => x.Text, "A duplicate."));
+        var cut = Render<ErrorAlert>(p => p.Add(x => x.Error, new Error(Errors.Conflict, text)).Add(x => x.Text, text));
 
         // Assert
         var alert = cut.Find(".alert-danger");
-        Assert.Equal(("A duplicate.", "409"), (alert.TextContent, alert.GetAttribute("data-error-code")));
+        Assert.Equal((text, "409"), (alert.TextContent, alert.GetAttribute("data-error-code")));
     }
 }

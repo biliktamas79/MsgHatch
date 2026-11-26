@@ -149,17 +149,18 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
     public async Task GetUsersAsync_DirectoryOfNoTenant_LogsNoTenant()
     {
         // Arrange
+        const string operation = "GetUsers";
         var inner = ADirectory(error: null);
         await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        await CallAsync(scope.ServiceProvider.GetRequiredService<IRecipientDirectory>(), "GetUsers");
+        await CallAsync(scope.ServiceProvider.GetRequiredService<IRecipientDirectory>(), operation);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((string?)null, 1112), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
-        await ReceivedOneCallAsync(inner, "GetUsers");
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Fact]

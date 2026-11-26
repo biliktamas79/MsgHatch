@@ -36,10 +36,12 @@ public sealed class ResendExtensionsUnitTests : IDisposable
     public async Task UseResend_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string apiKey = "re_root";
+        const string senderEmail = "root@example.com";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:Resend:ApiKey"] = "re_root",
-            ["Messaging:Resend:SenderEmail"] = "root@example.com",
+            ["Messaging:Resend:ApiKey"] = apiKey,
+            ["Messaging:Resend:SenderEmail"] = senderEmail,
             ["MsgHatch:Resend:SenderName"] = "Default",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseResend();
@@ -49,7 +51,7 @@ public sealed class ResendExtensionsUnitTests : IDisposable
         var options = provider.GetRequiredService<IOptions<ResendOptions>>().Value;
 
         // Assert
-        Assert.Equal(("re_root", "root@example.com", (string?)null), (options.ApiKey, options.SenderEmail, options.SenderName));
+        Assert.Equal((apiKey, senderEmail, (string?)null), (options.ApiKey, options.SenderEmail, options.SenderName));
     }
 
     [Fact]
@@ -106,7 +108,9 @@ public sealed class ResendExtensionsUnitTests : IDisposable
     public async Task UseResend_OptionsInTheConfiguration_SendsWithTheApiKeyAndFromTheSenderOfTheConfiguration()
     {
         // Arrange
-        var configuration = new Dictionary<string, string?> { ["MsgHatch:Resend:ApiKey"] = "re_config", ["MsgHatch:Resend:SenderEmail"] = "config@example.com" };
+        const string apiKey = "re_config";
+        const string senderEmail = "config@example.com";
+        var configuration = new Dictionary<string, string?> { ["MsgHatch:Resend:ApiKey"] = apiKey, ["MsgHatch:Resend:SenderEmail"] = senderEmail };
         var services = TestHost.CreateServices(configuration: configuration);
         services.AddMsgHatch().UseResend();
         await using var provider = WithTheFakeApi(services).Build();
@@ -117,7 +121,7 @@ public sealed class ResendExtensionsUnitTests : IDisposable
         // Assert
         var request = Assert.Single(_api.Requests);
         Assert.Equal(
-            ($"Bearer {configuration["MsgHatch:Resend:ApiKey"]}", configuration["MsgHatch:Resend:SenderEmail"]),
+            ($"Bearer {apiKey}", senderEmail),
             (request.Header("Authorization"), request.Json?["from"]?.GetValue<string>()));
     }
 

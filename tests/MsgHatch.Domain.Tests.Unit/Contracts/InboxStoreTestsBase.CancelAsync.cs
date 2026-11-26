@@ -22,9 +22,11 @@ public abstract partial class InboxStoreTestsBase<TStore>
     public async Task CancelAsync_PendingMessage_KeepsItsTriesAndItsLastError()
     {
         // Arrange
+        const string lastError = "Unavailable: down";
+        var lastTryAtUtc = Now.AddMinutes(-1);
         var message = await AddAsync(With(AMessage(T1), delivery => delivery with
         {
-            TryCount = 2, LastTryAtUtc = Now.AddMinutes(-1), LastError = "Unavailable: down",
+            TryCount = 2, LastTryAtUtc = lastTryAtUtc, LastError = lastError,
         }));
 
         // Act
@@ -33,7 +35,7 @@ public abstract partial class InboxStoreTestsBase<TStore>
         // Assert
         var delivery = (await StoredAsync(message)).Delivery;
         Assert.Equal(
-            (DeliveryStatus.Cancelled, 2, (DateTime?)Now.AddMinutes(-1), "Unavailable: down"),
+            (DeliveryStatus.Cancelled, 2, (DateTime?)lastTryAtUtc, lastError),
             (delivery.Status, delivery.TryCount, delivery.LastTryAtUtc, delivery.LastError));
     }
 

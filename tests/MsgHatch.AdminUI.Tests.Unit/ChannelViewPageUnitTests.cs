@@ -13,11 +13,11 @@ public sealed class ChannelViewPageUnitTests : RegistryPageContext
     public void Render_KnownChannel_ShowsItsFieldsWithTheFeaturesAsBadges()
     {
         // Act
-        var cut = RenderPage("Email");
+        var cut = RenderPage(Email.Name);
 
         // Assert
         Assert.Equal(
-            ("Email", "Email channel", "Sends emails", "Yes", "2", "Languages,RichText"),
+            (Email.Name, "Email channel", "Sends emails", "Yes", "2", "Languages,RichText"),
             (Field(cut, "id"), Field(cut, "name"), Field(cut, "description"), Field(cut, "enabled"), Field(cut, "revision"),
                 string.Join(',', cut.FindAll("[data-field=features] .badge").Select(static badge => badge.TextContent))));
     }

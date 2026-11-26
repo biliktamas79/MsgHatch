@@ -117,13 +117,14 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
     public async Task SendAsync_RedirectTo_SendsToThatGroupInPlaceOfTheTarget(string row, string? tenant, DeliveryTarget target)
     {
         // Arrange
+        const string redirectTo = "testers";
         var message = SignalRMessages.AnOutgoingMessage(tenant: TenantOf(tenant), target: target, flags: MessageFlags.Test);
 
         // Act
-        await Transport.SendAsync(message, "testers", Ct);
+        await Transport.SendAsync(message, redirectTo, Ct);
 
         // Assert
-        Assert.Equal((row, "Group", "testers"), (row, _hub.SingleName().Method, _hub.SingleName().Name));
+        Assert.Equal((row, "Group", redirectTo), (row, _hub.SingleName().Method, _hub.SingleName().Name));
         Assert.Same(message.Envelope.Payload, _hub.SentPayload());
     }
 

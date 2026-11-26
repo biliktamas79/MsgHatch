@@ -229,15 +229,16 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
     public async Task RenderVersion_WritableStore_GivesTheTextOfTheInnerStore()
     {
         // Arrange
+        const string versionText = "Version of the entry";
         var inner = AWritableStore();
-        inner.RenderVersion(_entry.Version).Returns("Version of the entry");
+        inner.RenderVersion(_entry.Version).Returns(versionText);
         await using var provider = BuildWithSharedStore(inner);
 
         // Act
         var text = provider.GetRequiredService<ITemplateStore>().RenderVersion(_entry.Version);
 
         // Assert
-        Assert.Equal(("Version of the entry", true), (text, provider.GetRequiredService<ITemplateStore>() is ITemplateWriter));
+        Assert.Equal((versionText, true), (text, provider.GetRequiredService<ITemplateStore>() is ITemplateWriter));
     }
 
     private static ITemplateStore AWritableStore()

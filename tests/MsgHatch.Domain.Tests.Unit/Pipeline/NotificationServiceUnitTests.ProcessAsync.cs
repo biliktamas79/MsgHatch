@@ -223,7 +223,9 @@ public sealed partial class NotificationServiceUnitTests
     public async Task ProcessAsync_Routes_EachOutgoingMessageHasTheChannelContentTypeAndEnvelopeOfItsRegistration()
     {
         // Arrange
-        _doubles.Routes = [ARoute("u1", address: "client1@example.com")];
+        const string userId = "u1";
+        const string address = "client1@example.com";
+        _doubles.Routes = [ARoute(userId, address: address)];
         var context = AContext();
         await using var provider = _doubles.Build(_time);
 
@@ -233,10 +235,10 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         var message = Assert.IsType<OutgoingMessage<TestEnvelope>>(Assert.Single(_doubles.Stored));
         Assert.Equal(
-            (TestChannel.Id, "Test:TestEnvelope", 1, 1, new TestEnvelope("client1@example.com")),
+            (TestChannel.Id, "Test:TestEnvelope", 1, 1, new TestEnvelope(address)),
             (message.Channel, message.ContentType, message.ContentVersion, message.SchemaVersion, message.Envelope));
-        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
-        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo(userId), Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo(userId), Ct);
     }
 
     [Fact]

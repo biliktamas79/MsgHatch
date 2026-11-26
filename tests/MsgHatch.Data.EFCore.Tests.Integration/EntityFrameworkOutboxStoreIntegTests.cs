@@ -53,12 +53,17 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
     [Fact]
     public async Task SetChannelDownAsync_ReasonErrors_WritesTheStateRowWithTheEnumValuesAndTheTimes()
     {
+        // Arrange
+        const int errorCode = 503;
+        const string errorName = "Unavailable";
+        var down = new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, errorCode, errorName, Note: null);
+
         // Act
-        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
+        await Store.SetChannelDownAsync(down, Ct);
 
         // Assert
         Assert.Equal(
-            ["Test", "1", "Down", _isoTime, null, null, "Errors", _isoTime, "503", "Unavailable", null],
+            [TestChannel.Id.Name, "1", "Down", _isoTime, null, null, "Errors", _isoTime, $"{errorCode}", errorName, null],
             Assert.Single(await Database.RowsAsync(
                 "SELECT Channel, Version, Kind, SinceUtc, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc, ErrorCode, ErrorName, Note FROM [msghatch].[ChannelState]",
                 Ct)));

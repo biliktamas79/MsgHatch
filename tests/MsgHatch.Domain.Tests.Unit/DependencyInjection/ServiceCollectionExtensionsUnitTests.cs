@@ -55,8 +55,10 @@ public sealed class ServiceCollectionExtensionsUnitTests
     public async Task AddMsgHatch_SecondCallWithNoRoot_KeepsTheRootOfTheFirstCall()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["Messaging:DefaultLanguage"] = "de" });
-        services.AddMsgHatch(static options => options.Roles = MsgHatchRoles.None, "Messaging");
+        const string root = "Messaging";
+        const string language = "de";
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [$"{root}:DefaultLanguage"] = language });
+        services.AddMsgHatch(static options => options.Roles = MsgHatchRoles.None, root);
         var builder = services.AddMsgHatch();
         await using var provider = services.Build();
 
@@ -65,7 +67,7 @@ public sealed class ServiceCollectionExtensionsUnitTests
 
         // Assert
         Assert.Equal(
-            ("Messaging", "de", (Exception?)null),
+            (root, language, (Exception?)null),
             (builder.ConfigSectionPath, provider.GetRequiredService<IOptions<MsgHatchOptions>>().Value.DefaultLanguage, exception));
     }
 

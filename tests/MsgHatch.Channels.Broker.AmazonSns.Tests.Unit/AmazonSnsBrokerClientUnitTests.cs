@@ -166,27 +166,32 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
     {
         // Arrange
         Driver.Accepts();
+        var payload = new TestPayload("order 1001");
 
         // Act
-        await Client.PublishAsync(APublish(payload: new TestPayload("order 1001")), Ct);
+        await Client.PublishAsync(APublish(payload: payload), Ct);
 
         // Assert
-        Assert.Equal("""{"text":"order 1001"}""", _driver.SentRequest().Message);
+        Assert.Equal($$"""{"text":"{{payload.Text}}"}""", _driver.SentRequest().Message);
     }
 
     [Fact]
     public async Task PublishAsync_Headers_SendsEachHeaderAsAStringMessageAttribute()
     {
         // Arrange
+        const string idHeader = "msghatch-id";
+        const string id = "id-1";
+        const string sourceHeader = "x-source";
+        const string source = "orders";
         Driver.Accepts();
-        var headers = new Dictionary<string, string> { ["msghatch-id"] = "id-1", ["x-source"] = "orders" };
+        var headers = new Dictionary<string, string> { [idHeader] = id, [sourceHeader] = source };
 
         // Act
         await Client.PublishAsync(APublish(headers: headers), Ct);
 
         // Assert
         Assert.Equal(
-            [("msghatch-id", "String", "id-1"), ("x-source", "String", "orders")],
+            [(idHeader, "String", id), (sourceHeader, "String", source)],
             _driver.SentRequest().MessageAttributes
                 .Select(static attribute => (attribute.Key, attribute.Value.DataType, attribute.Value.StringValue))
                 .OrderBy(static attribute => attribute.Key, StringComparer.Ordinal));

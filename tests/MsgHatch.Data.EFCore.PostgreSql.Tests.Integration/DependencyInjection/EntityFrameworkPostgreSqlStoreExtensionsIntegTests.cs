@@ -27,16 +27,17 @@ public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSq
     public async Task MigrateMsgHatchAsync_EmptyDatabaseAndASchemaOfTheOption_CreatesTheTablesAndTheHistoryTableInThatSchema()
     {
         // Arrange
+        const string schema = "other";
         var database = server.Database("schema");
-        await using var provider = MigratedStores.Build(database.ConnectionString, static o => o.Schema = "other");
+        await using var provider = MigratedStores.Build(database.ConnectionString, static o => o.Schema = schema);
 
         // Act
         await provider.MigrateMsgHatchAsync(ct: Ct);
 
         // Assert
         Assert.Equal(
-            [["other", "ChannelEntry"], ["other", "ChannelState"], ["other", "Inbox"], ["other", "MessageTypeEntry"],
-                ["other", "Outbox"], ["other", "__StoreMigrations"]],
+            [[schema, "ChannelEntry"], [schema, "ChannelState"], [schema, "Inbox"], [schema, "MessageTypeEntry"],
+                [schema, "Outbox"], [schema, "__StoreMigrations"]],
             await PostgreSqlSchema.TablesOfAsync(database, Ct));
     }
 

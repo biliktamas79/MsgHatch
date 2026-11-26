@@ -32,16 +32,17 @@ public abstract class DeliveryCommandsTestsBase<T>
     public async Task PauseChannelAsync_RegisteredChannel_SetsAnOperatorDownStateWithTheTimeAndTheNote()
     {
         // Arrange
+        const string note = "Ősz-űr outage";
         await using var host = await StartHostAsync();
         _services.OutboxDispatch.SetChannelDownAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<bool>.ForValue(true)));
 
         // Act
-        var error = await host.Service(TenantKey.None).PauseChannelAsync(TestChannel.Id, "Ősz-űr outage", Ct);
+        var error = await host.Service(TenantKey.None).PauseChannelAsync(TestChannel.Id, note, Ct);
 
         // Assert
         Assert.Null(error);
         await _services.OutboxDispatch.Received(1).SetChannelDownAsync(
-            new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "Ősz-űr outage"),
+            new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, note),
             Arg.Any<CancellationToken>());
     }
 

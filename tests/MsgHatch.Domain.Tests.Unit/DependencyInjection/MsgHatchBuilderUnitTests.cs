@@ -19,8 +19,9 @@ public sealed partial class MsgHatchBuilderUnitTests
     public async Task ConfigureSharedOptions_SectionThatALaterSetupMethodBinds_TheValueFromCodeWins()
     {
         // Arrange
+        const string fromCode = "code";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["Test:Shared:Value"] = "section" });
-        services.AddMsgHatch().ConfigureSharedOptions<SharedTestOptions>("UseFirstStores", static o => o.Value = "code");
+        services.AddMsgHatch().ConfigureSharedOptions<SharedTestOptions>("UseFirstStores", static o => o.Value = fromCode);
         services.AddOptions<SharedTestOptions>().BindConfiguration(SharedTestOptions.SectionName);
         await using var provider = services.Build();
 
@@ -28,7 +29,7 @@ public sealed partial class MsgHatchBuilderUnitTests
         var options = provider.GetRequiredService<IOptions<SharedTestOptions>>().Value;
 
         // Assert
-        Assert.Equal("code", options.Value);
+        Assert.Equal(fromCode, options.Value);
     }
 
     [Fact]

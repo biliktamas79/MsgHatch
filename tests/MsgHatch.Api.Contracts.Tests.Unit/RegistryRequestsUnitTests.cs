@@ -12,23 +12,36 @@ public sealed class RegistryRequestsUnitTests
     [Fact]
     public void From_ChannelEntry_GivesTheBodyWithTheValuesAndTheExpectedRevision()
     {
+        // Arrange
+        const string displayName = "Értesítő";
+        const string description = "Stored description";
+        const int revision = 3;
+        var entry = new ChannelEntry(new ChannelId("Email"), displayName, description, Enabled: false, revision, _modifiedUtc);
+
         // Act
-        var body = ChannelEntryRequest.From(new ChannelEntry(new ChannelId("Email"), "Értesítő", "Stored description", Enabled: false, Revision: 3, _modifiedUtc));
+        var body = ChannelEntryRequest.From(entry);
 
         // Assert
-        Assert.Equal(new ChannelEntryRequest(Enabled: false, Revision: 3, "Értesítő", "Stored description"), body);
+        Assert.Equal(new ChannelEntryRequest(Enabled: false, revision, displayName, description), body);
     }
 
     [Fact]
     public void From_MessageTypeEntry_GivesTheBodyWithTheNamesOfTheDisabledChannels()
     {
+        // Arrange
+        const string description = "Sent invoices";
+        const string email = "Email";
+        const string sms = "Sms";
+        const int revision = 2;
+        var entry = new MessageTypeEntry(
+            new MessageType("Invoices"), null, description, Enabled: true, [new ChannelId(email), new ChannelId(sms)], revision, _modifiedUtc);
+
         // Act
-        var body = MessageTypeEntryRequest.From(
-            new MessageTypeEntry(new MessageType("Invoices"), null, "Sent invoices", Enabled: true, [new ChannelId("Email"), new ChannelId("Sms")], Revision: 2, _modifiedUtc));
+        var body = MessageTypeEntryRequest.From(entry);
 
         // Assert
         Assert.Equal(
-            (true, 2, (string?)null, "Sent invoices", "Email,Sms"),
+            (true, revision, (string?)null, description, $"{email},{sms}"),
             (body.Enabled, body.Revision, body.DisplayName, body.Description, string.Join(',', body.DisabledChannels!)));
     }
 }

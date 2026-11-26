@@ -8,14 +8,20 @@ public sealed class AdminDialogUnitTests : BunitContext
     [Fact]
     public void Render_ActionsWithStartAndEnd_PutsStartOnTheLeftAndEndOnTheRight()
     {
+        // Arrange
+        const string startText = "Back";
+        const string endText = "Save";
+        const string extraClass = "mt-3";
+
         // Act
-        var cut = Render<AdminActions>(p => p.Add(x => x.Start, Markup("<a data-x>Back</a>")).Add(x => x.End, Markup("<button data-x>Save</button>")).Add(x => x.Class, "mt-3"));
+        var cut = Render<AdminActions>(p => p.Add(x => x.Start, Markup($"<a data-x>{startText}</a>")).Add(x => x.End, Markup($"<button data-x>{endText}</button>"))
+            .Add(x => x.Class, extraClass));
 
         // Assert
         var bar = cut.Find("[data-actions]");
         Assert.Equal(
-            (true, true, "Back", "Save", true),
-            (bar.ClassList.Contains("justify-content-between"), bar.ClassList.Contains("mt-3"),
+            (true, true, startText, endText, true),
+            (bar.ClassList.Contains("justify-content-between"), bar.ClassList.Contains(extraClass),
                 cut.Find("[data-actions-start]").TextContent, cut.Find("[data-actions-end]").TextContent,
                 cut.Find("[data-actions-end]").ClassList.Contains("ms-auto")));
     }
@@ -58,15 +64,21 @@ public sealed class AdminDialogUnitTests : BunitContext
     [Fact]
     public void Render_OpenDialog_ShowsTheTitleTheBodyAndTheActionsInTheFooter()
     {
+        // Arrange
+        const string titleText = "New template";
+        const string bodyText = "Fields";
+        const string startText = "Cancel";
+        const string endText = "Open the editor";
+
         // Act
-        var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).Add(x => x.Title, "New template")
-            .AddChildContent("<p data-body>Fields</p>")
-            .Add(x => x.Start, Markup("<button>Cancel</button>")).Add(x => x.End, Markup("<button>Open the editor</button>")));
+        var cut = Render<AdminDialog>(p => p.Add(x => x.Open, true).Add(x => x.Title, titleText)
+            .AddChildContent($"<p data-body>{bodyText}</p>")
+            .Add(x => x.Start, Markup($"<button>{startText}</button>")).Add(x => x.End, Markup($"<button>{endText}</button>")));
 
         // Assert
         var title = cut.Find(".modal-title");
         Assert.Equal(
-            ("New template", title.Id, "Fields", "Cancel", "Open the editor", false),
+            (titleText, title.Id, bodyText, startText, endText, false),
             (title.TextContent, cut.Find("[data-dialog]").GetAttribute("aria-labelledby"), cut.Find(".modal-body [data-body]").TextContent,
                 cut.Find(".modal-footer [data-actions-start]").TextContent, cut.Find(".modal-footer [data-actions-end]").TextContent,
                 cut.Find(".modal-dialog").ClassList.Contains("modal-lg")));

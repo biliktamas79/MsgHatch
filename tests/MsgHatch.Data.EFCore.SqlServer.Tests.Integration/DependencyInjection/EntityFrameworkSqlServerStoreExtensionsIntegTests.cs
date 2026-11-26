@@ -25,16 +25,17 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
     public async Task MigrateMsgHatchAsync_EmptyDatabaseAndASchemaOfTheOption_CreatesTheTablesAndTheHistoryTableInThatSchema()
     {
         // Arrange
+        const string schema = "other";
         var database = server.Database("schema");
-        await using var provider = MigratedStores.Build(database.ConnectionString, static o => o.Schema = "other");
+        await using var provider = MigratedStores.Build(database.ConnectionString, static o => o.Schema = schema);
 
         // Act
         await provider.MigrateMsgHatchAsync(ct: Ct);
 
         // Assert
         Assert.Equal(
-            [["other", "__StoreMigrations"], ["other", "ChannelEntry"], ["other", "ChannelState"], ["other", "Inbox"],
-                ["other", "MessageTypeEntry"], ["other", "Outbox"]],
+            [[schema, "__StoreMigrations"], [schema, "ChannelEntry"], [schema, "ChannelState"], [schema, "Inbox"],
+                [schema, "MessageTypeEntry"], [schema, "Outbox"]],
             await database.RowsAsync("SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_SCHEMA, TABLE_NAME", Ct));
     }
 
@@ -118,13 +119,16 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
     public async Task MigrateMsgHatchAsync_CaseSensitiveCollationOfTheOption_KeepsTwoTenantsThatDifferOnlyInCaseApart()
     {
         // Arrange
+        const string collation = "Latin1_General_100_CS_AS";
+        const string lowerTenant = "t1";
+        const string upperTenant = "T1";
         var database = server.Database("collation");
-        await using var provider = MigratedStores.Build(database.ConnectionString, static o => o.TextCollation = "Latin1_General_100_CS_AS");
+        await using var provider = MigratedStores.Build(database.ConnectionString, static o => o.TextCollation = collation);
         await provider.MigrateMsgHatchAsync(ct: Ct);
         var store = new EntityFrameworkInboxStore(
             provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>(), new MsgHatchJson(TestContentTypes.ARegistry()));
-        var lower = TestMessages.AReceivedMessage(new TestEvent("text"), new TenantId("t1"));
-        var upper = TestMessages.AReceivedMessage(new TestEvent("text"), new TenantId("T1"), delivery: lower.Delivery);
+        var lower = TestMessages.AReceivedMessage(new TestEvent("text"), new TenantId(lowerTenant));
+        var upper = TestMessages.AReceivedMessage(new TestEvent("text"), new TenantId(upperTenant), delivery: lower.Delivery);
 
         // Act
         await store.For(TenantKey.For(lower.Tenant)).AddAsync(lower, Ct);
@@ -132,7 +136,7 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
 
         // Assert
         Assert.Equal(
-            [["t1", "Latin1_General_100_CS_AS"], ["T1", "Latin1_General_100_CS_AS"]],
+            [[lowerTenant, collation], [upperTenant, collation]],
             await database.RowsAsync(
                 """
                 SELECT TenantId, (SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Inbox' AND COLUMN_NAME = 'TenantId')

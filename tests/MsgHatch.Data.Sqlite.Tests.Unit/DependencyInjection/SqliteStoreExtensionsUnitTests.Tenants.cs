@@ -26,10 +26,12 @@ public sealed partial class SqliteStoreExtensionsUnitTests
     public async Task UseSqliteTenantStores_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string tenantConnectionString = "Data Source=root-{tenant}.db";
+        const string systemConnectionString = "Data Source=root.db";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:SqliteTenants:TenantConnectionString"] = "Data Source=root-{tenant}.db",
-            ["Messaging:SqliteTenants:SystemConnectionString"] = "Data Source=root.db",
+            ["Messaging:SqliteTenants:TenantConnectionString"] = tenantConnectionString,
+            ["Messaging:SqliteTenants:SystemConnectionString"] = systemConnectionString,
             ["MsgHatch:SqliteTenants:SystemConnectionString"] = "Data Source=default.db",
         });
         services.AddSingleton(new FixedTenants([]));
@@ -40,7 +42,7 @@ public sealed partial class SqliteStoreExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<SqliteTenantStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal(("Data Source=root-{tenant}.db", "Data Source=root.db"), (options.TenantConnectionString, options.SystemConnectionString));
+        Assert.Equal((tenantConnectionString, systemConnectionString), (options.TenantConnectionString, options.SystemConnectionString));
     }
 
     [Fact]

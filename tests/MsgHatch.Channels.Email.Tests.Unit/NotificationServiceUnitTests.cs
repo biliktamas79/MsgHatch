@@ -25,9 +25,11 @@ public sealed class NotificationServiceUnitTests
     public async Task ProcessAsync_InMemoryStoresEmbeddedTemplatesAndATestRouter_StoresARenderedEmailForEachRouteInTheInMemoryOutbox()
     {
         // Arrange
+        const string type = "OrderShipped";
+        const string emailName = "OrderShippedEmail";
         var services = TestHost.CreateServices();
         services.AddMsgHatchWithStores().UseTestTemplates()
-            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderShippedEmail")), name: "OrderShipped");
+            .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail(emailName)), name: type);
         await using var provider = services.Build();
 
         // Act
@@ -37,9 +39,9 @@ public sealed class NotificationServiceUnitTests
         Assert.Equal(2, result.Value.Stored);
         Assert.Equal(
             [
-                ((TenantId?)_tenant, new MessageType("OrderShipped"), new DeliveryTarget(DeliveryTargetKind.User, "u1"), "Email:OrderShippedEmail",
+                ((TenantId?)_tenant, new MessageType(type), new DeliveryTarget(DeliveryTargetKind.User, "u1"), $"Email:{emailName}",
                     (RouteTrace?)new TestTrace("TestRouter"), new EmailMessage("client1@example.com", "Order 3 for u1", "<p>Total: 1234.5</p>", "Total: 1234.5")),
-                (_tenant, new MessageType("OrderShipped"), new DeliveryTarget(DeliveryTargetKind.User, "u2"), "Email:OrderShippedEmail",
+                (_tenant, new MessageType(type), new DeliveryTarget(DeliveryTargetKind.User, "u2"), $"Email:{emailName}",
                     new TestTrace("TestRouter"), new EmailMessage("client2@example.com", "u2 rendelése: 3", "<p>Összeg: 1234,5</p>", null)),
             ],
             provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()

@@ -36,9 +36,10 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
     public async Task UseAmazonSes_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string senderEmail = "root@example.com";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:AmazonSes:SenderEmail"] = "root@example.com",
+            ["Messaging:AmazonSes:SenderEmail"] = senderEmail,
             ["MsgHatch:AmazonSes:SenderName"] = "Default",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseAmazonSes();
@@ -48,7 +49,7 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
         var options = provider.GetRequiredService<IOptions<AmazonSesOptions>>().Value;
 
         // Assert
-        Assert.Equal(("root@example.com", (string?)null), (options.SenderEmail, options.SenderName));
+        Assert.Equal((senderEmail, (string?)null), (options.SenderEmail, options.SenderName));
     }
 
     [Fact]
@@ -180,8 +181,9 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
     public async Task UseAmazonSes_SenderEmailInTheConfiguration_SendsFromThatAddress()
     {
         // Arrange
+        const string senderEmail = "config@example.com";
         var ses = AnAcceptingSes();
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:AmazonSes:SenderEmail"] = "config@example.com" });
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:AmazonSes:SenderEmail"] = senderEmail });
         services.AddSingleton(ses);
         services.AddMsgHatch().UseAmazonSes();
         await using var provider = services.Build();
@@ -190,7 +192,7 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
         await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
 
         // Assert
-        await ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(static r => r.FromEmailAddress == "config@example.com"), Arg.Any<CancellationToken>());
+        await ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(static r => r.FromEmailAddress == senderEmail), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -214,17 +216,18 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
     public async Task UseAmazonSes_SenderEmailString_SendsFromThatAddressAndWinsOverTheConfiguration()
     {
         // Arrange
+        const string senderEmail = "code@example.com";
         var ses = AnAcceptingSes();
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:AmazonSes:SenderEmail"] = "config@example.com" });
         services.AddSingleton(ses);
-        services.AddMsgHatch().UseAmazonSes("code@example.com");
+        services.AddMsgHatch().UseAmazonSes(senderEmail);
         await using var provider = services.Build();
 
         // Act
         await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
 
         // Assert
-        await ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(static r => r.FromEmailAddress == "code@example.com"), Arg.Any<CancellationToken>());
+        await ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(static r => r.FromEmailAddress == senderEmail), Arg.Any<CancellationToken>());
     }
 
     [Fact]

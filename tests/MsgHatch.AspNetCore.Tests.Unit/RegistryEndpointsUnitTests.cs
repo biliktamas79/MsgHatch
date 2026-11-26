@@ -48,14 +48,17 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
     public async Task PutChannel_Body_SavesTheEntryOfThePathAndTheBody()
     {
         // Arrange
-        const string body = """{"displayName":"Shop email","description":"Értesítő ő","enabled":false,"revision":3}""";
+        const string displayName = "Shop email";
+        const string description = "Értesítő ő";
+        const int revision = 3;
+        var body = $$"""{"displayName":"{{displayName}}","description":"{{description}}","enabled":false,"revision":{{revision}}}""";
 
         // Act
-        await _host.Client.SendAsync(RequestOf("PUT", "/registry/channels/Test", body), Ct);
+        await _host.Client.SendAsync(RequestOf("PUT", $"/registry/channels/{TestChannel.Id.Name}", body), Ct);
 
         // Assert
         await _host.Writer.Received(1).SaveChannelAsync(
-            new ChannelEntry(TestChannel.Id, "Shop email", "Értesítő ő", Enabled: false, Revision: 3, default), Arg.Any<CancellationToken>());
+            new ChannelEntry(TestChannel.Id, displayName, description, Enabled: false, revision, default), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -78,34 +81,42 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
     [Fact]
     public async Task PutChannel_SavedEntry_Gives200WithTheSavedEntry()
     {
+        // Arrange
+        const string displayName = "Shop email";
+        const int revision = 3;
+        var body = $$"""{"displayName":"{{displayName}}","enabled":false,"revision":{{revision}}}""";
+
         // Act
-        var response = await _host.Client.SendAsync(
-            RequestOf("PUT", "/registry/channels/Test", """{"displayName":"Shop email","enabled":false,"revision":3}"""), Ct);
+        var response = await _host.Client.SendAsync(RequestOf("PUT", $"/registry/channels/{TestChannel.Id.Name}", body), Ct);
 
         // Assert
         Assert.Equal(
             (HttpStatusCode.OK,
-                """{"channel":"Test","displayName":"Shop email","description":null,"enabled":false,"revision":4,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}"""),
+                $$"""{"channel":"{{TestChannel.Id.Name}}","displayName":"{{displayName}}","description":null,"enabled":false,"revision":4,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
         await _host.Writer.Received(1).SaveChannelAsync(
-            new ChannelEntry(TestChannel.Id, "Shop email", null, Enabled: false, Revision: 3, default), Arg.Any<CancellationToken>());
+            new ChannelEntry(TestChannel.Id, displayName, null, Enabled: false, revision, default), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task PutMessageType_SavedEntry_Gives200WithTheSavedEntry()
     {
+        // Arrange
+        const int revision = 0;
+        var type = new MessageType("TestEvent");
+        var body = $$"""{"enabled":false,"revision":{{revision}},"disabledChannels":["{{TestChannel.SecondId.Name}}"]}""";
+
         // Act
-        var response = await _host.Client.SendAsync(
-            RequestOf("PUT", "/registry/message-types/TestEvent", """{"enabled":false,"revision":0,"disabledChannels":["Second"]}"""), Ct);
+        var response = await _host.Client.SendAsync(RequestOf("PUT", $"/registry/message-types/{type.Name}", body), Ct);
 
         // Assert
         Assert.Equal(
             (HttpStatusCode.OK,
-                """{"type":"TestEvent","displayName":null,"description":null,"enabled":false,"disabledChannels":["Second"],"revision":1,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}"""),
+                $$"""{"type":"{{type.Name}}","displayName":null,"description":null,"enabled":false,"disabledChannels":["{{TestChannel.SecondId.Name}}"],"revision":1,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
         await _host.Writer.Received(1).SaveMessageTypeAsync(
-            Arg.Is<MessageTypeEntry>(static entry =>
-                entry.Type == new MessageType("TestEvent") && !entry.Enabled && entry.Revision == 0 && entry.DisabledChannels.SequenceEqual(new[] { TestChannel.SecondId })),
+            Arg.Is<MessageTypeEntry>(entry =>
+                entry.Type == type && !entry.Enabled && entry.Revision == revision && entry.DisabledChannels.SequenceEqual(new[] { TestChannel.SecondId })),
             Arg.Any<CancellationToken>());
     }
 
@@ -131,15 +142,17 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
     public async Task GetMessageTypes_StoredEntry_GivesEachMessageTypeWithItsChannelsItsEntryAndTheRevisionOfItsEntry()
     {
         // Arrange
-        WriterGives(new RegistryEntries([], [new MessageTypeEntry(new MessageType("TestEvent"), null, null, true, [], 2, TestHost.Start.UtcDateTime)]));
+        const int revision = 2;
+        var type = new MessageType("TestEvent");
+        WriterGives(new RegistryEntries([], [new MessageTypeEntry(type, null, null, true, [], revision, TestHost.Start.UtcDateTime)]));
 
         // Act
         var json = await _host.Client.GetStringAsync(new Uri("/registry/message-types", UriKind.Relative), Ct);
 
         // Assert
         Assert.Equal(
-            """[{"name":"TestEvent","displayName":null,"description":null,"channels":["Test","Second"],"enabled":true,"disabledChannels":[],"revision":2,"entry":"""
-            + """{"type":"TestEvent","displayName":null,"description":null,"enabled":true,"disabledChannels":[],"revision":2,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}}]""",
+            $$"""[{"name":"{{type.Name}}","displayName":null,"description":null,"channels":["Test","Second"],"enabled":true,"disabledChannels":[],"revision":{{revision}},"entry":"""
+            + $$$"""{"type":"{{{type.Name}}}","displayName":null,"description":null,"enabled":true,"disabledChannels":[],"revision":{{{revision}}},"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}}]""",
             json);
         await _host.Writer.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
     }

@@ -51,15 +51,19 @@ public abstract class BrokerClientTestsBase<TClient>(TClient client, IBrokerClie
     public async Task PublishAsync_Headers_GivesEachHeaderToTheLibrary()
     {
         // Arrange
+        const string idHeader = "msghatch-id";
+        const string id = "id-1";
+        const string sourceHeader = "x-source";
+        const string source = "orders";
         Driver.Accepts();
-        var headers = new Dictionary<string, string> { ["msghatch-id"] = "id-1", ["x-source"] = "orders" };
+        var headers = new Dictionary<string, string> { [idHeader] = id, [sourceHeader] = source };
 
         // Act
         await Client.PublishAsync(APublish(headers: headers), Ct);
 
         // Assert
         Assert.Equal(
-            [new KeyValuePair<string, string?>("msghatch-id", "id-1"), new KeyValuePair<string, string?>("x-source", "orders")],
+            [new KeyValuePair<string, string?>(idHeader, id), new KeyValuePair<string, string?>(sourceHeader, source)],
             Driver.Published().Headers.OrderBy(static header => header.Key, StringComparer.Ordinal));
     }
 

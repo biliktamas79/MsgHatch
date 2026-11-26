@@ -160,15 +160,16 @@ public sealed class FileSystemInboxStoreUnitTests()
     public async Task ClaimDueAsync_FileNameWithNoValidTimePrefix_SkipsThatFileAndClaimsTheOtherMessage()
     {
         // Arrange
+        const string fileName = "notes.json";
         var message = await AddAsync(AMessage(T1));
-        WritePendingFile("notes.json", "{ not a message }");
+        WritePendingFile(fileName, "{ not a message }");
 
         // Act
         var result = await ClaimAsync();
 
         // Assert
         Assert.Equal(message.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
-        Assert.Equal(["notes.json"], FileNamesIn("pending"));
+        Assert.Equal([fileName], FileNamesIn("pending"));
     }
 
     [Fact]

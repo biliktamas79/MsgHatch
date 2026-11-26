@@ -35,9 +35,10 @@ public sealed class SqliteSubscriptionStoreExtensionsUnitTests : IDisposable
     public async Task UseSqliteSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string connectionString = "Data Source=root.db";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:Sqlite:ConnectionString"] = "Data Source=root.db",
+            ["Messaging:Sqlite:ConnectionString"] = connectionString,
             ["MsgHatch:Sqlite:ConnectionString"] = "Data Source=default.db",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseSqliteSubscriptionStore();
@@ -47,17 +48,19 @@ public sealed class SqliteSubscriptionStoreExtensionsUnitTests : IDisposable
         var options = provider.GetRequiredService<IOptions<MsgHatch.Data.Sqlite.SqliteStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal("Data Source=root.db", options.ConnectionString);
+        Assert.Equal(connectionString, options.ConnectionString);
     }
 
     [Fact]
     public async Task UseSqliteTenantSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string tenantConnectionString = "Data Source=root-{tenant}.db";
+        const string systemConnectionString = "Data Source=root.db";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:SqliteTenants:TenantConnectionString"] = "Data Source=root-{tenant}.db",
-            ["Messaging:SqliteTenants:SystemConnectionString"] = "Data Source=root.db",
+            ["Messaging:SqliteTenants:TenantConnectionString"] = tenantConnectionString,
+            ["Messaging:SqliteTenants:SystemConnectionString"] = systemConnectionString,
             ["MsgHatch:SqliteTenants:SystemConnectionString"] = "Data Source=default.db",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseSqliteTenantSubscriptionStore();
@@ -67,7 +70,7 @@ public sealed class SqliteSubscriptionStoreExtensionsUnitTests : IDisposable
         var options = provider.GetRequiredService<IOptions<MsgHatch.Data.Sqlite.SqliteTenantStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal(("Data Source=root-{tenant}.db", "Data Source=root.db"), (options.TenantConnectionString, options.SystemConnectionString));
+        Assert.Equal((tenantConnectionString, systemConnectionString), (options.TenantConnectionString, options.SystemConnectionString));
     }
 
     [Fact]

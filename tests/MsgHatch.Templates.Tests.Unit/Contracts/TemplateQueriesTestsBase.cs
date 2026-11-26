@@ -68,14 +68,15 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
     public async Task GetTemplateAsync_SavedTemplate_GivesItsTextAndVersion()
     {
         // Arrange
+        const string text = "Order of {{Name}}";
         await using var host = await AHostAsync();
-        var entry = await SaveOnTheServerAsync(host, TenantKey.None, ALookup(), "Order of {{Name}}");
+        var entry = await SaveOnTheServerAsync(host, TenantKey.None, ALookup(), text);
 
         // Act
         var source = await host.Service(TenantKey.None).GetTemplateAsync(ALookup(), Ct);
 
         // Assert
-        Assert.Equal(("Order of {{Name}}", entry.Version), (source.Value.Text, source.Value.Key.Version));
+        Assert.Equal((text, entry.Version), (source.Value.Text, source.Value.Key.Version));
     }
 
     [Fact]
@@ -160,15 +161,16 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
     public async Task GetTemplateAsync_QueriesOfATenant_ReadOnlyTheStoreOfTheTenant()
     {
         // Arrange
+        const string tenantText = "Tenant text";
         await using var host = await AHostAsync();
-        await SaveOnTheServerAsync(host, _t1, ALookup(), "Tenant text");
+        await SaveOnTheServerAsync(host, _t1, ALookup(), tenantText);
 
         // Act
         var tenant = await host.Service(_t1).GetTemplateAsync(ALookup(), Ct);
         var shared = await host.Service(TenantKey.None).GetTemplateAsync(ALookup(), Ct);
 
         // Assert
-        Assert.Equal(("Tenant text", 404), (tenant.Value?.Text, shared.Error?.Type.Code));
+        Assert.Equal((tenantText, 404), (tenant.Value?.Text, shared.Error?.Type.Code));
     }
 
     [Fact]
@@ -272,10 +274,12 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
     public async Task CheckTemplateAsync_TwoEnginesReadThePart_GivesTheIssuesOfEachEngine()
     {
         // Arrange
+        var orderIssue = new TemplateIssue("The order is not valid.", 1, 2);
+        var noteIssue = new TemplateIssue("The note is not valid.", Line: null, Column: null);
         var orders = Substitute.For<ITemplateEngine<OrderEmail>>();
-        orders.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues(new TemplateIssue("The order is not valid.", 1, 2)));
+        orders.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues(orderIssue));
         var notes = Substitute.For<ITemplateEngine<string>>();
-        notes.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues(new TemplateIssue("The note is not valid.", Line: null, Column: null)));
+        notes.CheckAsync(default, default!, Ct).ReturnsForAnyArgs(Issues(noteIssue));
         await using var host = await StartAsync(ManagerHost.Services(b => b.AddMessage(_type.Name, 1, TestJsonContext.Default.TestEvent, m => m
             .WithPayload<OrderEmail>(
                 static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
@@ -288,9 +292,7 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
         var issues = await host.Service(TenantKey.None).CheckTemplateAsync(ALookup(), "Text", Ct);
 
         // Assert
-        Assert.Equal(
-            [new TemplateIssue("The order is not valid.", 1, 2), new TemplateIssue("The note is not valid.", Line: null, Column: null)],
-            issues.Value);
+        Assert.Equal([orderIssue, noteIssue], issues.Value);
     }
 
     [Fact]
@@ -340,14 +342,16 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
     public async Task PreviewTemplateAsync_RegistrationsWithAndWithNoSample_GivesAPreviewOfEachRegistrationWithASampleAndStoresNothing()
     {
         // Arrange
+        const string email = "Email:Orders";
+        const string push = "Push:Orders";
         var notes = Substitute.For<ITemplateEngine<string>>();
         await using var host = await StartAsync(ManagerHost.Services(b => b
             .UseFileTemplates(folder.Root)
             .AddMessage(_type.Name, 1, TestJsonContext.Default.TestEvent, m => m
                 .WithPayload<OrderEmail>(
                     static (_, _) => Substitute.For<IPayloadLoader<TestEvent, OrderEmail>>(),
-                    p => p.AddTemplateEngine("Email:Orders", PlaceholderTemplates.EngineName, TemplateEngineRegistrations.EmailParts, PlaceholderTemplates.Engine<OrderEmail>)
-                        .AddTemplateEngine("Push:Orders", PlaceholderTemplates.EngineName, TemplateEngineRegistrations.EmailParts, PlaceholderTemplates.Engine<OrderEmail>)
+                    p => p.AddTemplateEngine(email, PlaceholderTemplates.EngineName, TemplateEngineRegistrations.EmailParts, PlaceholderTemplates.Engine<OrderEmail>)
+                        .AddTemplateEngine(push, PlaceholderTemplates.EngineName, TemplateEngineRegistrations.EmailParts, PlaceholderTemplates.Engine<OrderEmail>)
                         .WithTemplateSample(TemplateEngineRegistrations.ASample("Sample <client>")))
                 .WithPayload<string>(
                     static (_, _) => Substitute.For<IPayloadLoader<TestEvent, string>>(),
@@ -358,7 +362,7 @@ public abstract class TemplateQueriesTestsBase<T>(TemplateFolder folder) : IClas
 
         // Assert
         Assert.Equal(
-            [new TemplatePreview("Email:Orders", "<p>Order of Sample &lt;client&gt;</p>"), new TemplatePreview("Push:Orders", "<p>Order of Sample &lt;client&gt;</p>")],
+            [new TemplatePreview(email, "<p>Order of Sample &lt;client&gt;</p>"), new TemplatePreview(push, "<p>Order of Sample &lt;client&gt;</p>")],
             previews.Value);
         Assert.Equal((0, 0), (notes.ReceivedCalls().Count(), Directory.EnumerateFiles(folder.Root, $"{_type.Name}.*").Count()));
     }

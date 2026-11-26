@@ -44,16 +44,17 @@ public sealed class RegistryCommandsLoggingWrapperUnitTests
     public async Task CheckChannelAsync_Error_LogsOneRecordWithTheErrorTypeAndTheChannel()
     {
         // Arrange
+        const string unknown = "Unknown";
         await using var provider = AProvider(checkError: null);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        await scope.ServiceProvider.GetRequiredKeyedService<IRegistryCommands>(TenantKey.None).CheckChannelAsync(new ChannelId("Unknown"), Ct);
+        await scope.ServiceProvider.GetRequiredKeyedService<IRegistryCommands>(TenantKey.None).CheckChannelAsync(new ChannelId(unknown), Ct);
 
         // Assert
         var record = Assert.Single(RecordsOf(provider));
         Assert.Equal(
-            (2916, Errors.NotFound.Code.ToString(CultureInfo.InvariantCulture), "Unknown"),
+            (2916, Errors.NotFound.Code.ToString(CultureInfo.InvariantCulture), unknown),
             (record.Id.Id, record.GetStructuredStateValue("ErrorCode"), record.GetStructuredStateValue("Channel")));
     }
 

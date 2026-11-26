@@ -175,16 +175,18 @@ public sealed class SubscriptionApiClientRequestsUnitTests
     public async Task Operations_UserIdAndCompanyId_NoLogRecordOfTheClientHostHoldsThem()
     {
         // Arrange
+        const string companyId = "acme-secret";
+        const string userId = "user-secret";
         await using var host = await HttpManagementHost.StartAsync<ISubscriptionQueries>(ManagerHost.Services(TestHost.NewFakeTime()));
         var queries = host.Service(TenantKey.None);
-        var query = new SubscriptionQuery(Company: new CompanyId("acme-secret"), User: new UserId("user-secret"));
+        var query = new SubscriptionQuery(Company: new CompanyId(companyId), User: new UserId(userId));
 
         // Act
         await queries.GetSubscriptionsAsync(query, Ct);
-        await queries.GetMessageTypesAsync(new MessageTypeQuery(Company: new CompanyId("acme-secret")), Ct);
-        await queries.GetMessageTypesAsync(new MessageTypeQuery(User: new UserId("user-secret")), Ct);
+        await queries.GetMessageTypesAsync(new MessageTypeQuery(Company: new CompanyId(companyId)), Ct);
+        await queries.GetMessageTypesAsync(new MessageTypeQuery(User: new UserId(userId)), Ct);
         await ((HttpManagementHost<ISubscriptionQueries>)host).Client.GetRequiredService<ISubscriptionCommands>().CreateAsync(
-            Draft(SubscriptionOwner.ForUser(new UserId("user-secret")), "A", EmailChannel.Id, new EmailChannelSettings()), Ct);
+            Draft(SubscriptionOwner.ForUser(new UserId(userId)), "A", EmailChannel.Id, new EmailChannelSettings()), Ct);
 
         // Assert
         var records = ((HttpManagementHost<ISubscriptionQueries>)host).Client.LogRecords();
@@ -192,7 +194,7 @@ public sealed class SubscriptionApiClientRequestsUnitTests
             (true, true, false),
             (records.Any(static record => record.Category?.StartsWith("System.Net.Http.HttpClient.MsgHatch.SubscriptionApi", StringComparison.Ordinal) == true),
                 records.Any(static record => record.Id.Id is >= 1120 and <= 1199),
-                records.Any(static record => record.ContainsText("acme-secret") || record.ContainsText("user-secret"))));
+                records.Any(static record => record.ContainsText(companyId) || record.ContainsText(userId))));
     }
 
     private static ServiceProvider ClientOn(StubHandler handler)

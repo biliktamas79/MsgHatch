@@ -16,9 +16,12 @@ public sealed partial class DeliveryEndpointsUnitTests
     public async Task GetChannels_PausedChannel_WritesItsDownStateAndItsCounts()
     {
         // Arrange
-        var pause = new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, _time, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "ticket 42");
+        const string note = "ticket 42";
+        const int pending = 2;
+        const int pendingTest = 1;
+        var pause = new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, _time, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, note);
         _host.Queries.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelStatus>>.ForValue(
-            [new ChannelStatus(TestChannel.Descriptor, pause, Pending: 2, PendingTest: 1, _time)])));
+            [new ChannelStatus(TestChannel.Descriptor, pause, pending, pendingTest, _time)])));
 
         // Act
         var text = await _host.Client.GetStringAsync(new Uri("/delivery/channels", UriKind.Relative), Ct);
@@ -27,7 +30,7 @@ public sealed partial class DeliveryEndpointsUnitTests
         using var json = JsonDocument.Parse(text);
         var channel = json.RootElement[0];
         Assert.Equal(
-            ("Test", "Operator", "ticket 42", 2, 1),
+            (TestChannel.Id.Name, "Operator", note, pending, pendingTest),
             (channel.GetProperty("id").GetString(), channel.GetProperty("down").GetProperty("reason").GetString(),
                 channel.GetProperty("down").GetProperty("note").GetString(), channel.GetProperty("pending").GetInt32(),
                 channel.GetProperty("pendingTest").GetInt32()));
@@ -38,10 +41,12 @@ public sealed partial class DeliveryEndpointsUnitTests
     public async Task GetTraffic_Report_WritesTheRowsOfTheInboxAndOfTheOutbox()
     {
         // Arrange
+        const int failedCount = 3;
+        const int pendingCount = 5;
         var type = new MessageType("OrderShipped");
         var report = new TrafficReport(
-            [new MessageCount(type, null, DeliveryStatus.Failed, Test: true, 3, null)],
-            [new MessageCount(type, TestChannel.Id, DeliveryStatus.Pending, Test: false, 5, _time)]);
+            [new MessageCount(type, null, DeliveryStatus.Failed, Test: true, failedCount, null)],
+            [new MessageCount(type, TestChannel.Id, DeliveryStatus.Pending, Test: false, pendingCount, _time)]);
         _host.Queries.GetTrafficAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<TrafficReport>.ForValue(report)));
 
         // Act
@@ -49,8 +54,8 @@ public sealed partial class DeliveryEndpointsUnitTests
 
         // Assert
         Assert.Equal(
-            """
-            {"inbox":[{"type":"OrderShipped","channel":null,"status":"Failed","test":true,"count":3,"oldestDueAtUtc":null}],"outbox":[{"type":"OrderShipped","channel":"Test","status":"Pending","test":false,"count":5,"oldestDueAtUtc":"2030-01-01T10:00:00Z"}]}
+            $$"""
+            {"inbox":[{"type":"{{type.Name}}","channel":null,"status":"Failed","test":true,"count":{{failedCount}},"oldestDueAtUtc":null}],"outbox":[{"type":"{{type.Name}}","channel":"{{TestChannel.Id.Name}}","status":"Pending","test":false,"count":{{pendingCount}},"oldestDueAtUtc":"2030-01-01T10:00:00Z"}]}
             """,
             text);
         await _host.Queries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
@@ -60,20 +65,21 @@ public sealed partial class DeliveryEndpointsUnitTests
     public async Task GetReceivedMessages_Page_WritesTheSummariesWithTheirTenant()
     {
         // Arrange
-        var message = TestMessages.AReceivedMessage(new TestEvent("event text"), DeliveryHost.T2, flags: MessageFlags.Test);
+        const string eventText = "event text";
+        var message = TestMessages.AReceivedMessage(new TestEvent(eventText), DeliveryHost.T2, flags: MessageFlags.Test);
         _host.T2Queries.GetReceivedMessagesAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<MessagePage<ReceivedMessageSummary>>.ForValue(
             new MessagePage<ReceivedMessageSummary>([ReceivedMessageSummary.Of(message)], Next: null))));
 
         // Act
-        var text = await _host.Client.GetStringAsync(new Uri("/delivery/inbox?tenantId=t2", UriKind.Relative), Ct);
+        var text = await _host.Client.GetStringAsync(new Uri($"/delivery/inbox?tenantId={DeliveryHost.T2.Value}", UriKind.Relative), Ct);
 
         // Assert
         using var json = JsonDocument.Parse(text);
         var item = json.RootElement.GetProperty("items")[0];
         Assert.Equal(
-            ("t2", "TestEvent", "Test", JsonValueKind.Null, false),
+            (DeliveryHost.T2.Value, message.Type.Name, "Test", JsonValueKind.Null, false),
             (item.GetProperty("tenant").GetString(), item.GetProperty("type").GetString(), item.GetProperty("flags").GetString(),
-                json.RootElement.GetProperty("next").ValueKind, text.Contains("event text", StringComparison.Ordinal)));
+                json.RootElement.GetProperty("next").ValueKind, text.Contains(eventText, StringComparison.Ordinal)));
         await _host.T2Queries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 

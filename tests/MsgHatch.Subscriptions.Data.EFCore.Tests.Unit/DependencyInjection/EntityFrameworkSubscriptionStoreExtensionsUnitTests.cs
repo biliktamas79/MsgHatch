@@ -28,9 +28,10 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     public async Task UseEntityFrameworkSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string schema = "root";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:EntityFramework:Schema"] = "root",
+            ["Messaging:EntityFramework:Schema"] = schema,
             ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseEntityFrameworkSubscriptionStore(o => o.UseSqlite("Data Source=root.db"));
@@ -40,7 +41,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal(("root", (string?)null), (options.Schema, options.TextCollation));
+        Assert.Equal((schema, (string?)null), (options.Schema, options.TextCollation));
     }
 
     [Fact]

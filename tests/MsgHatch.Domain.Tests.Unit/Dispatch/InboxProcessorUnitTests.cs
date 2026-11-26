@@ -27,11 +27,12 @@ namespace MsgHatch.Domain.Tests.Unit.Dispatch;
 public sealed class InboxProcessorUnitTests
 {
     private const string _messageTraceParent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+    private const string _address = "client1@example.com";
     private static readonly Guid _fixedId = Guid.Parse("11223344-5566-7788-99aa-bbccddeeff00");
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
     private readonly WaitRecordingTimeProvider _time = new();
-    private readonly IMessageRouter<TestEvent> _router = PipelineDoubles.RouterGiving<TestEvent>(static () => [ARoute("u1", address: "client1@example.com")]);
+    private readonly IMessageRouter<TestEvent> _router = PipelineDoubles.RouterGiving<TestEvent>(static () => [ARoute("u1", address: _address)]);
     private readonly ConcurrentQueue<TenantKey> _routerKeys = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -40,8 +41,9 @@ public sealed class InboxProcessorUnitTests
     public async Task ProcessPendingAsync_ClaimedMessageOfATenant_RunsThePipelineWithTheServicesOfItsTenantAndCompletesIt()
     {
         // Arrange
+        const string text = "Order 1001";
         await using var provider = Build();
-        var message = await AddAsync(provider, AMessage(_t1, "Order 1001"));
+        var message = await AddAsync(provider, AMessage(_t1, text));
 
         // Act
         var summary = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
@@ -49,10 +51,10 @@ public sealed class InboxProcessorUnitTests
         // Assert
         Assert.Equal(new DispatchSummary(1, 1, 0, 0), summary.Value);
         Assert.Equal([_t1], _routerKeys);
-        Assert.Equal(new TestEvent("Order 1001"), RoutedMessage().Event);
+        Assert.Equal(new TestEvent(text), RoutedMessage().Event);
         Assert.Equal(DeliveryStatus.Done, Stored(provider, message).Delivery.Status);
         var stored = Assert.Single(provider.GetRequiredService<InMemoryOutboxStore>().GetMessages());
-        Assert.Equal(((TenantId?)_t1.Tenant, (object)new TestEnvelope("Order 1001 for client1@example.com")), (stored.Tenant, stored.Content));
+        Assert.Equal(((TenantId?)_t1.Tenant, (object)new TestEnvelope($"{text} for {_address}")), (stored.Tenant, stored.Content));
         _ = _router.Received(1).RouteAsync(
             Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id && m.Tenant == _t1.Tenant), Arg.Any<CancellationToken>());
     }

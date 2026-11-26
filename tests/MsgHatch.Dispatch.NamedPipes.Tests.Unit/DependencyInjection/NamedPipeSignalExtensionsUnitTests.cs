@@ -19,9 +19,10 @@ public sealed class NamedPipeSignalExtensionsUnitTests
     public async Task UseNamedPipeDispatchSignal_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string prefix = "from-root";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:NamedPipeSignal:PipeNamePrefix"] = "from-root",
+            ["Messaging:NamedPipeSignal:PipeNamePrefix"] = prefix,
             ["MsgHatch:NamedPipeSignal:PipeNamePrefix"] = "from-default-root",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseNamedPipeDispatchSignal();
@@ -31,14 +32,15 @@ public sealed class NamedPipeSignalExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<NamedPipeSignalOptions>>().Value;
 
         // Assert
-        Assert.Equal("from-root", options.PipeNamePrefix);
+        Assert.Equal(prefix, options.PipeNamePrefix);
     }
 
     [Fact]
     public async Task UseNamedPipeDispatchSignal_PrefixInTheSection_ReachesTheOptions()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:NamedPipeSignal:PipeNamePrefix"] = "from-section" });
+        const string prefix = "from-section";
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:NamedPipeSignal:PipeNamePrefix"] = prefix });
         services.AddMsgHatch().UseNamedPipeDispatchSignal();
         await using var provider = services.Build();
 
@@ -46,22 +48,23 @@ public sealed class NamedPipeSignalExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<NamedPipeSignalOptions>>().Value;
 
         // Assert
-        Assert.Equal("from-section", options.PipeNamePrefix);
+        Assert.Equal(prefix, options.PipeNamePrefix);
     }
 
     [Fact]
     public async Task UseNamedPipeDispatchSignal_PrefixFromCode_WinsOverTheSection()
     {
         // Arrange
+        const string prefix = "from-code";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:NamedPipeSignal:PipeNamePrefix"] = "from-section" });
-        services.AddMsgHatch().UseNamedPipeDispatchSignal(static o => o.PipeNamePrefix = "from-code");
+        services.AddMsgHatch().UseNamedPipeDispatchSignal(static o => o.PipeNamePrefix = prefix);
         await using var provider = services.Build();
 
         // Act
         var options = provider.GetRequiredService<IOptions<NamedPipeSignalOptions>>().Value;
 
         // Assert
-        Assert.Equal("from-code", options.PipeNamePrefix);
+        Assert.Equal(prefix, options.PipeNamePrefix);
     }
 
     [Fact]

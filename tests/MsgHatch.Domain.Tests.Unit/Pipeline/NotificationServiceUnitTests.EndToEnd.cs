@@ -17,26 +17,28 @@ public sealed partial class NotificationServiceUnitTests
     public async Task ProcessAsync_InMemoryStoresTestRouterAndTestComposer_StoresTwoMessagesInTheInMemoryOutbox()
     {
         // Arrange
+        const string messageType = "TestEvent";
+        const string text = "Order 1001";
         var services = TestHost.CreateServices(_time);
         services.AddMsgHatch()
             .AddTestChannel()
             .UseInMemoryStores()
-            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m
+            .AddMessage(messageType, 2, TestJsonContext.Default.TestEvent, static m => m
                 .WithRouter<TwoRouteTestRouter>()
                 .AsChannel<TestEnvelope, TestEnvelopeComposer>(TestChannel.Id, "TestEnvelope", 1, TestJsonContext.Default.TestEnvelope));
         await using var provider = services.Build();
 
         // Act
-        var result = await ProcessAsync(provider, new TestEvent("Order 1001"), AContext(_tenant));
+        var result = await ProcessAsync(provider, new TestEvent(text), AContext(_tenant));
 
         // Assert
         Assert.Equal(2, result.Value.Stored);
         Assert.Equal(
             [
-                ((TenantId?)_tenant, new MessageType("TestEvent"), new DeliveryTarget(DeliveryTargetKind.User, "u1"),
-                    (RouteTrace)new TestTrace("TestRouter"), (object)new TestEnvelope("Order 1001 for client1@example.com")),
-                (_tenant, new MessageType("TestEvent"), new DeliveryTarget(DeliveryTargetKind.User, "u2"),
-                    new TestTrace("TestRouter"), new TestEnvelope("Order 1001 for client2@example.com")),
+                ((TenantId?)_tenant, new MessageType(messageType), new DeliveryTarget(DeliveryTargetKind.User, "u1"),
+                    (RouteTrace)new TestTrace("TestRouter"), (object)new TestEnvelope($"{text} for client1@example.com")),
+                (_tenant, new MessageType(messageType), new DeliveryTarget(DeliveryTargetKind.User, "u2"),
+                    new TestTrace("TestRouter"), new TestEnvelope($"{text} for client2@example.com")),
             ],
             provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()
                 .Select(static m => (m.Tenant, m.Type, m.Target, m.Trace, m.Content)));

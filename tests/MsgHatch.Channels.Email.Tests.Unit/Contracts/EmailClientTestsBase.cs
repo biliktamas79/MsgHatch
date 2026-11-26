@@ -22,13 +22,14 @@ public abstract class EmailClientTestsBase<TClient>(TClient client, IEmailClient
     public async Task SendAsync_ProviderAcceptsTheEmail_ReturnsTheMessageIdOfTheProviderInTheReceipt()
     {
         // Arrange
-        Driver.Accepts("provider-7");
+        const string providerMessageId = "provider-7";
+        Driver.Accepts(providerMessageId);
 
         // Act
         var result = await Client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
 
         // Assert
-        Assert.Equal(new PublishReceipt("provider-7"), result.Value);
+        Assert.Equal(new PublishReceipt(providerMessageId), result.Value);
     }
 
     [Fact]

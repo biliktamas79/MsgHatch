@@ -52,22 +52,25 @@ public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture se
     public async Task UseEntityFrameworkStores_SchemaFromCode_KeepsTheTablesAndTheRowsInThatSchema()
     {
         // Arrange
+        const string schema = "other";
         var database = server.Database("schema");
-        await using var provider = Build(o => o.UseSqlServer(database.ConnectionString), enableLogging: false, o => o.Schema = "other");
+        await using var provider = Build(o => o.UseSqlServer(database.ConnectionString), enableLogging: false, o => o.Schema = schema);
         await using (var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct))
         {
             await context.Database.EnsureCreatedAsync(Ct);
         }
 
+        var message = TestMessages.AReceivedMessage(new TestEvent("text"));
+
         // Act
-        var error = await provider.GetRequiredService<IInboxStore>().AddAsync(TestMessages.AReceivedMessage(new TestEvent("text")), Ct);
+        var error = await provider.GetRequiredService<IInboxStore>().AddAsync(message, Ct);
 
         // Assert
         Assert.Null(error);
         Assert.Equal(
-            [["other", "Inbox", "1"]],
+            [[schema, "Inbox", "1"]],
             await database.RowsAsync(
-                "SELECT TABLE_SCHEMA, TABLE_NAME, (SELECT COUNT(*) FROM [other].[Inbox]) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Inbox'",
+                $"SELECT TABLE_SCHEMA, TABLE_NAME, (SELECT COUNT(*) FROM [{schema}].[Inbox]) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Inbox'",
                 Ct));
     }
 

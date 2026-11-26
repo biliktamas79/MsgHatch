@@ -153,19 +153,21 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
     public async Task PrepareAsync_SourceWithTheKeyOfAParsedTemplate_UsesTheParsedTemplateUntilTheVersionChanges()
     {
         // Arrange
+        const string firstText = "first";
+        const string secondText = "second";
         var lookup = new TemplateLookup(Type, "en", Scope: null, Part, TemplatePartKind.PlainText);
         var id = Guid.NewGuid().ToString();
 
         // Act
-        testData.SeedText(lookup, "first", new TemplateKey(id, 1));
+        testData.SeedText(lookup, firstText, new TemplateKey(id, 1));
         var first = await OutcomeOfAsync(Engine, ARequest(), APayload());
-        testData.SeedText(lookup, "second", new TemplateKey(id, 1));
+        testData.SeedText(lookup, secondText, new TemplateKey(id, 1));
         var sameVersion = await OutcomeOfAsync(Engine, ARequest(), APayload());
-        testData.SeedText(lookup, "second", new TemplateKey(id, 2));
+        testData.SeedText(lookup, secondText, new TemplateKey(id, 2));
         var newVersion = await OutcomeOfAsync(Engine, ARequest(), APayload());
 
         // Assert
-        Assert.Equal(("first", "first", "second"), (first, sameVersion, newVersion));
+        Assert.Equal((firstText, firstText, secondText), (first, sameVersion, newVersion));
         await testData.Store.Received(3).FindAsync(lookup, Ct);
     }
 
@@ -173,13 +175,14 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
     public async Task PrepareAsync_LanguageWithNoTemplate_TakesTheTemplateOfTheDefaultLanguage()
     {
         // Arrange
-        testData.SeedText(new TemplateLookup(Type, "en", Scope: null, Part, TemplatePartKind.PlainText), "English");
+        const string englishText = "English";
+        testData.SeedText(new TemplateLookup(Type, "en", Scope: null, Part, TemplatePartKind.PlainText), englishText);
 
         // Act
         var outcome = await OutcomeOfAsync(Engine, ARequest("hu"), APayload());
 
         // Assert
-        Assert.Equal("English", outcome);
+        Assert.Equal(englishText, outcome);
         await testData.Store.Received(1).FindAsync(ALookup() with { Language = "hu" }, Ct);
         await testData.Store.Received(1).FindAsync(ALookup(), Ct);
     }
@@ -209,8 +212,9 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
     public async Task PrepareAsync_EngineOfATenant_TakesTheTemplateFromTheTemplateStoreOfTheTenant()
     {
         // Arrange
+        const string tenantText = "Tenant text";
         var sharedStore = AStoreWithTheText("Shared text");
-        var tenantStore = AStoreWithTheText("Tenant text");
+        var tenantStore = AStoreWithTheText(tenantText);
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.DefaultLanguage = "en")
             .UseTemplateStore(_ => sharedStore)
@@ -224,7 +228,7 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
         var outcome = await OutcomeOfAsync(engine, ARequest(), APayload());
 
         // Assert
-        Assert.Equal("Tenant text", outcome);
+        Assert.Equal(tenantText, outcome);
         await tenantStore.Received(1).FindAsync(ALookup(), Ct);
         await sharedStore.DidNotReceiveWithAnyArgs().FindAsync(default, Ct);
     }

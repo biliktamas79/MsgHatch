@@ -140,15 +140,16 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
     public void ClickShowContent_TextThatIsNotJson_ShowsTheText()
     {
         // Arrange
+        const string content = "not { json";
         GivenMessage(Detail());
-        DeliveryQueries.GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Ok(new MessageContent(_id, "not { json")));
+        DeliveryQueries.GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>()).Returns(Ok(new MessageContent(_id, content)));
         var cut = RenderPage();
 
         // Act
         cut.Find("[data-action=show-content]").Click();
 
         // Assert
-        Assert.Equal("not { json", cut.Find("[data-content]").TextContent);
+        Assert.Equal(content, cut.Find("[data-content]").TextContent);
     }
 
     [Fact]

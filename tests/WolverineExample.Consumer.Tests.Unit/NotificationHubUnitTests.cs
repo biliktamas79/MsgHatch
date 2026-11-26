@@ -20,10 +20,12 @@ public sealed class NotificationHubUnitTests : IAsyncLifetime
     public async Task OnConnectedAsync_UserOfACompany_AddsTheConnectionToTheGroupsOfItsTenantAndOfItsCompany()
     {
         // Arrange
+        const string connectionId = "connection 1";
+        const string tenant = "north";
         var context = Substitute.For<HubCallerContext>();
-        context.ConnectionId.Returns("connection 1");
+        context.ConnectionId.Returns(connectionId);
         context.User.Returns(new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(HubCaller.TenantClaim, "north"), new Claim(ClaimTypes.NameIdentifier, "1")], "test")));
+            [new Claim(HubCaller.TenantClaim, tenant), new Claim(ClaimTypes.NameIdentifier, "1")], "test")));
         var groups = Substitute.For<IGroupManager>();
         await using var scope = _host.Provider.CreateAsyncScope();
         using var hub = new NotificationHub(scope.ServiceProvider) { Context = context, Groups = groups };
@@ -33,7 +35,7 @@ public sealed class NotificationHubUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(
-            [("connection 1", "msghatch:tenant:north"), ("connection 1", "msghatch:north:company:100")],
+            [(connectionId, $"msghatch:tenant:{tenant}"), (connectionId, $"msghatch:{tenant}:company:100")],
             groups.ReceivedCalls().Select(static call => ((string)call.GetArguments()[0]!, (string)call.GetArguments()[1]!)));
     }
 }

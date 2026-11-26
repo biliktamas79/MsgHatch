@@ -60,7 +60,8 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     public void Render_EntryWithAVersionText_ShowsTheTextOfTheStoreInTheVersionColumnAndTheDeleteQuestion()
     {
         // Arrange
-        GivenTemplates(new TemplateEntry(Lookup(), 7) { VersionText = "Built in" });
+        const string versionText = "Built in";
+        GivenTemplates(new TemplateEntry(Lookup(), 7) { VersionText = versionText });
 
         // Act
         var cut = Render<TemplateListPage>();
@@ -68,7 +69,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(
-            ("Built in", "Built in"),
+            (versionText, versionText),
             (cut.Find("tr[data-row]").Children[5].TextContent, cut.Find(".modal [data-metadata] [data-field=version]").TextContent));
         AssertReadThePartsAndAllTemplatesOnce();
         Commands.DidNotReceiveWithAnyArgs().DeleteTemplateAsync(default, Arg.Any<CancellationToken>());
@@ -149,21 +150,22 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     public void Change_LanguagePartAndKind_ShowsOnlyTheTemplatesThatMatchAllThree()
     {
         // Arrange
+        const string part = "body";
         GivenTemplates(
-            new TemplateEntry(Lookup("en", null, "body", TemplatePartKind.Html), 1),
-            new TemplateEntry(Lookup("hu", null, "body", TemplatePartKind.Html), 2),
+            new TemplateEntry(Lookup("en", null, part, TemplatePartKind.Html), 1),
+            new TemplateEntry(Lookup("hu", null, part, TemplatePartKind.Html), 2),
             new TemplateEntry(Lookup("en", null, "subject", TemplatePartKind.PlainText), 3),
-            new TemplateEntry(Lookup("en", null, "body", TemplatePartKind.PlainText), 4));
+            new TemplateEntry(Lookup("en", null, part, TemplatePartKind.PlainText), 4));
         var cut = Render<TemplateListPage>();
 
         // Act
         cut.Find("#msghatch-template-language-filter").Input(" EN ");
-        cut.Find("#msghatch-template-part-filter").Change("body");
+        cut.Find("#msghatch-template-part-filter").Change(part);
         cut.Find("#msghatch-template-kind").Change("Html");
 
         // Assert
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
-        Assert.Equal(["Requests", "en", "All companies", "body", "Html", "1"], row.Children.SkipLast(1).Select(static cell => cell.TextContent));
+        Assert.Equal(["Requests", "en", "All companies", part, "Html", "1"], row.Children.SkipLast(1).Select(static cell => cell.TextContent));
         Queries.Received(3).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
     }
 
@@ -186,18 +188,20 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     public void Input_CompanyTwiceWithinThePause_QueriesOnlyTheLastTextAfter500Milliseconds()
     {
         // Arrange
+        const string firstText = "4";
+        const string lastText = "42";
         GivenTemplates();
         var cut = Render<TemplateListPage>();
 
         // Act
-        cut.Find("#msghatch-template-company").Input("4");
+        cut.Find("#msghatch-template-company").Input(firstText);
         Clock.Advance(TimeSpan.FromMilliseconds(499));
-        cut.Find("#msghatch-template-company").Input("42");
+        cut.Find("#msghatch-template-company").Input(lastText);
         Clock.Advance(TimeSpan.FromMilliseconds(500));
 
         // Assert
-        cut.WaitForAssertion(() => Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, "42"), Arg.Any<CancellationToken>()));
-        Queries.DidNotReceive().GetTemplatesAsync(new TemplateQuery(null, "4"), Arg.Any<CancellationToken>());
+        cut.WaitForAssertion(() => Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, lastText), Arg.Any<CancellationToken>()));
+        Queries.DidNotReceive().GetTemplatesAsync(new TemplateQuery(null, firstText), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -222,24 +226,27 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
     public async Task Input_CompanyWhileAnEarlierQueryRuns_ShowsOnlyTheAnswerOfTheLastQuery()
     {
         // Arrange
+        const string earlierCompany = "4";
+        const string lastCompany = "42";
         var earlier = new TaskCompletionSource<ErrorOr<IReadOnlyList<TemplateEntry>>>();
         GivenTemplates();
-        Queries.GetTemplatesAsync(new TemplateQuery(null, "4"), Arg.Any<CancellationToken>()).Returns(new ValueTask<ErrorOr<IReadOnlyList<TemplateEntry>>>(earlier.Task));
-        Queries.GetTemplatesAsync(new TemplateQuery(null, "42"), Arg.Any<CancellationToken>()).Returns(Ok<IReadOnlyList<TemplateEntry>>([new TemplateEntry(Lookup(scope: "42"), 2)]));
+        Queries.GetTemplatesAsync(new TemplateQuery(null, earlierCompany), Arg.Any<CancellationToken>()).Returns(new ValueTask<ErrorOr<IReadOnlyList<TemplateEntry>>>(earlier.Task));
+        Queries.GetTemplatesAsync(new TemplateQuery(null, lastCompany), Arg.Any<CancellationToken>())
+            .Returns(Ok<IReadOnlyList<TemplateEntry>>([new TemplateEntry(Lookup(scope: lastCompany), 2)]));
         var cut = Render<TemplateListPage>();
 
         // Act
-        cut.Find("#msghatch-template-company").Input("4");
+        cut.Find("#msghatch-template-company").Input(earlierCompany);
         Clock.Advance(TimeSpan.FromMilliseconds(500));
-        cut.WaitForAssertion(() => Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, "4"), Arg.Any<CancellationToken>()));
-        cut.Find("#msghatch-template-company").Input("42");
+        cut.WaitForAssertion(() => Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, earlierCompany), Arg.Any<CancellationToken>()));
+        cut.Find("#msghatch-template-company").Input(lastCompany);
         Clock.Advance(TimeSpan.FromMilliseconds(500));
-        cut.WaitForAssertion(() => Assert.Equal(["42"], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent)));
-        await cut.InvokeAsync(() => earlier.SetResult(ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([new TemplateEntry(Lookup(scope: "4"), 1)])));
+        cut.WaitForAssertion(() => Assert.Equal([lastCompany], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent)));
+        await cut.InvokeAsync(() => earlier.SetResult(ErrorOr<IReadOnlyList<TemplateEntry>>.ForValue([new TemplateEntry(Lookup(scope: earlierCompany), 1)])));
 
         // Assert
-        Assert.Equal(["42"], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent));
-        _ = Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, "42"), Arg.Any<CancellationToken>());
+        Assert.Equal([lastCompany], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent));
+        _ = Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, lastCompany), Arg.Any<CancellationToken>());
     }
 
     [Fact]

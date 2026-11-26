@@ -75,10 +75,11 @@ public sealed class TestDeliveryOptionsValidatorUnitTests
     public async Task ConfigureTestDelivery_ValueInCodeAndInTheSectionOfTheChannel_TheValueInCodeWins()
     {
         // Arrange
+        const string redirectTo = "tester@example.com";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
             ["MsgHatch:TestDelivery:Test:Mode"] = "Deliver",
-            ["MsgHatch:TestDelivery:Test:RedirectTo"] = "tester@example.com",
+            ["MsgHatch:TestDelivery:Test:RedirectTo"] = redirectTo,
         });
         services.AddMsgHatch().ConfigureTestDelivery(TestChannel.Id, static o => o.Mode = TestDeliveryMode.Redirect).AddTestChannel();
         await using var provider = services.Build();
@@ -87,7 +88,7 @@ public sealed class TestDeliveryOptionsValidatorUnitTests
         var options = provider.GetRequiredService<IOptionsMonitor<TestDeliveryOptions>>().Get("Test");
 
         // Assert
-        Assert.Equal((TestDeliveryMode.Redirect, "tester@example.com"), (options.Mode, options.RedirectTo));
+        Assert.Equal((TestDeliveryMode.Redirect, redirectTo), (options.Mode, options.RedirectTo));
     }
 
     [Fact]

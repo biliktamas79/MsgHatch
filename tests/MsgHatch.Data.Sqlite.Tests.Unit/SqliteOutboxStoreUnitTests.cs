@@ -55,12 +55,17 @@ public sealed class SqliteOutboxStoreUnitTests()
     [Fact]
     public async Task SetChannelDownAsync_ReasonErrors_WritesTheStateRowWithTheEnumValuesAndTheTimesAsText()
     {
+        // Arrange
+        const int errorCode = 503;
+        const string errorName = "Unavailable";
+        var down = new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, errorCode, errorName, Note: null);
+
         // Act
-        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
+        await Store.SetChannelDownAsync(down, Ct);
 
         // Assert
         Assert.Equal(
-            ["Test", "1", "Down", _isoTime, null, null, "Errors", _isoTime, "503", "Unavailable", null],
+            [TestChannel.Id.Name, "1", "Down", _isoTime, null, null, "Errors", _isoTime, $"{errorCode}", errorName, null],
             Assert.Single(TestDatabases.Rows(Store.ConnectionString, "SELECT * FROM MsgHatchChannelState")));
     }
 
@@ -84,23 +89,24 @@ public sealed class SqliteOutboxStoreUnitTests()
     public async Task SetChannelDownAsync_DatabaseWithADownRowOfPhase31_AddsTheStateTableAndReadsNoDownState()
     {
         // Arrange
+        const string note = "new";
         TestDatabases.Execute(Store.ConnectionString, $"""
             CREATE TABLE MsgHatchSchema (Version INTEGER);
             INSERT INTO MsgHatchSchema (Version) VALUES (1);
             CREATE TABLE MsgHatchChannelDown (
                 Channel TEXT PRIMARY KEY, Reason TEXT, SinceUtc TEXT, NextCheckAtUtc TEXT, ErrorCode INTEGER, ErrorName TEXT, Note TEXT);
-            INSERT INTO MsgHatchChannelDown VALUES ('Test', 'Operator', '{_isoTime}', NULL, NULL, NULL, 'maintenance');
+            INSERT INTO MsgHatchChannelDown VALUES ('{TestChannel.Id.Name}', 'Operator', '{_isoTime}', NULL, NULL, NULL, 'maintenance');
             """);
+        var down = new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, note);
 
         // Act
         var before = await Store.GetDownChannelsAsync(Ct);
-        var added = await Store.SetChannelDownAsync(
-            new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "new"), Ct);
+        var added = await Store.SetChannelDownAsync(down, Ct);
 
         // Assert
         Assert.Empty(before.Value);
         Assert.True(added.Value);
-        Assert.Equal("new", Assert.Single((await Store.GetDownChannelsAsync(Ct)).Value).Note);
+        Assert.Equal(note, Assert.Single((await Store.GetDownChannelsAsync(Ct)).Value).Note);
     }
 
     [Fact]

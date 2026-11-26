@@ -54,7 +54,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     {
         // Arrange
         Commands.SaveMessageTypeAsync(Arg.Any<MessageTypeEntry>(), Arg.Any<CancellationToken>()).Returns(Ok(_stored));
-        var cut = RenderPage("Requests");
+        var cut = RenderPage(_requests.Name);
         cut.Find("[data-send-on=Sms]").Change(false);
 
         // Act
@@ -63,7 +63,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         // Assert
         var entry = Assert.Single(Commands.ReceivedCalls()).GetArguments()[0] as MessageTypeEntry;
         Assert.Equal(
-            ("Requests", null, null, true, "Sms", 0),
+            (_requests.Name, null, null, true, "Sms", 0),
             (entry?.Type.Name, entry?.DisplayName, entry?.Description, entry?.Enabled, string.Join(',', entry!.DisabledChannels.Select(static channel => channel.Name)),
                 entry.Revision));
         Queries.Received(2).GetMessageTypesAsync(Arg.Any<CancellationToken>());
@@ -118,8 +118,9 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
     public void ClickSave_Error_ShowsTheTextOfTheErrorAndKeepsTheFields()
     {
         // Arrange
+        const string errorText = "DisabledChannels has only the channels of the message type Requests.";
         Commands.SaveMessageTypeAsync(Arg.Any<MessageTypeEntry>(), Arg.Any<CancellationToken>()).Returns(
-            ValueTask.FromResult(ErrorOr<MessageTypeEntry>.ForError(new Error(Errors.ValidationFailed, "DisabledChannels has only the channels of the message type Requests."))));
+            ValueTask.FromResult(ErrorOr<MessageTypeEntry>.ForError(new Error(Errors.ValidationFailed, errorText))));
         var cut = RenderPage("Requests");
         cut.Find("[data-send-on=Email]").Change(false);
 
@@ -128,7 +129,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(
-            ("DisabledChannels has only the channels of the message type Requests.", "Email:False Sms:True", 1),
+            (errorText, "Email:False Sms:True", 1),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, BoxesOf(cut), Queries.ReceivedCalls().Count()));
         Commands.Received(1).SaveMessageTypeAsync(Arg.Is<MessageTypeEntry>(static entry => IsRequestsWithOnlyEmailDisabled(entry)), Arg.Any<CancellationToken>());
     }

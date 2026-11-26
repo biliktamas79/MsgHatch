@@ -13,9 +13,10 @@ public sealed class TemplateExtensionsUnitTests
     public async Task UseFileTemplates_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string rootPath = "root-templates";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:FileTemplates:RootPath"] = "root-templates",
+            ["Messaging:FileTemplates:RootPath"] = rootPath,
             ["MsgHatch:FileTemplates:RootPath"] = "default-templates",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseFileTemplates();
@@ -25,6 +26,6 @@ public sealed class TemplateExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<FileTemplateOptions>>().Value;
 
         // Assert
-        Assert.Equal("root-templates", options.RootPath);
+        Assert.Equal(rootPath, options.RootPath);
     }
 }

@@ -20,13 +20,14 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
 {
     private TestDatabase Database => server.Database("outbox");
 
-    private BsonDocument StartTime => new() { { "d", new BsonDateTime(Now) }, { "t", Now.Ticks } };
+    private BsonDocument StartTime => TimeOf(Now);
 
     [Fact]
     public async Task AddAsync_MessageWithNoTenantAndATrace_WritesTheEnumValuesAsTextANullTenantTheTraceAndNoTries()
     {
         // Arrange
-        var message = AMessage(TenantKey.None) with { Trace = new TestTrace("reason") };
+        var trace = new TestTrace("reason");
+        var message = AMessage(TenantKey.None) with { Trace = trace };
 
         // Act
         await TenantStore(TenantKey.None).AddAsync([message], Ct);
@@ -35,7 +36,7 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
         var document = Assert.Single(await DocumentsAsync());
         Assert.Equal(
             [BsonNull.Value, "Pending", StartTime, StartTime, BsonNull.Value, "User", "None",
-                new BsonDocument { { "$type", "Trace:Test@1" }, { "reason", "reason" } }, new BsonArray()],
+                new BsonDocument { { "$type", "Trace:Test@1" }, { "reason", trace.Reason } }, new BsonArray()],
             [document["tenant"], document["delivery"]["status"], document["delivery"]["createdAtUtc"], document["delivery"]["nextTryAtUtc"],
                 document["delivery"]["leaseUntilUtc"], document["target"]["kind"], document["flags"], document["trace"], document["tries"]]);
     }
@@ -44,14 +45,15 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
     public async Task GetAsync_MessageWithATrace_GivesTheTraceBack()
     {
         // Arrange
-        var message = AMessage(T1) with { Trace = new TestTrace("reason") };
+        var trace = new TestTrace("reason");
+        var message = AMessage(T1) with { Trace = trace };
         await TenantStore(T1).AddAsync([message], Ct);
 
         // Act
         var history = await TenantStore(T1).GetAsync(message.Delivery.Id, Ct);
 
         // Assert
-        Assert.Equal(new TestTrace("reason"), history.Value!.Message.Trace);
+        Assert.Equal(trace, history.Value!.Message.Trace);
     }
 
     [Fact]
@@ -103,8 +105,13 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
     [Fact]
     public async Task SetChannelDownAsync_ReasonErrors_WritesTheStateDocumentWithTheEnumValuesAndTheTimes()
     {
+        // Arrange
+        const int errorCode = 503;
+        const string errorName = "Unavailable";
+        var down = new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, errorCode, errorName, Note: null);
+
         // Act
-        await Store.SetChannelDownAsync(new ChannelDown(TestChannel.Id, ChannelDownReason.Errors, Now, Now, 503, "Unavailable", Note: null), Ct);
+        await Store.SetChannelDownAsync(down, Ct);
 
         // Assert
         var document = Assert.Single(await Database.DocumentsAsync(MongoDbOutboxStore.ChannelStateCollectionName, Ct));
@@ -113,9 +120,9 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
         Assert.Equal(
             new BsonDocument
             {
-                { "channel", "Test" }, { "version", 1 }, { "kind", "Down" }, { "sinceUtc", StartTime }, { "previousKind", BsonNull.Value },
+                { "channel", TestChannel.Id.Name }, { "version", 1 }, { "kind", "Down" }, { "sinceUtc", StartTime }, { "previousKind", BsonNull.Value },
                 { "previousDurationMs", BsonNull.Value },
-                { "reason", "Errors" }, { "nextCheckAtUtc", StartTime }, { "errorCode", 503 }, { "errorName", "Unavailable" }, { "note", BsonNull.Value },
+                { "reason", "Errors" }, { "nextCheckAtUtc", StartTime }, { "errorCode", errorCode }, { "errorName", errorName }, { "note", BsonNull.Value },
             },
             document);
     }
@@ -189,17 +196,17 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
     {
         // Arrange
         var message = await AddAsync(AMessage(T1));
+        var publishTry = ATransientErrorTry(message);
 
         // Act
-        await Store.RecordTryAsync(message, ATransientErrorTry(message), Now.AddMinutes(1), Ct);
+        await Store.RecordTryAsync(message, publishTry, Now.AddMinutes(1), Ct);
 
         // Assert
         Assert.Equal(
             new BsonDocument
             {
-                { "tryNumber", 1 }, { "startedAtUtc", StartTime },
-                { "finishedAtUtc", new BsonDocument { { "d", new BsonDateTime(Now.AddSeconds(1)) }, { "t", Now.AddSeconds(1).Ticks } } },
-                { "outcome", "TransientError" }, { "providerMessageId", BsonNull.Value }, { "errorCode", 429 }, { "errorName", "RateLimited" },
+                { "tryNumber", publishTry.TryNumber }, { "startedAtUtc", TimeOf(publishTry.StartedAtUtc) }, { "finishedAtUtc", TimeOf(publishTry.FinishedAtUtc) },
+                { "outcome", "TransientError" }, { "providerMessageId", BsonNull.Value }, { "errorCode", publishTry.ErrorCode }, { "errorName", publishTry.ErrorName },
                 { "errorMessage", BsonNull.Value },
             },
             Assert.Single(Assert.Single(await DocumentsAsync())["tries"].AsBsonArray));
@@ -341,6 +348,8 @@ public sealed class MongoDbOutboxStoreIntegTests(MongoDbFixture server)
             (new BsonDocument { { "channel", 1 }, { "delivery.nextTryAtUtc.t", 1 }, { "_id", 1 } }, new BsonDocument("delivery.status", "Pending")),
             (due["key"].AsBsonDocument, due["partialFilterExpression"].AsBsonDocument));
     }
+
+    private static BsonDocument TimeOf(DateTime time) => new() { { "d", new BsonDateTime(time) }, { "t", time.Ticks } };
 
     private PublishTry ATransientErrorTry(OutgoingMessage message) =>
         new(message.Delivery.Id, 1, Now, Now.AddSeconds(1), PublishOutcome.TransientError, ProviderMessageId: null, 429, "RateLimited", ErrorMessage: null);

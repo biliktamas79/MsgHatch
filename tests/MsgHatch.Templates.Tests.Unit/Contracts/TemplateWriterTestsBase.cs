@@ -21,13 +21,16 @@ public abstract class TemplateWriterTestsBase<TStore>(TStore store)
     [Fact]
     public async Task SaveAsync_NewTemplateWithVersion0_GivesTheEntryOfTheTextThatFindAsyncReads()
     {
+        // Arrange
+        const string text = "Order {{Name}}";
+
         // Act
-        var entry = await Store.SaveAsync(ALookup(), "Order {{Name}}", 0, Ct);
+        var entry = await Store.SaveAsync(ALookup(), text, 0, Ct);
 
         // Assert
         var source = await Store.FindAsync(ALookup(), Ct);
         Assert.Equal(
-            (ALookup(), true, "Order {{Name}}", entry.Value.Version),
+            (ALookup(), true, text, entry.Value.Version),
             (entry.Value.Lookup, entry.Value.Version > 0, source.Value?.Text, source.Value?.Key.Version));
     }
 
@@ -35,15 +38,16 @@ public abstract class TemplateWriterTestsBase<TStore>(TStore store)
     public async Task SaveAsync_ExistingTemplateWithItsVersion_GivesALaterVersionWithTheNewText()
     {
         // Arrange
+        const string secondText = "Second";
         var first = await Store.SaveAsync(ALookup(), "First", 0, Ct);
 
         // Act
-        var second = await Store.SaveAsync(ALookup(), "Second", first.Value.Version, Ct);
+        var second = await Store.SaveAsync(ALookup(), secondText, first.Value.Version, Ct);
 
         // Assert
         var source = await Store.FindAsync(ALookup(), Ct);
         Assert.Equal(
-            (true, "Second", second.Value.Version),
+            (true, secondText, second.Value.Version),
             (second.Value.Version > first.Value.Version, source.Value?.Text, source.Value?.Key.Version));
     }
 
@@ -61,29 +65,31 @@ public abstract class TemplateWriterTestsBase<TStore>(TStore store)
     public async Task SaveAsync_OldVersion_GivesConflictAndKeepsTheText()
     {
         // Arrange
+        const string storedText = "Second";
         var first = await Store.SaveAsync(ALookup(), "First", 0, Ct);
-        await Store.SaveAsync(ALookup(), "Second", first.Value.Version, Ct);
+        await Store.SaveAsync(ALookup(), storedText, first.Value.Version, Ct);
 
         // Act
         var result = await Store.SaveAsync(ALookup(), "Third", first.Value.Version, Ct);
 
         // Assert
         var source = await Store.FindAsync(ALookup(), Ct);
-        Assert.Equal((409, "Second"), (result.Error?.Type.Code, source.Value?.Text));
+        Assert.Equal((409, storedText), (result.Error?.Type.Code, source.Value?.Text));
     }
 
     [Fact]
     public async Task SaveAsync_Version0OfAnExistingTemplate_GivesConflictAndKeepsTheText()
     {
         // Arrange
-        await Store.SaveAsync(ALookup(), "First", 0, Ct);
+        const string storedText = "First";
+        await Store.SaveAsync(ALookup(), storedText, 0, Ct);
 
         // Act
         var result = await Store.SaveAsync(ALookup(), "Second", 0, Ct);
 
         // Assert
         var source = await Store.FindAsync(ALookup(), Ct);
-        Assert.Equal((409, "First"), (result.Error?.Type.Code, source.Value?.Text));
+        Assert.Equal((409, storedText), (result.Error?.Type.Code, source.Value?.Text));
     }
 
     [Fact]
@@ -110,27 +116,35 @@ public abstract class TemplateWriterTestsBase<TStore>(TStore store)
     [Fact]
     public async Task SaveAsync_TwoKindsOfOnePart_GiveTwoTemplates()
     {
+        // Arrange
+        const string htmlText = "<p>Html</p>";
+        const string plainText = "Text";
+
         // Act
-        await Store.SaveAsync(ALookup(kind: TemplatePartKind.Html), "<p>Html</p>", 0, Ct);
-        await Store.SaveAsync(ALookup(kind: TemplatePartKind.PlainText), "Text", 0, Ct);
+        await Store.SaveAsync(ALookup(kind: TemplatePartKind.Html), htmlText, 0, Ct);
+        await Store.SaveAsync(ALookup(kind: TemplatePartKind.PlainText), plainText, 0, Ct);
 
         // Assert
         var html = await Store.FindAsync(ALookup(kind: TemplatePartKind.Html), Ct);
         var text = await Store.FindAsync(ALookup(kind: TemplatePartKind.PlainText), Ct);
-        Assert.Equal(("<p>Html</p>", "Text"), (html.Value?.Text, text.Value?.Text));
+        Assert.Equal((htmlText, plainText), (html.Value?.Text, text.Value?.Text));
     }
 
     [Fact]
     public async Task SaveAsync_TemplateOfAScope_IsFoundOnlyWithThatScope()
     {
+        // Arrange
+        const string scope = "42";
+        const string companyText = "Company 42";
+
         // Act
-        await Store.SaveAsync(ALookup(scope: "42"), "Company 42", 0, Ct);
+        await Store.SaveAsync(ALookup(scope: scope), companyText, 0, Ct);
 
         // Assert
-        var scoped = await Store.FindAsync(ALookup(scope: "42"), Ct);
+        var scoped = await Store.FindAsync(ALookup(scope: scope), Ct);
         var unscoped = await Store.FindAsync(ALookup(), Ct);
         var other = await Store.FindAsync(ALookup(scope: "43"), Ct);
-        Assert.Equal(("Company 42", null, null), (scoped.Value?.Text, unscoped.Value?.Text, other.Value?.Text));
+        Assert.Equal((companyText, null, null), (scoped.Value?.Text, unscoped.Value?.Text, other.Value?.Text));
     }
 
     [Fact]

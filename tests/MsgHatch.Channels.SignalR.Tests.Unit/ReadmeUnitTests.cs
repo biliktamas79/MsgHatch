@@ -42,9 +42,12 @@ public sealed class ReadmeUnitTests
     public async Task OnConnectedAsync_HubOfTheReadme_AddsTheConnectionToTheGroupsOfItsTenantAndItsCompany()
     {
         // Arrange
+        const string connectionId = "connection 1";
+        const string tenant = "t1";
+        const string company = "c1";
         var context = Substitute.For<HubCallerContext>();
-        context.ConnectionId.Returns("connection 1");
-        context.User.Returns(new ClaimsPrincipal(new ClaimsIdentity([new Claim("tenant", "t1"), new Claim("company", "c1")], "test")));
+        context.ConnectionId.Returns(connectionId);
+        context.User.Returns(new ClaimsPrincipal(new ClaimsIdentity([new Claim("tenant", tenant), new Claim("company", company)], "test")));
         var groups = Substitute.For<IGroupManager>();
         using var hub = new TenantHub { Context = context, Groups = groups };
 
@@ -53,7 +56,7 @@ public sealed class ReadmeUnitTests
 
         // Assert
         Assert.Equal(
-            [("connection 1", "msghatch:tenant:t1"), ("connection 1", "msghatch:t1:company:c1")],
+            [(connectionId, $"msghatch:tenant:{tenant}"), (connectionId, $"msghatch:{tenant}:company:{company}")],
             groups.ReceivedCalls().Select(static call => ((string)call.GetArguments()[0]!, (string)call.GetArguments()[1]!)));
     }
 

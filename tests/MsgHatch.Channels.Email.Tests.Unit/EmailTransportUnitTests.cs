@@ -42,14 +42,15 @@ public sealed class EmailTransportUnitTests : TransportTestsBase<EmailTransport>
     public async Task SendAsync_RedirectTo_ReplacesTheRecipientAndRemovesTheCopies()
     {
         // Arrange
+        const string redirectTo = "tester@example.com";
         var email = TestMessages.AnEmail(to: "client1@example.com", cc: ["cc1@example.com", "cc2@example.com"], bcc: ["bcc1@example.com", "bcc2@example.com"]);
 
         // Act
-        await Transport.SendAsync(TestMessages.AnOutgoingEmail(email), "tester@example.com", Ct);
+        await Transport.SendAsync(TestMessages.AnOutgoingEmail(email), redirectTo, Ct);
 
         // Assert
         var sent = (EmailMessage)_client.ReceivedCalls().Single().GetArguments()[1]!;
-        Assert.Equal(email with { To = "tester@example.com", Cc = null, Bcc = null }, sent);
+        Assert.Equal(email with { To = redirectTo, Cc = null, Bcc = null }, sent);
     }
 
     [Fact]

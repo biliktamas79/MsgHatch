@@ -172,15 +172,17 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
     public async Task RenderVersion_InnerStore_GivesTheTextOfTheInnerStore()
     {
         // Arrange
+        const long version = 7;
+        const string versionText = "Version seven";
         var inner = AStore(ErrorOr<TemplateSource?>.ForValue(null));
-        inner.RenderVersion(7).Returns("Version seven");
+        inner.RenderVersion(version).Returns(versionText);
         await using var provider = BuildWithSharedStore(inner);
 
         // Act
-        var text = provider.GetRequiredService<ITemplateStore>().RenderVersion(7);
+        var text = provider.GetRequiredService<ITemplateStore>().RenderVersion(version);
 
         // Assert
-        Assert.Equal("Version seven", text);
+        Assert.Equal(versionText, text);
     }
 
     [Fact]

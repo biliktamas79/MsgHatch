@@ -87,23 +87,27 @@ public sealed class ErrorProblemsUnitTests
     public void ErrorOf_StatusAndBodyOfATypeOfTheConsumer_GivesAnErrorEqualToTheOriginal()
     {
         // Arrange
-        var original = new Error(new ErrorType(600, "OrderLocked", IsTransient: true), "The order is locked.");
+        const string name = "OrderLocked";
+        var original = new Error(new ErrorType(600, name, IsTransient: true), "The order is locked.");
 
         // Act
         var error = ErrorProblems.ErrorOf(ErrorProblems.StatusCodeOf(original.Type), ErrorTypeBody.From(original.Type), original.Message);
 
         // Assert
-        Assert.Equal((original, "OrderLocked", true), (error, error.Type.Name, error.Type.IsTransient));
+        Assert.Equal((original, name, true), (error, error.Type.Name, error.Type.IsTransient));
     }
 
     [Theory]
     [MemberData(nameof(NoErrorTypeRows))]
     public void ErrorOf_BodyWithNoErrorType_GivesTheTypeOfTheStatus(int status, string expected)
     {
+        // Arrange
+        const string detail = "The detail of the host.";
+
         // Act
-        var error = ErrorProblems.ErrorOf(status, errorType: null, "The detail of the host.");
+        var error = ErrorProblems.ErrorOf(status, errorType: null, detail);
 
         // Assert
-        Assert.Equal((status, expected, "The detail of the host."), (status, error.Type.Name, error.Message));
+        Assert.Equal((status, expected, detail), (status, error.Type.Name, error.Message));
     }
 }

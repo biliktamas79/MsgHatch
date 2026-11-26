@@ -128,14 +128,17 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     public async Task Pause_Note_CallsThePauseWithTheChannelAndTheNote()
     {
         // Arrange
+        const string channel = "Email";
+        const string note = "SES outage, ticket 42";
+        const string body = $$"""{"note":"{{note}}"}""";
         _host.Commands.PauseChannelAsync(default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(null));
 
         // Act
-        var response = await _host.Client.SendAsync(RequestOf("POST", "/delivery/channels/Email/pause", """{"note":"SES outage, ticket 42"}"""), Ct);
+        var response = await _host.Client.SendAsync(RequestOf("POST", $"/delivery/channels/{channel}/pause", body), Ct);
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        await _host.Commands.Received(1).PauseChannelAsync(new ChannelId("Email"), "SES outage, ticket 42", Arg.Any<CancellationToken>());
+        await _host.Commands.Received(1).PauseChannelAsync(new ChannelId(channel), note, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -158,9 +161,14 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     public async Task RetryOutgoing_Body_CallsTheRetryWithTheFiltersAndGivesTheCounts()
     {
         // Arrange
+        const string channel = "Email";
+        const string userId = "1";
+        const int matched = 5;
+        const int changed = 4;
         _host.Commands.RetryOutgoingAsync(default!, Ct)
-            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<DeliveryActionResult>.ForValue(new DeliveryActionResult(5, 4))));
-        var body = """{"status":"Failed","channel":"Email","targetKind":"User","targetId":"1","createdFrom":"2030-01-01T00:00:00Z","includeTest":true}""";
+            .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<DeliveryActionResult>.ForValue(new DeliveryActionResult(matched, changed))));
+        const string body =
+            $$"""{"status":"Failed","channel":"{{channel}}","targetKind":"User","targetId":"{{userId}}","createdFrom":"2030-01-01T00:00:00Z","includeTest":true}""";
 
         // Act
         var response = await _host.Client.SendAsync(RequestOf("POST", "/delivery/outbox/retry", body), Ct);
@@ -168,10 +176,10 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         // Assert
         await _host.Commands.Received(1).RetryOutgoingAsync(
             new OutboxQuery(
-                Status: DeliveryStatus.Failed, Channel: new ChannelId("Email"), Target: new DeliveryTarget(DeliveryTargetKind.User, "1"),
+                Status: DeliveryStatus.Failed, Channel: new ChannelId(channel), Target: new DeliveryTarget(DeliveryTargetKind.User, userId),
                 CreatedFromUtc: _time.AddHours(-10), IncludeTest: true),
             Arg.Any<CancellationToken>());
-        Assert.Equal("""{"matched":5,"changed":4}""", await response.Content.ReadAsStringAsync(Ct));
+        Assert.Equal($$"""{"matched":{{matched}},"changed":{{changed}}}""", await response.Content.ReadAsStringAsync(Ct));
     }
 
     [Fact]
@@ -215,9 +223,11 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
     public async Task GetOutgoingMessage_Detail_WritesTheSummaryTheTraceAndTheTriesWithNoEnvelope()
     {
         // Arrange
-        var message = TestMessages.AnOutgoingMessage(new TestEnvelope("client1@example.com"), id: _id, trace: new TestTrace("rule 7"));
+        const string address = "client1@example.com";
+        var trace = new TestTrace("rule 7");
+        var message = TestMessages.AnOutgoingMessage(new TestEnvelope(address), id: _id, trace: trace);
         var detail = new OutgoingMessageDetail(
-            OutgoingMessageSummary.Of(message), JsonSerializer.Serialize(new TestTrace("rule 7"), TestJsonContext.Default.TestTrace),
+            OutgoingMessageSummary.Of(message), JsonSerializer.Serialize(trace, TestJsonContext.Default.TestTrace),
             [PublishTry.Cancel(_id, 1, _time)]);
         _host.Queries.GetOutgoingMessageAsync(_id, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<OutgoingMessageDetail>.ForValue(detail)));
 
@@ -227,11 +237,11 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         // Assert
         using var json = JsonDocument.Parse(text);
         Assert.Equal(
-            ("Test", "rule 7", "Cancelled", false),
+            (message.Channel.Name, trace.Reason, "Cancelled", false),
             (json.RootElement.GetProperty("summary").GetProperty("channel").GetString(),
                 json.RootElement.GetProperty("trace").GetProperty("reason").GetString(),
                 json.RootElement.GetProperty("tries")[0].GetProperty("outcome").GetString(),
-                text.Contains("client1@example.com", StringComparison.Ordinal)));
+                text.Contains(address, StringComparison.Ordinal)));
         await _host.Queries.Received(1).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
     }
 

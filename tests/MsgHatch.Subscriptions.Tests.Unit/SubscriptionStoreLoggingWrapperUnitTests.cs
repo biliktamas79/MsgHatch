@@ -129,16 +129,17 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
     public async Task FindForDeliveryAsync_StoreOfNoTenant_LogsNoTenant()
     {
         // Arrange
+        const string operation = "FindForDelivery";
         var inner = AStore(error: null);
         await using var provider = BuildWith(inner);
 
         // Act
-        await CallAsync(provider.GetRequiredService<ISubscriptionStore>(), "FindForDelivery");
+        await CallAsync(provider.GetRequiredService<ISubscriptionStore>(), operation);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((string?)null, 1100), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
-        await ReceivedOneCallAsync(inner, "FindForDelivery");
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Fact]

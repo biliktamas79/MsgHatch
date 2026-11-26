@@ -25,11 +25,14 @@ public sealed class AdminErrorsUnitTests
     [Fact]
     public void TextOf_OtherErrorWithAMessage_GivesTheMessage()
     {
+        // Arrange
+        const string message = "The part is not a name.";
+
         // Act
-        var text = AdminErrors.TextOf(new Error(Errors.ValidationFailed, "The part is not a name."));
+        var text = AdminErrors.TextOf(new Error(Errors.ValidationFailed, message));
 
         // Assert
-        Assert.Equal("The part is not a name.", text);
+        Assert.Equal(message, text);
     }
 
     [Fact]

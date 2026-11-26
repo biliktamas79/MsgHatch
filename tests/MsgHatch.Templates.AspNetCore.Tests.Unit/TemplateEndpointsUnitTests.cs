@@ -123,13 +123,16 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     [Fact]
     public async Task PutTemplate_PathQueryAndBody_SavesTheLookupTheTextAndTheVersion()
     {
+        // Arrange
+        const string companyId = "42";
+        const string text = "Rendelés {{Name}} ő";
+        const long version = 5;
+
         // Act
-        await _host.Client.SendAsync(RequestOf("PUT", $"{_path}?companyId=42", """{"text":"Rendelés {{Name}} ő","version":5}"""), Ct);
+        await _host.Client.SendAsync(RequestOf("PUT", $"{_path}?companyId={companyId}", $$"""{"text":"{{text}}","version":{{version}}}"""), Ct);
 
         // Assert
-        await _host.Manager.Received(1).SaveTemplateAsync(
-            new TemplateLookup(new MessageType("OrderShipped"), "hu", "42", "subject", TemplatePartKind.PlainText), "Rendelés {{Name}} ő", 5,
-            Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).SaveTemplateAsync(_lookup with { Scope = companyId }, text, version, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -176,14 +179,17 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     [Fact]
     public async Task PutTemplate_SavedEntry_Gives200WithTheEntry()
     {
+        // Arrange
+        const string text = "Rendelés";
+
         // Act
-        var response = await _host.Client.SendAsync(RequestOf("PUT", _path, """{"text":"Rendelés","version":0}"""), Ct);
+        var response = await _host.Client.SendAsync(RequestOf("PUT", _path, $$"""{"text":"{{text}}","version":0}"""), Ct);
 
         // Assert
         Assert.Equal(
             (HttpStatusCode.OK, """{"messageType":"OrderShipped","language":"hu","companyId":null,"part":"subject","kind":"PlainText","version":7,"versionText":null}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
-        await _host.Manager.Received(1).SaveTemplateAsync(_lookup, "Rendelés", 0, Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).SaveTemplateAsync(_lookup, text, 0, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -213,13 +219,15 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     [Fact]
     public async Task PostCheck_PathQueryAndBody_Gives200WithTheIssuesOfTheLookupAndTheText()
     {
+        // Arrange
+        const string companyId = "42";
+        const string text = "Rendelés {{Name";
+
         // Act
-        var response = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/check?companyId=42", """{"text":"Rendelés {{Name"}"""), Ct);
+        var response = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/check?companyId={companyId}", $$"""{"text":"{{text}}"}"""), Ct);
 
         // Assert
-        await _host.Manager.Received(1).CheckTemplateAsync(
-            new TemplateLookup(new MessageType("OrderShipped"), "hu", "42", "subject", TemplatePartKind.PlainText), "Rendelés {{Name",
-            Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).CheckTemplateAsync(_lookup with { Scope = companyId }, text, Arg.Any<CancellationToken>());
         Assert.Equal(
             (HttpStatusCode.OK, """[{"message":"An issue.","line":2,"column":5},{"message":"Another issue.","line":null,"column":null}]"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
@@ -228,13 +236,15 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     [Fact]
     public async Task PostPreview_PathQueryAndBody_Gives200WithThePreviewsOfTheLookupAndTheText()
     {
+        // Arrange
+        const string companyId = "42";
+        const string text = "Rendelés {{Name}}";
+
         // Act
-        var response = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/preview?companyId=42", """{"text":"Rendelés {{Name}}"}"""), Ct);
+        var response = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/preview?companyId={companyId}", $$"""{"text":"{{text}}"}"""), Ct);
 
         // Assert
-        await _host.Manager.Received(1).PreviewTemplateAsync(
-            new TemplateLookup(new MessageType("OrderShipped"), "hu", "42", "subject", TemplatePartKind.PlainText), "Rendelés {{Name}}",
-            Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).PreviewTemplateAsync(_lookup with { Scope = companyId }, text, Arg.Any<CancellationToken>());
         var body = await response.Content.ReadFromJsonAsync(TemplateEndpointJson.Default.IReadOnlyListTemplatePreviewResponse, Ct);
         Assert.Equal(
             (HttpStatusCode.OK, "Email:A: Rendelés Minta, Sms:A: <p>Minta</p>"),
@@ -337,18 +347,19 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     public async Task PutTemplate_ManagerError_GivesItsStatusWithAProblemDetailsOfTheErrorNameMessageAndErrorType(int errorCode, HttpStatusCode expected)
     {
         // Arrange
+        const string text = "Rendelés";
         var error = new Error(ErrorTypeOf(errorCode), "The manager failed.");
         _host.Manager.Configure().SaveTemplateAsync(default, default!, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<TemplateEntry>.ForError(error)));
 
         // Act
-        var response = await _host.Client.SendAsync(RequestOf("PUT", _path, """{"text":"Rendelés","version":0}"""), Ct);
+        var response = await _host.Client.SendAsync(RequestOf("PUT", _path, $$"""{"text":"{{text}}","version":0}"""), Ct);
 
         // Assert
         var problem = await ProblemOf(response);
         Assert.Equal(
-            (expected, error.Type.Name, "The manager failed.", ErrorTypeBody.From(error.Type)),
+            (expected, error.Type.Name, error.Message, ErrorTypeBody.From(error.Type)),
             (response.StatusCode, problem.Title, problem.Detail, problem.ErrorType));
-        await _host.Manager.Received(1).SaveTemplateAsync(_lookup, "Rendelés", 0, Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).SaveTemplateAsync(_lookup, text, 0, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -356,6 +367,8 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
     public async Task EachOtherRoute_ManagerError_GivesItsStatus(int errorCode, HttpStatusCode expected)
     {
         // Arrange
+        const string text = "Rendelés";
+        var body = $$"""{"text":"{{text}}"}""";
         var error = new Error(ErrorTypeOf(errorCode));
         _host.Manager.Configure().GetTemplatesAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateEntry>>.ForError(error)));
         _host.Manager.Configure().GetTemplateAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<TemplateSource>.ForError(error)));
@@ -369,8 +382,8 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         var read = await _host.Client.SendAsync(RequestOf("GET", _path, null), Ct);
         var delete = await _host.Client.SendAsync(RequestOf("DELETE", _path, null), Ct);
         var parts = await _host.Client.SendAsync(RequestOf("GET", "/templates/parts", null), Ct);
-        var check = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/check", """{"text":"Rendelés"}"""), Ct);
-        var preview = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/preview", """{"text":"Rendelés"}"""), Ct);
+        var check = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/check", body), Ct);
+        var preview = await _host.Client.SendAsync(RequestOf("POST", $"{_path}/preview", body), Ct);
 
         // Assert
         Assert.Equal(
@@ -380,8 +393,8 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         await _host.Manager.Received(1).GetTemplateAsync(_lookup, Arg.Any<CancellationToken>());
         await _host.Manager.Received(1).DeleteTemplateAsync(_lookup, Arg.Any<CancellationToken>());
         await _host.Manager.Received(1).GetTemplatePartsAsync(null, Arg.Any<CancellationToken>());
-        await _host.Manager.Received(1).CheckTemplateAsync(_lookup, "Rendelés", Arg.Any<CancellationToken>());
-        await _host.Manager.Received(1).PreviewTemplateAsync(_lookup, "Rendelés", Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).CheckTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).PreviewTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
     }
 
     private static ErrorType ErrorTypeOf(int code) => Errors.Find(code)!;

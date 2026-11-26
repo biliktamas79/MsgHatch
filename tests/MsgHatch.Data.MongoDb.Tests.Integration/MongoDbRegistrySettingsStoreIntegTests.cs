@@ -29,7 +29,8 @@ public sealed class MongoDbRegistrySettingsStoreIntegTests(MongoDbFixture server
     public async Task SaveChannelEntryAsync_NewEntry_WritesTheFieldsWithTheNameAsTheId()
     {
         // Arrange
-        var entry = AChannelEntry(Email, displayName: "Shop email", description: null, enabled: false);
+        const string displayName = "Shop email";
+        var entry = AChannelEntry(Email, displayName: displayName, description: null, enabled: false);
 
         // Act
         await Store.SaveChannelEntryAsync(entry, Ct);
@@ -38,7 +39,7 @@ public sealed class MongoDbRegistrySettingsStoreIntegTests(MongoDbFixture server
         Assert.Equal(
             new BsonDocument
             {
-                { "_id", "Email" }, { "displayName", "Shop email" }, { "description", BsonNull.Value }, { "enabled", false }, { "revision", 1 },
+                { "_id", Email.Name }, { "displayName", displayName }, { "description", BsonNull.Value }, { "enabled", false }, { "revision", entry.Revision },
                 { "lastModifiedAtUtc", new BsonDocument { { "d", new BsonDateTime(Now) }, { "t", Now.Ticks } } },
             },
             Assert.Single(await Database.DocumentsAsync(_channels, Ct)));

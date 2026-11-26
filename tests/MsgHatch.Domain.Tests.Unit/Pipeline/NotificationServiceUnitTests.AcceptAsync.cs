@@ -24,15 +24,16 @@ public sealed partial class NotificationServiceUnitTests
         await using var provider = BuildWithInMemoryInbox();
         var context = AContext(_tenant, MessageFlags.Test);
         var now = _time.GetUtcNow().UtcDateTime;
+        var domainEvent = new TestEvent("Order 1001");
 
         // Act
-        var accepted = await AcceptAsync(provider, new TestEvent("Order 1001"), context);
+        var accepted = await AcceptAsync(provider, domainEvent, context);
 
         // Assert
         var stored = Assert.IsType<ReceivedMessage<TestEvent>>(Assert.Single(provider.GetRequiredService<InMemoryInboxStore>().GetMessages()));
         Assert.Equal(context.MessageId, accepted.Value);
         Assert.Equal(
-            (context.MessageId, DeliveryStatus.Pending, 0, 8, now, now, (TenantId?)_tenant, MessageFlags.Test, new MessageType("TestEvent"), 2, new TestEvent("Order 1001")),
+            (context.MessageId, DeliveryStatus.Pending, 0, 8, now, now, (TenantId?)_tenant, MessageFlags.Test, new MessageType("TestEvent"), 2, domainEvent),
             (stored.Delivery.Id, stored.Delivery.Status, stored.Delivery.TryCount, stored.Delivery.MaxTryCount, stored.Delivery.CreatedAtUtc,
                 stored.Delivery.NextTryAtUtc, stored.Tenant, stored.Flags, stored.Type, stored.ContentVersion, stored.Event));
     }

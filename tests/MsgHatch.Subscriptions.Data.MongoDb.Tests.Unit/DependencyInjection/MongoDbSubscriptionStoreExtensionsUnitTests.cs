@@ -18,9 +18,10 @@ public sealed class MongoDbSubscriptionStoreExtensionsUnitTests
     public async Task UseMongoDbSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string connectionString = "mongodb://root.example.com:27017";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:MongoDb:ConnectionString"] = "mongodb://root.example.com:27017",
+            ["Messaging:MongoDb:ConnectionString"] = connectionString,
             ["MsgHatch:MongoDb:DatabaseName"] = "default",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseMongoDbSubscriptionStore();
@@ -30,7 +31,7 @@ public sealed class MongoDbSubscriptionStoreExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal(("mongodb://root.example.com:27017", "msghatch"), (options.ConnectionString, options.DatabaseName));
+        Assert.Equal((connectionString, "msghatch"), (options.ConnectionString, options.DatabaseName));
     }
 
     [Fact]

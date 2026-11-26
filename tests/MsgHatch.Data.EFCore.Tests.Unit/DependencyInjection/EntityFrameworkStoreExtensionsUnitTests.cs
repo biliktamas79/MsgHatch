@@ -41,9 +41,10 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     public async Task UseEntityFrameworkStores_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string schema = "root";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:EntityFramework:Schema"] = "root",
+            ["Messaging:EntityFramework:Schema"] = schema,
             ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseEntityFrameworkStores(o => o.UseSqlite(_database.ConnectionString));
@@ -53,7 +54,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
 
         // Assert
-        Assert.Equal(("root", (string?)null), (options.Schema, options.TextCollation));
+        Assert.Equal((schema, (string?)null), (options.Schema, options.TextCollation));
     }
 
     [Fact]
@@ -131,7 +132,8 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     public async Task UseEntityFrameworkStores_DialectWithNoSchemasAndASchemaThatIsNotTheDefault_FailsTheStartupValidationAndNamesTheOption()
     {
         // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = "other" });
+        const string schema = "other";
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:EntityFramework:Schema"] = schema });
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkStores(
             o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(hasSchemas: false)));
         await using var provider = services.Build();
@@ -144,15 +146,16 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
         Assert.Equal(
             (true, true, true),
             (failure.Contains("UseEntityFrameworkStores", StringComparison.Ordinal), failure.Contains("Schema", StringComparison.Ordinal),
-                failure.Contains("other", StringComparison.Ordinal)));
+                failure.Contains(schema, StringComparison.Ordinal)));
     }
 
     [Fact]
     public async Task UseEntityFrameworkStores_DialectOfAnotherProvider_FailsTheStartupValidationAndNamesBothProviders()
     {
         // Arrange
+        const string providerName = "Other.Provider";
         await using var provider = Build(
-            o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(providerName: "Other.Provider")));
+            o => o.UseSqlite(_database.ConnectionString).UseEntityFrameworkStoreDialect(new SqliteTestDialect(providerName: providerName)));
 
         // Act
         var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
@@ -161,7 +164,7 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
         var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
         Assert.Equal(
             (true, true, true),
-            (failure.Contains("UseEntityFrameworkStores", StringComparison.Ordinal), failure.Contains("Other.Provider", StringComparison.Ordinal),
+            (failure.Contains("UseEntityFrameworkStores", StringComparison.Ordinal), failure.Contains(providerName, StringComparison.Ordinal),
                 failure.Contains(SqliteTestDialect.SqliteProvider, StringComparison.Ordinal)));
     }
 

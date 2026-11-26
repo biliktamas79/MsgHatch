@@ -34,9 +34,12 @@ public sealed class EmailComposerUnitTests
     public async Task ComposeAsync_RoutesOfTwoLanguagesAndTwoScopes_CallsPrepareOneTimeForEachGroupInTheOrderOfItsFirstRoute()
     {
         // Arrange
+        const string english = "en";
+        const string hungarian = "hu";
+        const string scope = "acme";
         MessageRoute[] routes =
         [
-            AnEmailRoute("u1", "en"), AnEmailRoute("u2", "hu"), AnEmailRoute("u3", "en"), AnEmailRoute("u4", "en", templateScope: "acme"),
+            AnEmailRoute("u1", english), AnEmailRoute("u2", hungarian), AnEmailRoute("u3", english), AnEmailRoute("u4", english, templateScope: scope),
         ];
 
         // Act
@@ -44,7 +47,7 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Equal(
-            [("en", null), ("hu", null), ("en", "acme")],
+            [(english, null), (hungarian, null), (english, scope)],
             _doubles.Prepares.Select(static request => (request.Language, request.Scope)).Distinct());
         Assert.Equal(9, _doubles.Prepares.Count);
     }
@@ -69,19 +72,22 @@ public sealed class EmailComposerUnitTests
     public async Task ComposeAsync_HtmlBodyFoundInTheDefaultLanguageWithNoScope_PreparesTheOptionalTextBodyInThatLanguageAndScope()
     {
         // Arrange
+        const string defaultLanguage = "en";
+        const string language = "hu";
+        const string scope = "acme";
         _doubles.LookupOf = static request => request.Kind == TemplatePartKind.Html
-            ? new TemplateLookup(request.Type, "en", Scope: null, request.Part, request.Kind)
+            ? new TemplateLookup(request.Type, defaultLanguage, Scope: null, request.Part, request.Kind)
             : new TemplateLookup(request.Type, request.Language, request.Scope, request.Part, request.Kind);
 
         // Act
-        await _doubles.ComposeAsync(AnEmailRoute("u1", "hu", templateScope: "acme"));
+        await _doubles.ComposeAsync(AnEmailRoute("u1", language, templateScope: scope));
 
         // Assert
         Assert.Equal(
             [
-                new TemplateRequest(_type, "hu", "acme", "subject", TemplatePartKind.PlainText),
-                new TemplateRequest(_type, "hu", "acme", "body", TemplatePartKind.Html),
-                new TemplateRequest(_type, "en", null, "body", TemplatePartKind.PlainText, Optional: true),
+                new TemplateRequest(_type, language, scope, "subject", TemplatePartKind.PlainText),
+                new TemplateRequest(_type, language, scope, "body", TemplatePartKind.Html),
+                new TemplateRequest(_type, defaultLanguage, null, "body", TemplatePartKind.PlainText, Optional: true),
             ],
             _doubles.Prepares);
     }
@@ -90,7 +96,9 @@ public sealed class EmailComposerUnitTests
     public async Task ComposeAsync_TwoRoutes_GivesAnEmailToTheAddressOfEachRouteWithItsRenderedParts()
     {
         // Arrange
-        MessageRoute[] routes = [AnEmailRoute("u1", address: "client1@example.com"), AnEmailRoute("u2", address: "client2@example.com")];
+        const string firstAddress = "client1@example.com";
+        const string secondAddress = "client2@example.com";
+        MessageRoute[] routes = [AnEmailRoute("u1", address: firstAddress), AnEmailRoute("u2", address: secondAddress)];
 
         // Act
         var result = await _doubles.ComposeAsync(routes);
@@ -98,8 +106,8 @@ public sealed class EmailComposerUnitTests
         // Assert
         Assert.Equal(
             [
-                new EmailMessage("client1@example.com", "Subject u1", "<p>u1</p>", "Text u1"),
-                new EmailMessage("client2@example.com", "Subject u2", "<p>u2</p>", "Text u2"),
+                new EmailMessage(firstAddress, "Subject u1", "<p>u1</p>", "Text u1"),
+                new EmailMessage(secondAddress, "Subject u2", "<p>u2</p>", "Text u2"),
             ],
             result.Value.Select(static email => email.Value));
     }
@@ -108,14 +116,16 @@ public sealed class EmailComposerUnitTests
     public async Task ComposeAsync_RoutesOfTwoLanguages_RendersEachRouteWithItsPayloadAndTheCultureOfItsLanguage()
     {
         // Arrange
-        MessageRoute[] routes = [AnEmailRoute("u1", "en"), AnEmailRoute("u2", "hu-HU"), AnEmailRoute("u3", "en")];
+        const string english = "en";
+        const string hungarian = "hu-HU";
+        MessageRoute[] routes = [AnEmailRoute("u1", english), AnEmailRoute("u2", hungarian), AnEmailRoute("u3", english)];
 
         // Act
         await _doubles.ComposeAsync(routes);
 
         // Assert
         Assert.Equal(
-            [("u1", "en"), ("u3", "en"), ("u2", "hu-HU")],
+            [("u1", english), ("u3", english), ("u2", hungarian)],
             _doubles.Renders.Select(static render => (render.Payload.Name, render.Culture.Name)).Distinct());
     }
 

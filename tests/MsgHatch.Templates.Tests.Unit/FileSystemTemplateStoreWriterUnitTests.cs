@@ -30,16 +30,17 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     public async Task SaveAsync_FileWithALastWriteTimeInTheFuture_GivesTheVersionOneTickAfterThatTime()
     {
         // Arrange
+        const string secondText = "Second";
         var first = await Store.SaveAsync(ALookup(), "First", 0, Ct);
         var future = new DateTime(first.Value.Version, DateTimeKind.Utc).AddHours(1);
         File.SetLastWriteTimeUtc(PathOf(), future);
 
         // Act
-        var second = await Store.SaveAsync(ALookup(), "Second", future.Ticks, Ct);
+        var second = await Store.SaveAsync(ALookup(), secondText, future.Ticks, Ct);
 
         // Assert
         var source = await Store.FindAsync(ALookup(), Ct);
-        Assert.Equal((future.Ticks + 1, future.Ticks + 1, "Second"), (second.Value.Version, source.Value?.Key.Version, source.Value?.Text));
+        Assert.Equal((future.Ticks + 1, future.Ticks + 1, secondText), (second.Value.Version, source.Value?.Key.Version, source.Value?.Text));
     }
 
     [Theory]
@@ -59,11 +60,14 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     [Fact]
     public async Task SaveAsync_Text_LeavesOnlyTheTemplateFileInItsFolder()
     {
+        // Arrange
+        const string scope = "single";
+
         // Act
-        await Store.SaveAsync(ALookup(scope: "single"), "Text", 0, Ct);
+        await Store.SaveAsync(ALookup(scope: scope), "Text", 0, Ct);
 
         // Assert
-        Assert.Equal([$"{Type.Name}.en.subject.txt"], Directory.EnumerateFiles(Path.Combine(folder.Root, "single")).Select(Path.GetFileName));
+        Assert.Equal([$"{Type.Name}.en.subject.txt"], Directory.EnumerateFiles(Path.Combine(folder.Root, scope)).Select(Path.GetFileName));
     }
 
     [Fact]
@@ -71,20 +75,22 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     {
         // Arrange
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows blocks a replace of a file that a reader holds open.");
-        var first = await Store.SaveAsync(ALookup(scope: "open"), "First", 0, Ct);
+        const string scope = "open";
+        const string firstText = "First";
+        var first = await Store.SaveAsync(ALookup(scope: scope), firstText, 0, Ct);
         ErrorOr<TemplateEntry> result;
 
         // Act
-        using (new FileStream(PathOf("open"), FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (new FileStream(PathOf(scope), FileMode.Open, FileAccess.Read, FileShare.Read))
         {
-            result = await Store.SaveAsync(ALookup(scope: "open"), "Second", first.Value.Version, Ct);
+            result = await Store.SaveAsync(ALookup(scope: scope), "Second", first.Value.Version, Ct);
         }
 
         // Assert
-        var source = await Store.FindAsync(ALookup(scope: "open"), Ct);
+        var source = await Store.FindAsync(ALookup(scope: scope), Ct);
         Assert.Equal(
-            (503, "First", 1),
-            (result.Error?.Type.Code, source.Value?.Text, Directory.EnumerateFiles(Path.Combine(folder.Root, "open")).Count()));
+            (503, firstText, 1),
+            (result.Error?.Type.Code, source.Value?.Text, Directory.EnumerateFiles(Path.Combine(folder.Root, scope)).Count()));
     }
 
     [Fact]
@@ -112,17 +118,18 @@ public sealed class FileSystemTemplateStoreWriterUnitTests(TemplateFolder folder
     {
         // Arrange
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Only Windows blocks a delete of a file that a reader holds open.");
-        await Store.SaveAsync(ALookup(scope: "held"), "First", 0, Ct);
+        const string scope = "held";
+        await Store.SaveAsync(ALookup(scope: scope), "First", 0, Ct);
         Error? error;
 
         // Act
-        using (new FileStream(PathOf("held"), FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (new FileStream(PathOf(scope), FileMode.Open, FileAccess.Read, FileShare.Read))
         {
-            error = await Store.DeleteAsync(ALookup(scope: "held"), Ct);
+            error = await Store.DeleteAsync(ALookup(scope: scope), Ct);
         }
 
         // Assert
-        Assert.Equal((503, true), (error?.Type.Code, File.Exists(PathOf("held"))));
+        Assert.Equal((503, true), (error?.Type.Code, File.Exists(PathOf(scope))));
     }
 
     [Fact]

@@ -178,9 +178,10 @@ public sealed class AmazonSnsBrokerExtensionsUnitTests : IDisposable
     public async Task UseAmazonSnsBroker_Section_BindsTheRegionTheDefaultTopicAndTheTopicOfEachRegistration()
     {
         // Arrange
+        const string region = "eu-west-1";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["MsgHatch:AmazonSns:Region"] = "eu-west-1",
+            ["MsgHatch:AmazonSns:Region"] = region,
             ["MsgHatch:AmazonSns:DefaultTopicArn"] = _otherTopic,
             ["MsgHatch:AmazonSns:Topics:TestMessage"] = _topic,
         });
@@ -192,7 +193,7 @@ public sealed class AmazonSnsBrokerExtensionsUnitTests : IDisposable
         var options = provider.GetRequiredService<IOptions<AmazonSnsOptions>>().Value;
 
         // Assert
-        Assert.Equal(("eu-west-1", _otherTopic), (options.Region, options.DefaultTopicArn));
+        Assert.Equal((region, _otherTopic), (options.Region, options.DefaultTopicArn));
         Assert.Equal([new KeyValuePair<string, string>("TestMessage", _topic)], options.Topics);
     }
 

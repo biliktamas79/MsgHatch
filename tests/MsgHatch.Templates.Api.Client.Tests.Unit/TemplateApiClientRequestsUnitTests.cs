@@ -142,16 +142,19 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
     public async Task PreviewTemplateAsync_LookupAndText_PostsTheTextToThePreviewRouteOfTheLookup()
     {
         // Arrange
-        var handler = new StubHandler(HttpStatusCode.OK, """[{"registration":"Email:Requests","text":"Order of Sample client"}]""");
+        const string companyId = "acme-1";
+        const string registration = "Email:Requests";
+        const string previewText = "Order of Sample client";
+        var handler = new StubHandler(HttpStatusCode.OK, $$"""[{"registration":"{{registration}}","text":"{{previewText}}"}]""");
         await using var provider = ClientOn(handler);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
-        var previews = await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().PreviewTemplateAsync(ALookup(scope: "acme-1"), "Order of {{Name}}", Ct);
+        var previews = await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().PreviewTemplateAsync(ALookup(scope: companyId), "Order of {{Name}}", Ct);
 
         // Assert
         Assert.Equal(
-            ("/templates/Requests/en/subject/PlainText/preview?companyId=acme-1", new TemplatePreview("Email:Requests", "Order of Sample client")),
+            ($"/templates/Requests/en/subject/PlainText/preview?companyId={companyId}", new TemplatePreview(registration, previewText)),
             (Assert.Single(handler.Uris).PathAndQuery, Assert.Single(previews.Value)));
     }
 
@@ -179,11 +182,12 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
             ServerServices(), static (services, configureHttp) => services.AddClientHost().UseTemplateApiClient(HttpManagementHost.BaseAddress, configureHttp));
         var queries = host.Service(TenantKey.None);
         var commands = host.Client.GetRequiredService<ITemplateCommands>();
-        var lookup = ALookup(scope: "acme-secret");
+        const string companyId = "acme-secret";
+        var lookup = ALookup(scope: companyId);
 
         // Act
         await commands.SaveTemplateAsync(lookup, "Secret text", 0, Ct);
-        await queries.GetTemplatesAsync(new TemplateQuery(_type, "acme-secret"), Ct);
+        await queries.GetTemplatesAsync(new TemplateQuery(_type, companyId), Ct);
         await queries.GetTemplateAsync(lookup, Ct);
         await queries.CheckTemplateAsync(lookup, "Secret {{Nmae}}", Ct);
         await queries.PreviewTemplateAsync(lookup, "Secret {{Name}}", Ct);
@@ -195,7 +199,7 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
             (true, true, false),
             (records.Any(static record => record.Category?.StartsWith("System.Net.Http.HttpClient.MsgHatch.TemplateApi", StringComparison.Ordinal) == true),
                 records.Any(static record => record.Id.Id is >= 2017 and <= 2030),
-                records.Any(static record => record.ContainsText("acme-secret") || record.ContainsText("Secret"))));
+                records.Any(static record => record.ContainsText(companyId) || record.ContainsText("Secret"))));
     }
 
     private static ServiceProvider ClientOn(StubHandler handler) =>

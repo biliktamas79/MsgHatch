@@ -10,28 +10,31 @@ namespace MsgHatch.Templates.AdminUI.Tests.Unit;
 
 public sealed class TemplateViewPageUnitTests : TemplatePageContext
 {
+    private readonly TemplateSource _stored = Source();
+
     public TemplateViewPageUnitTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Queries.GetTemplatePartsAsync(Requests, Arg.Any<CancellationToken>())
             .Returns(Ok<IReadOnlyList<TemplatePartInfo>>([Part(), Part("body", TemplatePartKind.Html)]));
-        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(Source("Hello {{Name}}", 7)));
+        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(_stored));
     }
 
     [Fact]
     public void Render_StoredTemplateWithASample_ShowsThePreviewOfTheStoredTextNextToTheText()
     {
         // Arrange
-        Queries.PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>())
-            .Returns(Ok<IReadOnlyList<TemplatePreview>>([new TemplatePreview("Email:Requests", "Hello Sample")]));
+        const string previewText = "Hello Sample";
+        Queries.PreviewTemplateAsync(Lookup(), _stored.Text, Arg.Any<CancellationToken>())
+            .Returns(Ok<IReadOnlyList<TemplatePreview>>([new TemplatePreview("Email:Requests", previewText)]));
 
         // Act
         var cut = RenderPage();
 
         // Assert
-        Assert.Equal("Hello Sample", cut.Find("[data-column=preview] pre[data-preview=text]").TextContent);
+        Assert.Equal(previewText, cut.Find("[data-column=preview] pre[data-preview=text]").TextContent);
         Assert.Equal(("col-lg-6", "col-lg-6"), (cut.Find("[data-column=text]").ClassName, cut.Find("[data-column=preview]").ClassName));
-        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>());
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), _stored.Text, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -68,16 +71,17 @@ public sealed class TemplateViewPageUnitTests : TemplatePageContext
     {
         // Arrange
         var lookup = Lookup(part: "body", kind: TemplatePartKind.Html);
-        Queries.GetTemplateAsync(lookup, Arg.Any<CancellationToken>()).Returns(Ok(Source("<p>Hello {{Name}}</p>", 3)));
+        var stored = Source("<p>Hello {{Name}}</p>", 3);
+        Queries.GetTemplateAsync(lookup, Arg.Any<CancellationToken>()).Returns(Ok(stored));
 
         // Act
         var cut = RenderPage("body", "Html");
 
         // Assert
         var text = cut.Find("[data-view=text] textarea");
-        Assert.Equal(("<p>Hello {{Name}}</p>", true), (text.GetAttribute("value"), text.HasAttribute("readonly")));
+        Assert.Equal((stored.Text, true), (text.GetAttribute("value"), text.HasAttribute("readonly")));
         Assert.Equal(["p", "p"], cut.FindAll("[data-view=text] pre span.html-tagname").Select(static span => span.TextContent));
-        Assert.Equal("3", cut.Find("[data-metadata] [data-field=version]").TextContent);
+        Assert.Equal($"{stored.Key.Version}", cut.Find("[data-metadata] [data-field=version]").TextContent);
     }
 
     [Fact]
@@ -100,25 +104,27 @@ public sealed class TemplateViewPageUnitTests : TemplatePageContext
         var cut = RenderPage();
 
         // Assert
-        Assert.Equal(("Hello {{Name}}", true), (cut.Find("[data-view=text] textarea").GetAttribute("value"), cut.Find("[data-view=text] textarea").HasAttribute("readonly")));
-        Assert.Equal(["Hello {{Name}}"], cut.FindAll("[data-view=text] pre span").Select(static span => span.TextContent));
+        Assert.Equal((_stored.Text, true), (cut.Find("[data-view=text] textarea").GetAttribute("value"), cut.Find("[data-view=text] textarea").HasAttribute("readonly")));
+        Assert.Equal([_stored.Text], cut.FindAll("[data-view=text] pre span").Select(static span => span.TextContent));
     }
 
     [Fact]
     public void Render_TemplateOfACompany_HasTheButtonsEditAndBackWithTheAddressesOfTheRouteBuilders()
     {
         // Arrange
-        Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));
-        Navigation.NavigateTo("msghatch/templates/Requests/en/subject/PlainText/view?companyId=42");
+        const string companyId = "42";
+        const string companyText = "For 42";
+        Queries.GetTemplateAsync(Lookup(scope: companyId), Arg.Any<CancellationToken>()).Returns(Ok(Source(companyText, 2)));
+        Navigation.NavigateTo($"msghatch/templates/Requests/en/subject/PlainText/view?companyId={companyId}");
 
         // Act
         var cut = RenderPage();
 
         // Assert
         Assert.Equal(
-            (TemplateAdminRoutes.Edit(Lookup(scope: "42")).TrimStart('/'), TemplateAdminRoutes.List.TrimStart('/')),
+            (TemplateAdminRoutes.Edit(Lookup(scope: companyId)).TrimStart('/'), TemplateAdminRoutes.List.TrimStart('/')),
             (cut.Find("[data-actions-end] [data-action=edit]").GetAttribute("href"), cut.Find("[data-actions-start] [data-action=back]").GetAttribute("href")));
-        Assert.Equal("For 42", cut.Find("textarea").GetAttribute("value"));
+        Assert.Equal(companyText, cut.Find("textarea").GetAttribute("value"));
     }
 
     [Fact]

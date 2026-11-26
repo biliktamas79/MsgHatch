@@ -11,10 +11,12 @@ namespace MsgHatch.Templates.AdminUI.Tests.Unit;
 
 public sealed class TemplateEditPageUnitTests : TemplatePageContext
 {
+    private readonly TemplateSource _stored = Source();
+
     public TemplateEditPageUnitTests()
     {
         GivenParts(Part(engines: "liquid"));
-        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(Source("Hello {{Name}}", 7)));
+        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(_stored));
     }
 
     [Fact]
@@ -24,8 +26,8 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
         var cut = RenderPage();
 
         // Assert
-        Assert.Equal("Hello {{Name}}", TextOf(cut));
-        Assert.Equal("7", cut.Find("[data-field=version]").TextContent);
+        Assert.Equal(_stored.Text, TextOf(cut));
+        Assert.Equal($"{_stored.Key.Version}", cut.Find("[data-field=version]").TextContent);
         Assert.Empty(cut.FindAll("[data-state=new]"));
     }
 
@@ -89,15 +91,17 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void Render_StoredTemplateOfACompany_ShowsTheMetadataInOneRowOfLabelsAndValues()
     {
         // Arrange
-        Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));
-        Navigation.NavigateTo("msghatch/templates/Requests/en/subject/PlainText?companyId=42");
+        const string companyId = "42";
+        var stored = Source("For 42", 2);
+        Queries.GetTemplateAsync(Lookup(scope: companyId), Arg.Any<CancellationToken>()).Returns(Ok(stored));
+        Navigation.NavigateTo($"msghatch/templates/Requests/en/subject/PlainText?companyId={companyId}");
 
         // Act
         var cut = RenderPage();
 
         // Assert
         Assert.Equal(
-            "Message type Requests | Language en | Company 42 | Part subject (PlainText) | Version 2",
+            $"Message type Requests | Language en | Company {companyId} | Part subject (PlainText) | Version {stored.Key.Version}",
             string.Join(" | ", cut.Find("[data-metadata]").Children.Select(static item => item.TextContent)));
         Assert.Empty(cut.FindAll("dl"));
     }
@@ -106,26 +110,29 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void Input_ThreeChangesAndAPause_CallsThePreviewForTheStoredTextAndThenOneTimeForTheLastText()
     {
         // Arrange
+        const string firstText = "Hi";
+        const string secondText = "Hi {{Name}}";
+        const string lastText = "Hi {{Name}}!";
         var cut = RenderPage();
-        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>());
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), _stored.Text, Arg.Any<CancellationToken>());
 
         // Act
-        cut.Find("textarea").Input("Hi");
+        cut.Find("textarea").Input(firstText);
         Clock.Advance(TimeSpan.FromMilliseconds(300));
-        cut.Find("textarea").Input("Hi {{Name}}");
+        cut.Find("textarea").Input(secondText);
         Clock.Advance(TimeSpan.FromMilliseconds(300));
-        cut.Find("textarea").Input("Hi {{Name}}!");
+        cut.Find("textarea").Input(lastText);
         Clock.Advance(TimeSpan.FromMilliseconds(499));
-        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), Arg.Is<string>(static text => text != "Hello {{Name}}"), Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), Arg.Is<string>(text => text != _stored.Text), Arg.Any<CancellationToken>());
 
         Clock.Advance(TimeSpan.FromMilliseconds(1));
 
         // Assert
-        cut.WaitForAssertion(() => Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hi {{Name}}!", Arg.Any<CancellationToken>()));
+        cut.WaitForAssertion(() => Queries.Received(1).PreviewTemplateAsync(Lookup(), lastText, Arg.Any<CancellationToken>()));
         Assert.Equal(("col-lg-6", "col-lg-6"), (cut.Find("[data-column=text]").ClassName, cut.Find("[data-column=preview]").ClassName));
-        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>());
-        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), "Hi", Arg.Any<CancellationToken>());
-        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), "Hi {{Name}}", Arg.Any<CancellationToken>());
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), _stored.Text, Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), firstText, Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), secondText, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -146,28 +153,31 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void Render_TemplateWithAVersionText_ShowsTheTextOfTheStoreInPlaceOfTheNumber()
     {
         // Arrange
-        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(Source("Hello", 7) with { VersionText = "2030-01-02 15:04:05 UTC" }));
+        const string versionText = "2030-01-02 15:04:05 UTC";
+        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(Source("Hello", 7) with { VersionText = versionText }));
 
         // Act
         var cut = RenderPage();
 
         // Assert
-        Assert.Equal("2030-01-02 15:04:05 UTC", cut.Find("[data-metadata] [data-field=version]").TextContent);
+        Assert.Equal(versionText, cut.Find("[data-metadata] [data-field=version]").TextContent);
     }
 
     [Fact]
     public void Render_CompanyInTheQuery_ReadsTheTemplateOfTheCompany()
     {
         // Arrange
-        Queries.GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>()).Returns(Ok(Source("For 42", 2)));
-        Navigation.NavigateTo("msghatch/templates/Requests/en/subject/PlainText?companyId=42");
+        const string companyId = "42";
+        const string companyText = "For 42";
+        Queries.GetTemplateAsync(Lookup(scope: companyId), Arg.Any<CancellationToken>()).Returns(Ok(Source(companyText, 2)));
+        Navigation.NavigateTo($"msghatch/templates/Requests/en/subject/PlainText?companyId={companyId}");
 
         // Act
         var cut = RenderPage();
 
         // Assert
-        Assert.Equal("For 42", TextOf(cut));
-        Queries.Received(1).GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>());
+        Assert.Equal(companyText, TextOf(cut));
+        Queries.Received(1).GetTemplateAsync(Lookup(scope: companyId), Arg.Any<CancellationToken>());
         Queries.DidNotReceive().GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
@@ -231,16 +241,18 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void ClickSave_ChangedText_SendsTheTextWithTheExpectedVersionAndShowsTheNewVersion()
     {
         // Arrange
-        Commands.SaveTemplateAsync(Lookup(), "Hi {{Name}}", 7, Arg.Any<CancellationToken>()).Returns(Ok(new TemplateEntry(Lookup(), 8)));
+        const string newText = "Hi {{Name}}";
+        var saved = new TemplateEntry(Lookup(), 8);
+        Commands.SaveTemplateAsync(Lookup(), newText, _stored.Key.Version, Arg.Any<CancellationToken>()).Returns(Ok(saved));
         var cut = RenderPage();
-        cut.Find("textarea").Input("Hi {{Name}}");
+        cut.Find("textarea").Input(newText);
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Commands.Received(1).SaveTemplateAsync(Lookup(), "Hi {{Name}}", 7, Arg.Any<CancellationToken>());
-        Assert.Equal("8", cut.Find("[data-field=version]").TextContent);
+        Commands.Received(1).SaveTemplateAsync(Lookup(), newText, _stored.Key.Version, Arg.Any<CancellationToken>());
+        Assert.Equal($"{saved.Version}", cut.Find("[data-field=version]").TextContent);
         Assert.Single(cut.FindAll("[data-actions-middle] [data-state=saved]"));
         Assert.Empty(cut.FindAll("[data-state=pending]"));
     }
@@ -249,16 +261,17 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void ClickSave_NewTemplate_SendsTheExpectedVersion0()
     {
         // Arrange
+        const string newText = "New";
         Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Fail<TemplateSource>(Errors.NotFound));
-        Commands.SaveTemplateAsync(Lookup(), "New", 0, Arg.Any<CancellationToken>()).Returns(Ok(new TemplateEntry(Lookup(), 1)));
+        Commands.SaveTemplateAsync(Lookup(), newText, 0, Arg.Any<CancellationToken>()).Returns(Ok(new TemplateEntry(Lookup(), 1)));
         var cut = RenderPage();
-        cut.Find("textarea").Input("New");
+        cut.Find("textarea").Input(newText);
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Commands.Received(1).SaveTemplateAsync(Lookup(), "New", 0, Arg.Any<CancellationToken>());
+        Commands.Received(1).SaveTemplateAsync(Lookup(), newText, 0, Arg.Any<CancellationToken>());
         Assert.Single(cut.FindAll("[data-action=delete]"));
     }
 
@@ -266,19 +279,21 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void ClickSave_Conflict_LoadsTheStoredVersionAgainAndShowsTheTextOfConflict()
     {
         // Arrange
-        Commands.SaveTemplateAsync(Lookup(), "Mine", 7, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.Conflict));
+        const string mine = "Mine";
+        var theirs = Source("Theirs", 9);
+        Commands.SaveTemplateAsync(Lookup(), mine, _stored.Key.Version, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.Conflict));
         var cut = RenderPage();
-        cut.Find("textarea").Input("Mine");
-        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(Source("Theirs", 9)));
+        cut.Find("textarea").Input(mine);
+        Queries.GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>()).Returns(Ok(theirs));
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Assert.Equal("Theirs", TextOf(cut));
-        Assert.Equal("9", cut.Find("[data-field=version]").TextContent);
+        Assert.Equal(theirs.Text, TextOf(cut));
+        Assert.Equal($"{theirs.Key.Version}", cut.Find("[data-field=version]").TextContent);
         Assert.Equal(AdminErrors.ConflictText, cut.Find("[data-actions-middle] .alert-danger").TextContent);
-        Commands.Received(1).SaveTemplateAsync(Lookup(), "Mine", 7, Arg.Any<CancellationToken>());
+        Commands.Received(1).SaveTemplateAsync(Lookup(), mine, _stored.Key.Version, Arg.Any<CancellationToken>());
         Queries.Received(2).GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
@@ -286,17 +301,19 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void ClickSave_TemplateInvalid_ShowsTheMessageNextToTheText()
     {
         // Arrange
-        Commands.SaveTemplateAsync(Lookup(), "{{ Name", 7, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.TemplateInvalid, "The tag has no end."));
+        const string invalidText = "{{ Name";
+        const string message = "The tag has no end.";
+        Commands.SaveTemplateAsync(Lookup(), invalidText, _stored.Key.Version, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.TemplateInvalid, message));
         var cut = RenderPage();
-        cut.Find("textarea").Input("{{ Name");
+        cut.Find("textarea").Input(invalidText);
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Assert.Equal("The tag has no end.", cut.Find("textarea ~ [data-issue]").TextContent);
+        Assert.Equal(message, cut.Find("textarea ~ [data-issue]").TextContent);
         Assert.Empty(cut.FindAll(".alert-danger"));
-        Commands.Received(1).SaveTemplateAsync(Lookup(), "{{ Name", 7, Arg.Any<CancellationToken>());
+        Commands.Received(1).SaveTemplateAsync(Lookup(), invalidText, _stored.Key.Version, Arg.Any<CancellationToken>());
         Queries.Received(1).GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
@@ -304,15 +321,16 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
     public void ClickSave_ValidationFailed_ShowsTheMessageInTheActionBar()
     {
         // Arrange
-        Commands.SaveTemplateAsync(Lookup(), Arg.Any<string>(), 7, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.ValidationFailed, "The store is not writable."));
+        const string message = "The store is not writable.";
+        Commands.SaveTemplateAsync(Lookup(), Arg.Any<string>(), _stored.Key.Version, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.ValidationFailed, message));
         var cut = RenderPage();
 
         // Act
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Assert.Equal("The store is not writable.", cut.Find("[data-actions-middle] .alert-danger").TextContent);
-        Commands.Received(1).SaveTemplateAsync(Lookup(), "Hello {{Name}}", 7, Arg.Any<CancellationToken>());
+        Assert.Equal(message, cut.Find("[data-actions-middle] .alert-danger").TextContent);
+        Commands.Received(1).SaveTemplateAsync(Lookup(), _stored.Text, _stored.Key.Version, Arg.Any<CancellationToken>());
         Queries.Received(1).GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
@@ -342,7 +360,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(
-            "Message type Requests | Language en | Company All companies | Part subject (PlainText) | Version 7",
+            $"Message type Requests | Language en | Company All companies | Part subject (PlainText) | Version {_stored.Key.Version}",
             string.Join(" | ", cut.Find(".modal [data-delete-details] [data-metadata]").Children.Select(static item => item.TextContent)));
         Assert.Equal((1, 1), (cut.FindAll(".modal [data-delete-effect]").Count, cut.FindAll(".modal [data-delete-warning]").Count));
     }
@@ -419,7 +437,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
         var cut = RenderPage();
 
         // Assert
-        Assert.Equal("Hello {{Name}}", cut.Find("[data-editor=test]").TextContent);
+        Assert.Equal(_stored.Text, cut.Find("[data-editor=test]").TextContent);
         Assert.Empty(cut.FindAll("[data-editor=plain]"));
     }
 

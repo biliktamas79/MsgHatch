@@ -34,7 +34,8 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
     public async Task FindAsync_FileTemplate_HasTheFullPathOfItsFileAsItsIdAndTheWriteTimeOfThatFileAsItsVersion()
     {
         // Arrange
-        folder.Write("Dated.en.subject.txt", "Subject", _firstWriteUtc);
+        const string subjectFile = "Dated.en.subject.txt";
+        folder.Write(subjectFile, "Subject", _firstWriteUtc);
         folder.Write("Dated.en.body.html", "<p>Html</p>", _firstWriteUtc.AddMinutes(2));
         folder.Write("Dated.en.body.txt", "Text", _firstWriteUtc.AddMinutes(1));
 
@@ -42,7 +43,7 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
         var result = await Store.FindAsync(ALookup() with { Type = new("Dated") }, Ct);
 
         // Assert
-        Assert.Equal(new TemplateKey(Path.Combine(folder.Root, "Dated.en.subject.txt"), _firstWriteUtc.Ticks), result.Value?.Key);
+        Assert.Equal(new TemplateKey(Path.Combine(folder.Root, subjectFile), _firstWriteUtc.Ticks), result.Value?.Key);
     }
 
     [Theory]
@@ -64,18 +65,21 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
     public async Task FindAsync_ChangedTemplateFile_GivesANewVersionWithTheNewText()
     {
         // Arrange
-        folder.Write("Changing.en.subject.txt", "First", _firstWriteUtc);
+        const string firstText = "First";
+        const string secondText = "Second";
+        var secondWriteUtc = _firstWriteUtc.AddMinutes(1);
+        folder.Write("Changing.en.subject.txt", firstText, _firstWriteUtc);
         folder.Write("Changing.en.body.html", "<p>Html</p>", _firstWriteUtc);
         var lookup = ALookup() with { Type = new("Changing") };
         var first = await Store.FindAsync(lookup, Ct);
-        folder.Write("Changing.en.subject.txt", "Second", _firstWriteUtc.AddMinutes(1));
+        folder.Write("Changing.en.subject.txt", secondText, secondWriteUtc);
 
         // Act
         var second = await Store.FindAsync(lookup, Ct);
 
         // Assert
         Assert.Equal(
-            [(_firstWriteUtc.Ticks, "First"), (_firstWriteUtc.AddMinutes(1).Ticks, "Second")],
+            [(_firstWriteUtc.Ticks, firstText), (secondWriteUtc.Ticks, secondText)],
             new[] { first.Value!, second.Value! }.Select(static source => (source.Key.Version, source.Text)));
     }
 
@@ -83,15 +87,16 @@ public sealed class FileSystemTemplateStoreUnitTests(TemplateFolder folder)
     public async Task FindAsync_TemplateThatWasAMissAndThenExists_FindsIt()
     {
         // Arrange
+        const string text = "Later";
         var lookup = ALookup() with { Type = new("Later") };
         var miss = await Store.FindAsync(lookup, Ct);
-        folder.Write("Later.en.subject.txt", "Later", _firstWriteUtc);
+        folder.Write("Later.en.subject.txt", text, _firstWriteUtc);
 
         // Act
         var found = await Store.FindAsync(lookup, Ct);
 
         // Assert
-        Assert.Equal(((string?)null, (string?)"Later"), (miss.Value?.Text, found.Value?.Text));
+        Assert.Equal(((string?)null, (string?)text), (miss.Value?.Text, found.Value?.Text));
     }
 
     [Fact]

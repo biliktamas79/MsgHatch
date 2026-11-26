@@ -16,14 +16,15 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
     public void Input_NewText_GivesTheTextToTextChanged()
     {
         // Arrange
+        const string newText = "ab";
         var texts = new List<string>();
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup()).Add(x => x.Text, "a").Add(x => x.TextChanged, texts.Add));
 
         // Act
-        cut.Find("textarea").Input("ab");
+        cut.Find("textarea").Input(newText);
 
         // Assert
-        Assert.Equal(["ab"], texts);
+        Assert.Equal([newText], texts);
     }
 
     [Fact]
@@ -39,12 +40,16 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
     [Fact]
     public void Render_IssuesWithAndWithNoPosition_ShowsEachIssueUnderTheText()
     {
+        // Arrange
+        const string tagMessage = "The tag has no end.";
+        const string filterMessage = "The filter is not known.";
+        IReadOnlyList<TemplateIssue> issues = [new TemplateIssue(tagMessage, 3, 9), new TemplateIssue(filterMessage, null, null)];
+
         // Act
-        var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup())
-            .Add(x => x.Issues, [new TemplateIssue("The tag has no end.", 3, 9), new TemplateIssue("The filter is not known.", null, null)]));
+        var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup()).Add(x => x.Issues, issues));
 
         // Assert
-        Assert.Equal(["Line 3, column 9: The tag has no end.", "The filter is not known."], cut.FindAll("[data-issue]").Select(static issue => issue.TextContent));
+        Assert.Equal([$"Line 3, column 9: {tagMessage}", filterMessage], cut.FindAll("[data-issue]").Select(static issue => issue.TextContent));
         Assert.Contains("is-invalid", cut.Find("textarea").ClassList);
     }
 
@@ -95,27 +100,32 @@ public sealed class PlainTemplateEditorUnitTests : BunitContext
     public void Input_HtmlPart_GivesTheTextToTextChanged()
     {
         // Arrange
+        const string newText = "<p>a";
         var texts = new List<string>();
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup(part: "body", kind: TemplatePartKind.Html))
             .Add(x => x.Text, "<p>").Add(x => x.TextChanged, texts.Add));
 
         // Act
-        cut.Find("textarea").Input("<p>a");
+        cut.Find("textarea").Input(newText);
 
         // Assert
-        Assert.Equal(["<p>a"], texts);
+        Assert.Equal([newText], texts);
     }
 
     [Fact]
     public void Render_HtmlPartWithAnIssueAndDisabled_MarksTheTextAreaAndShowsTheIssue()
     {
+        // Arrange
+        const string message = "The tag has no end.";
+        IReadOnlyList<TemplateIssue> issues = [new TemplateIssue(message, null, null)];
+
         // Act
         var cut = Render<PlainTemplateEditor>(p => p.Add(x => x.Lookup, Lookup(part: "body", kind: TemplatePartKind.Html))
-            .Add(x => x.Disabled, true).Add(x => x.Issues, [new TemplateIssue("The tag has no end.", null, null)]));
+            .Add(x => x.Disabled, true).Add(x => x.Issues, issues));
 
         // Assert
         Assert.Contains("is-invalid", cut.Find("textarea").ClassList);
         Assert.True(cut.Find("textarea").HasAttribute("disabled"));
-        Assert.Equal("The tag has no end.", cut.Find("[data-issue]").TextContent);
+        Assert.Equal(message, cut.Find("[data-issue]").TextContent);
     }
 }

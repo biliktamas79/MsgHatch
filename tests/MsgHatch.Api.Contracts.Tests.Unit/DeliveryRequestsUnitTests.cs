@@ -15,10 +15,13 @@ public sealed class DeliveryRequestsUnitTests
     public void From_OutboxQueryWithEachFilter_GivesTheBodyWithEachFilterAndNoLimitOrCursor()
     {
         // Arrange
+        const string messageType = "OrderShipped";
+        const string channel = "Email";
+        const string targetId = "acme";
         Guid[] ids = [Guid.NewGuid()];
         var source = Guid.NewGuid();
         var query = new OutboxQuery(
-            ids, DeliveryStatus.Failed, new MessageType("OrderShipped"), new ChannelId("Email"), new DeliveryTarget(DeliveryTargetKind.Company, "acme"),
+            ids, DeliveryStatus.Failed, new MessageType(messageType), new ChannelId(channel), new DeliveryTarget(DeliveryTargetKind.Company, targetId),
             source, _time.AddHours(-1), _time, _time.AddMinutes(-5), IncludeTest: true, Limit: 7, new MessageCursor(_time, Guid.NewGuid()));
 
         // Act
@@ -27,7 +30,7 @@ public sealed class DeliveryRequestsUnitTests
         // Assert
         Assert.Equal(
             new OutboxFilterRequest(
-                ids, DeliveryStatus.Failed, "OrderShipped", "Email", DeliveryTargetKind.Company, "acme", source, _time.AddHours(-1), _time,
+                ids, DeliveryStatus.Failed, messageType, channel, DeliveryTargetKind.Company, targetId, source, _time.AddHours(-1), _time,
                 _time.AddMinutes(-5), IncludeTest: true),
             body);
     }
@@ -46,9 +49,10 @@ public sealed class DeliveryRequestsUnitTests
     public void From_InboxQueryWithEachFilter_GivesTheBodyWithEachFilterAndNoLimitOrCursor()
     {
         // Arrange
+        const string messageType = "OrderShipped";
         Guid[] ids = [Guid.NewGuid(), Guid.NewGuid()];
         var query = new InboxQuery(
-            ids, DeliveryStatus.Pending, new MessageType("OrderShipped"), _time.AddHours(-1), _time, _time.AddMinutes(-5), IncludeTest: true,
+            ids, DeliveryStatus.Pending, new MessageType(messageType), _time.AddHours(-1), _time, _time.AddMinutes(-5), IncludeTest: true,
             Limit: 3, new MessageCursor(_time, Guid.NewGuid()));
 
         // Act
@@ -56,7 +60,7 @@ public sealed class DeliveryRequestsUnitTests
 
         // Assert
         Assert.Equal(
-            new InboxFilterRequest(ids, DeliveryStatus.Pending, "OrderShipped", _time.AddHours(-1), _time, _time.AddMinutes(-5), IncludeTest: true),
+            new InboxFilterRequest(ids, DeliveryStatus.Pending, messageType, _time.AddHours(-1), _time, _time.AddMinutes(-5), IncludeTest: true),
             body);
     }
 }

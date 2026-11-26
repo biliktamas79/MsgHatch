@@ -40,11 +40,12 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(Postgre
     public async Task UseEntityFrameworkSubscriptionStore_AfterUseEntityFrameworkStoresWithASchema_KeepsTheRowsInThatSchema()
     {
         // Arrange
+        const string schema = "shared";
         var database = server.Database("setup_schema");
         var services = TestHost.CreateServices();
         services.AddMsgHatch()
             .AddScenarioMessages()
-            .UseEntityFrameworkStores(o => o.UseNpgsql(database.ConnectionString), o => o.Schema = "shared")
+            .UseEntityFrameworkStores(o => o.UseNpgsql(database.ConnectionString), o => o.Schema = schema)
             .UseEntityFrameworkSubscriptionStore(o => o.UseNpgsql(database.ConnectionString));
         await using var provider = services.Build();
         await CreateTablesAsync(provider);
@@ -53,7 +54,7 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsIntegTests(Postgre
         await provider.GetRequiredService<ISubscriptionStore>().AddAsync(Scenario.S6, Ct);
 
         // Assert
-        Assert.Equal([[Scenario.S6.Id.ToString("D")]], await database.RowsAsync("""SELECT "Id" FROM "shared"."Subscription" """, Ct));
+        Assert.Equal([[Scenario.S6.Id.ToString("D")]], await database.RowsAsync($"""SELECT "Id" FROM "{schema}"."Subscription" """, Ct));
     }
 
     private static async Task CreateTablesAsync(ServiceProvider provider)

@@ -13,12 +13,14 @@ public abstract partial class TemplateEngineTestsBase<TEngine>
         // Arrange
         var culture = CultureInfo.GetCultureInfo(language);
         var text = TestData.InEngineSyntax("Order {Count} of {Name}: {Total} on {ShippedAt}");
+        var lookup = ALookup() with { Language = language };
+        var payload = APayload(name: "Client 1", count: 3, total: 1234.5m);
 
         // Act
-        var rendered = await Engine.RenderAsync(ALookup() with { Language = language }, text, APayload(name: "Client 1", count: 3, total: 1234.5m), Ct);
+        var rendered = await Engine.RenderAsync(lookup, text, payload, Ct);
 
         // Assert
-        Assert.Equal($"Order 3 of Client 1: {1234.5m.ToString(culture)} on {ShippedAt.ToString(culture)}", rendered.Value);
+        Assert.Equal($"Order {payload.Count} of {payload.Name}: {payload.Total.ToString(culture)} on {payload.ShippedAt.ToString(culture)}", rendered.Value);
     }
 
     [Theory]
@@ -62,11 +64,13 @@ public abstract partial class TemplateEngineTestsBase<TEngine>
     {
         // Arrange
         TestData.Seed(Type, "en", Part, TemplatePartKind.PlainText, "Stored {Name}");
+        var draft = TestData.InEngineSyntax("Draft {Name}");
+        var payload = APayload();
 
         // Act
-        var rendered = await Engine.RenderAsync(ALookup(), TestData.InEngineSyntax("Draft {Name}"), APayload(name: "Client 1"), Ct);
+        var rendered = await Engine.RenderAsync(ALookup(), draft, payload, Ct);
 
         // Assert
-        Assert.Equal("Draft Client 1", rendered.Value);
+        Assert.Equal($"Draft {payload.Name}", rendered.Value);
     }
 }

@@ -146,6 +146,8 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
     public void Change_KindAndMandatory_ShowsOnlyTheSubscriptionsThatMatchBoth()
     {
         // Arrange
+        const string kind = "Channel";
+        const string mandatory = "Yes";
         GivenSubscriptions(
             Subscription() with { Mandatory = true },
             Subscription(id: Guid.Empty),
@@ -153,12 +155,12 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         var cut = Render<SubscriptionListPage>();
 
         // Act
-        cut.Find("#msghatch-subscription-kind").Change("Channel");
-        cut.Find("#msghatch-subscription-mandatory").Change("Yes");
+        cut.Find("#msghatch-subscription-kind").Change(kind);
+        cut.Find("#msghatch-subscription-mandatory").Change(mandatory);
 
         // Assert
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
-        Assert.Equal(("Channel", "Yes"), (row.Children[2].TextContent, row.Children[5].TextContent));
+        Assert.Equal((kind, mandatory), (row.Children[2].TextContent, row.Children[5].TextContent));
         Queries.Received(3).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
@@ -257,11 +259,11 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         var cut = Render<SubscriptionListPage>();
 
         // Act
-        cut.Find("#msghatch-subscription-channel").Change("Pager");
+        cut.Find("#msghatch-subscription-channel").Change(Pager.Name);
 
         // Assert
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
-        Assert.Equal("Pager", row.Children[3].TextContent);
+        Assert.Equal(Pager.Name, row.Children[3].TextContent);
         Queries.Received(2).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 

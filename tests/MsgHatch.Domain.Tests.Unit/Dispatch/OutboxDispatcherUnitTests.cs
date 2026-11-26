@@ -74,13 +74,14 @@ public sealed partial class OutboxDispatcherUnitTests
     public async Task DispatchPendingAsync_SendsTransientTransientAndSuccess_RecordsTriesOneTwoAndThreeWithTheClaimedMessages()
     {
         // Arrange
+        const string providerMessageId = "provider-9";
         OutgoingMessage[] claimed = [AMessage(id: _fixedId), AMessage(id: _fixedId, tryCount: 1), AMessage(id: _fixedId, tryCount: 2)];
         _doubles.ClaimsGive(TestChannel.Id, Claim(claimed[0]), Claim(claimed[1]), Claim(claimed[2]));
         var transport = TestTransports.For(TestChannel.Id);
         transport.SendAsync(default!, default, Ct).ReturnsForAnyArgs(
             ValueTask.FromResult<ErrorOr<PublishReceipt>>(new Error(Errors.RateLimited)),
             ValueTask.FromResult<ErrorOr<PublishReceipt>>(new Error(Errors.Unavailable)),
-            ValueTask.FromResult<ErrorOr<PublishReceipt>>(new PublishReceipt("provider-9")));
+            ValueTask.FromResult<ErrorOr<PublishReceipt>>(new PublishReceipt(providerMessageId)));
         await using var provider = _doubles.Build(transports: transport);
         var dispatcher = provider.GetRequiredService<IOutboxDispatcher>();
         await dispatcher.DispatchPendingAsync(10, Ct);
@@ -93,7 +94,7 @@ public sealed partial class OutboxDispatcherUnitTests
         RecordCall[] records = [await _doubles.NextRecordAsync(), await _doubles.NextRecordAsync(), await _doubles.NextRecordAsync()];
         Assert.Equal(
             [(claimed[0], 1, PublishOutcome.TransientError, (string?)null), (claimed[1], 2, PublishOutcome.TransientError, null),
-             (claimed[2], 3, PublishOutcome.Succeeded, "provider-9")],
+             (claimed[2], 3, PublishOutcome.Succeeded, providerMessageId)],
             records.Select(static r => (r.Message, r.Try.TryNumber, r.Try.Outcome, r.Try.ProviderMessageId)));
         Received.InOrder(() =>
         {

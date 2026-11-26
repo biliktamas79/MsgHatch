@@ -148,7 +148,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
             new OutboxQuery(null, DeliveryStatus.Failed, _requests, Email, target, _source, _created, _created.AddDays(1), IncludeTest: true),
             Arg.Any<CancellationToken>());
         Assert.Equal(
-            ("Failed", "Company", "a b&c", true),
+            ("Failed", "Company", target.Id, true),
             (cut.Find("#msghatch-outbox-status").GetAttribute("value"), cut.Find("#msghatch-outbox-target-kind").GetAttribute("value"),
                 cut.Find("#msghatch-outbox-target-id").GetAttribute("value"), cut.Find("#msghatch-outbox-test").HasAttribute("checked")));
     }

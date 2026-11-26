@@ -23,17 +23,18 @@ public sealed class EntityFrameworkSqlServerSubscriptionStoreExtensionsIntegTest
     public async Task MigrateMsgHatchAsync_BothPackagesAndASchemaOfTheOption_CreatesTheTablesOfBothWithTwoHistoryTablesInThatSchema()
     {
         // Arrange
+        const string schema = "other";
         var database = server.Database("schema");
-        await using var provider = MigratedSubscriptionStores.Build(database.ConnectionString, static o => o.Schema = "other");
+        await using var provider = MigratedSubscriptionStores.Build(database.ConnectionString, static o => o.Schema = schema);
 
         // Act
         await provider.MigrateMsgHatchAsync(ct: Ct);
 
         // Assert
         Assert.Equal(
-            [["other", "__StoreMigrations"], ["other", "__SubscriptionMigrations"], ["other", "ChannelEntry"],
-                ["other", "ChannelState"], ["other", "Inbox"], ["other", "MessageTypeEntry"], ["other", "Outbox"],
-                ["other", "Subscription"]],
+            [[schema, "__StoreMigrations"], [schema, "__SubscriptionMigrations"], [schema, "ChannelEntry"],
+                [schema, "ChannelState"], [schema, "Inbox"], [schema, "MessageTypeEntry"], [schema, "Outbox"],
+                [schema, "Subscription"]],
             await database.RowsAsync("SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_SCHEMA, TABLE_NAME", Ct));
     }
 

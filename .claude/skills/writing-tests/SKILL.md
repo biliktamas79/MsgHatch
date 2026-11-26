@@ -105,9 +105,12 @@ tests/{Project}.Tests.Performance
 public async Task UseResend_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
 {
     // Arrange
+    const string apiKey = "re_root";
+    const string senderEmail = "root@example.com";
     var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
     {
-        ["Messaging:Resend:ApiKey"] = "re_root",
+        ["Messaging:Resend:ApiKey"] = apiKey,
+        ["Messaging:Resend:SenderEmail"] = senderEmail,
         ["MsgHatch:Resend:SenderName"] = "Default",
     });
     services.AddMsgHatch(configSectionPath: "Messaging").UseResend();
@@ -117,7 +120,7 @@ public async Task UseResend_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     var options = provider.GetRequiredService<IOptions<ResendOptions>>().Value;
 
     // Assert
-    Assert.Equal(("re_root", (string?)null), (options.ApiKey, options.SenderName));
+    Assert.Equal((apiKey, senderEmail, (string?)null), (options.ApiKey, options.SenderEmail, options.SenderName));
 }
 ```
 

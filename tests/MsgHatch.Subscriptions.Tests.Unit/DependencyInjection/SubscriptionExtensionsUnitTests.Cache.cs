@@ -93,9 +93,10 @@ public sealed partial class SubscriptionExtensionsUnitTests
     public async Task UseSubscriptionCache_OptionsInTheConfiguration_ReachTheOptions()
     {
         // Arrange
+        const string keyPrefix = "app:subs";
         var configuration = new Dictionary<string, string?>
         {
-            ["MsgHatch:SubscriptionCache:Expiration"] = "00:05:00", ["MsgHatch:SubscriptionCache:KeyPrefix"] = "app:subs",
+            ["MsgHatch:SubscriptionCache:Expiration"] = "00:05:00", ["MsgHatch:SubscriptionCache:KeyPrefix"] = keyPrefix,
         };
         var services = TestHost.CreateServices(configuration: configuration);
         services.AddMsgHatch().UseSubscriptionCache(_ => Substitute.For<ISubscriptionCacheBackend>());
@@ -105,22 +106,23 @@ public sealed partial class SubscriptionExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<SubscriptionCacheOptions>>().Value;
 
         // Assert
-        Assert.Equal((TimeSpan.FromMinutes(5), "app:subs"), (options.Expiration, options.KeyPrefix));
+        Assert.Equal((TimeSpan.FromMinutes(5), keyPrefix), (options.Expiration, options.KeyPrefix));
     }
 
     [Fact]
     public async Task UseSubscriptionCache_KeyPrefixInCodeAndInTheConfiguration_TheValueOfTheCodeWins()
     {
         // Arrange
+        const string fromCode = "code";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:SubscriptionCache:KeyPrefix"] = "config" });
-        services.AddMsgHatch().UseSubscriptionCache(_ => Substitute.For<ISubscriptionCacheBackend>(), static o => o.KeyPrefix = "code");
+        services.AddMsgHatch().UseSubscriptionCache(_ => Substitute.For<ISubscriptionCacheBackend>(), static o => o.KeyPrefix = fromCode);
         await using var provider = services.Build();
 
         // Act
         var options = provider.GetRequiredService<IOptions<SubscriptionCacheOptions>>().Value;
 
         // Assert
-        Assert.Equal("code", options.KeyPrefix);
+        Assert.Equal(fromCode, options.KeyPrefix);
     }
 
     [Fact]

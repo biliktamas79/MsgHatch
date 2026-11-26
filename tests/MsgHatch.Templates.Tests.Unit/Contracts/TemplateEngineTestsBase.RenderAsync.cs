@@ -29,12 +29,13 @@ public abstract partial class TemplateEngineTestsBase<TEngine>
         // Arrange
         var culture = CultureInfo.GetCultureInfo(language);
         TestData.Seed(Type, language, Part, TemplatePartKind.PlainText, "Order {Count} of {Name}: {Total} on {ShippedAt}");
+        var payload = APayload(name: "Client 1", count: 3, total: 1234.5m);
 
         // Act
-        var rendered = await RenderAsync(APayload(name: "Client 1", count: 3, total: 1234.5m), language);
+        var rendered = await RenderAsync(payload, language);
 
         // Assert
-        Assert.Equal($"Order 3 of Client 1: {1234.5m.ToString(culture)} on {ShippedAt.ToString(culture)}", rendered);
+        Assert.Equal($"Order {payload.Count} of {payload.Name}: {payload.Total.ToString(culture)} on {payload.ShippedAt.ToString(culture)}", rendered);
     }
 
     [Theory]

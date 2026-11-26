@@ -114,147 +114,164 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
     public void Input_NewText_GivesTheTextToTextChanged()
     {
         // Arrange
+        const string newText = "ab";
         var texts = new List<string>();
         var cut = RenderEditor("a", texts.Add);
 
         // Act
-        cut.Find("textarea").Input("ab");
+        cut.Find("textarea").Input(newText);
 
         // Assert
-        Assert.Equal(["ab"], texts);
+        Assert.Equal([newText], texts);
     }
 
     [Fact]
     public void Input_ThreeChangesAndAPause_CallsTheCheckOneTimeWithTheLastText()
     {
         // Arrange
+        const string firstText = "ab";
+        const string secondText = "abc";
+        const string lastText = "abcd";
         var cut = RenderEditor("a");
 
         // Act
-        cut.Find("textarea").Input("ab");
+        cut.Find("textarea").Input(firstText);
         _clock.Advance(TimeSpan.FromMilliseconds(300));
-        cut.Find("textarea").Input("abc");
+        cut.Find("textarea").Input(secondText);
         _clock.Advance(TimeSpan.FromMilliseconds(300));
-        cut.Find("textarea").Input("abcd");
+        cut.Find("textarea").Input(lastText);
         _clock.Advance(TimeSpan.FromMilliseconds(499));
         _queries.DidNotReceiveWithAnyArgs().CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>());
 
         _clock.Advance(TimeSpan.FromMilliseconds(1));
 
         // Assert
-        cut.WaitForAssertion(() => _queries.Received(1).CheckTemplateAsync(_lookup, "abcd", Arg.Any<CancellationToken>()));
-        _queries.DidNotReceive().CheckTemplateAsync(_lookup, "ab", Arg.Any<CancellationToken>());
-        _queries.DidNotReceive().CheckTemplateAsync(_lookup, "abc", Arg.Any<CancellationToken>());
+        cut.WaitForAssertion(() => _queries.Received(1).CheckTemplateAsync(_lookup, lastText, Arg.Any<CancellationToken>()));
+        _queries.DidNotReceive().CheckTemplateAsync(_lookup, firstText, Arg.Any<CancellationToken>());
+        _queries.DidNotReceive().CheckTemplateAsync(_lookup, secondText, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Input_CheckGivesAnIssueWithAPosition_MarksTheLineAndTheColumn()
     {
         // Arrange
-        GivenCheck([new TemplateIssue("The tag is not known.", 2, 4)]);
-        var cut = RenderEditor("ab\ncd x");
+        const string text = "ab\ncd x";
+        const string message = "The tag is not known.";
+        GivenCheck([new TemplateIssue(message, 2, 4)]);
+        var cut = RenderEditor(text);
 
         // Act
-        cut.Find("textarea").Input("ab\ncd x");
+        cut.Find("textarea").Input(text);
         _clock.Advance(TimeSpan.FromMilliseconds(500));
 
         // Assert
         cut.WaitForAssertion(() => Assert.Equal("2:4", cut.Find("mark.template-issue").GetAttribute("data-mark")));
         Assert.Equal("x", cut.Find("mark.template-issue").TextContent);
-        Assert.Equal("Line 2, column 4: The tag is not known.", cut.Find("[data-issue]").TextContent);
-        _queries.Received(1).CheckTemplateAsync(_lookup, "ab\ncd x", Arg.Any<CancellationToken>());
+        Assert.Equal($"Line 2, column 4: {message}", cut.Find("[data-issue]").TextContent);
+        _queries.Received(1).CheckTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Input_CheckGivesAnIssueWithNoPosition_ShowsOnlyItsMessage()
     {
         // Arrange
-        GivenCheck([new TemplateIssue("The filter shout is not known.", null, null)]);
-        var cut = RenderEditor("{{ x | shout }}");
+        const string text = "{{ x | shout }}";
+        const string message = "The filter shout is not known.";
+        GivenCheck([new TemplateIssue(message, null, null)]);
+        var cut = RenderEditor(text);
 
         // Act
-        cut.Find("textarea").Input("{{ x | shout }}");
+        cut.Find("textarea").Input(text);
         _clock.Advance(TimeSpan.FromMilliseconds(500));
 
         // Assert
-        cut.WaitForAssertion(() => Assert.Equal("The filter shout is not known.", cut.Find("[data-issue]").TextContent));
+        cut.WaitForAssertion(() => Assert.Equal(message, cut.Find("[data-issue]").TextContent));
         Assert.Empty(cut.FindAll("mark"));
-        _queries.Received(1).CheckTemplateAsync(_lookup, "{{ x | shout }}", Arg.Any<CancellationToken>());
+        _queries.Received(1).CheckTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Input_CheckGivesAnIssueAfterTheEndOfTheText_ShowsOnlyItsMessage()
     {
         // Arrange
-        GivenCheck([new TemplateIssue("The tag has no end.", 5, 1)]);
-        var cut = RenderEditor("a");
+        const string text = "a";
+        const string message = "The tag has no end.";
+        GivenCheck([new TemplateIssue(message, 5, 1)]);
+        var cut = RenderEditor(text);
 
         // Act
-        cut.Find("textarea").Input("a");
+        cut.Find("textarea").Input(text);
         _clock.Advance(TimeSpan.FromMilliseconds(500));
 
         // Assert
-        cut.WaitForAssertion(() => Assert.Equal("Line 5, column 1: The tag has no end.", cut.Find("[data-issue]").TextContent));
+        cut.WaitForAssertion(() => Assert.Equal($"Line 5, column 1: {message}", cut.Find("[data-issue]").TextContent));
         Assert.Empty(cut.FindAll("mark"));
-        _queries.Received(1).CheckTemplateAsync(_lookup, "a", Arg.Any<CancellationToken>());
+        _queries.Received(1).CheckTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Input_CheckUnavailable_ShowsThatTheCheckDidNotRun()
     {
         // Arrange
+        const string newText = "ab";
         _queries.CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(
             ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForError(new Error(Errors.Unavailable))));
         var cut = RenderEditor("a");
 
         // Act
-        cut.Find("textarea").Input("ab");
+        cut.Find("textarea").Input(newText);
         _clock.Advance(TimeSpan.FromMilliseconds(500));
 
         // Assert
         cut.WaitForAssertion(() => Assert.Contains(AdminErrors.UnavailableText, cut.Find("[data-state=check-failed]").TextContent, StringComparison.Ordinal));
-        _queries.Received(1).CheckTemplateAsync(_lookup, "ab", Arg.Any<CancellationToken>());
+        _queries.Received(1).CheckTemplateAsync(_lookup, newText, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Render_IssueOfThePage_ShowsItsMessage()
     {
+        // Arrange
+        const string message = "The template is not valid.";
+        IReadOnlyList<TemplateIssue> issues = [new TemplateIssue(message, null, null)];
+
         // Act
-        var cut = Render<LiquidTemplateEditor>(p => p.Add(x => x.Lookup, _lookup).Add(x => x.Text, "a")
-            .Add(x => x.Issues, [new TemplateIssue("The template is not valid.", null, null)]));
+        var cut = Render<LiquidTemplateEditor>(p => p.Add(x => x.Lookup, _lookup).Add(x => x.Text, "a").Add(x => x.Issues, issues));
 
         // Assert
-        Assert.Equal("The template is not valid.", cut.Find("[data-issue]").TextContent);
+        Assert.Equal(message, cut.Find("[data-issue]").TextContent);
     }
 
     [Fact]
     public async Task CanSaveAsync_CheckGivesAnIssue_GivesFalseAndShowsTheIssue()
     {
         // Arrange
-        GivenCheck([new TemplateIssue("The tag has no end.", 1, 1)]);
-        var cut = RenderEditor("{% if x %}");
+        const string text = "{% if x %}";
+        const string message = "The tag has no end.";
+        GivenCheck([new TemplateIssue(message, 1, 1)]);
+        var cut = RenderEditor(text);
 
         // Act
         var canSave = await cut.InvokeAsync(() => cut.Instance.CanSaveAsync(Xunit.TestContext.Current.CancellationToken).AsTask());
 
         // Assert
         Assert.False(canSave);
-        _ = _queries.Received(1).CheckTemplateAsync(_lookup, "{% if x %}", Arg.Any<CancellationToken>());
-        cut.WaitForAssertion(() => Assert.Equal("Line 1, column 1: The tag has no end.", cut.Find("[data-issue]").TextContent));
+        _ = _queries.Received(1).CheckTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
+        cut.WaitForAssertion(() => Assert.Equal($"Line 1, column 1: {message}", cut.Find("[data-issue]").TextContent));
     }
 
     [Fact]
     public async Task CanSaveAsync_CheckGivesNoIssue_GivesTrue()
     {
         // Arrange
-        var cut = RenderEditor("Hi {{ Name }}");
+        const string text = "Hi {{ Name }}";
+        var cut = RenderEditor(text);
 
         // Act
         var canSave = await cut.InvokeAsync(() => cut.Instance.CanSaveAsync(Xunit.TestContext.Current.CancellationToken).AsTask());
 
         // Assert
         Assert.True(canSave);
-        _ = _queries.Received(1).CheckTemplateAsync(_lookup, "Hi {{ Name }}", Arg.Any<CancellationToken>());
+        _ = _queries.Received(1).CheckTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -263,14 +280,15 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
         // Arrange
         _queries.CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>()).ReturnsForAnyArgs(
             ValueTask.FromResult(ErrorOr<IReadOnlyList<TemplateIssue>>.ForError(new Error(Errors.Unavailable))));
-        var cut = RenderEditor("Hi");
+        const string text = "Hi";
+        var cut = RenderEditor(text);
 
         // Act
         var canSave = await cut.InvokeAsync(() => cut.Instance.CanSaveAsync(Xunit.TestContext.Current.CancellationToken).AsTask());
 
         // Assert
         Assert.True(canSave);
-        _ = _queries.Received(1).CheckTemplateAsync(_lookup, "Hi", Arg.Any<CancellationToken>());
+        _ = _queries.Received(1).CheckTemplateAsync(_lookup, text, Arg.Any<CancellationToken>());
     }
 
     [Fact]

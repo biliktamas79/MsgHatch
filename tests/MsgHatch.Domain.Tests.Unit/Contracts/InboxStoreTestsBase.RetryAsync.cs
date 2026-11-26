@@ -22,9 +22,11 @@ public abstract partial class InboxStoreTestsBase<TStore>
     public async Task RetryAsync_FailedMessage_GivesItANewSetOfTriesDueNowAndKeepsItsHistory()
     {
         // Arrange
-        var message = await AddAsync(With(AMessage(T1, nextTryAtUtc: Now.AddHours(-1)), delivery => delivery with
+        const string lastError = "Unavailable: down";
+        var lastTryAtUtc = Now.AddHours(-1);
+        var message = await AddAsync(With(AMessage(T1, nextTryAtUtc: lastTryAtUtc), delivery => delivery with
         {
-            Status = DeliveryStatus.Failed, TryCount = 8, MaxTryCount = 8, LastTryAtUtc = Now.AddHours(-1), LastError = "Unavailable: down",
+            Status = DeliveryStatus.Failed, TryCount = 8, MaxTryCount = 8, LastTryAtUtc = lastTryAtUtc, LastError = lastError,
         }));
 
         // Act
@@ -33,7 +35,7 @@ public abstract partial class InboxStoreTestsBase<TStore>
         // Assert
         var delivery = (await StoredAsync(message)).Delivery;
         Assert.Equal(
-            (DeliveryStatus.Pending, 8, 11, Now, (DateTime?)Now.AddHours(-1), "Unavailable: down"),
+            (DeliveryStatus.Pending, 8, 11, Now, (DateTime?)lastTryAtUtc, lastError),
             (delivery.Status, delivery.TryCount, delivery.MaxTryCount, delivery.NextTryAtUtc, delivery.LastTryAtUtc, delivery.LastError));
     }
 

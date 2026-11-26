@@ -16,9 +16,10 @@ public sealed class RabbitMqSignalExtensionsUnitTests
     public async Task UseRabbitMqDispatchSignal_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
     {
         // Arrange
+        const string uri = "amqp://rabbit.example.com:5672/root";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            ["Messaging:RabbitMqSignal:Uri"] = "amqp://rabbit.example.com:5672/root",
+            ["Messaging:RabbitMqSignal:Uri"] = uri,
             ["MsgHatch:RabbitMqSignal:ExchangeName"] = "from-default-root",
         });
         services.AddMsgHatch(configSectionPath: "Messaging").UseRabbitMqDispatchSignal();
@@ -28,17 +29,19 @@ public sealed class RabbitMqSignalExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<RabbitMqSignalOptions>>().Value;
 
         // Assert
-        Assert.Equal((new Uri("amqp://rabbit.example.com:5672/root"), "msghatch.dispatch"), (options.Uri, options.ExchangeName));
+        Assert.Equal((new Uri(uri), "msghatch.dispatch"), (options.Uri, options.ExchangeName));
     }
 
     [Fact]
     public async Task UseRabbitMqDispatchSignal_SettingsInTheSection_ReachTheOptions()
     {
         // Arrange
+        const string uri = "amqp://rabbit.example.com:5672/section";
+        const string exchangeName = "from-section";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
-            [$"{_section}:Uri"] = "amqp://rabbit.example.com:5672/section",
-            [$"{_section}:ExchangeName"] = "from-section",
+            [$"{_section}:Uri"] = uri,
+            [$"{_section}:ExchangeName"] = exchangeName,
         });
         services.AddMsgHatch().UseRabbitMqDispatchSignal();
         await using var provider = services.Build();
@@ -47,26 +50,28 @@ public sealed class RabbitMqSignalExtensionsUnitTests
         var options = provider.GetRequiredService<IOptions<RabbitMqSignalOptions>>().Value;
 
         // Assert
-        Assert.Equal((new Uri("amqp://rabbit.example.com:5672/section"), "from-section"), (options.Uri, options.ExchangeName));
+        Assert.Equal((new Uri(uri), exchangeName), (options.Uri, options.ExchangeName));
     }
 
     [Fact]
     public async Task UseRabbitMqDispatchSignal_SettingsFromCode_WinOverTheSection()
     {
         // Arrange
+        const string uri = "amqp://localhost/code";
+        const string exchangeName = "from-code";
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
         {
             [$"{_section}:Uri"] = "amqp://rabbit.example.com:5672/section",
             [$"{_section}:ExchangeName"] = "from-section",
         });
-        services.AddMsgHatch().UseRabbitMqDispatchSignal(static o => (o.Uri, o.ExchangeName) = (new Uri("amqp://localhost/code"), "from-code"));
+        services.AddMsgHatch().UseRabbitMqDispatchSignal(static o => (o.Uri, o.ExchangeName) = (new Uri(uri), exchangeName));
         await using var provider = services.Build();
 
         // Act
         var options = provider.GetRequiredService<IOptions<RabbitMqSignalOptions>>().Value;
 
         // Assert
-        Assert.Equal((new Uri("amqp://localhost/code"), "from-code"), (options.Uri, options.ExchangeName));
+        Assert.Equal((new Uri(uri), exchangeName), (options.Uri, options.ExchangeName));
     }
 
     [Fact]

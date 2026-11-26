@@ -106,14 +106,15 @@ public sealed class SubscriptionApiClientExtensionsUnitTests
     public async Task UseSubscriptionApiClient_BaseAddressOnly_GivesTheDefaultsOfMapMsgHatchSubscriptions()
     {
         // Arrange
+        const string baseAddress = "https://api.example.com/api";
         await using var provider = TestHost.CreateServices().AddMsgHatch(static o => o.Roles = MsgHatchRoles.None)
-            .UseSubscriptionApiClient(new Uri("https://api.example.com/api")).Services.Build();
+            .UseSubscriptionApiClient(new Uri(baseAddress)).Services.Build();
 
         // Act
         var options = provider.GetRequiredService<IOptions<SubscriptionApiClientOptions>>().Value;
 
         // Assert
-        Assert.Equal(("https://api.example.com/api", "/subscriptions", TimeSpan.FromSeconds(30)), (options.BaseAddress?.AbsoluteUri, options.Prefix, options.Timeout));
+        Assert.Equal((baseAddress, "/subscriptions", TimeSpan.FromSeconds(30)), (options.BaseAddress?.AbsoluteUri, options.Prefix, options.Timeout));
     }
 
     [Theory]

@@ -25,6 +25,8 @@ public sealed class TemplateApiClientMixedHostsUnitTests(TemplateFolder folder) 
     public async Task ReadsOverHttpAndWritesInProcess_TwoWritesInProcess_EachReadOverHttpGivesTheNewVersion()
     {
         // Arrange
+        const string firstText = "First";
+        const string secondText = "Second";
         var log = new RequestLog();
         await using var host = await HttpManagementHost.StartAsync<ITemplateQueries>(
             services => ServicesOnTheFolder(services),
@@ -33,15 +35,15 @@ public sealed class TemplateApiClientMixedHostsUnitTests(TemplateFolder folder) 
         var queries = host.Service(TenantKey.None);
 
         // Act
-        var first = await commands.SaveTemplateAsync(ALookup(), "First", 0, Ct);
+        var first = await commands.SaveTemplateAsync(ALookup(), firstText, 0, Ct);
         var firstRead = await queries.GetTemplateAsync(ALookup(), Ct);
-        var second = await commands.SaveTemplateAsync(ALookup(), "Second", first.Value.Version, Ct);
+        var second = await commands.SaveTemplateAsync(ALookup(), secondText, first.Value.Version, Ct);
         var secondRead = await queries.GetTemplateAsync(ALookup(), Ct);
 
         // Assert
         var path = $"/templates/{_type.Name}/en/subject/PlainText";
         Assert.Equal(
-            ("First", first.Value.Version, "Second", second.Value.Version, $"{path}, {path}"),
+            (firstText, first.Value.Version, secondText, second.Value.Version, $"{path}, {path}"),
             (firstRead.Value.Text, firstRead.Value.Key.Version, secondRead.Value.Text, secondRead.Value.Key.Version, Paths(log)));
     }
 
@@ -49,6 +51,7 @@ public sealed class TemplateApiClientMixedHostsUnitTests(TemplateFolder folder) 
     public async Task WritesOverHttpAndReadsInProcess_WriteOverHttp_ReadInProcessGivesTheNewVersion()
     {
         // Arrange
+        const string text = "Over HTTP";
         var log = new RequestLog();
         await using var host = await HttpManagementHost.StartAsync<ITemplateCommands>(
             services => ServicesOnTheFolder(services),
@@ -57,12 +60,12 @@ public sealed class TemplateApiClientMixedHostsUnitTests(TemplateFolder folder) 
         var queries = host.Client.GetRequiredService<ITemplateQueries>();
 
         // Act
-        var saved = await commands.SaveTemplateAsync(ALookup(), "Over HTTP", 0, Ct);
+        var saved = await commands.SaveTemplateAsync(ALookup(), text, 0, Ct);
         var read = await queries.GetTemplateAsync(ALookup(), Ct);
 
         // Assert
         Assert.Equal(
-            ("Over HTTP", saved.Value.Version, $"/templates/{_type.Name}/en/subject/PlainText"),
+            (text, saved.Value.Version, $"/templates/{_type.Name}/en/subject/PlainText"),
             (read.Value.Text, read.Value.Key.Version, Paths(log)));
     }
 
