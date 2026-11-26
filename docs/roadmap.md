@@ -4529,6 +4529,49 @@ Commits:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.10.0, and the PostgreSQL integration tests pass.
 
+### Phase 57: Release 1.0.0
+
+Goal: the 42 packages get the first stable version 1.0.0, and go to nuget.org after the owner approves the publish. From 1.0.0 on, a breaking change raises the major version, and each pack compares the public API with the published 1.0.0 (D335).
+
+Starting point: the commits of phase 56, at version 0.10.0:
+- `pack.ps1` passes with 42 packages. A test pack at 1.0.0 of the commit `04295e3` passed with 0 warnings and no prerelease dependency.
+- The job `publish` of the workflow publishes a tag `v<version>` through trusted publishing, in the environment `nuget` with the owner as the required reviewer (D309).
+- nuget.org has the trusted publishing policy of `build.yml` and the environment `nuget`, with the scope "Push new packages and package versions" and the glob `MsgHatch.*`. nuget.org reserved the id prefix `MsgHatch` for the owner.
+
+1. `VersionPrefix` becomes 1.0.0 (D335). No library code changes. The README of each of the 42 packages gets the entry 1.0.0: "First stable version. The public API, the configuration keys, and the stored data of 0.10.0 do not change. From this version on, a breaking change raises the major version."
+2. The compatibility promise of D335 goes into the design (D307 and section 5.6) and into the version rules of `AGENTS.md`:
+   - A breaking change of the public API raises the major. The rule "Before 1.0.0, a breaking change raises the minor" goes away.
+   - A new member of a public interface that a host or a package can implement, for example a store, a transport, a dispatch signal, or a template engine, gets a default implementation when a correct default exists. With no correct default, the member waits for the next major version.
+   - Each 1.x version reads the data that an earlier 1.x version wrote (`docs/stores.md`). A schema change comes with a migration in the provider packages.
+   - A removed or renamed configuration key, HTTP route, or member of an HTTP body is a breaking change.
+3. Section 5.6 of the design gets the release steps:
+   - Before the tag: the CI run of the commit passes, and each integration project of `AGENTS.md` passes on the local servers and accounts of the owner.
+   - The owner pushes the tag `v1.0.0`, and approves the job `publish`.
+   - Fallback: when nuget.org refuses a new package id with 403, the owner creates a scoped API key with the scope "Push new packages and package versions", the glob `MsgHatch.*`, and an expiry of 1 day, and pushes the packages of the artifact `packages` of the run. `--skip-duplicate` makes a push after a partial push safe.
+   - After the publish, the owner checks the page of each package on nuget.org: the README, the icon, the dependencies, and the symbols.
+   - The step of the prefix reservation goes away, because nuget.org reserved the prefix.
+4. After the publish, `PackageValidationBaselineVersion` becomes 1.0.0 in `Directory.Build.props`, and the example of section 5.6 becomes 1.0.0. A new library project sets an empty baseline in its project file until its first publish, and `AGENTS.md` gets this rule.
+5. Describe the phase: the root `README.md` with the install from nuget.org, and `AGENTS.md`.
+
+Checks before the code:
+- Whether the package validation with a baseline reports a new interface member that has a default implementation. If it does, the rule of item 2 does not work.
+- What `dotnet pack` does with a baseline version for a package that is not on nuget.org yet, so that item 4 has the right rule for a new package.
+- Whether a pack with a baseline reads nuget.org at each run, and what it does with no network.
+- Whether the Microsoft documentation now says if trusted publishing can push a new package id.
+
+Tests: the phase changes no library code, so it adds no test. The README tests and `pack.ps1` cover the version entries and the packages. For item 4, a public member removed in a local copy makes `pack.ps1` fail with a compatibility error. That change is not committed.
+
+Commits:
+1. "Set the first stable version 1.0.0"
+2. "Describe the compatibility promise and the release steps of 1.0.0"
+3. "Record the commits and the checked facts of phase 57 in the plan"
+4. "Record phase 57 as done in README and AGENTS.md"
+5. "Compare each pack with the published 1.0.0"
+
+The plan of phase 57 and D335 are in their own commit before commit 1. After commit 4, the owner runs the integration tests, pushes the tag `v1.0.0` on commit 4, and approves the publish. Commit 5 follows the publish, and the tag `phase-57` goes on commit 5.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 1.0.0, the integration tests pass on the machine of the owner, nuget.org lists the 42 packages of 1.0.0 with their symbols, and after commit 5 `pack.ps1` passes against the baseline and fails for the local copy with a removed public member.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
