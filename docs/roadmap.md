@@ -4298,6 +4298,72 @@ Commit 1 is `e86e89e`. The plan of this phase is in `420687f`.
 
 Done when: the build has no errors and no warnings, and `pwsh ./pack.ps1` passes with 42 packages of 0.7.1, each with the icon. The phase changes no code, so it adds no unit test.
 
+### Phase 54: Root of the configuration sections
+
+Goal: a host moves all configuration sections of MsgHatch under a root of its choice with one parameter of `AddMsgHatch`, for example `Messaging` or `App:Messaging` (D328). The constant `SectionName` goes from each options class, because a constant full path cannot follow a root that the host gives at run time (D329).
+
+Starting point: the commits of phase 53, at version 0.7.1:
+- 22 options classes have a `public const string SectionName` with a full path that starts with `MsgHatch`: 6 in `MsgHatch.Domain`, and 16 in 14 other packages.
+- Each setup method binds its section with `BindConfiguration(SectionName)`. The core builds its child sections from the constant, for example `MsgHatch:Retry:{channel}`. So a host cannot move the sections, for example under the section of its application.
+- `AddMsgHatch` is safe to call more than one time, because a later call reuses the setup of the first call (D314). About 20 README tests call `AddMsgHatch` for a fixture before the README snippet. A module of a host can also get the builder again with a second call.
+- No package is on nuget.org, so the phase changes the API with no compatibility members.
+
+1. `AddMsgHatch` (D328):
+   - It gets the parameter `string? configSectionPath = null` after `configure`. Null gives `MsgHatchOptions.DefaultSectionKey`, which is `"MsgHatch"`. A value is a full path, for example `App:Messaging`. An empty value or a value of white space throws `ArgumentException`.
+   - The first call sets the root in the shared setup. A later call with null keeps the root. A later call with a different root adds a setup error, and the startup validation names both roots (D62).
+   - `MsgHatchBuilder` gets the property `ConfigSectionPath` and the method `SectionPathOf(string sectionKey)`, which gives `{ConfigSectionPath}:{sectionKey}`.
+2. The 6 core options classes (D329):
+   - `MsgHatchOptions.SectionName` becomes `DefaultSectionKey = "MsgHatch"`, the default root that `configSectionPath` replaces.
+   - `RetryOptions`, `DispatchOptions`, `ChannelDownOptions`, `TestDeliveryOptions`, and `RegistryOptions` get `const string SectionKey` in place of `SectionName`, for example `RetryOptions.SectionKey = "Retry"`.
+   - Each core bind site builds its path from the root at run time: `{root}`, `{root}:Retry:Inbox`, `{root}:Retry:{channel}`, `{root}:Retry:{contentType}`, `{root}:Dispatch:Inbox`, `{root}:Dispatch:Outbox`, `{root}:ChannelDown:{channel}`, `{root}:TestDelivery:{channel}`, and `{root}:Registry`.
+3. The 16 options classes of the packages (D329):
+   - `DeliveryApiClientOptions`, `RegistryApiClientOptions`, `AmazonSnsOptions`, `AmazonSesOptions`, `ResendOptions`, `EntityFrameworkStoreOptions`, `FileStoreOptions`, `MongoDbStoreOptions`, `SqliteStoreOptions`, `SqliteTenantStoreOptions`, `NamedPipeSignalOptions`, `RabbitMqSignalOptions`, `SubscriptionCacheOptions`, `SubscriptionApiClientOptions`, `TemplateApiClientOptions`, and `FileTemplateOptions`.
+   - Each class gets `const string SectionKey` in place of `SectionName`, with the last segment of the old path, for example `ResendOptions.SectionKey = "Resend"` and `EntityFrameworkStoreOptions.SectionKey = "EntityFramework"`.
+   - Each setup method binds `builder.SectionPathOf(...)` with the `SectionKey` of its class. The setup methods of a shared options class, for example `UseFileStores` and `UseFileSubscriptionStore`, bind through the one helper of the base package, so they cannot bind two paths.
+   - No setup method of a package gets a path parameter. A host that needs one section in another place adds its own `services.Configure<TOptions>(configuration.GetSection(...))` after the setup call, because a later configure step wins.
+   - The region errors of `UseAmazonSes` and `UseAmazonSnsBroker` name the bound path.
+4. The XML docs of each setup method, of `AddMsgHatch`, of `ConfigureTestDelivery`, and of `ConfigureChannelDown` name the section under the root, with the default path.
+5. The READMEs:
+   - The 15 packages whose code changes get the entry 0.8.0: `MsgHatch.Domain`, `MsgHatch.Api.Client`, `MsgHatch.Channels.Broker.AmazonSns`, `MsgHatch.Channels.Email.AmazonSes`, `MsgHatch.Channels.Email.Resend`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.FileSystem`, `MsgHatch.Data.MongoDb`, `MsgHatch.Data.Sqlite`, `MsgHatch.Dispatch.NamedPipes`, `MsgHatch.Dispatch.RabbitMq`, `MsgHatch.Subscriptions`, `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates`, and `MsgHatch.Templates.Api.Client`. The entry starts with "Breaking:", says that `SectionName` is removed, and says that the sections follow the root of `AddMsgHatch`.
+   - Each README that names a section names it under the root, with the default path, for example "the section `Resend` under the root of `AddMsgHatch`, by default `MsgHatch:Resend`". The 12 READMEs of packages whose code does not change get the new text with no version entry, as in phase 51.
+   - The README of `MsgHatch.Domain` shows `configSectionPath` in its setup section.
+6. `VersionPrefix` becomes `0.8.0`, because before 1.0.0 a breaking change raises the minor.
+7. Describe the phase in the design: a line for phase 54 in D65 and D314, the options of section 4.4 with the table of the sections and the retry steps, the rows of `AddMsgHatch`, `ConfigureTestDelivery`, `ConfigureChannelDown`, `UseEmailClient`, `UseSignalR`, and `UseBrokerClient` in section 4.7, and the sections of the clients in section 4.23. `docs/stores.md` names the sections of the stores under the root.
+
+The examples keep the default root, so their settings files do not change.
+
+Checks before the code:
+- The configuration binding source generator intercepts `BindConfiguration` with a path that is not a constant. The build gives no warning of the generator, and no trim or AOT warning in the packages with `IsAotCompatible` (D237).
+- Each setup method of a package that binds a shared options class goes through one helper of the base package.
+- Each file in `src`, `tests`, `examples`, and `docs` that names a `SectionName` of the library, or a fixed path that starts with `MsgHatch:`.
+
+Tests:
+- `AddMsgHatch_ConfigSectionPath_BindsTheCoreOptionsUnderTheRoot`: with the root `Messaging`, these options bind from `Messaging:...`:
+  - `MsgHatchOptions`.
+  - The `RetryOptions` of the inbox, of a channel, and of a content type.
+  - The `DispatchOptions` of the inbox and of the outbox.
+  - `ChannelDownOptions`, `TestDeliveryOptions`, and `RegistryOptions`.
+- With the root `Messaging`, a value under `MsgHatch:...` does not apply.
+- A root with two segments, for example `App:Messaging`, binds the same options.
+- With no root, each core option still binds from `MsgHatch:...`.
+- `AddMsgHatch_SecondCallWithNoRoot_KeepsTheRootOfTheFirstCall`.
+- `AddMsgHatch_SecondCallWithAnotherRoot_FailsTheStartupValidation`. The test asserts the type of the exception, not its text (section 5.5).
+- An empty root, and a root of white space, throw `ArgumentException`.
+- Each setup method of a package: with the root `Messaging`, its options bind from `Messaging:{SectionKey}`, and a value under `MsgHatch:{SectionKey}` does not apply.
+- The README snippets and the options tables.
+- Each new test fails first.
+
+Commits:
+1. "Add the root of the configuration sections to AddMsgHatch": items 1, 2, and 6, with the XML docs and the README of `MsgHatch.Domain`.
+2. "Bind the sections of the packages under the root of AddMsgHatch": items 3 to 5 for the other packages.
+3. "Describe the root of the configuration sections in the design": item 7.
+4. "Record the commits and the checked facts of phase 54 in the plan"
+5. "Record phase 54 as done in README and AGENTS.md"
+
+The plan of this phase and D328 and D329 are in their own commit before commit 1.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 42 packages of 0.8.0. No integration test is necessary, because the binding needs no server.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
