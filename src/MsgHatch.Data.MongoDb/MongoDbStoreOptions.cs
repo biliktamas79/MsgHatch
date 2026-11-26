@@ -5,8 +5,11 @@ namespace MsgHatch.Data.MongoDb;
 /// <summary>The settings of the MongoDB stores (section 4.4, D121).</summary>
 public sealed class MongoDbStoreOptions
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:MongoDb";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:MongoDb</c>, by default
+    /// <c>MsgHatch:MongoDb</c>.
+    /// </summary>
+    public const string SectionKey = "MongoDb";
 
     /// <summary>The default name of the database.</summary>
     public const string DefaultDatabaseName = "msghatch";

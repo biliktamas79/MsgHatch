@@ -6,8 +6,11 @@ namespace MsgHatch.Data.Sqlite;
 /// <summary>The settings of the SQLite stores with one database file for each tenant (section 4.4, D125).</summary>
 public sealed class SqliteTenantStoreOptions : IValidatableObject
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:SqliteTenants";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:SqliteTenants</c>, by default
+    /// <c>MsgHatch:SqliteTenants</c>.
+    /// </summary>
+    public const string SectionKey = "SqliteTenants";
 
     private const string _tenant = "{tenant}";
 

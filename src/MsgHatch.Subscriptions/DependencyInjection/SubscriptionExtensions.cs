@@ -165,8 +165,9 @@ public static class SubscriptionExtensions
     /// <summary>
     /// Selects a cache backend, and turns on the subscription cache: <see cref="ISubscriptionCache"/> as a singleton tenant
     /// service, and the caching wrapper between the logging wrapper and the subscription store (section 4.15, D38, D40).
-    /// The options bind from the section <c>MsgHatch:SubscriptionCache</c>, and a value from code wins. The cache packages
-    /// call it. A host calls it only for its own backend.
+    /// The options bind from the section <c>SubscriptionCache</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:SubscriptionCache</c>, and a value from code wins. The cache packages call it. A host calls it only
+    /// for its own backend.
     /// </summary>
     /// <typeparam name="TBackend">The backend type, a thread-safe singleton for all tenants.</typeparam>
     /// <param name="builder">The builder.</param>
@@ -191,7 +192,7 @@ public static class SubscriptionExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(factory);
         SubscriptionSetup.Of(builder.Services).CacheSelections.Add(setupMethod ?? nameof(UseSubscriptionCache));
-        var options = builder.Services.AddOptions<SubscriptionCacheOptions>().BindConfiguration(SubscriptionCacheOptions.SectionName);
+        var options = builder.Services.AddOptions<SubscriptionCacheOptions>().BindConfiguration(builder.SectionPathOf(SubscriptionCacheOptions.SectionKey));
         if (configure is not null)
         {
             options.Configure(configure);

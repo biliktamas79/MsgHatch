@@ -11,7 +11,8 @@ public static class HybridSubscriptionCacheExtensions
     /// <summary>
     /// Turns on the subscription cache on HybridCache: <see cref="HybridCacheSubscriptionBackend"/>, the caching wrapper,
     /// <see cref="ISubscriptionCache"/>, and HybridCache with <c>AddHybridCache</c>. A HybridCache that the host already
-    /// registered stays. The options bind from the section <c>MsgHatch:SubscriptionCache</c>, and a value from code wins.
+    /// registered stays. The options bind from the section <c>SubscriptionCache</c> under the root of
+    /// <c>AddMsgHatch</c>, by default <c>MsgHatch:SubscriptionCache</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the subscription cache options in code.</param>

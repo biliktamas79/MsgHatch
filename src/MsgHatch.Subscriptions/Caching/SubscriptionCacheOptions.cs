@@ -6,8 +6,11 @@ namespace MsgHatch.Subscriptions.Caching;
 /// <summary>The settings of the subscription cache (section 4.4, D38).</summary>
 public sealed class SubscriptionCacheOptions
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:SubscriptionCache";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:SubscriptionCache</c>, by default
+    /// <c>MsgHatch:SubscriptionCache</c>.
+    /// </summary>
+    public const string SectionKey = "SubscriptionCache";
 
     /// <summary>The time that the cache keeps the subscriptions of one owner and message type.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The source-generated validator checks this rule with its own copy of the attribute, with no reflection.")]

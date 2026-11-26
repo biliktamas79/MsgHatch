@@ -16,8 +16,8 @@ public static class AmazonSesExtensions
     /// Selects Amazon SES for the email channel: the options, <see cref="AmazonSimpleEmailServiceClient"/> as the
     /// <see cref="IEmailClient"/> with its logging wrapper, the email transport, and an
     /// <see cref="IAmazonSimpleEmailServiceV2"/> client for <see cref="AmazonSesOptions.Region"/>, if the host has not
-    /// registered one. The options bind from the section <c>MsgHatch:AmazonSes</c>, and a value from code wins. The AWS
-    /// SDK finds the credentials.
+    /// registered one. The options bind from the section <c>AmazonSes</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:AmazonSes</c>, and a value from code wins. The AWS SDK finds the credentials.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -25,7 +25,8 @@ public static class AmazonSesExtensions
     public static MsgHatchBuilder UseAmazonSes(this MsgHatchBuilder builder, Action<AmazonSesOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<AmazonSesOptions>().BindConfiguration(AmazonSesOptions.SectionName);
+        var section = builder.SectionPathOf(AmazonSesOptions.SectionKey);
+        var options = builder.Services.AddOptions<AmazonSesOptions>().BindConfiguration(section);
         if (configure is not null)
         {
             options.Configure(configure);
@@ -34,7 +35,7 @@ public static class AmazonSesExtensions
         options.ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AmazonSesOptions>, AmazonSesOptionsValidator>());
         builder.Services.TryAddSingleton<IAmazonSimpleEmailServiceV2>(
-            static services => SesClientOf(services.GetRequiredService<IOptions<AmazonSesOptions>>().Value.Region));
+            services => SesClientOf(services.GetRequiredService<IOptions<AmazonSesOptions>>().Value.Region, section));
         return builder.UseEmailClient<AmazonSimpleEmailServiceClient>();
     }
 
@@ -45,10 +46,10 @@ public static class AmazonSesExtensions
     public static MsgHatchBuilder UseAmazonSes(this MsgHatchBuilder builder, string senderEmail) =>
         builder.UseAmazonSes(o => o.SenderEmail = senderEmail);
 
-    private static AmazonSimpleEmailServiceV2Client SesClientOf(string? region) =>
-        region is null ? SesClientOfTheRegionOfTheAwsSdk() : new AmazonSimpleEmailServiceV2Client(RegionEndpoint.GetBySystemName(region));
+    private static AmazonSimpleEmailServiceV2Client SesClientOf(string? region, string section) =>
+        region is null ? SesClientOfTheRegionOfTheAwsSdk(section) : new AmazonSimpleEmailServiceV2Client(RegionEndpoint.GetBySystemName(region));
 
-    private static AmazonSimpleEmailServiceV2Client SesClientOfTheRegionOfTheAwsSdk()
+    private static AmazonSimpleEmailServiceV2Client SesClientOfTheRegionOfTheAwsSdk(string section)
     {
         try
         {
@@ -58,7 +59,7 @@ public static class AmazonSesExtensions
         {
             throw new OptionsValidationException(
                 nameof(AmazonSesOptions), typeof(AmazonSesOptions),
-                [$"{nameof(AmazonSesOptions.Region)}: the AWS SDK configuration has no region. Set {AmazonSesOptions.SectionName}:{nameof(AmazonSesOptions.Region)}, or a region of the AWS SDK, for example the environment variable AWS_REGION."]);
+                [$"{nameof(AmazonSesOptions.Region)}: the AWS SDK configuration has no region. Set {section}:{nameof(AmazonSesOptions.Region)}, or a region of the AWS SDK, for example the environment variable AWS_REGION."]);
         }
     }
 }

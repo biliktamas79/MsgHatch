@@ -11,8 +11,9 @@ namespace MsgHatch.Api.Client.DependencyInjection;
 /// of the in-process defaults of <see cref="IDeliveryQueries"/> and <see cref="IDeliveryCommands"/>, as scoped tenant services
 /// with their logging wrappers, through <see cref="MsgHatchBuilder.UseDeliveryQueries"/> and
 /// <see cref="MsgHatchBuilder.UseDeliveryCommands"/>. So a second selection gives a setup error. The options bind from the
-/// section <c>MsgHatch:DeliveryApiClient</c>, a value from code wins, and an options error stops the start of the host. The
-/// host adds its own handlers, for example the authentication, with <c>configureHttp</c>.
+/// section <c>DeliveryApiClient</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:DeliveryApiClient</c>,
+/// a value from code wins, and an options error stops the start of the host. The host adds its own handlers, for
+/// example the authentication, with <c>configureHttp</c>.
 /// </summary>
 public static class DeliveryApiClientExtensions
 {
@@ -27,7 +28,7 @@ public static class DeliveryApiClientExtensions
         this MsgHatchBuilder builder, Action<DeliveryApiClientOptions>? configure = null, Action<IHttpClientBuilder>? configureHttp = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<DeliveryApiClientOptions>().BindConfiguration(DeliveryApiClientOptions.SectionName);
+        var options = builder.Services.AddOptions<DeliveryApiClientOptions>().BindConfiguration(builder.SectionPathOf(DeliveryApiClientOptions.SectionKey));
         if (configure is not null)
         {
             options.Configure(configure);

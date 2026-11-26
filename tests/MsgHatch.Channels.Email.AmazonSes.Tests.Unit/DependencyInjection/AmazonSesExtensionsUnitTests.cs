@@ -33,6 +33,25 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
     public void Dispose() => UseTheRegionOfTheAwsSdk(_awsRegion);
 
     [Fact]
+    public async Task UseAmazonSes_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:AmazonSes:SenderEmail"] = "root@example.com",
+            ["MsgHatch:AmazonSes:SenderName"] = "Default",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseAmazonSes();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<AmazonSesOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("root@example.com", (string?)null), (options.SenderEmail, options.SenderName));
+    }
+
+    [Fact]
     public async Task UseAmazonSes_Alone_ResolvesTheEmailClientAsTheLoggingWrapperAroundTheSesClient()
     {
         // Arrange

@@ -6,8 +6,11 @@ namespace MsgHatch.Channels.Broker.AmazonSns;
 /// <summary>The settings of the Amazon SNS broker client (section 4.4, D300, D301).</summary>
 public sealed partial class AmazonSnsOptions : IValidatableObject
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:AmazonSns";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:AmazonSns</c>, by default
+    /// <c>MsgHatch:AmazonSns</c>.
+    /// </summary>
+    public const string SectionKey = "AmazonSns";
 
     /// <summary>The AWS region of SNS, for example <c>eu-west-1</c>, or null for the region of the AWS SDK configuration.</summary>
     [RegularExpression("^[a-z]{2}(-[a-z]+)+-[0-9]$")]

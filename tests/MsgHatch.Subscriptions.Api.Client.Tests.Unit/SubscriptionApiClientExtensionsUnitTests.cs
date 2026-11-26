@@ -18,7 +18,7 @@ namespace MsgHatch.Subscriptions.Api.Client.Tests.Unit;
 /// <summary>The setup methods of the subscription API client (D227, D231): the options, the selections, a host with no role, and the public types.</summary>
 public sealed class SubscriptionApiClientExtensionsUnitTests
 {
-    private const string _section = SubscriptionApiClientOptions.SectionName;
+    private const string _section = MsgHatchOptions.DefaultSectionKey + ":" + SubscriptionApiClientOptions.SectionKey;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -35,6 +35,33 @@ public sealed class SubscriptionApiClientExtensionsUnitTests
         { "UseSubscriptionQueriesApiClient", "UseSubscriptionQueriesApiClient and UseRoutingVerifier select an implementation of IRoutingVerifier." },
         { "UseSubscriptionCommandsApiClient", "UseSubscriptionCommandsApiClient and UseSubscriptionCommands select an implementation of ISubscriptionCommands." },
     };
+
+    [Theory]
+    [InlineData("UseSubscriptionApiClient")]
+    [InlineData("UseSubscriptionQueriesApiClient")]
+    [InlineData("UseSubscriptionCommandsApiClient")]
+    public async Task Setup_ConfigSectionPath_BindsTheOptionsUnderTheRoot(string method)
+    {
+        // Arrange
+        var builder = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:SubscriptionApiClient:BaseAddress"] = "https://api.example.com",
+            [$"{_section}:Prefix"] = "/other",
+        }).AddMsgHatch(static o => o.Roles = MsgHatchRoles.None, "Messaging");
+        _ = method switch
+        {
+            "UseSubscriptionApiClient" => builder.UseSubscriptionApiClient(),
+            "UseSubscriptionQueriesApiClient" => builder.UseSubscriptionQueriesApiClient(),
+            _ => builder.UseSubscriptionCommandsApiClient(),
+        };
+        await using var provider = builder.Services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<SubscriptionApiClientOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("https://api.example.com/", "/subscriptions"), (options.BaseAddress?.AbsoluteUri, options.Prefix));
+    }
 
     [Theory]
     [MemberData(nameof(InvalidOptionsRows))]

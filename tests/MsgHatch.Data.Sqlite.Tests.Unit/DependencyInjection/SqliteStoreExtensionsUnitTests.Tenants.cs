@@ -23,6 +23,27 @@ public sealed partial class SqliteStoreExtensionsUnitTests
     private readonly TenantDatabaseFolder _folder = new();
 
     [Fact]
+    public async Task UseSqliteTenantStores_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:SqliteTenants:TenantConnectionString"] = "Data Source=root-{tenant}.db",
+            ["Messaging:SqliteTenants:SystemConnectionString"] = "Data Source=root.db",
+            ["MsgHatch:SqliteTenants:SystemConnectionString"] = "Data Source=default.db",
+        });
+        services.AddSingleton(new FixedTenants([]));
+        services.AddMsgHatch(configSectionPath: "Messaging").UseSqliteTenantStores<FixedTenantSource>();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<SqliteTenantStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("Data Source=root-{tenant}.db", "Data Source=root.db"), (options.TenantConnectionString, options.SystemConnectionString));
+    }
+
+    [Fact]
     public async Task UseSqliteTenantStores_TwoTenantsOfTheTenantSource_MakesTheFileOfEachTenantAndTheSystemFile()
     {
         // Arrange

@@ -15,8 +15,8 @@ public static class MongoDbStoreExtensions
     /// its two parts and their logging wrappers, and <see cref="MongoDbRegistrySettingsStore"/> with its logging wrapper,
     /// on the database of <see cref="MongoDbStoreOptions.DatabaseName"/>. It registers an <see cref="IMongoClient"/> for
     /// <see cref="MongoDbStoreOptions.ConnectionString"/> when the host has not registered one. The stores create their
-    /// indexes one time for each database in the process. The options bind from the section <c>MsgHatch:MongoDb</c>, and
-    /// a value from code wins.
+    /// indexes one time for each database in the process. The options bind from the section <c>MongoDb</c> under the
+    /// root of <c>AddMsgHatch</c>, by default <c>MsgHatch:MongoDb</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -38,13 +38,13 @@ public static class MongoDbStoreExtensions
 
     /// <summary>
     /// Registers the shared <see cref="MongoDbStoreOptions"/> of a setup method of the MongoDB stores (D59): the binding of
-    /// the section <c>MsgHatch:MongoDb</c>, the validation, and a value in code through <c>ConfigureSharedOptions</c>
-    /// (D150). It also registers an <see cref="IMongoClient"/> for the connection string with <c>TryAdd</c>, so a client
-    /// of the host stays (D60).
+    /// the section <c>MongoDb</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:MongoDb</c>, the
+    /// validation, and a value in code through <c>ConfigureSharedOptions</c> (D150). It also registers an
+    /// <see cref="IMongoClient"/> for the connection string with <c>TryAdd</c>, so a client of the host stays (D60).
     /// </summary>
     internal static void AddOptionsAndClient(MsgHatchBuilder builder, string setupMethod, Action<MongoDbStoreOptions>? configure)
     {
-        builder.Services.AddOptions<MongoDbStoreOptions>().BindConfiguration(MongoDbStoreOptions.SectionName).ValidateOnStart();
+        builder.Services.AddOptions<MongoDbStoreOptions>().BindConfiguration(builder.SectionPathOf(MongoDbStoreOptions.SectionKey)).ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MongoDbStoreOptions>, MongoDbStoreOptionsValidator>());
         if (configure is not null)
         {

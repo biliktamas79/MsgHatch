@@ -6,8 +6,11 @@ namespace MsgHatch.Api.Client;
 /// <summary>The settings of the HTTP client of the registry API (D271, section 4.23).</summary>
 public sealed class RegistryApiClientOptions : IValidatableObject
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:RegistryApiClient";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:RegistryApiClient</c>, by default
+    /// <c>MsgHatch:RegistryApiClient</c>.
+    /// </summary>
+    public const string SectionKey = "RegistryApiClient";
 
     /// <summary>The absolute URI of the host of the API, for example <c>https://api.example.com/</c>. It has no default.</summary>
     [Required]

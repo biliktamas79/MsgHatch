@@ -16,7 +16,7 @@ services.AddMsgHatch()
     .UseResend();
 ```
 
-`UseResend` selects the Resend client, the email transport, and a named HTTP client, which the host can configure further. It binds `ResendOptions` from the section `MsgHatch:Resend`, and validates them at the start of the host. A value from code wins over the configuration:
+`UseResend` selects the Resend client, the email transport, and a named HTTP client, which the host can configure further. It binds `ResendOptions` from the section `Resend` under the root of `AddMsgHatch`, by default `MsgHatch:Resend`, and validates them at the start of the host. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -48,6 +48,10 @@ services.AddMsgHatch()
 The example has no `ApiKey`, because the key comes from a secret store, for example the user secrets or an environment variable `MsgHatch__Resend__ApiKey`.
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `ResendOptions.SectionName` is removed. `ResendOptions.SectionKey` is `Resend`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:Resend`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

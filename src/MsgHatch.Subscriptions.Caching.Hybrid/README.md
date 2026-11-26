@@ -20,7 +20,7 @@ services.AddMsgHatch()
     .UseHybridSubscriptionCache();
 ```
 
-`UseHybridSubscriptionCache` also calls `AddHybridCache`. A HybridCache that the host already registered stays. It binds `SubscriptionCacheOptions` from the section `MsgHatch:SubscriptionCache`, and a value from code wins over the configuration:
+`UseHybridSubscriptionCache` also calls `AddHybridCache`. A HybridCache that the host already registered stays. It binds `SubscriptionCacheOptions` from the section `SubscriptionCache` under the root of `AddMsgHatch`, by default `MsgHatch:SubscriptionCache`, and a value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp

@@ -20,7 +20,7 @@ services.AddMsgHatch()
     .UseRabbitMqDispatchSignal();
 ```
 
-`UseRabbitMqDispatchSignal` binds `RabbitMqSignalOptions` from the section `MsgHatch:RabbitMqSignal`, and validates them at the start of the host. The startup validation fails when `EnablePolling` of the inbox or the outbox is false. A value from code wins over the configuration:
+`UseRabbitMqDispatchSignal` binds `RabbitMqSignalOptions` from the section `RabbitMqSignal` under the root of `AddMsgHatch`, by default `MsgHatch:RabbitMqSignal`, and validates them at the start of the host. The startup validation fails when `EnablePolling` of the inbox or the outbox is false. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -49,6 +49,10 @@ services.AddMsgHatch()
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `RabbitMqSignalOptions.SectionName` is removed. `RabbitMqSignalOptions.SectionKey` is `RabbitMqSignal`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:RabbitMqSignal`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

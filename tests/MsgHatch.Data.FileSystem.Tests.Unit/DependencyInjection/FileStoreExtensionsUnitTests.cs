@@ -23,6 +23,25 @@ public sealed class FileStoreExtensionsUnitTests : IDisposable
     public void Dispose() => StoreFolders.Delete(_rootPath);
 
     [Fact]
+    public async Task UseFileStores_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:FileStores:RootPath"] = _rootPath,
+            ["MsgHatch:FileStores:RootPath"] = "from-the-default-root",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseFileStores();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<FileStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal(_rootPath, options.RootPath);
+    }
+
+    [Fact]
     public async Task UseFileStores_Alone_ResolvesEachStoreAsItsLoggingWrapperAroundTheFileStores()
     {
         // Arrange

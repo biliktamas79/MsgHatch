@@ -15,7 +15,7 @@ namespace MsgHatch.Api.Client.Tests.Unit;
 /// <summary>The setup methods of the delivery API client (D289, D294): the options, the selection, and a host with no role.</summary>
 public sealed class DeliveryApiClientExtensionsUnitTests
 {
-    private const string _section = DeliveryApiClientOptions.SectionName;
+    private const string _section = MsgHatchOptions.DefaultSectionKey + ":" + DeliveryApiClientOptions.SectionKey;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -26,6 +26,25 @@ public sealed class DeliveryApiClientExtensionsUnitTests
         { "a timeout under 1 second", new() { [$"{_section}:BaseAddress"] = "https://api.example.com", [$"{_section}:Timeout"] = "00:00:00.500" }, "Timeout" },
         { "a timeout over 10 minutes", new() { [$"{_section}:BaseAddress"] = "https://api.example.com", [$"{_section}:Timeout"] = "00:10:01" }, "Timeout" },
     };
+
+    [Fact]
+    public async Task UseDeliveryApiClient_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var configuration = new Dictionary<string, string?>
+        {
+            ["Messaging:DeliveryApiClient:BaseAddress"] = "https://api.example.com",
+            [$"{_section}:Prefix"] = "/other",
+        };
+        await using var provider = TestHost.CreateServices(configuration: configuration)
+            .AddMsgHatch(static o => o.Roles = MsgHatchRoles.None, "Messaging").UseDeliveryApiClient().Services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<DeliveryApiClientOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("https://api.example.com/", "/delivery"), (options.BaseAddress?.AbsoluteUri, options.Prefix));
+    }
 
     [Theory]
     [MemberData(nameof(InvalidOptionsRows))]

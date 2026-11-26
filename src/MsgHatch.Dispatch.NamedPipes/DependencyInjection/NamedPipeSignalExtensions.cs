@@ -14,7 +14,8 @@ public static class NamedPipeSignalExtensions
     /// <summary>
     /// Selects the dispatch signal between the processes of one OS user on one machine (D188). Each process of the
     /// system calls it with the same <see cref="NamedPipeSignalOptions.PipeNamePrefix"/>. The options bind from the
-    /// section <c>MsgHatch:NamedPipeSignal</c>, and a value from code wins. The startup validation fails when
+    /// section <c>NamedPipeSignal</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:NamedPipeSignal</c>,
+    /// and a value from code wins. The startup validation fails when
     /// <see cref="DispatchOptions.EnablePolling"/> is false for the inbox or the outbox (D190), and on Linux and macOS
     /// when the pipe path of a topic is too long for the platform.
     /// </summary>
@@ -24,7 +25,7 @@ public static class NamedPipeSignalExtensions
     public static MsgHatchBuilder UseNamedPipeDispatchSignal(this MsgHatchBuilder builder, Action<NamedPipeSignalOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<NamedPipeSignalOptions>().BindConfiguration(NamedPipeSignalOptions.SectionName).ValidateOnStart();
+        var options = builder.Services.AddOptions<NamedPipeSignalOptions>().BindConfiguration(builder.SectionPathOf(NamedPipeSignalOptions.SectionKey)).ValidateOnStart();
         if (configure is not null)
         {
             options.Configure(configure);

@@ -13,7 +13,8 @@ public static class ResendExtensions
     /// Selects Resend for the email channel: the options, <see cref="ResendEmailClient"/> as the
     /// <see cref="IEmailClient"/> with its logging wrapper, the email transport, and the HTTP client
     /// <see cref="ResendEmailClient.HttpClientName"/>, which the host can configure further. The options bind from the
-    /// section <c>MsgHatch:Resend</c>, and a value from code wins.
+    /// section <c>Resend</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:Resend</c>, and a value from
+    /// code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -21,7 +22,7 @@ public static class ResendExtensions
     public static MsgHatchBuilder UseResend(this MsgHatchBuilder builder, Action<ResendOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<ResendOptions>().BindConfiguration(ResendOptions.SectionName);
+        var options = builder.Services.AddOptions<ResendOptions>().BindConfiguration(builder.SectionPathOf(ResendOptions.SectionKey));
         if (configure is not null)
         {
             options.Configure(configure);

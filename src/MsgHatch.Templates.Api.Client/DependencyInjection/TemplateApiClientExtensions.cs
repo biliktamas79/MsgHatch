@@ -11,9 +11,10 @@ namespace MsgHatch.Templates.Api.Client.DependencyInjection;
 /// The setup methods of the HTTP client of the template management API (D227, D231, section 4.23). Each method selects the
 /// HTTP client in place of the in-process default, as a scoped tenant service with its logging wrapper, through
 /// <see cref="TemplateExtensions.UseTemplateQueries"/> or <see cref="TemplateExtensions.UseTemplateCommands"/>. So a second
-/// selection of one interface gives a setup error. The options bind from the section <c>MsgHatch:TemplateApiClient</c>, a
-/// value from code wins, and an options error stops the start of the host. The host adds its own handlers, for example the
-/// authentication, with <c>configureHttp</c>.
+/// selection of one interface gives a setup error. The options bind from the section <c>TemplateApiClient</c> under the
+/// root of <c>AddMsgHatch</c>, by default <c>MsgHatch:TemplateApiClient</c>, a value from code wins, and an options
+/// error stops the start of the host. The host adds its own handlers, for example the authentication, with
+/// <c>configureHttp</c>.
 /// </summary>
 public static class TemplateApiClientExtensions
 {
@@ -89,7 +90,7 @@ public static class TemplateApiClientExtensions
         MsgHatchBuilder builder, string name, Action<TemplateApiClientOptions>? configure, Action<IHttpClientBuilder>? configureHttp)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<TemplateApiClientOptions>().BindConfiguration(TemplateApiClientOptions.SectionName);
+        var options = builder.Services.AddOptions<TemplateApiClientOptions>().BindConfiguration(builder.SectionPathOf(TemplateApiClientOptions.SectionKey));
         if (configure is not null)
         {
             options.Configure(configure);

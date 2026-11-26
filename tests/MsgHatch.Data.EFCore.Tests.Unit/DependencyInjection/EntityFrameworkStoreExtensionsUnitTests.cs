@@ -38,6 +38,25 @@ public sealed class EntityFrameworkStoreExtensionsUnitTests
     private static DateTime Now => TestHost.Start.UtcDateTime;
 
     [Fact]
+    public async Task UseEntityFrameworkStores_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:EntityFramework:Schema"] = "root",
+            ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseEntityFrameworkStores(o => o.UseSqlite(_database.ConnectionString));
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("root", (string?)null), (options.Schema, options.TextCollation));
+    }
+
+    [Fact]
     public async Task UseEntityFrameworkStores_Sqlite_PassesTheStartupValidationAndClaimsTheAddedMessages()
     {
         // Arrange

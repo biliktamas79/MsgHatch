@@ -16,7 +16,7 @@ services.AddMsgHatch()
     .UseMongoDbStores();
 ```
 
-`UseMongoDbStores` binds `MongoDbStoreOptions` from the section `MsgHatch:MongoDb`, and validates them at the start of the host. It registers an `IMongoClient` for the connection string when the host has not registered one. A value from code wins over the configuration:
+`UseMongoDbStores` binds `MongoDbStoreOptions` from the section `MongoDb` under the root of `AddMsgHatch`, by default `MsgHatch:MongoDb`, and validates them at the start of the host. It registers an `IMongoClient` for the connection string when the host has not registered one. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -56,6 +56,10 @@ services.AddMsgHatch()
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `MongoDbStoreOptions.SectionName` is removed. `MongoDbStoreOptions.SectionKey` is `MongoDb`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:MongoDb`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

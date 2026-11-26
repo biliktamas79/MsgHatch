@@ -5,8 +5,11 @@ namespace MsgHatch.Dispatch.NamedPipes;
 /// <summary>The settings of the named pipe dispatch signal (D188, D192).</summary>
 public sealed class NamedPipeSignalOptions
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:NamedPipeSignal";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:NamedPipeSignal</c>, by default
+    /// <c>MsgHatch:NamedPipeSignal</c>.
+    /// </summary>
+    public const string SectionKey = "NamedPipeSignal";
 
     /// <summary>
     /// The start of the name of each pipe: <c>{PipeNamePrefix}.inbox</c>, and <c>{PipeNamePrefix}.outbox.{Channel}</c>.

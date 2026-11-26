@@ -10,7 +10,26 @@ namespace MsgHatch.Dispatch.RabbitMq.Tests.Unit.DependencyInjection;
 /// <summary><c>UseRabbitMqDispatchSignal</c>, its options, and its startup checks (section 4.7, D305).</summary>
 public sealed class RabbitMqSignalExtensionsUnitTests
 {
-    private const string _section = RabbitMqSignalOptions.SectionName;
+    private const string _section = MsgHatchOptions.DefaultSectionKey + ":" + RabbitMqSignalOptions.SectionKey;
+
+    [Fact]
+    public async Task UseRabbitMqDispatchSignal_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:RabbitMqSignal:Uri"] = "amqp://rabbit.example.com:5672/root",
+            ["MsgHatch:RabbitMqSignal:ExchangeName"] = "from-default-root",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseRabbitMqDispatchSignal();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<RabbitMqSignalOptions>>().Value;
+
+        // Assert
+        Assert.Equal((new Uri("amqp://rabbit.example.com:5672/root"), "msghatch.dispatch"), (options.Uri, options.ExchangeName));
+    }
 
     [Fact]
     public async Task UseRabbitMqDispatchSignal_SettingsInTheSection_ReachTheOptions()

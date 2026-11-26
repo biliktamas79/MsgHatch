@@ -48,7 +48,8 @@ public static class TemplateExtensions
 
     /// <summary>
     /// Selects a folder as the shared template store, with <see cref="FileSystemTemplateStore"/> (section 4.10). The
-    /// options bind from the section <c>MsgHatch:FileTemplates</c>, and a value from code wins.
+    /// options bind from the section <c>FileTemplates</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:FileTemplates</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -56,7 +57,7 @@ public static class TemplateExtensions
     public static MsgHatchBuilder UseFileTemplates(this MsgHatchBuilder builder, Action<FileTemplateOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<FileTemplateOptions>().BindConfiguration(FileTemplateOptions.SectionName);
+        var options = builder.Services.AddOptions<FileTemplateOptions>().BindConfiguration(builder.SectionPathOf(FileTemplateOptions.SectionKey));
         if (configure is not null)
         {
             options.Configure(configure);

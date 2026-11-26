@@ -5,6 +5,7 @@ using MsgHatch.Data.EFCore.Migrations;
 using MsgHatch.Data.EFCore.MySql;
 using MsgHatch.Data.EFCore.PostgreSql;
 using MsgHatch.Data.EFCore.SqlServer;
+using MsgHatch.Domain.DependencyInjection;
 
 namespace MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 
@@ -44,7 +45,7 @@ public sealed class StoreMigrationsCodeGenerator(
 
     /// <summary>The configuration of a design-time context: the JSON type that the generator replaces.</summary>
     public static IReadOnlyDictionary<string, string?> DesignTimeOptions { get; } =
-        new Dictionary<string, string?> { [$"{EntityFrameworkStoreOptions.SectionName}:{nameof(EntityFrameworkStoreOptions.JsonColumnType)}"] = _designTimeJsonColumnType };
+        new Dictionary<string, string?> { [$"{MsgHatchOptions.DefaultSectionKey}:{EntityFrameworkStoreOptions.SectionKey}:{nameof(EntityFrameworkStoreOptions.JsonColumnType)}"] = _designTimeJsonColumnType };
 
     private static string WithStoreOptions(string code) =>
         WithBaseNamespace(_dialectCollations.Aggregate(

@@ -12,8 +12,9 @@ public static class MongoDbSubscriptionStoreExtensions
     /// <summary>
     /// Selects <see cref="MongoDbSubscriptionStore"/>, with its logging wrapper, one instance for each tenant key. It
     /// shares the <see cref="MongoDbStoreOptions"/> and the <c>IMongoClient</c> of <c>UseMongoDbStores</c> (D59): the
-    /// options bind from the section <c>MsgHatch:MongoDb</c>, and a value in code follows the rule of the shared options
-    /// (D150). The store creates its indexes one time for each database in the process.
+    /// options bind from the section <c>MongoDb</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:MongoDb</c>, and a value in code follows the rule of the shared options (D150). The store creates
+    /// its indexes one time for each database in the process.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the shared options in code.</param>

@@ -33,7 +33,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkSubscriptionStore(o => o.UseSqlite(connectionString));
 ```
 
-The argument sets the provider and the connection of the contexts. The startup validation fails for a provider that is not relational. Use a case-sensitive collation of the text columns, so that two tenants that differ only in case stay apart: the option `TextCollation` sets it, or else the dialect of a provider package, or else the database. `UseEntityFrameworkSubscriptionStore` shares `EntityFrameworkStoreOptions` with `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore`: the options bind from the section `MsgHatch:EntityFramework`.
+The argument sets the provider and the connection of the contexts. The startup validation fails for a provider that is not relational. Use a case-sensitive collation of the text columns, so that two tenants that differ only in case stay apart: the option `TextCollation` sets it, or else the dialect of a provider package, or else the database. `UseEntityFrameworkSubscriptionStore` shares `EntityFrameworkStoreOptions` with `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore`: the options bind from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`.
 
 With the SQL Server packages, one call for each context selects the store, the dialect of SQL Server, and the migrations of the package:
 

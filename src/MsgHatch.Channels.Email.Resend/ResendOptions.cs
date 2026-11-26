@@ -5,8 +5,11 @@ namespace MsgHatch.Channels.Email.Resend;
 /// <summary>The settings of the Resend email client.</summary>
 public sealed class ResendOptions
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:Resend";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:Resend</c>, by default
+    /// <c>MsgHatch:Resend</c>.
+    /// </summary>
+    public const string SectionKey = "Resend";
 
     /// <summary>The API key of Resend, for example <c>re_123</c>. A key with the permission "sending access" is enough.</summary>
     [Required]

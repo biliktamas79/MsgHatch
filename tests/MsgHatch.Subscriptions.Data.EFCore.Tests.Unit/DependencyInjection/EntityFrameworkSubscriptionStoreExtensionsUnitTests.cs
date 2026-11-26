@@ -25,6 +25,25 @@ public sealed class EntityFrameworkSubscriptionStoreExtensionsUnitTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
+    public async Task UseEntityFrameworkSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:EntityFramework:Schema"] = "root",
+            ["MsgHatch:EntityFramework:TextCollation"] = "RTRIM",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseEntityFrameworkSubscriptionStore(o => o.UseSqlite("Data Source=root.db"));
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("root", (string?)null), (options.Schema, options.TextCollation));
+    }
+
+    [Fact]
     public async Task UseEntityFrameworkSubscriptionStore_Sqlite_PassesTheStartupValidation()
     {
         // Arrange

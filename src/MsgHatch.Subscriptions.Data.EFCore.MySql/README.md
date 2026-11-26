@@ -32,7 +32,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkMySqlSubscriptionStore(connectionString);
 ```
 
-`UseEntityFrameworkMySqlSubscriptionStore` calls `UseEntityFrameworkSubscriptionStore` of `MsgHatch.Subscriptions.Data.EFCore` with `UseMySql`, the dialect of `MsgHatch.Data.EFCore.MySql`, and the migrations of this package. The store shares `EntityFrameworkStoreOptions` with the EF Core stores, from the section `MsgHatch:EntityFramework`. The option `Schema` has no effect on MySQL, so the startup validation fails when it is not the default `msghatch`.
+`UseEntityFrameworkMySqlSubscriptionStore` calls `UseEntityFrameworkSubscriptionStore` of `MsgHatch.Subscriptions.Data.EFCore` with `UseMySql`, the dialect of `MsgHatch.Data.EFCore.MySql`, and the migrations of this package. The store shares `EntityFrameworkStoreOptions` with the EF Core stores, from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`. The option `Schema` has no effect on MySQL, so the startup validation fails when it is not the default `msghatch`.
 
 ## Schema migrations
 

@@ -18,7 +18,7 @@ services.AddMsgHatch()
     .UseSqliteSubscriptionStore();
 ```
 
-`UseSqliteSubscriptionStore` shares `SqliteStoreOptions` with `UseSqliteStores`: the options bind from the section `MsgHatch:Sqlite`. A value from code here and in `UseSqliteStores` fails the startup validation, so set a value from code in one place only.
+`UseSqliteSubscriptionStore` shares `SqliteStoreOptions` with `UseSqliteStores`: the options bind from the section `Sqlite` under the root of `AddMsgHatch`, by default `MsgHatch:Sqlite`. A value from code here and in `UseSqliteStores` fails the startup validation, so set a value from code in one place only.
 
 With one database file for each tenant, `UseSqliteTenantSubscriptionStore` keeps the subscriptions of each tenant in the file of that tenant. It shares `SqliteTenantStoreOptions` with `UseSqliteTenantStores` of `MsgHatch.Data.Sqlite`.
 

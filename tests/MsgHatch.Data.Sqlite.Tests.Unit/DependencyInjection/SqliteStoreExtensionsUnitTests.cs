@@ -31,6 +31,25 @@ public sealed partial class SqliteStoreExtensionsUnitTests : IDisposable
     }
 
     [Fact]
+    public async Task UseSqliteStores_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:Sqlite:ConnectionString"] = "Data Source=root.db",
+            ["MsgHatch:Sqlite:ConnectionString"] = "Data Source=default.db",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseSqliteStores();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<SqliteStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal("Data Source=root.db", options.ConnectionString);
+    }
+
+    [Fact]
     public async Task UseSqliteStores_Alone_ResolvesEachStoreAsItsLoggingWrapperAroundTheSqliteStores()
     {
         // Arrange

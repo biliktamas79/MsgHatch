@@ -12,8 +12,9 @@ public static class SqliteSubscriptionStoreExtensions
     /// <summary>
     /// Selects <see cref="SqliteSubscriptionStore"/>, with its logging wrapper, one instance for each tenant key. The store
     /// creates its tables one time for each connection string. It shares the <see cref="SqliteStoreOptions"/> of
-    /// <c>UseSqliteStores</c> (D59): the options bind from the section <c>MsgHatch:Sqlite</c>, and a value from code wins.
-    /// A value from code here and in <c>UseSqliteStores</c> fails the startup validation (D150).
+    /// <c>UseSqliteStores</c> (D59): the options bind from the section <c>Sqlite</c> under the root of
+    /// <c>AddMsgHatch</c>, by default <c>MsgHatch:Sqlite</c>, and a value from code wins. A value from code here and in
+    /// <c>UseSqliteStores</c> fails the startup validation (D150).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -32,8 +33,9 @@ public static class SqliteSubscriptionStoreExtensions
     /// Selects one <see cref="SqliteSubscriptionStore"/> for each tenant key, with its logging wrapper, on the file of
     /// that key (D125): <c>TenantConnectionString</c> for a tenant, and <c>SystemConnectionString</c> for
     /// <see cref="Domain.Identity.TenantKey.None"/>. It shares the <see cref="SqliteTenantStoreOptions"/> of
-    /// <c>UseSqliteTenantStores</c> (D59): the options bind from the section <c>MsgHatch:SqliteTenants</c>, and a value
-    /// from code wins. A value from code here and in <c>UseSqliteTenantStores</c> fails the startup validation (D150).
+    /// <c>UseSqliteTenantStores</c> (D59): the options bind from the section <c>SqliteTenants</c> under the root of
+    /// <c>AddMsgHatch</c>, by default <c>MsgHatch:SqliteTenants</c>, and a value from code wins. A value from code here
+    /// and in <c>UseSqliteTenantStores</c> fails the startup validation (D150).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>

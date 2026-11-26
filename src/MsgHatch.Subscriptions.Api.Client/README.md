@@ -18,7 +18,7 @@ services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
     .UseSubscriptionApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
 ```
 
-`UseSubscriptionApiClient` selects the client for the three interfaces. `UseSubscriptionQueriesApiClient` selects it for the queries and the verifier, and `UseSubscriptionCommandsApiClient` for the commands. Each interface has its own named HTTP client, and the host adds its handlers with `configureHttp`. The options bind from the section `MsgHatch:SubscriptionApiClient`, and a value from code wins.
+`UseSubscriptionApiClient` selects the client for the three interfaces. `UseSubscriptionQueriesApiClient` selects it for the queries and the verifier, and `UseSubscriptionCommandsApiClient` for the commands. Each interface has its own named HTTP client, and the host adds its handlers with `configureHttp`. The options bind from the section `SubscriptionApiClient` under the root of `AddMsgHatch`, by default `MsgHatch:SubscriptionApiClient`, and a value from code wins.
 
 ## Options
 
@@ -41,6 +41,10 @@ services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `SubscriptionApiClientOptions.SectionName` is removed. `SubscriptionApiClientOptions.SectionKey` is `SubscriptionApiClient`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:SubscriptionApiClient`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

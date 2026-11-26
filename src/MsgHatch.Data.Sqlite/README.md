@@ -18,7 +18,7 @@ services.AddMsgHatch()
     .UseSqliteStores();
 ```
 
-`UseSqliteStores` binds `SqliteStoreOptions` from the section `MsgHatch:Sqlite`, and validates them at the start of the host. A value from code wins over the configuration:
+`UseSqliteStores` binds `SqliteStoreOptions` from the section `Sqlite` under the root of `AddMsgHatch`, by default `MsgHatch:Sqlite`, and validates them at the start of the host. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -73,6 +73,10 @@ services.AddMsgHatch()
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constants `SqliteStoreOptions.SectionName` and `SqliteTenantStoreOptions.SectionName` are removed. `SqliteStoreOptions.SectionKey` is `Sqlite`, and `SqliteTenantStoreOptions.SectionKey` is `SqliteTenants`, the keys of the sections under the root of `AddMsgHatch`, by default `MsgHatch:Sqlite` and `MsgHatch:SqliteTenants`. The sections follow the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

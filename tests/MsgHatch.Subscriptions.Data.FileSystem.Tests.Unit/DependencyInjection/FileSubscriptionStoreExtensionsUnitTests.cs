@@ -20,6 +20,25 @@ public sealed class FileSubscriptionStoreExtensionsUnitTests : IAsyncLifetime
     public ValueTask DisposeAsync() => new FileSystemSubscriptionStoreTestData(_rootPath).ResetAsync(Ct);
 
     [Fact]
+    public async Task UseFileSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:FileStores:RootPath"] = _rootPath,
+            ["MsgHatch:FileStores:RootPath"] = "from-the-default-root",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseFileSubscriptionStore();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<MsgHatch.Data.FileSystem.FileStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal(_rootPath, options.RootPath);
+    }
+
+    [Fact]
     public async Task UseFileSubscriptionStore_RootPath_ResolvesTheStoreAsItsLoggingWrapperOnTheSubscriptionsFolder()
     {
         // Arrange

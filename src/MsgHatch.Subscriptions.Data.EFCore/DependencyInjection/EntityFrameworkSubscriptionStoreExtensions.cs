@@ -17,8 +17,9 @@ public static class EntityFrameworkSubscriptionStoreExtensions
     /// options of <paramref name="configure"/> on a relational EF Core provider, for example
     /// <c>o =&gt; o.UseSqlite(connectionString)</c> (D318). It shares the
     /// <see cref="EntityFrameworkStoreOptions"/> of <c>UseEntityFrameworkStores</c> (D59): the options bind from the
-    /// section <c>MsgHatch:EntityFramework</c>. Only <c>MigrateMsgHatchAsync</c> changes the schema, with the migrations of a
-    /// provider package or of the host, and the history table <c>__SubscriptionMigrations</c>, or
+    /// section <c>EntityFramework</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:EntityFramework</c>.
+    /// Only <c>MigrateMsgHatchAsync</c> changes the schema, with the migrations of a provider package or of the host,
+    /// and the history table <c>__SubscriptionMigrations</c>, or
     /// <c>__MsgHatchSubscriptionMigrations</c> on a database with no schemas (D320, D326). The startup validation fails for a
     /// provider that is not relational (D182).
     /// </summary>

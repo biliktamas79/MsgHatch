@@ -6,8 +6,11 @@ namespace MsgHatch.Templates.Api.Client;
 /// <summary>The settings of the HTTP client of the template management API (D227, section 4.23).</summary>
 public sealed class TemplateApiClientOptions : IValidatableObject
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:TemplateApiClient";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:TemplateApiClient</c>, by default
+    /// <c>MsgHatch:TemplateApiClient</c>.
+    /// </summary>
+    public const string SectionKey = "TemplateApiClient";
 
     /// <summary>The absolute URI of the host of the API, for example <c>https://api.example.com/</c>. It has no default.</summary>
     [Required]

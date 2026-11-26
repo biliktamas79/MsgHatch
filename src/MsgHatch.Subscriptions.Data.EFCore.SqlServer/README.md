@@ -22,7 +22,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkSqlServerSubscriptionStore(connectionString);
 ```
 
-`UseEntityFrameworkSqlServerSubscriptionStore` calls `UseEntityFrameworkSubscriptionStore` of `MsgHatch.Subscriptions.Data.EFCore` with `UseSqlServer`, the dialect of `MsgHatch.Data.EFCore.SqlServer`, and the migrations of this package. The store shares `EntityFrameworkStoreOptions` with the EF Core stores, from the section `MsgHatch:EntityFramework`. An optional action changes the SQL Server options, for example a retry on a transient failure.
+`UseEntityFrameworkSqlServerSubscriptionStore` calls `UseEntityFrameworkSubscriptionStore` of `MsgHatch.Subscriptions.Data.EFCore` with `UseSqlServer`, the dialect of `MsgHatch.Data.EFCore.SqlServer`, and the migrations of this package. The store shares `EntityFrameworkStoreOptions` with the EF Core stores, from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`. An optional action changes the SQL Server options, for example a retry on a transient failure.
 
 ## Schema migrations
 

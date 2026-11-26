@@ -20,7 +20,7 @@ services.AddMsgHatch()
     .UseFileTemplates();
 ```
 
-`UseFileTemplates` binds `FileTemplateOptions` from the section `MsgHatch:FileTemplates`, and validates them at the start of the host. A value from code wins over the configuration:
+`UseFileTemplates` binds `FileTemplateOptions` from the section `FileTemplates` under the root of `AddMsgHatch`, by default `MsgHatch:FileTemplates`, and validates them at the start of the host. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -68,6 +68,10 @@ public sealed partial record OrderShippedEmail(string OrderNumber, decimal Total
 A subject template is then, for example, `Your order {{OrderNumber}} is on its way`.
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `FileTemplateOptions.SectionName` is removed. `FileTemplateOptions.SectionKey` is `FileTemplates`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:FileTemplates`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

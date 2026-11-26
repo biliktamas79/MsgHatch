@@ -14,9 +14,10 @@ public static class RabbitMqSignalExtensions
     /// <summary>
     /// Selects the dispatch signal between the processes of one system on different machines, through a fanout exchange of
     /// RabbitMQ (D305). Each process of the system calls it with the same broker and the same
-    /// <see cref="RabbitMqSignalOptions.ExchangeName"/>. The options bind from the section <c>MsgHatch:RabbitMqSignal</c>,
-    /// and a value from code wins. The startup validation fails when <see cref="DispatchOptions.EnablePolling"/> is false
-    /// for the inbox or the outbox (D190).
+    /// <see cref="RabbitMqSignalOptions.ExchangeName"/>. The options bind from the section <c>RabbitMqSignal</c> under
+    /// the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:RabbitMqSignal</c>, and a value from code wins. The
+    /// startup validation fails when <see cref="DispatchOptions.EnablePolling"/> is false for the inbox or the outbox
+    /// (D190).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -24,7 +25,7 @@ public static class RabbitMqSignalExtensions
     public static MsgHatchBuilder UseRabbitMqDispatchSignal(this MsgHatchBuilder builder, Action<RabbitMqSignalOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<RabbitMqSignalOptions>().BindConfiguration(RabbitMqSignalOptions.SectionName).ValidateOnStart();
+        var options = builder.Services.AddOptions<RabbitMqSignalOptions>().BindConfiguration(builder.SectionPathOf(RabbitMqSignalOptions.SectionKey)).ValidateOnStart();
         if (configure is not null)
         {
             options.Configure(configure);

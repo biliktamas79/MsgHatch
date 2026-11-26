@@ -13,7 +13,8 @@ public static class EntityFrameworkPostgreSqlStoreExtensions
     /// Selects the EF Core stores on PostgreSQL in one call: <c>UseEntityFrameworkStores</c> with <c>UseNpgsql</c>, the
     /// dialect <see cref="PostgreSqlStoreDialect"/>, and the migrations of <see cref="MsgHatchDbContext"/> in this package.
     /// <c>MigrateMsgHatchAsync</c> applies them. Each time is a <c>timestamptz</c>, which keeps microseconds (D319). The
-    /// options bind from the section <c>MsgHatch:EntityFramework</c>, and a value from code wins.
+    /// options bind from the section <c>EntityFramework</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:EntityFramework</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="connectionString">The connection string of the PostgreSQL database.</param>

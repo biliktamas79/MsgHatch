@@ -23,7 +23,8 @@ public static class EntityFrameworkMySqlStoreExtensions
     /// <see cref="MsgHatchDbContext"/> in this package. <c>MigrateMsgHatchAsync</c> applies them. The tables have the prefix
     /// <c>MsgHatch</c> in the database of the connection, and the option <c>Schema</c> keeps its default (D326). Each time is
     /// a <c>datetime(6)</c>, which keeps microseconds (D319). The options bind from the section
-    /// <c>MsgHatch:EntityFramework</c>, and a value from code wins. The public API has no type of the provider (D325).
+    /// <c>EntityFramework</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:EntityFramework</c>, and a
+    /// value from code wins. The public API has no type of the provider (D325).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="connectionString">The connection string of the MySQL database.</param>

@@ -37,7 +37,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkStores(o => o.UseSqlite(connectionString));
 ```
 
-The first argument sets the provider and the connection of the contexts. The startup validation fails for a provider that is not relational. `UseEntityFrameworkStores` binds `EntityFrameworkStoreOptions` from the section `MsgHatch:EntityFramework`, and validates them at the start of the host. A value from code wins over the configuration:
+The first argument sets the provider and the connection of the contexts. The startup validation fails for a provider that is not relational. `UseEntityFrameworkStores` binds `EntityFrameworkStoreOptions` from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`, and validates them at the start of the host. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -156,6 +156,10 @@ A database with no schemas inside it, for example MySQL, where a schema is a dat
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `EntityFrameworkStoreOptions.SectionName` is removed. `EntityFrameworkStoreOptions.SectionKey` is `EntityFramework`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

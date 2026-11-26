@@ -18,7 +18,7 @@ services.AddMsgHatch()
     .UseAmazonSes();
 ```
 
-`UseAmazonSes` selects the SES client and the email transport. It registers an `IAmazonSimpleEmailServiceV2` client for the region of the options when the host has not registered one, so the AWS SDK gives the credentials. It binds `AmazonSesOptions` from the section `MsgHatch:AmazonSes`, and validates them at the start of the host. A value from code wins over the configuration:
+`UseAmazonSes` selects the SES client and the email transport. It registers an `IAmazonSimpleEmailServiceV2` client for the region of the options when the host has not registered one, so the AWS SDK gives the credentials. It binds `AmazonSesOptions` from the section `AmazonSes` under the root of `AddMsgHatch`, by default `MsgHatch:AmazonSes`, and validates them at the start of the host. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -49,6 +49,10 @@ services.AddMsgHatch()
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `AmazonSesOptions.SectionName` is removed. `AmazonSesOptions.SectionKey` is `AmazonSes`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:AmazonSes`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting. The error of a missing region names the bound section.
 
 ### 0.7.1 (2026-11-26)
 

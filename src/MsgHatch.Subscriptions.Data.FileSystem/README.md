@@ -18,7 +18,7 @@ services.AddMsgHatch()
     .UseFileSubscriptionStore();
 ```
 
-`UseFileSubscriptionStore` shares `FileStoreOptions` with `UseFileStores`: the options bind from the section `MsgHatch:FileStores`. A value from code here and in `UseFileStores` fails the startup validation, so set a value from code in one place only.
+`UseFileSubscriptionStore` shares `FileStoreOptions` with `UseFileStores`: the options bind from the section `FileStores` under the root of `AddMsgHatch`, by default `MsgHatch:FileStores`. A value from code here and in `UseFileStores` fails the startup validation, so set a value from code in one place only.
 
 ## Options
 

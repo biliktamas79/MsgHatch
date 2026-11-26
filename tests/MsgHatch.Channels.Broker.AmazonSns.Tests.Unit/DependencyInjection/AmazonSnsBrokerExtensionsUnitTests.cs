@@ -34,6 +34,25 @@ public sealed class AmazonSnsBrokerExtensionsUnitTests : IDisposable
     public void Dispose() => UseTheRegionOfTheAwsSdk(_awsRegion);
 
     [Fact]
+    public async Task UseAmazonSnsBroker_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:AmazonSns:DefaultTopicArn"] = _topic,
+            ["MsgHatch:AmazonSns:Region"] = "eu-west-1",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseAmazonSnsBroker();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<AmazonSnsOptions>>().Value;
+
+        // Assert
+        Assert.Equal((_topic, (string?)null), (options.DefaultTopicArn, options.Region));
+    }
+
+    [Fact]
     public async Task UseAmazonSnsBroker_Alone_ResolvesTheBrokerClientAsTheLoggingWrapperAroundTheSnsClient()
     {
         // Arrange

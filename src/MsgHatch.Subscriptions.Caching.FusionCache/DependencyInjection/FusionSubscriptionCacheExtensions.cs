@@ -12,7 +12,8 @@ public static class FusionSubscriptionCacheExtensions
     /// Turns on the subscription cache on FusionCache: <see cref="FusionCacheSubscriptionBackend"/>, the caching wrapper,
     /// <see cref="ISubscriptionCache"/>, and the named FusionCache <see cref="FusionCacheSubscriptionBackend.CacheName"/>.
     /// The FusionCache instances of the host do not change. The options bind from the section
-    /// <c>MsgHatch:SubscriptionCache</c>, and a value from code wins.
+    /// <c>SubscriptionCache</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:SubscriptionCache</c>, and
+    /// a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the subscription cache options in code.</param>

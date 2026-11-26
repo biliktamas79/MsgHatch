@@ -23,7 +23,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkPostgreSqlStores(connectionString);
 ```
 
-`UseEntityFrameworkPostgreSqlStores` calls `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore` with `UseNpgsql`, the dialect `PostgreSqlStoreDialect`, and the migrations of this package. The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`, from the section `MsgHatch:EntityFramework`. An optional action changes them in code, and another one changes the Npgsql options, for example a retry on a transient failure:
+`UseEntityFrameworkPostgreSqlStores` calls `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore` with `UseNpgsql`, the dialect `PostgreSqlStoreDialect`, and the migrations of this package. The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`, from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`. An optional action changes them in code, and another one changes the Npgsql options, for example a retry on a transient failure:
 
 [//]: # (snippet: setup-options)
 ```csharp

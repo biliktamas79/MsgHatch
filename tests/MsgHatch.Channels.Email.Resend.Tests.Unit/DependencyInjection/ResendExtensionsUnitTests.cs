@@ -33,6 +33,26 @@ public sealed class ResendExtensionsUnitTests : IDisposable
     public void Dispose() => _api.Dispose();
 
     [Fact]
+    public async Task UseResend_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:Resend:ApiKey"] = "re_root",
+            ["Messaging:Resend:SenderEmail"] = "root@example.com",
+            ["MsgHatch:Resend:SenderName"] = "Default",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseResend();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<ResendOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("re_root", "root@example.com", (string?)null), (options.ApiKey, options.SenderEmail, options.SenderName));
+    }
+
+    [Fact]
     public async Task UseResend_Alone_ResolvesTheEmailClientAsTheLoggingWrapperAroundTheResendClient()
     {
         // Arrange

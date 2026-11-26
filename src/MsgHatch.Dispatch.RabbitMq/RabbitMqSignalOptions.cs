@@ -5,8 +5,11 @@ namespace MsgHatch.Dispatch.RabbitMq;
 /// <summary>The settings of the RabbitMQ dispatch signal (D305).</summary>
 public sealed class RabbitMqSignalOptions : IValidatableObject
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:RabbitMqSignal";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:RabbitMqSignal</c>, by default
+    /// <c>MsgHatch:RabbitMqSignal</c>.
+    /// </summary>
+    public const string SectionKey = "RabbitMqSignal";
 
     /// <summary>
     /// The AMQP URI of the broker, for example <c>amqp://user:password@rabbit.example.com:5672/vhost</c>, with the scheme

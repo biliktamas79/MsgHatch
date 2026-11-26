@@ -14,9 +14,10 @@ namespace MsgHatch.Subscriptions.Api.Client.DependencyInjection;
 /// the HTTP client in place of the in-process default, as a scoped tenant service with its logging wrapper, through
 /// <see cref="SubscriptionExtensions.UseSubscriptionQueries"/>, <see cref="SubscriptionExtensions.UseRoutingVerifier"/>, or
 /// <see cref="SubscriptionExtensions.UseSubscriptionCommands"/>. So a second selection of one interface gives a setup error.
-/// The options bind from the section <c>MsgHatch:SubscriptionApiClient</c>, a value from code wins, and an options error
-/// stops the start of the host. The host adds its own handlers, for example the authentication, with <c>configureHttp</c>.
-/// The client calls the routes with no <c>/me</c> (D154), and does not retry a create.
+/// The options bind from the section <c>SubscriptionApiClient</c> under the root of <c>AddMsgHatch</c>, by default
+/// <c>MsgHatch:SubscriptionApiClient</c>, a value from code wins, and an options error stops the start of the host. The
+/// host adds its own handlers, for example the authentication, with <c>configureHttp</c>. The client calls the routes
+/// with no <c>/me</c> (D154), and does not retry a create.
 /// </summary>
 public static class SubscriptionApiClientExtensions
 {
@@ -99,7 +100,7 @@ public static class SubscriptionApiClientExtensions
         MsgHatchBuilder builder, string name, Action<SubscriptionApiClientOptions>? configure, Action<IHttpClientBuilder>? configureHttp)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<SubscriptionApiClientOptions>().BindConfiguration(SubscriptionApiClientOptions.SectionName);
+        var options = builder.Services.AddOptions<SubscriptionApiClientOptions>().BindConfiguration(builder.SectionPathOf(SubscriptionApiClientOptions.SectionKey));
         if (configure is not null)
         {
             options.Configure(configure);

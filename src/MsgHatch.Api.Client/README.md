@@ -19,7 +19,7 @@ services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
     .UseDeliveryApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
 ```
 
-Each interface has its own named HTTP client. The host adds its handlers with `configureHttp`, for example a handler that adds a token. Each setup method binds its options from its own section, and a value from code wins. An overload takes the base address: `UseRegistryApiClient(new Uri("https://api.example.com/"))`.
+Each interface has its own named HTTP client. The host adds its handlers with `configureHttp`, for example a handler that adds a token. Each setup method binds its options from its own section under the root of `AddMsgHatch`, by default `MsgHatch:RegistryApiClient` and `MsgHatch:DeliveryApiClient`, and a value from code wins. An overload takes the base address: `UseRegistryApiClient(new Uri("https://api.example.com/"))`.
 
 ## Options
 
@@ -53,6 +53,10 @@ Each interface has its own named HTTP client. The host adds its handlers with `c
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constants `RegistryApiClientOptions.SectionName` and `DeliveryApiClientOptions.SectionName` are removed. `RegistryApiClientOptions.SectionKey` is `RegistryApiClient`, and `DeliveryApiClientOptions.SectionKey` is `DeliveryApiClient`, the keys of the sections under the root of `AddMsgHatch`, by default `MsgHatch:RegistryApiClient` and `MsgHatch:DeliveryApiClient`. The sections follow the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

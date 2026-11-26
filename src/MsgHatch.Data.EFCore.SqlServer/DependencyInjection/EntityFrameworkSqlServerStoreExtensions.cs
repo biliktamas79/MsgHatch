@@ -12,8 +12,8 @@ public static class EntityFrameworkSqlServerStoreExtensions
     /// <summary>
     /// Selects the EF Core stores on SQL Server in one call: <c>UseEntityFrameworkStores</c> with <c>UseSqlServer</c>, the
     /// dialect <see cref="SqlServerStoreDialect"/>, and the migrations of <see cref="MsgHatchDbContext"/> in this package.
-    /// <c>MigrateMsgHatchAsync</c> applies them. The options bind from the section <c>MsgHatch:EntityFramework</c>, and a
-    /// value from code wins.
+    /// <c>MigrateMsgHatchAsync</c> applies them. The options bind from the section <c>EntityFramework</c> under the
+    /// root of <c>AddMsgHatch</c>, by default <c>MsgHatch:EntityFramework</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="connectionString">The connection string of the SQL Server database.</param>

@@ -21,8 +21,8 @@ public static class EntityFrameworkStoreExtensions
     /// <see cref="EntityFrameworkMigrationExtensions.MigrateMsgHatchAsync"/> changes the schema, with the migrations of a
     /// provider package or of the host, and the history table <c>__StoreMigrations</c>, or <c>__MsgHatchStoreMigrations</c> on
     /// a database with no schemas (D320, D326). The options bind from the
-    /// section <c>MsgHatch:EntityFramework</c>, and a value from code wins. The startup validation fails for a provider
-    /// that is not relational (D175).
+    /// section <c>EntityFramework</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:EntityFramework</c>,
+    /// and a value from code wins. The startup validation fails for a provider that is not relational (D175).
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">The options of the contexts, with the provider and its connection.</param>
@@ -50,12 +50,13 @@ public static class EntityFrameworkStoreExtensions
 
     /// <summary>
     /// Registers the shared <see cref="EntityFrameworkStoreOptions"/> of a setup method of the EF Core stores (D59): the
-    /// binding of the section <c>MsgHatch:EntityFramework</c>, the validation, and a value in code through
+    /// binding of the section <c>EntityFramework</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:EntityFramework</c>, the validation, and a value in code through
     /// <c>ConfigureSharedOptions</c> (D150).
     /// </summary>
     internal static void AddOptions(MsgHatchBuilder builder, string setupMethod, Action<EntityFrameworkStoreOptions>? configure)
     {
-        builder.Services.AddOptions<EntityFrameworkStoreOptions>().BindConfiguration(EntityFrameworkStoreOptions.SectionName).ValidateOnStart();
+        builder.Services.AddOptions<EntityFrameworkStoreOptions>().BindConfiguration(builder.SectionPathOf(EntityFrameworkStoreOptions.SectionKey)).ValidateOnStart();
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<EntityFrameworkStoreOptions>, EntityFrameworkStoreOptionsValidator>());
         if (configure is not null)

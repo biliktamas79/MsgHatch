@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
+using MsgHatch.Domain.DependencyInjection;
 
 namespace MsgHatch.Data.Sqlite.Tests.Unit.TestTypes;
 
@@ -86,5 +87,5 @@ public static class TestDatabases
 
     private static SqliteStoreOptions Bind(Dictionary<string, string?> section) =>
         new ConfigurationBuilder().AddInMemoryCollection(section).Build()
-            .GetSection(SqliteStoreOptions.SectionName).Get<SqliteStoreOptions>()!;
+            .GetSection($"{MsgHatchOptions.DefaultSectionKey}:{SqliteStoreOptions.SectionKey}").Get<SqliteStoreOptions>()!;
 }

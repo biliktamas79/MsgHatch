@@ -101,6 +101,7 @@
     <Project Path="tests/MsgHatch.Data.EFCore.Tests.Unit/MsgHatch.Data.EFCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.MongoDb.Tests.Integration/MsgHatch.Data.MongoDb.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.MongoDb.Tests.Unit/MsgHatch.Data.MongoDb.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.Sqlite.Tests.Unit/MsgHatch.Data.Sqlite.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/tests/Dispatch/">
@@ -122,6 +123,7 @@
     <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration/MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Data.MongoDb.Tests.Unit/MsgHatch.Subscriptions.Data.MongoDb.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit/MsgHatch.Subscriptions.Data.Sqlite.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Performance/MsgHatch.Subscriptions.Tests.Performance.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Tests.Unit/MsgHatch.Subscriptions.Tests.Unit.csproj" />

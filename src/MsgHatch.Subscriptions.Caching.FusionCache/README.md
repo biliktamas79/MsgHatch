@@ -20,7 +20,7 @@ services.AddMsgHatch()
     .UseFusionSubscriptionCache();
 ```
 
-`UseFusionSubscriptionCache` registers a named FusionCache of its own, so the FusionCache instances of the host do not change. Its second argument configures that FusionCache, for example with a distributed cache and a backplane. It binds `SubscriptionCacheOptions` from the section `MsgHatch:SubscriptionCache`, and a value from code wins over the configuration:
+`UseFusionSubscriptionCache` registers a named FusionCache of its own, so the FusionCache instances of the host do not change. Its second argument configures that FusionCache, for example with a distributed cache and a backplane. It binds `SubscriptionCacheOptions` from the section `SubscriptionCache` under the root of `AddMsgHatch`, by default `MsgHatch:SubscriptionCache`, and a value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp

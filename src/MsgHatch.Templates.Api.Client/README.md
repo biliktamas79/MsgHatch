@@ -18,7 +18,7 @@ services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
     .UseTemplateApiClient(configureHttp: http => http.AddHttpMessageHandler<TokenHandler>());
 ```
 
-`UseTemplateApiClient` selects the client for both interfaces. `UseTemplateQueriesApiClient` and `UseTemplateCommandsApiClient` select it for one interface. Each interface has its own named HTTP client, and the host adds its handlers with `configureHttp`. The options bind from the section `MsgHatch:TemplateApiClient`, and a value from code wins.
+`UseTemplateApiClient` selects the client for both interfaces. `UseTemplateQueriesApiClient` and `UseTemplateCommandsApiClient` select it for one interface. Each interface has its own named HTTP client, and the host adds its handlers with `configureHttp`. The options bind from the section `TemplateApiClient` under the root of `AddMsgHatch`, by default `MsgHatch:TemplateApiClient`, and a value from code wins.
 
 ## Options
 
@@ -41,6 +41,10 @@ services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `TemplateApiClientOptions.SectionName` is removed. `TemplateApiClientOptions.SectionKey` is `TemplateApiClient`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:TemplateApiClient`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

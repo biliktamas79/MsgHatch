@@ -5,8 +5,11 @@ namespace MsgHatch.Data.EFCore;
 /// <summary>The settings of the EF Core stores (section 4.4, D120, D318).</summary>
 public sealed class EntityFrameworkStoreOptions
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:EntityFramework";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:EntityFramework</c>, by default
+    /// <c>MsgHatch:EntityFramework</c>.
+    /// </summary>
+    public const string SectionKey = "EntityFramework";
 
     /// <summary>The default schema of the tables.</summary>
     public const string DefaultSchema = "msghatch";

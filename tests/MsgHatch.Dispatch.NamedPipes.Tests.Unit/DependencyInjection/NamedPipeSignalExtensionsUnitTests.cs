@@ -16,6 +16,25 @@ public sealed class NamedPipeSignalExtensionsUnitTests
     private const string _prefix = "msghatch-test";
 
     [Fact]
+    public async Task UseNamedPipeDispatchSignal_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:NamedPipeSignal:PipeNamePrefix"] = "from-root",
+            ["MsgHatch:NamedPipeSignal:PipeNamePrefix"] = "from-default-root",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseNamedPipeDispatchSignal();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<NamedPipeSignalOptions>>().Value;
+
+        // Assert
+        Assert.Equal("from-root", options.PipeNamePrefix);
+    }
+
+    [Fact]
     public async Task UseNamedPipeDispatchSignal_PrefixInTheSection_ReachesTheOptions()
     {
         // Arrange

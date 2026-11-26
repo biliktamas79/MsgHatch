@@ -17,7 +17,7 @@ namespace MsgHatch.Templates.Api.Client.Tests.Unit;
 /// <summary>The setup methods of the template API client (D227, D231): the options, the selections, a host with no role, and the public types.</summary>
 public sealed class TemplateApiClientExtensionsUnitTests
 {
-    private const string _section = TemplateApiClientOptions.SectionName;
+    private const string _section = MsgHatchOptions.DefaultSectionKey + ":" + TemplateApiClientOptions.SectionKey;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -35,6 +35,33 @@ public sealed class TemplateApiClientExtensionsUnitTests
         { "UseTemplateQueriesApiClient", "UseTemplateQueriesApiClient and UseTemplateQueries select an implementation of ITemplateQueries." },
         { "UseTemplateCommandsApiClient", "UseTemplateCommandsApiClient and UseTemplateCommands select an implementation of ITemplateCommands." },
     };
+
+    [Theory]
+    [InlineData("UseTemplateApiClient")]
+    [InlineData("UseTemplateQueriesApiClient")]
+    [InlineData("UseTemplateCommandsApiClient")]
+    public async Task Setup_ConfigSectionPath_BindsTheOptionsUnderTheRoot(string method)
+    {
+        // Arrange
+        var builder = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:TemplateApiClient:BaseAddress"] = "https://api.example.com",
+            [$"{_section}:Prefix"] = "/other",
+        }).AddMsgHatch(static o => o.Roles = MsgHatchRoles.None, "Messaging");
+        _ = method switch
+        {
+            "UseTemplateApiClient" => builder.UseTemplateApiClient(),
+            "UseTemplateQueriesApiClient" => builder.UseTemplateQueriesApiClient(),
+            _ => builder.UseTemplateCommandsApiClient(),
+        };
+        await using var provider = builder.Services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<TemplateApiClientOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("https://api.example.com/", "/templates"), (options.BaseAddress?.AbsoluteUri, options.Prefix));
+    }
 
     [Theory]
     [MemberData(nameof(InvalidOptionsRows))]

@@ -5,8 +5,11 @@ namespace MsgHatch.Channels.Email.AmazonSes;
 /// <summary>The settings of the Amazon SES email client (section 4.4).</summary>
 public sealed class AmazonSesOptions
 {
-    /// <summary>The configuration section.</summary>
-    public const string SectionName = "MsgHatch:AmazonSes";
+    /// <summary>
+    /// The key of the section under the root of <c>AddMsgHatch</c> (D329): <c>{root}:AmazonSes</c>, by default
+    /// <c>MsgHatch:AmazonSes</c>.
+    /// </summary>
+    public const string SectionKey = "AmazonSes";
 
     /// <summary>
     /// The sender address of each email with no address of its own, for example <c>noreply@example.com</c>. SES accepts

@@ -16,7 +16,7 @@ namespace MsgHatch.Api.Client.Tests.Unit;
 /// <summary>The setup methods of the registry API client (D269, D271): the options, the selection, a host with no role, and the public types.</summary>
 public sealed class RegistryApiClientExtensionsUnitTests
 {
-    private const string _section = RegistryApiClientOptions.SectionName;
+    private const string _section = MsgHatchOptions.DefaultSectionKey + ":" + RegistryApiClientOptions.SectionKey;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -27,6 +27,25 @@ public sealed class RegistryApiClientExtensionsUnitTests
         { "a timeout under 1 second", new() { [$"{_section}:BaseAddress"] = "https://api.example.com", [$"{_section}:Timeout"] = "00:00:00.500" }, "Timeout" },
         { "a timeout over 10 minutes", new() { [$"{_section}:BaseAddress"] = "https://api.example.com", [$"{_section}:Timeout"] = "00:10:01" }, "Timeout" },
     };
+
+    [Fact]
+    public async Task UseRegistryApiClient_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var configuration = new Dictionary<string, string?>
+        {
+            ["Messaging:RegistryApiClient:BaseAddress"] = "https://api.example.com",
+            [$"{_section}:Prefix"] = "/other",
+        };
+        await using var provider = TestHost.CreateServices(configuration: configuration)
+            .AddMsgHatch(static o => o.Roles = MsgHatchRoles.None, "Messaging").UseRegistryApiClient().Services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<RegistryApiClientOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("https://api.example.com/", "/registry"), (options.BaseAddress?.AbsoluteUri, options.Prefix));
+    }
 
     [Theory]
     [MemberData(nameof(InvalidOptionsRows))]

@@ -19,6 +19,25 @@ public sealed class FusionSubscriptionCacheExtensionsUnitTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
+    public async Task UseFusionSubscriptionCache_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:SubscriptionCache:Expiration"] = "00:05:00",
+            ["MsgHatch:SubscriptionCache:KeyPrefix"] = "default",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseSubscriptionStore(static (_, _) => Substitute.For<ISubscriptionStore>()).UseFusionSubscriptionCache();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<SubscriptionCacheOptions>>().Value;
+
+        // Assert
+        Assert.Equal((TimeSpan.FromMinutes(5), "msghatch:sub"), (options.Expiration, options.KeyPrefix));
+    }
+
+    [Fact]
     public async Task UseFusionSubscriptionCache_Alone_CachesTheSubscriptionsOfTheStoreInFusionCache()
     {
         // Arrange

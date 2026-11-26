@@ -20,7 +20,7 @@ services.AddMsgHatch()
     .UseNamedPipeDispatchSignal();
 ```
 
-`UseNamedPipeDispatchSignal` binds `NamedPipeSignalOptions` from the section `MsgHatch:NamedPipeSignal`, and validates them at the start of the host. The startup validation fails when `EnablePolling` of the inbox or the outbox is false. A value from code wins over the configuration:
+`UseNamedPipeDispatchSignal` binds `NamedPipeSignalOptions` from the section `NamedPipeSignal` under the root of `AddMsgHatch`, by default `MsgHatch:NamedPipeSignal`, and validates them at the start of the host. The startup validation fails when `EnablePolling` of the inbox or the outbox is false. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -47,6 +47,10 @@ services.AddMsgHatch()
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `NamedPipeSignalOptions.SectionName` is removed. `NamedPipeSignalOptions.SectionKey` is `NamedPipeSignal`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:NamedPipeSignal`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

@@ -16,6 +16,25 @@ public sealed partial class SubscriptionExtensionsUnitTests
 {
     public static TheoryData<string> SetupOrders => ["store first", "cache first"];
 
+    [Fact]
+    public async Task UseSubscriptionCache_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:SubscriptionCache:Expiration"] = "00:05:00",
+            ["MsgHatch:SubscriptionCache:KeyPrefix"] = "default",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseSubscriptionCache(_ => Substitute.For<ISubscriptionCacheBackend>());
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<SubscriptionCacheOptions>>().Value;
+
+        // Assert
+        Assert.Equal((TimeSpan.FromMinutes(5), "msghatch:sub"), (options.Expiration, options.KeyPrefix));
+    }
+
     [Theory]
     [MemberData(nameof(SetupOrders))]
     public async Task UseSubscriptionCache_EachSetupOrder_PutsTheCachingWrapperBetweenTheLoggingWrapperAndTheStore(string order)

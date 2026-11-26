@@ -34,7 +34,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkMySqlStores(connectionString);
 ```
 
-`UseEntityFrameworkMySqlStores` calls `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore` with `UseMySql`, the dialect `MySqlStoreDialect`, and the migrations of this package. The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`, from the section `MsgHatch:EntityFramework`. The option `Schema` has no effect on MySQL, so the startup validation fails when it is not the default `msghatch`. An optional action changes the options in code:
+`UseEntityFrameworkMySqlStores` calls `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore` with `UseMySql`, the dialect `MySqlStoreDialect`, and the migrations of this package. The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`, from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`. The option `Schema` has no effect on MySQL, so the startup validation fails when it is not the default `msghatch`. An optional action changes the options in code:
 
 [//]: # (snippet: setup-options)
 ```csharp

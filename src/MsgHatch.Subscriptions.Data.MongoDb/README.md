@@ -18,7 +18,7 @@ services.AddMsgHatch()
     .UseMongoDbSubscriptionStore();
 ```
 
-`UseMongoDbSubscriptionStore` shares `MongoDbStoreOptions` and the `IMongoClient` with `UseMongoDbStores`: the options bind from the section `MsgHatch:MongoDb`.
+`UseMongoDbSubscriptionStore` shares `MongoDbStoreOptions` and the `IMongoClient` with `UseMongoDbStores`: the options bind from the section `MongoDb` under the root of `AddMsgHatch`, by default `MsgHatch:MongoDb`.
 
 ## Options
 

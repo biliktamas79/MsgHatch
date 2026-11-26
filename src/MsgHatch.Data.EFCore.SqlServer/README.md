@@ -21,7 +21,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkSqlServerStores(connectionString);
 ```
 
-`UseEntityFrameworkSqlServerStores` calls `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore` with `UseSqlServer`, the dialect `SqlServerStoreDialect`, and the migrations of this package. The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`, from the section `MsgHatch:EntityFramework`. An optional action changes them in code, and another one changes the SQL Server options, for example a retry on a transient failure:
+`UseEntityFrameworkSqlServerStores` calls `UseEntityFrameworkStores` of `MsgHatch.Data.EFCore` with `UseSqlServer`, the dialect `SqlServerStoreDialect`, and the migrations of this package. The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`, from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`. An optional action changes them in code, and another one changes the SQL Server options, for example a retry on a transient failure:
 
 [//]: # (snippet: setup-options)
 ```csharp

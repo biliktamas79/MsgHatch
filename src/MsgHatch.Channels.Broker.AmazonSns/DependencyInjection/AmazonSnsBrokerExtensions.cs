@@ -16,8 +16,8 @@ public static class AmazonSnsBrokerExtensions
     /// Selects Amazon SNS for the broker channel: the options, <see cref="AmazonSnsBrokerClient"/> as the
     /// <see cref="IBrokerClient"/> with its logging wrapper, the broker transport, and an
     /// <see cref="IAmazonSimpleNotificationService"/> client for <see cref="AmazonSnsOptions.Region"/>, if the host has not
-    /// registered one. The options bind from the section <c>MsgHatch:AmazonSns</c>, and a value from code wins. The AWS
-    /// SDK finds the credentials.
+    /// registered one. The options bind from the section <c>AmazonSns</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:AmazonSns</c>, and a value from code wins. The AWS SDK finds the credentials.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -25,7 +25,8 @@ public static class AmazonSnsBrokerExtensions
     public static MsgHatchBuilder UseAmazonSnsBroker(this MsgHatchBuilder builder, Action<AmazonSnsOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<AmazonSnsOptions>().BindConfiguration(AmazonSnsOptions.SectionName);
+        var section = builder.SectionPathOf(AmazonSnsOptions.SectionKey);
+        var options = builder.Services.AddOptions<AmazonSnsOptions>().BindConfiguration(section);
         if (configure is not null)
         {
             options.Configure(configure);
@@ -34,16 +35,16 @@ public static class AmazonSnsBrokerExtensions
         options.ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AmazonSnsOptions>, AmazonSnsOptionsValidator>());
         builder.Services.TryAddSingleton<IAmazonSimpleNotificationService>(
-            static services => SnsClientOf(services.GetRequiredService<IOptions<AmazonSnsOptions>>().Value.Region));
+            services => SnsClientOf(services.GetRequiredService<IOptions<AmazonSnsOptions>>().Value.Region, section));
         return builder.UseBrokerClient<AmazonSnsBrokerClient>();
     }
 
-    private static AmazonSimpleNotificationServiceClient SnsClientOf(string? region) =>
+    private static AmazonSimpleNotificationServiceClient SnsClientOf(string? region, string section) =>
         region is null
-            ? SnsClientOfTheRegionOfTheAwsSdk()
+            ? SnsClientOfTheRegionOfTheAwsSdk(section)
             : new AmazonSimpleNotificationServiceClient(RegionEndpoint.GetBySystemName(region));
 
-    private static AmazonSimpleNotificationServiceClient SnsClientOfTheRegionOfTheAwsSdk()
+    private static AmazonSimpleNotificationServiceClient SnsClientOfTheRegionOfTheAwsSdk(string section)
     {
         try
         {
@@ -53,7 +54,7 @@ public static class AmazonSnsBrokerExtensions
         {
             throw new OptionsValidationException(
                 nameof(AmazonSnsOptions), typeof(AmazonSnsOptions),
-                [$"{nameof(AmazonSnsOptions.Region)}: the AWS SDK configuration has no region. Set {AmazonSnsOptions.SectionName}:{nameof(AmazonSnsOptions.Region)}, or a region of the AWS SDK, for example the environment variable AWS_REGION."]);
+                [$"{nameof(AmazonSnsOptions.Region)}: the AWS SDK configuration has no region. Set {section}:{nameof(AmazonSnsOptions.Region)}, or a region of the AWS SDK, for example the environment variable AWS_REGION."]);
         }
     }
 }

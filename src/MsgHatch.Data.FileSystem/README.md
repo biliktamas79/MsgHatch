@@ -18,7 +18,7 @@ services.AddMsgHatch()
     .UseFileStores();
 ```
 
-`UseFileStores` binds `FileStoreOptions` from the section `MsgHatch:FileStores`, and validates them at the start of the host. A value from code wins over the configuration:
+`UseFileStores` binds `FileStoreOptions` from the section `FileStores` under the root of `AddMsgHatch`, by default `MsgHatch:FileStores`, and validates them at the start of the host. A value from code wins over the configuration:
 
 [//]: # (snippet: setup-code)
 ```csharp
@@ -45,6 +45,10 @@ services.AddMsgHatch()
 ```
 
 ## Version history
+
+### 0.8.0 (2026-11-26)
+
+- Breaking: the constant `FileStoreOptions.SectionName` is removed. `FileStoreOptions.SectionKey` is `FileStores`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:FileStores`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.
 
 ### 0.7.1 (2026-11-26)
 

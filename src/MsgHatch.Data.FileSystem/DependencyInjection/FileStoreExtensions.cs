@@ -13,7 +13,8 @@ public static class FileStoreExtensions
     /// Selects the JSON file stores (D26): <see cref="FileSystemInboxStore"/> under <c>{RootPath}/inbox</c> and
     /// <see cref="FileSystemOutboxStore"/> under <c>{RootPath}/outbox</c>, each with its two parts and their logging
     /// wrappers, and <see cref="FileSystemRegistrySettingsStore"/> under <c>{RootPath}/registry</c> with its logging
-    /// wrapper. The options bind from the section <c>MsgHatch:FileStores</c>, and a value from code wins.
+    /// wrapper. The options bind from the section <c>FileStores</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:FileStores</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -42,11 +43,12 @@ public static class FileStoreExtensions
 
     /// <summary>
     /// Registers the shared <see cref="FileStoreOptions"/> of a setup method of the file stores (D59): the binding of the
-    /// section <c>MsgHatch:FileStores</c>, the validation, and a value in code through <c>ConfigureSharedOptions</c> (D150).
+    /// section <c>FileStores</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:FileStores</c>, the
+    /// validation, and a value in code through <c>ConfigureSharedOptions</c> (D150).
     /// </summary>
     internal static void AddOptions(MsgHatchBuilder builder, string setupMethod, Action<FileStoreOptions>? configure)
     {
-        builder.Services.AddOptions<FileStoreOptions>().BindConfiguration(FileStoreOptions.SectionName).ValidateOnStart();
+        builder.Services.AddOptions<FileStoreOptions>().BindConfiguration(builder.SectionPathOf(FileStoreOptions.SectionKey)).ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<FileStoreOptions>, FileStoreOptionsValidator>());
         if (configure is not null)
         {

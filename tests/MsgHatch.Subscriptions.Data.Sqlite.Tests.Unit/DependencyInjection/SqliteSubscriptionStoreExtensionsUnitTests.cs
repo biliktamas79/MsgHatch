@@ -32,6 +32,45 @@ public sealed class SqliteSubscriptionStoreExtensionsUnitTests : IDisposable
     }
 
     [Fact]
+    public async Task UseSqliteSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:Sqlite:ConnectionString"] = "Data Source=root.db",
+            ["MsgHatch:Sqlite:ConnectionString"] = "Data Source=default.db",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseSqliteSubscriptionStore();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<MsgHatch.Data.Sqlite.SqliteStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal("Data Source=root.db", options.ConnectionString);
+    }
+
+    [Fact]
+    public async Task UseSqliteTenantSubscriptionStore_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
+    {
+        // Arrange
+        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?>
+        {
+            ["Messaging:SqliteTenants:TenantConnectionString"] = "Data Source=root-{tenant}.db",
+            ["Messaging:SqliteTenants:SystemConnectionString"] = "Data Source=root.db",
+            ["MsgHatch:SqliteTenants:SystemConnectionString"] = "Data Source=default.db",
+        });
+        services.AddMsgHatch(configSectionPath: "Messaging").UseSqliteTenantSubscriptionStore();
+        await using var provider = services.Build();
+
+        // Act
+        var options = provider.GetRequiredService<IOptions<MsgHatch.Data.Sqlite.SqliteTenantStoreOptions>>().Value;
+
+        // Assert
+        Assert.Equal(("Data Source=root-{tenant}.db", "Data Source=root.db"), (options.TenantConnectionString, options.SystemConnectionString));
+    }
+
+    [Fact]
     public async Task UseSqliteSubscriptionStore_ConnectionString_ResolvesTheStoreAsItsLoggingWrapperOnTheDatabase()
     {
         // Arrange

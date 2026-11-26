@@ -22,7 +22,7 @@ services.AddMsgHatch()
     .UseEntityFrameworkPostgreSqlSubscriptionStore(connectionString);
 ```
 
-`UseEntityFrameworkPostgreSqlSubscriptionStore` calls `UseEntityFrameworkSubscriptionStore` of `MsgHatch.Subscriptions.Data.EFCore` with `UseNpgsql`, the dialect of `MsgHatch.Data.EFCore.PostgreSql`, and the migrations of this package. The store shares `EntityFrameworkStoreOptions` with the EF Core stores, from the section `MsgHatch:EntityFramework`. An optional action changes the Npgsql options, for example a retry on a transient failure.
+`UseEntityFrameworkPostgreSqlSubscriptionStore` calls `UseEntityFrameworkSubscriptionStore` of `MsgHatch.Subscriptions.Data.EFCore` with `UseNpgsql`, the dialect of `MsgHatch.Data.EFCore.PostgreSql`, and the migrations of this package. The store shares `EntityFrameworkStoreOptions` with the EF Core stores, from the section `EntityFramework` under the root of `AddMsgHatch`, by default `MsgHatch:EntityFramework`. An optional action changes the Npgsql options, for example a retry on a transient failure.
 
 ## Schema migrations
 

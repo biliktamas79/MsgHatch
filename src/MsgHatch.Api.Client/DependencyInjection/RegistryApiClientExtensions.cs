@@ -11,8 +11,9 @@ namespace MsgHatch.Api.Client.DependencyInjection;
 /// in place of the in-process defaults of <see cref="IRegistryQueries"/> and <see cref="IRegistryCommands"/>, as scoped
 /// tenant services with their logging wrappers, through <see cref="MsgHatchBuilder.UseRegistryQueries"/> and
 /// <see cref="MsgHatchBuilder.UseRegistryCommands"/>. So a second selection gives a setup error. The options bind
-/// from the section <c>MsgHatch:RegistryApiClient</c>, a value from code wins, and an options error stops the start of the
-/// host. The host adds its own handlers, for example the authentication, with <c>configureHttp</c>.
+/// from the section <c>RegistryApiClient</c> under the root of <c>AddMsgHatch</c>, by default
+/// <c>MsgHatch:RegistryApiClient</c>, a value from code wins, and an options error stops the start of the host. The
+/// host adds its own handlers, for example the authentication, with <c>configureHttp</c>.
 /// </summary>
 public static class RegistryApiClientExtensions
 {
@@ -27,7 +28,7 @@ public static class RegistryApiClientExtensions
         this MsgHatchBuilder builder, Action<RegistryApiClientOptions>? configure = null, Action<IHttpClientBuilder>? configureHttp = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var options = builder.Services.AddOptions<RegistryApiClientOptions>().BindConfiguration(RegistryApiClientOptions.SectionName);
+        var options = builder.Services.AddOptions<RegistryApiClientOptions>().BindConfiguration(builder.SectionPathOf(RegistryApiClientOptions.SectionKey));
         if (configure is not null)
         {
             options.Configure(configure);

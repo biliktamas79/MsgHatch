@@ -13,7 +13,9 @@ public static class SqliteStoreExtensions
     /// <summary>
     /// Selects the SQLite stores (D55): <see cref="SqliteInboxStore"/> and <see cref="SqliteOutboxStore"/> on one
     /// database, each with its two parts and their logging wrappers, and <see cref="SqliteRegistrySettingsStore"/> on the
-    /// same database with its logging wrapper. The stores create their tables one time for each connection string. The options bind from the section <c>MsgHatch:Sqlite</c>, and a value from code wins.
+    /// same database with its logging wrapper. The stores create their tables one time for each connection string. The
+    /// options bind from the section <c>Sqlite</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:Sqlite</c>, and a value from code wins.
     /// </summary>
     /// <param name="builder">The builder of the setup.</param>
     /// <param name="configure">An optional change of the options in code.</param>
@@ -46,7 +48,8 @@ public static class SqliteStoreExtensions
     /// and the dispatch composites of the core through <c>UseStorageForEachTenant</c>. The key
     /// <see cref="TenantKey.None"/> and <see cref="SqliteRegistrySettingsStore"/> use <c>SystemConnectionString</c>. The
     /// stores create their tables one time for each connection string. The options bind from the section
-    /// <c>MsgHatch:SqliteTenants</c>, and a value from code wins.
+    /// <c>SqliteTenants</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:SqliteTenants</c>, and a value
+    /// from code wins.
     /// </summary>
     /// <typeparam name="TTenantSource">The tenant source of the consumer, which lists the tenants with their own file.</typeparam>
     /// <param name="builder">The builder of the setup.</param>
@@ -77,12 +80,13 @@ public static class SqliteStoreExtensions
 
     /// <summary>
     /// Registers the shared <see cref="SqliteTenantStoreOptions"/> of a setup method with one database file for each
-    /// tenant (D59): the binding of the section <c>MsgHatch:SqliteTenants</c>, the validation, and a value in code through
+    /// tenant (D59): the binding of the section <c>SqliteTenants</c> under the root of <c>AddMsgHatch</c>, by default
+    /// <c>MsgHatch:SqliteTenants</c>, the validation, and a value in code through
     /// <c>ConfigureSharedOptions</c> (D150).
     /// </summary>
     internal static void AddTenantOptions(MsgHatchBuilder builder, string setupMethod, Action<SqliteTenantStoreOptions>? configure)
     {
-        builder.Services.AddOptions<SqliteTenantStoreOptions>().BindConfiguration(SqliteTenantStoreOptions.SectionName).ValidateOnStart();
+        builder.Services.AddOptions<SqliteTenantStoreOptions>().BindConfiguration(builder.SectionPathOf(SqliteTenantStoreOptions.SectionKey)).ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqliteTenantStoreOptions>, SqliteTenantStoreOptionsValidator>());
         if (configure is not null)
         {
@@ -96,11 +100,12 @@ public static class SqliteStoreExtensions
 
     /// <summary>
     /// Registers the shared <see cref="SqliteStoreOptions"/> of a setup method of the SQLite stores (D59): the binding of
-    /// the section <c>MsgHatch:Sqlite</c>, the validation, and a value in code through <c>ConfigureSharedOptions</c> (D150).
+    /// the section <c>Sqlite</c> under the root of <c>AddMsgHatch</c>, by default <c>MsgHatch:Sqlite</c>, the
+    /// validation, and a value in code through <c>ConfigureSharedOptions</c> (D150).
     /// </summary>
     internal static void AddOptions(MsgHatchBuilder builder, string setupMethod, Action<SqliteStoreOptions>? configure)
     {
-        builder.Services.AddOptions<SqliteStoreOptions>().BindConfiguration(SqliteStoreOptions.SectionName).ValidateOnStart();
+        builder.Services.AddOptions<SqliteStoreOptions>().BindConfiguration(builder.SectionPathOf(SqliteStoreOptions.SectionKey)).ValidateOnStart();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqliteStoreOptions>, SqliteStoreOptionsValidator>());
         if (configure is not null)
         {
