@@ -4463,15 +4463,53 @@ On each level:
 - Each new test fails first.
 
 Commits:
-1. "Let a storage package select a scoped inbox tenant store"
-2. "Map the inbox of the EF Core stores in a context of the host"
-3. "Add an event to the inbox in the transaction of the host"
-4. "Wake the inbox loop after the commit of the host"
-5. "Describe the inbox in the transaction of the host in the design and the store guide"
-6. "Record the commits and the checked facts of phase 55 in the plan"
-7. "Record phase 55 as done in README and AGENTS.md"
+1. "Let a storage package select a scoped inbox tenant store": item 1, with the README of `MsgHatch.Domain` and the version 0.9.0.
+2. "Map the inbox of the EF Core stores in a context of the host": item 2, with the README entries of `MsgHatch.Data.EFCore` and `MsgHatch.Data.EFCore.MySql`.
+3. "Add an event to the inbox in the transaction of the host": items 3, 4, and 6, with the READMEs of the 4 EF Core store packages and the integration tests of the staged add.
+4. "Wake the inbox loop after the commit of the host": item 5.
+5. "Describe the inbox in the transaction of the host in the design and the store guide": items 7 and 9.
+6. "Test the wake after a rollback and a failed save, and the store check of the host": the tests of 3 behaviors that the coverage report showed with no test.
+7. "Record the commits and the checked facts of phase 55 in the plan"
+8. "Record phase 55 as done in README and AGENTS.md"
 
 The plans of phases 55 and 56 and D331 to D334 are in their own commit before commit 1.
+
+Checked facts (2026-11-27), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| `AddDbContext`, `AddDbContextFactory`, and `AddPooledDbContextFactory` of EF Core 10 register a scoped `TContext`. `ConfigureDbContext` adds an `IDbContextOptionsConfiguration<TContext>` with the default lifetime `Singleton`, so a pooled registration reads it from the root provider too, and the configurations run in the order of their registration. | The source of `EntityFrameworkServiceCollectionExtensions` on the branch `release/10.0`, and the unit tests of the startup check |
+| A keyed scoped registration with `KeyedService.AnyKey` gives one instance for each scope and key. | `UseInboxStore_ScopedLifetime_CreatesOneStoreForEachScopeAndKey` |
+| `CurrentTransaction` is null in `SavedChangesAsync` of a save with no transaction of the host, and is not null in a transaction of the host. `TransactionCommittedAsync` comes after the `SavedChangesAsync` of each save in that transaction. A rollback calls `TransactionRolledBackAsync`, and no commit interceptor. | The unit tests of the wake on SQLite. The integration test of each provider checks the order on its server. |
+| The migration operations of a host model with `ExcludeFromMigrations` on the inbox have only the table of the host: no MsgHatch table, no index of the inbox, and no `EnsureSchemaOperation` for the schema of the inbox. `CreateTablesAsync` of the context of the host creates only its own table. | `MapMsgHatchInbox_ModelOfTheHost_GivesAMigrationOfTheHostTableOnly`, and the host tests on SQLite |
+| `DataSource` and `Database` of an unopened connection of SqlClient, Npgsql, MySqlConnector, and Microsoft.Data.Sqlite come from the connection string, so the startup check opens no connection. A connection string with another database or another server fails the check, on a closed port. | The setup tests of the 3 provider unit projects and of SQLite |
+| `StoreOptionsExtension.Of(context)` reads the options of a context of the host in `OnModelCreating`. | The SQLite tests of `MapMsgHatchInbox` with a collation, a JSON type, and a dialect with no schemas |
+| On MySQL, a character set on the entity type changes the model of `MsgHatchDbContext` against the migrations of the package, so `HasPendingModelChanges` failed. The character set also goes to each column of a host table. So the character set stays on the model of the store contexts, and `CustomizeEntity` makes only the texts of a fixed length `varchar`. | `HasPendingModelChanges_CollationAndJsonTypeOfTheOptions_HasNoChangeAgainstTheMigrationsOfThePackage`, and the dump of both inbox tables |
+| The first coverage run showed 3 behaviors with no test: the sync rollback, a save after a failed save, and the check of the host with store contexts that are not relational. Commit 6 tests them. A save reads its inbox rows again at its start, so the two `SaveChangesFailed` overrides of the interceptor changed nothing, and commit 6 removes them. | The coverage report of `coverage.ps1` |
+| The migrator makes its context with options of its own, which the test configuration of `EntityFrameworkTestHost` does not reach. EF Core counts its internal service providers for the whole process, so the new tests raised the count above 20, and `ScriptMsgHatchMigrationsAsync_SqlServerContextWithNoMigrations_GivesTheScriptOfItsHistoryTableInItsSchema` failed with `ManyServiceProvidersCreatedWarning`, depending on the order of the tests. | The run of `MsgHatch.Data.EFCore.Tests.Unit` |
+| Each new unit test failed first or failed with a break of the code it covers: the lifetime and the logging wrapper of `UseInboxStore`, the explicit column names, the column rules, `ExcludeFromMigrations`, a schema on the whole host model, `CustomizeEntity` on MySQL, the staged add, the check of a tracked id, the copy of the store options, the scoped check, the inbox check, the database check on SQLite and on the 3 providers, the interceptor, the wait for the commit, the check of the added rows, the log of a notify error, the reset at the start of a save, the end of the wait at a rollback, the guard of the store provider, and a changed README snippet. | The runs with each break |
+| The build has no errors and no warnings. The 49 unit test projects pass 6,931 tests and skip 1, the path limit test of the named pipe signal. The line coverage is 92.2 %. | `dotnet build`, `pwsh ./coverage.ps1` |
+| `pwsh ./pack.ps1` passes with 42 packages of version 0.9.0. | `pwsh ./pack.ps1` |
+
+Checks that the phase did not do:
+- A run of the integration projects. The phase adds `EntityFrameworkInboxStoreInTheHostTransactionIntegTests` to the 3 integration projects of the EF Core store providers, for the owner to run: the inbox contract with the staged add, the commit and the rollback of a transaction of the host, the unique key of the server, and the wake after the commit. So these tests have no proof that they fail first.
+- A host with a pooled context, `AddDbContextPool`. The startup check accepts it, because the context is scoped, and the interceptor keeps its state for each context instance.
+- A run on Linux before the push.
+
+Commit 1 is `6ef4905`, commit 2 `77db59c`, commit 3 `973f9c6`, commit 4 `e75598c`, commit 5 `2fbf3d2`, and commit 6 `42ea2d8`. The plans of phases 55 and 56 are in `04295e3`.
+
+The implementation changed the plan in these points:
+- Item 1 planned an overload of `UseInboxStore` with a `ServiceLifetime`. The owner asked why it was not an optional parameter of the existing method, and then: "There are no consumers yet, MsgHatch is not yet published to NuGet, so we can make breaking changes now." So `UseInboxStore` with a factory gets the optional parameter `lifetime`, and the README of `MsgHatch.Domain` starts its entry with "Breaking:", because a caller compiled against 0.8.0 must compile again.
+- The base package also gets `UseEntityFrameworkStores<TContext>`, for a provider with no provider package. The unit tests on SQLite need it, because the base package has no SQLite package. The context of the host gets the dialect from the provider setup of the store contexts, so the reason of D331 against a generic base method does not apply. D331 records it.
+- On MySQL, `CustomizeEntity` makes only the texts of a fixed length `varchar`, and puts no character set on the inbox of the host (checked facts). `MySqlStoreModelCustomizer` calls it for each table, and keeps the character set on the model.
+- `MapMsgHatchInbox` also gives each column of the inbox an explicit name, so a naming convention of the host does not rename it. `TestHostContext` has such a convention.
+- The staged add adds nothing for an id that the context tracks, so a second `AcceptAsync` of one event in one scope does not fail the save of the host. D332 records it.
+- The startup check also fails for a context of the host whose provider is not relational, and compares the server of the two connections as well as the database.
+- The inbox contract runs with the staged add through `HostSavingInboxStore`, which saves a new context of the host after each add. When the save fails because the id is stored, the add gives no error, as a host does for an event that its broker delivers again. So the contract test of an id that is stored passes, and the test of the host on SQLite asserts the `DbUpdateException`.
+- `TestHostContext`, `TestOrder`, and `HostSavingInboxStore` are in `tests/Shared/EntityFrameworkHostContext.cs`, which `Directory.Build.props` links into the test projects of `MsgHatch.Data.EFCore` and its provider packages, because the integration projects do not reference the unit projects. The README region of `MapMsgHatchInbox` is in the README test class, because the README check reads only the files of the project folder.
+- The interceptor reads the added inbox rows with no detection of changes, logs a notify error as the event 2700, and keeps the wait for the commit through a later save in the same transaction. D333 records it.
+- The migration tests of the base package ignore the warning of many EF Core service providers in the provider setup of the stores (checked facts).
+- Commit 6 is new. The coverage report showed 3 behaviors with no test, and the plan had no commit for them, so the recording commits become 7 and 8.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.9.0, and the EF Core integration projects pass on SQL Server, PostgreSQL, and MySQL.
 
