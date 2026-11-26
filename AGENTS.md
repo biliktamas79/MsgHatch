@@ -4,7 +4,7 @@ This file provides guidance to coding agents when they work with code in this re
 
 ## State of the repository
 
-MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 53 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, the query and command interfaces of the management APIs with their contracts packages, the HTTP clients of the management APIs with their source generator, the admin UIs of the subscriptions and the templates with the Liquid editor, the template preview with sample payloads, one layout of the admin pages, the registry queries with their HTTP client and the read-only pages of the channels and the message types, the state history of the channels with the new order of the admin pages, the channel check, the removal of the open allocations of the hot path, the registry commands with the edit pages of the channels and the message types, the query and command interfaces of the delivery with their HTTP client, the delivery pages with the pause and the resume of a channel, the Amazon SNS broker client, the MongoDB change stream signal, the RabbitMQ dispatch signal, the versions and the NuGet packages, the package READMEs, and the atomic state rows of the file store with the build on Linux, one bind of the core options in `AddMsgHatch`, the tenant-wide SignalR messages, the SignalR demo dashboard, the package versions that float within their major, the EF Core stores on each relational provider with the SQL Server packages and the schema migrations, and the PostgreSQL packages of the EF Core stores, the EF Core tables in their schema with no prefix, with the exception classifiers and the JSON type of the EF Core stores, the channel packages under `MsgHatch.Channels`, the MySQL packages of the EF Core stores, and the package icon.
+MsgHatch is a .NET 10 library for message routing, message templates, and delivery through an inbox and an outbox. The optional package `MsgHatch.Subscriptions` adds managed subscriptions. The code arrives in phases, as `docs/roadmap.md` describes. Each phase ends in a tested and working state. Phases 0 to 53 are done: the core, the channels, the file and SQLite stores, the subscription router with its stores, cache, and HTTP endpoints, the example app, the benchmarks, the routing verification, the delivery management, the registry administration, a store for each tenant, the EF Core stores on SQL Server, the MongoDB stores, the Amazon SES client against a real account, the dispatch signal between the processes of one machine, the company folders of the template stores, the Liquid email templates, the template library that knows no channel, the HTTP API of the templates, the query and command interfaces of the management APIs with their contracts packages, the HTTP clients of the management APIs with their source generator, the admin UIs of the subscriptions and the templates with the Liquid editor, the template preview with sample payloads, one layout of the admin pages, the registry queries with their HTTP client and the read-only pages of the channels and the message types, the state history of the channels with the new order of the admin pages, the channel check, the removal of the open allocations of the hot path, the registry commands with the edit pages of the channels and the message types, the query and command interfaces of the delivery with their HTTP client, the delivery pages with the pause and the resume of a channel, the Amazon SNS broker client, the MongoDB change stream signal, the RabbitMQ dispatch signal, the versions and the NuGet packages, the package READMEs, and the atomic state rows of the file store with the build on Linux, one bind of the core options in `AddMsgHatch`, the tenant-wide SignalR messages, the SignalR demo dashboard, the package versions that float within their major, the EF Core stores on each relational provider with the SQL Server packages and the schema migrations, and the PostgreSQL packages of the EF Core stores, the EF Core tables in their schema with no prefix, with the exception classifiers and the JSON type of the EF Core stores, the channel packages under `MsgHatch.Channels`, the MySQL packages of the EF Core stores, the package icon, and the root of the configuration sections with the move of the tests that need no server to the unit test projects.
 
 The plan has two documents:
 
@@ -33,7 +33,7 @@ Read the current phase in the roadmap, and the design sections that it refers to
 | API clients | `MsgHatch.Api.Client`, `MsgHatch.Subscriptions.Api.Client`, `MsgHatch.Templates.Api.Client` |
 | Admin UIs | `MsgHatch.AdminUI`, `MsgHatch.Subscriptions.AdminUI`, `MsgHatch.Templates.AdminUI`, `MsgHatch.Templates.Liquid.AdminUI` |
 
-No phase after phase 53 has a detailed plan yet. The section "Later phases" of the roadmap lists the next items.
+No phase after phase 54 has a detailed plan yet. The section "Later phases" of the roadmap lists the next items.
 
 ## Commands
 
@@ -153,6 +153,14 @@ From phase 40 on, the RabbitMQ dispatch signal tests need a RabbitMQ broker, for
 dotnet test tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration
 ```
 
+From phase 54 on, the tests that need no server are in unit test projects, also for the EF Core provider packages, the MongoDB packages, and the schema migrator (D330). They need no setup:
+
+```bash
+dotnet test tests/MsgHatch.Data.EFCore.SqlServer.Tests.Unit
+dotnet test tests/MsgHatch.Data.MongoDb.Tests.Unit
+dotnet test tests/SchemaMigrator.Tests.Unit
+```
+
 ## Rules for each phase
 
 - Build only what the current phase lists. Do not add code that a later phase removes or renames.
@@ -173,6 +181,7 @@ dotnet test tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration
 - Turn a sequence into an array or a list with a collection expression, for example `[.. items]`, not with a LINQ `ToArray()` or `ToList()`. `.editorconfig` sets IDE0305 to error.
 - Read the time only through `TimeProvider`. The analyzer rule `RS0030` blocks the direct clock APIs.
 - Read each setting only through a typed options class with data validation attributes and a source-generated validator. The analyzer rule `RS0030` blocks the `IConfiguration` indexer.
+- Only `AddMsgHatch` sets the root of the configuration sections, with `configSectionPath` (D328). Each other options class has a `const string SectionKey` under the root, and its setup method binds `builder.SectionPathOf(...)` with its own `BindConfiguration` call, with no path parameter (D329).
 - A logging wrapper never logs a channel address, a payload value, rendered text, or a domain event. A span attribute or a metric tag never holds them either, and the metrics have no tenant tag.
 - `UserId`, `CompanyId`, and `TenantId` hold strings. Map a consumer id with `From<T>`, and check a string from outside with `Create`.
 - A user id and a company id are unique only inside one tenant. A tenant service is a keyed DI service with a `TenantKey` key, and its methods have no tenant parameter. The data keeps the tenant: the message context, the received message, and each outgoing message. Each cache key and SignalR name carries the tenant.
@@ -186,16 +195,18 @@ dotnet test tests/MsgHatch.Dispatch.RabbitMq.Tests.Integration
 
 ## Testing
 
-Section 5.5 of the design has the full rules. The short form:
+Read the test guide `.claude/skills/writing-tests/SKILL.md` before you write, move, or review a test. Section 5.5 of the design lists the test projects. The short form:
 
+- Level (D330): a unit test tests one method or one decision branch, and doubles each collaborator with behavior. It runs on a basic build agent in the cloud with no service, so the local file system and local networking are allowed. SQLite tests are unit tests, because SQLite runs in process on a file in a temporary folder (D71). A test whose result depends on the response and behavior of one given service, for example a database server, a broker, or an API, is an integration test. A test that tries to open a connection to a service is an integration test, also with an address that is not valid on purpose. A test of an error case or of an input validation that can use a doubled connection is a unit test.
 - Framework: xUnit v3 (`xunit.v3`). A test project is an executable.
 - Assertions: the `Assert` class of xUnit. Assert a stable identifier for a failure, for example an `ErrorType` code, never the text of a message.
 - Test doubles: NSubstitute. The clock is `FakeTimeProvider`, which starts at `2030-01-01T00:00:00Z`. The logger is `FakeLogger`.
-- Test data: factory methods with valid defaults in each test project. No test data library.
-- Projects: `tests/{Project}.Tests.Unit`, `tests/{Project}.Tests.Integration`, or `tests/{Project}.Tests.Performance`, one for each production project and each level. SQLite tests are unit tests, because SQLite runs in process on a file in a temporary folder (D71).
+- Test data: factory methods with valid defaults in each test project. When a test needs realistic data, use Bogus with a fixed seed, only in the test project that needs it.
+- Projects: `tests/{Project}.Tests.Unit`, `tests/{Project}.Tests.Integration`, or `tests/{Project}.Tests.Performance`, one for each production project and each level. A new test project goes into `MsgHatch.slnx` in the same commit.
 - Classes: `{Sut}UnitTests`, `{Sut}IntegTests`, or `{Sut}PerfTests`. Methods: `Method_Condition_ExpectedResult`.
 - Run: `dotnet test MsgHatch.slnx`, or `dotnet test` with one test project. A run that reports 0 tests is a failure.
-- Coverage: `pwsh ./coverage.ps1` keeps the unit test line coverage of the production code at 90 % or more. Read an uncovered line as a behavior with no test, not as a number to raise.
+- Coverage: `pwsh ./coverage.ps1` keeps the unit test line coverage of the production code at 90 % or more, with no generated code and no EF Core migrations of the tools (D70). Read an uncovered line as a behavior with no test, not as a number to raise.
 - The use-case tests of each domain interface are in an abstract base class `{Interface}TestsBase<T>`. An implementation gets them with one subclass that only builds it.
+- The README check reads the regions and the `Readme` files of the unit and the integration test project of a package together, and runs in the unit test project.
 - Tests use only the public API and the DI setup methods. Do not add `InternalsVisibleTo`.
 - Each new test fails first.
