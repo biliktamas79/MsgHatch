@@ -60,7 +60,7 @@ tests/{Project}.Tests.Performance
 2. A contract base class is `{Interface}TestsBase<T>`, with no level. Its subclass gives the level.
 3. Split a large class into partial files with a suffix for each operation, for example `InboxStoreTestsBase.ClaimDueAsync.cs`. The class name stays one name.
 
-**The method.** `Method_Condition_ExpectedResult`, for example `AddMsgHatch_SecondCallWithAnotherRoot_FailsTheStartupValidation`. The name carries the name of the member under test, so a failure leads back to the code.
+**The method.** `Method_Condition_ExpectedResult`, for example `AddMsgHatch_SecondCallWithAnotherRoot_FailsTheStartupValidation`. The name carries the name of the member under test, so a failure leads back to the code. A test of a numbered example of `docs/subscription-domain.md` ends its name with the id of the example, for example `AddAsync_SameOwnerTypeChannelAndRecipientKind_GivesConflict_S2`, and a test of one decision may end with the decision, for example `_D253`.
 
 **A rename.** When a class or a method of the production code gets a new name, the tests follow in the same change:
 
