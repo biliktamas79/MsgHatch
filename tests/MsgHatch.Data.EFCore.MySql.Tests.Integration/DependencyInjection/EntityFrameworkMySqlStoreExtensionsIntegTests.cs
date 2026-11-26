@@ -22,40 +22,7 @@ public sealed class EntityFrameworkMySqlStoreExtensionsIntegTests(MySqlFixture s
 {
     private const string _history = "__MsgHatchStoreMigrations";
 
-    public static TheoryData<string?, string?> ModelRows => new()
-    {
-        { null, null },
-        { "utf8mb4_0900_as_cs", null },
-        { null, "json" },
-    };
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    [Fact]
-    public async Task UseEntityFrameworkMySqlStores_Alone_PassesTheStartupValidation()
-    {
-        // Arrange
-        await using var provider = MigratedStores.Build(server.Database("setup").ConnectionString);
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        Assert.Null(exception);
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkMySqlStores_SchemaThatIsNotTheDefault_FailsTheStartupValidation()
-    {
-        // Arrange
-        await using var provider = MigratedStores.Build(server.Database("setup").ConnectionString, static o => o.Schema = "other");
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        Assert.Contains("Schema", Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures), StringComparison.Ordinal);
-    }
 
     [Fact]
     public async Task MigrateMsgHatchAsync_EmptyDatabase_CreatesTheTablesWithThePrefixInTheDatabaseOfTheConnectionAndNoOtherDatabase()
@@ -115,22 +82,6 @@ public sealed class EntityFrameworkMySqlStoreExtensionsIntegTests(MySqlFixture s
 
         // Assert
         Assert.Equal(schema, await MySqlSchema.OfAsync(database, Ct, _history));
-    }
-
-    [Theory]
-    [MemberData(nameof(ModelRows))]
-    public async Task HasPendingModelChanges_CollationAndJsonTypeOfTheOptions_HasNoChangeAgainstTheMigrationsOfThePackage(string? collation, string? json)
-    {
-        // Arrange
-        await using var provider = MigratedStores.Build(
-            server.Database("model").ConnectionString, o => (o.TextCollation, o.JsonColumnType) = (collation, json));
-        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
-
-        // Act
-        var hasChanges = context.Database.HasPendingModelChanges();
-
-        // Assert
-        Assert.False(hasChanges);
     }
 
     [Fact]

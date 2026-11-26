@@ -9,17 +9,11 @@ using MsgHatch.Tests.Shared;
 namespace MsgHatch.Data.MongoDb.Tests.Integration;
 
 /// <summary>
-/// The examples of the README of the package run as tests, and the README check compares them (D311). The tests use no
-/// store and no signal, so they need no server.
+/// The README example that resolves a store, which builds a MongoDB client, and a client starts network calls (D330). The
+/// README check and the other examples of the README are in the unit test project of the package (D311).
 /// </summary>
 public sealed class ReadmeIntegTests
 {
-    [Fact]
-    public void Readme_Snippets_EqualTheirSources() => ReadmeCheck.AssertSnippets();
-
-    [Fact]
-    public void Readme_OptionsTables_NameEachOption() => ReadmeCheck.AssertOptionsTables(typeof(MongoDbStoreOptions));
-
     [Fact]
     public async Task UseMongoDbStores_SettingsOfTheReadme_ResolvesTheOutboxStore()
     {
@@ -35,41 +29,6 @@ public sealed class ReadmeIntegTests
 
         // Assert
         Assert.NotNull(provider.GetRequiredService<IOutboxStore>());
-        Assert.Equal("msghatch", provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value.DatabaseName);
-    }
-
-    [Fact]
-    public async Task UseMongoDbStores_DatabaseNameInCode_UsesTheValueOfTheCode()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
-
-        // Act
-        #region readme:setup-code
-        services.AddMsgHatch()
-            .UseMongoDbStores(o => o.DatabaseName = "shop-messages");
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
-        Assert.Equal("shop-messages", provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value.DatabaseName);
-    }
-
-    [Fact]
-    public async Task UseMongoDbDispatchSignal_SettingsOfTheReadme_BuildsTheServices()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
-
-        // Act
-        #region readme:signal
-        services.AddMsgHatch()
-            .UseMongoDbStores()
-            .UseMongoDbDispatchSignal();
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
         Assert.Equal("msghatch", provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value.DatabaseName);
     }
 }

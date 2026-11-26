@@ -13,76 +13,12 @@ using MsgHatch.Tests.Shared;
 namespace MsgHatch.Data.EFCore.MySql.Tests.Integration;
 
 /// <summary>
-/// The examples of the README of the package run as tests, and the README check compares them (D311). The migration
-/// examples run on databases of the fixture.
+/// The migration examples of the README of the package run on databases of the fixture. The README check and the
+/// other examples of the README are in the unit test project of the package (D311, D330).
 /// </summary>
 public sealed class ReadmeIntegTests(MySqlFixture server)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    [Fact]
-    public void Readme_Snippets_EqualTheirSources() => ReadmeCheck.AssertSnippets();
-
-    [Fact]
-    public void Readme_OptionsTables_NameEachOption() => ReadmeCheck.AssertOptionsTables();
-
-    [Fact]
-    public async Task AddExceptionClassifier_ClassifierOfTheReadme_IsRegisteredForTheStores()
-    {
-        // Arrange
-        var services = TestHost.CreateServices();
-        var connectionString = server.Database("readme").ConnectionString;
-
-        // Act
-        #region readme:classifier
-        services.AddMsgHatch()
-            .UseEntityFrameworkMySqlStores(connectionString)
-            .AddExceptionClassifier<MsgHatchDbContext, MySqlReadOnlyClassifier>();
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
-        Assert.IsType<MySqlReadOnlyClassifier>(Assert.Single(provider.GetServices<IExceptionClassifier<MsgHatchDbContext>>()));
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkMySqlStores_SettingsOfTheReadme_RequiresTheCurrentSchema()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
-        var connectionString = server.Database("readme").ConnectionString;
-
-        // Act
-        #region readme:setup
-        services.AddMsgHatch()
-            .UseEntityFrameworkMySqlStores(connectionString);
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
-        Assert.True(provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.RequireCurrentSchema);
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkMySqlStores_OptionsInCode_UsesTheJsonTypeOfTheCode()
-    {
-        // Arrange
-        var services = TestHost.CreateServices();
-        var connectionString = server.Database("readme").ConnectionString;
-
-        // Act
-        #region readme:setup-options
-        services.AddMsgHatch()
-            .UseEntityFrameworkMySqlStores(
-                connectionString,
-                o => o.JsonColumnType = "json");
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
-        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
-        Assert.Equal("json", context.Model.GetEntityTypes().Single(static type => type.GetTableName() == "MsgHatchInbox").FindProperty("Content")!.GetColumnType());
-    }
 
     [Fact]
     public async Task MigrateMsgHatchAsync_StepsOfTheReadme_MigrateTheDatabaseOfEachStepAndScriptTheMigrations()

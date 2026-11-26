@@ -1,7 +1,7 @@
 using Microsoft.Data.SqlClient;
 using MsgHatch.Domain.Failures;
 
-namespace MsgHatch.Data.EFCore.SqlServer.Tests.Integration.TestTypes;
+namespace MsgHatch.Data.EFCore.SqlServer.Tests.Unit.TestTypes;
 
 #region readme:classifier-type
 public sealed class SqlServerReadOnlyClassifier : IExceptionClassifier<MsgHatchDbContext>

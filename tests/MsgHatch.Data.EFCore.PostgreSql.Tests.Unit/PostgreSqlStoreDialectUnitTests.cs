@@ -1,7 +1,7 @@
 using MsgHatch.Data.EFCore.Providers;
 using Npgsql;
 
-namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration;
+namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Unit;
 
 /// <summary>
 /// The error types of the PostgreSQL dialect (D322): a missing permission or a failed login is rejected, and a missing
@@ -9,7 +9,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration;
 /// state gives null, so the built-in mapping keeps it transient. The test builds each <see cref="PostgresException"/>, so it
 /// needs no server.
 /// </summary>
-public sealed class PostgreSqlStoreDialectIntegTests
+public sealed class PostgreSqlStoreDialectUnitTests
 {
     public static TheoryData<string, string, int?> ErrorRows => new()
     {

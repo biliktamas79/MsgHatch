@@ -2,7 +2,7 @@ using System.Reflection;
 using MsgHatch.Data.EFCore.Providers;
 using MySqlConnector;
 
-namespace MsgHatch.Data.EFCore.MySql.Tests.Integration;
+namespace MsgHatch.Data.EFCore.MySql.Tests.Unit;
 
 /// <summary>
 /// The error types of the MySQL dialect (D322): a missing permission or a failed login is rejected, and a missing table or
@@ -10,7 +10,7 @@ namespace MsgHatch.Data.EFCore.MySql.Tests.Integration;
 /// null, so the built-in mapping keeps it transient. MySqlConnector has no public constructor of <see cref="MySqlException"/>,
 /// so the test calls its non-public constructor, and needs no server.
 /// </summary>
-public sealed class MySqlStoreDialectIntegTests
+public sealed class MySqlStoreDialectUnitTests
 {
     public static TheoryData<string, MySqlErrorCode, int?> ErrorRows => new()
     {

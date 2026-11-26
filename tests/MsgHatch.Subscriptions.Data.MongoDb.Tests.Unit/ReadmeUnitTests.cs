@@ -8,13 +8,13 @@ using MsgHatch.Subscriptions.DependencyInjection;
 using MsgHatch.Subscriptions.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
 
-namespace MsgHatch.Subscriptions.Data.MongoDb.Tests.Integration;
+namespace MsgHatch.Subscriptions.Data.MongoDb.Tests.Unit;
 
 /// <summary>
 /// The examples of the README of the package run as tests, and the README check compares them (D311). The tests use no
 /// store, so they need no server.
 /// </summary>
-public sealed class ReadmeIntegTests
+public sealed class ReadmeUnitTests
 {
     [Fact]
     public void Readme_Snippets_EqualTheirSources() => ReadmeCheck.AssertSnippets();

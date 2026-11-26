@@ -1,7 +1,7 @@
 using MsgHatch.Domain.Failures;
 using MySqlConnector;
 
-namespace MsgHatch.Data.EFCore.MySql.Tests.Integration.TestTypes;
+namespace MsgHatch.Data.EFCore.MySql.Tests.Unit.TestTypes;
 
 #region readme:classifier-type
 public sealed class MySqlReadOnlyClassifier : IExceptionClassifier<MsgHatchDbContext>

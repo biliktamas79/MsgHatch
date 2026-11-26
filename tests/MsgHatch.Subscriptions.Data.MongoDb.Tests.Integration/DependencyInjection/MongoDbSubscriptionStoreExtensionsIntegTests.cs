@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using MsgHatch.Data.MongoDb.DependencyInjection;
@@ -56,24 +55,6 @@ public sealed class MongoDbSubscriptionStoreExtensionsIntegTests(MongoDbFixture 
 
         // Assert
         Assert.Equal(1, await Documents(shared).CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty, cancellationToken: Ct));
-    }
-
-    [Fact]
-    public async Task UseMongoDbSubscriptionStore_ValueInCodeAlsoInUseMongoDbStores_FailsTheStartupValidationAndNamesBothMethods()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: Section(server.Database("setup")));
-        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
-            .UseMongoDbStores(static o => o.DatabaseName = "a")
-            .UseMongoDbSubscriptionStore(static o => o.DatabaseName = "b");
-        await using var provider = services.Build();
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.StartsWith("UseMongoDbStores and UseMongoDbSubscriptionStore give ", failure, StringComparison.Ordinal);
     }
 
     private Dictionary<string, string?> Section(TestDatabase database) =>

@@ -1,9 +1,9 @@
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 
-namespace MsgHatch.Data.MongoDb.Tests.Integration;
+namespace MsgHatch.Data.MongoDb.Tests.Unit;
 
 /// <summary>The options tests of <see cref="MongoDbStoreOptions"/>. They need no database.</summary>
-public sealed class MongoDbStoreOptionsValidatorIntegTests
+public sealed class MongoDbStoreOptionsValidatorUnitTests
 {
     private const string _connectionString = nameof(MongoDbStoreOptions.ConnectionString);
 

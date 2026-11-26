@@ -13,78 +13,12 @@ using MsgHatch.Tests.Shared;
 namespace MsgHatch.Data.EFCore.SqlServer.Tests.Integration;
 
 /// <summary>
-/// The examples of the README of the package run as tests, and the README check compares them (D311). The migration
-/// examples run on databases of the fixture.
+/// The migration examples of the README of the package run on databases of the fixture. The README check and the
+/// other examples of the README are in the unit test project of the package (D311, D330).
 /// </summary>
 public sealed class ReadmeIntegTests(SqlServerFixture server)
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    [Fact]
-    public void Readme_Snippets_EqualTheirSources() => ReadmeCheck.AssertSnippets();
-
-    [Fact]
-    public void Readme_OptionsTables_NameEachOption() => ReadmeCheck.AssertOptionsTables();
-
-    [Fact]
-    public async Task AddExceptionClassifier_ClassifierOfTheReadme_IsTheClassifierOfTheStores()
-    {
-        // Arrange
-        var services = TestHost.CreateServices();
-        var connectionString = server.Database("readme").ConnectionString;
-
-        // Act
-        #region readme:classifier
-        services.AddMsgHatch()
-            .UseEntityFrameworkSqlServerStores(connectionString)
-            .AddExceptionClassifier<MsgHatchDbContext, SqlServerReadOnlyClassifier>();
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
-        var classifier = Assert.Single(provider.GetServices<IExceptionClassifier<MsgHatchDbContext>>());
-        Assert.Null(classifier.Classify(new DbUpdateException("update", new InvalidOperationException())));
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkSqlServerStores_SettingsOfTheReadme_RequiresTheCurrentSchema()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: ReadmeCheck.ReadSettings("options.json"));
-        var connectionString = server.Database("readme").ConnectionString;
-
-        // Act
-        #region readme:setup
-        services.AddMsgHatch()
-            .UseEntityFrameworkSqlServerStores(connectionString);
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
-        Assert.True(provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value.RequireCurrentSchema);
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkSqlServerStores_OptionsInCode_UsesTheSchemaAndTheRetriesOfTheCode()
-    {
-        // Arrange
-        var services = TestHost.CreateServices();
-        var connectionString = server.Database("readme").ConnectionString;
-
-        // Act
-        #region readme:setup-options
-        services.AddMsgHatch()
-            .UseEntityFrameworkSqlServerStores(
-                connectionString,
-                o => o.Schema = "messaging",
-                sql => sql.EnableRetryOnFailure());
-        #endregion
-        await using var provider = services.Build();
-
-        // Assert
-        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
-        Assert.Equal(("messaging", true), (context.Model.GetDefaultSchema(), context.Database.CreateExecutionStrategy().RetriesOnFailure));
-    }
 
     [Fact]
     public async Task MigrateMsgHatchAsync_StepsOfTheReadme_MigrateTheDatabaseOfEachStepAndScriptTheMigrations()

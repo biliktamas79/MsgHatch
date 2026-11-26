@@ -1,7 +1,7 @@
 using MsgHatch.Domain.Failures;
 using Npgsql;
 
-namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.TestTypes;
+namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Unit.TestTypes;
 
 #region readme:classifier-type
 public sealed class PostgreSqlReadOnlyClassifier : IExceptionClassifier<MsgHatchDbContext>

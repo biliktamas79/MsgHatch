@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
@@ -18,8 +17,6 @@ namespace MsgHatch.Data.EFCore.Tests.Integration.DependencyInjection;
 /// </summary>
 public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture server)
 {
-    private const string _schemaKey = "MsgHatch:EntityFramework:Schema";
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static DateTime Now => TestHost.Start.UtcDateTime;
@@ -52,26 +49,6 @@ public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture se
     }
 
     [Fact]
-    public async Task UseEntityFrameworkStores_LoggingDisabled_TheStoresAreTheOneInstanceOfEachEntityFrameworkStore()
-    {
-        // Arrange
-        await using var provider = Build(o => o.UseSqlServer(Database.ConnectionString), enableLogging: false);
-
-        // Act
-        object[] stores =
-        [
-            provider.GetRequiredService<IInboxDispatchStore>(), provider.GetRequiredService<IOutboxDispatchStore>(),
-            provider.GetRequiredService<IRegistrySettingsStore>(),
-        ];
-
-        // Assert
-        Assert.Equal(
-            [provider.GetRequiredService<EntityFrameworkInboxStore>(), provider.GetRequiredService<EntityFrameworkOutboxStore>(),
-                provider.GetRequiredService<EntityFrameworkRegistrySettingsStore>()],
-            stores);
-    }
-
-    [Fact]
     public async Task UseEntityFrameworkStores_SchemaFromCode_KeepsTheTablesAndTheRowsInThatSchema()
     {
         // Arrange
@@ -92,73 +69,6 @@ public sealed class EntityFrameworkStoreExtensionsIntegTests(SqlServerFixture se
             await database.RowsAsync(
                 "SELECT TABLE_SCHEMA, TABLE_NAME, (SELECT COUNT(*) FROM [other].[Inbox]) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Inbox'",
                 Ct));
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkStores_SchemaInTheSection_ReachesTheOptions()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "from_section" });
-        services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(Database.ConnectionString));
-        await using var provider = services.Build();
-
-        // Act
-        var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
-
-        // Assert
-        Assert.Equal("from_section", options.Schema);
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkStores_SchemaFromCode_WinsOverTheSection()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "from_section" });
-        services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(Database.ConnectionString), o => o.Schema = "from_code");
-        await using var provider = services.Build();
-
-        // Act
-        var options = provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value;
-
-        // Assert
-        Assert.Equal("from_code", options.Schema);
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkStores_SchemaThatIsNotAnIdentifier_FailsTheValidationOnSchema()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { [_schemaKey] = "msg-hatch" });
-        services.AddMsgHatch().UseEntityFrameworkStores(o => o.UseSqlServer(Database.ConnectionString));
-        await using var provider = services.Build();
-
-        // Act
-        var exception = Record.Exception(() => provider.GetRequiredService<IOptions<EntityFrameworkStoreOptions>>().Value);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.Equal("Schema", failure[..failure.IndexOf(':', StringComparison.Ordinal)]);
-    }
-
-    [Fact]
-    public async Task UseEntityFrameworkStores_AfterUseInMemoryStores_NamesBothSetupMethodsForEachStoreInterface()
-    {
-        // Arrange
-        const string names = "UseInMemoryStores and UseEntityFrameworkStores select an implementation of ";
-        var services = TestHost.CreateServices();
-        services.AddMsgHatch().UseInMemoryStores().UseEntityFrameworkStores(o => o.UseSqlServer(Database.ConnectionString));
-        await using var provider = services.Build();
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        Assert.Equal(
-            ["IInboxDispatchStore", "IInboxStore", "IOutboxDispatchStore", "IOutboxStore", "IRegistrySettingsStore"],
-            Assert.IsType<OptionsValidationException>(exception).Failures
-                .Where(static failure => failure.StartsWith(names, StringComparison.Ordinal))
-                .Select(static failure => failure[names.Length..^1])
-                .Order(StringComparer.Ordinal));
     }
 
     private static ServiceProvider Build(

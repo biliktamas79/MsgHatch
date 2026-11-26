@@ -20,7 +20,7 @@ namespace MsgHatch.Data.EFCore.Tests.Unit.DependencyInjection;
 /// <c>UseEntityFrameworkStores</c> on the EF Core SQLite provider: the stores run on each relational provider, and the
 /// startup check refuses a provider that is not relational (D175, D318).
 /// </summary>
-public sealed class EntityFrameworkStoreExtensionsUnitTests
+public sealed partial class EntityFrameworkStoreExtensionsUnitTests
 {
     private const string _inMemoryProvider = "Microsoft.EntityFrameworkCore.InMemory";
 

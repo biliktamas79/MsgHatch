@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Data.EFCore\MsgHatch.Subscriptions.Data.EFCore.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Data.EFCore.SqlServer\MsgHatch.Subscriptions.Data.EFCore.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\MsgHatch.Subscriptions.Data.EFCore.PostgreSql\MsgHatch.Subscriptions.Data.EFCore.PostgreSql.csproj" />
     <ProjectReference Include="..\MsgHatch.Subscriptions.Tests.Unit\MsgHatch.Subscriptions.Tests.Unit.csproj" />
     <ProjectReference Include="..\MsgHatch.Data.EFCore.Tests.Unit\MsgHatch.Data.EFCore.Tests.Unit.csproj" />
   </ItemGroup>

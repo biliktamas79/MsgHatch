@@ -6,13 +6,16 @@ namespace MsgHatch.Tests.Shared;
 
 /// <summary>
 /// The README check of D311. Each C# block of a package README equals a region <c>readme:name</c> of a test file, each
-/// other checked block equals the file <c>Readme/name.language</c> of the test project, and each options table names
-/// each settable property of its options class.
+/// other checked block equals the file <c>Readme/name.language</c>, and each options table names each settable property
+/// of its options class. The regions and the files come from the unit and the integration test project of the package
+/// together, so a snippet of a step that needs a server stays in the integration project (D330). A region or a file in
+/// both projects fails.
 /// </summary>
 internal static partial class ReadmeCheck
 {
     private const string _projectDirectoryKey = "MsgHatch.TestProjectDirectory";
     private static readonly string[] _checkedLanguages = ["csharp", "json", "razor"];
+    private static readonly string[] _testLevels = [".Tests.Unit", ".Tests.Integration"];
 
     /// <summary>A fenced block of a README that follows a snippet marker, or no marker when the name is null.</summary>
     public sealed record Block(string? Name, string Language, string Content);
@@ -20,20 +23,22 @@ internal static partial class ReadmeCheck
     /// <summary>A source file of a non-C# snippet, for example <c>Readme/options.json</c>.</summary>
     public sealed record SnippetFile(string Language, string Content);
 
-    /// <summary>Asserts that each snippet of the README of the package equals its source in the test project.</summary>
+    /// <summary>Asserts that each snippet of the README of the package equals its source in a test project of the package.</summary>
     public static void AssertSnippets()
     {
-        var project = TestProjectDirectory();
-        Assert.Empty(FindSnippetFailures(File.ReadAllText(ReadmePath(project)), ReadRegions(project), ReadSnippetFiles(project)));
+        var projects = TestProjectsOfThePackage();
+        Assert.Empty(FindSnippetFailures(File.ReadAllText(ReadmePath(TestProjectDirectory())), ReadRegions(projects), ReadSnippetFiles(projects)));
     }
 
     /// <summary>Asserts that the README has one options table for each given type, and each table names each option.</summary>
     public static void AssertOptionsTables(params Type[] optionsTypes) =>
         Assert.Empty(FindOptionsFailures(File.ReadAllText(ReadmePath(TestProjectDirectory())), optionsTypes));
 
-    /// <summary>The text of the file <c>Readme/name.extension</c> of the test project.</summary>
+    /// <summary>The text of the file <c>Readme/name.extension</c> of a test project of the package.</summary>
     public static string ReadSnippetFile(string fileName) =>
-        File.ReadAllText(Path.Combine(TestProjectDirectory(), "Readme", fileName));
+        File.ReadAllText(
+            TestProjectsOfThePackage().Select(project => Path.Combine(project, "Readme", fileName)).FirstOrDefault(File.Exists)
+            ?? Path.Combine(TestProjectDirectory(), "Readme", fileName));
 
     /// <summary>
     /// The settings of the JSON file <c>Readme/name.json</c> of the test project as configuration keys, for example
@@ -179,16 +184,16 @@ internal static partial class ReadmeCheck
         && property.PropertyType != typeof(string)
         && typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType);
 
-    private static Dictionary<string, string> ReadRegions(string project)
+    private static Dictionary<string, string> ReadRegions(IEnumerable<string> projects)
     {
         var regions = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var file in SourceFiles(project, "*.cs"))
+        foreach (var file in projects.SelectMany(static project => SourceFiles(project, "*.cs")))
         {
             foreach (Match match in RegionRegex().Matches(Normalize(File.ReadAllText(file))))
             {
                 if (!regions.TryAdd(match.Groups["name"].Value, Dedent(match.Groups["content"].Value)))
                 {
-                    Assert.Fail($"The region readme:{match.Groups["name"].Value} is in the test project two times.");
+                    Assert.Fail($"The region readme:{match.Groups["name"].Value} is in the test projects of the package two times.");
                 }
             }
         }
@@ -196,22 +201,34 @@ internal static partial class ReadmeCheck
         return regions;
     }
 
-    private static Dictionary<string, SnippetFile> ReadSnippetFiles(string project)
+    private static Dictionary<string, SnippetFile> ReadSnippetFiles(IEnumerable<string> projects)
     {
-        var folder = Path.Combine(project, "Readme");
         var files = new Dictionary<string, SnippetFile>(StringComparer.Ordinal);
-        if (!Directory.Exists(folder))
-        {
-            return files;
-        }
-
-        foreach (var file in Directory.GetFiles(folder))
+        foreach (var file in projects.Select(static project => Path.Combine(project, "Readme")).Where(Directory.Exists).SelectMany(Directory.GetFiles))
         {
             var language = LanguageOf(Path.GetExtension(file));
-            files.Add(Path.GetFileNameWithoutExtension(file), new SnippetFile(language, File.ReadAllText(file)));
+            if (!files.TryAdd(Path.GetFileNameWithoutExtension(file), new SnippetFile(language, File.ReadAllText(file))))
+            {
+                Assert.Fail($"The file Readme/{Path.GetFileName(file)} is in the test projects of the package two times.");
+            }
         }
 
         return files;
+    }
+
+    /// <summary>This test project and the other test project of its package, the unit or the integration one, when it exists.</summary>
+    private static string[] TestProjectsOfThePackage()
+    {
+        var project = Path.TrimEndingDirectorySeparator(TestProjectDirectory());
+        var package = TestLevelSuffixRegex().Replace(Path.GetFileName(project), string.Empty);
+        var folder = Path.GetDirectoryName(project)!;
+        return
+        [
+            project,
+            .. _testLevels
+                .Select(level => Path.Combine(folder, package + level))
+                .Where(other => !string.Equals(other, project, StringComparison.OrdinalIgnoreCase) && Directory.Exists(other)),
+        ];
     }
 
     private static IEnumerable<string> SourceFiles(string project, string pattern) =>

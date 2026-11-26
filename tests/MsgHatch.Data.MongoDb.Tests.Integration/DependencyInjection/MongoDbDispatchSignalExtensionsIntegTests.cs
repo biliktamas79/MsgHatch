@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using MsgHatch.Data.MongoDb.DependencyInjection;
 using MsgHatch.Data.MongoDb.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
@@ -14,8 +13,8 @@ using static MsgHatch.Data.MongoDb.Tests.Integration.TestTypes.SignalWatch;
 namespace MsgHatch.Data.MongoDb.Tests.Integration.DependencyInjection;
 
 /// <summary>
-/// <c>UseMongoDbDispatchSignal</c> and its startup checks (section 4.7, D190, D303): two hosts on one database of the
-/// MongoDB stores, where an add or a notify of the first host wakes a wait of the second host.
+/// <c>UseMongoDbDispatchSignal</c> (section 4.7, D303): two hosts on one database of the MongoDB stores, where an add or
+/// a notify of the first host wakes a wait of the second host. The unit tests check the startup checks (D190).
 /// </summary>
 public sealed class MongoDbDispatchSignalExtensionsIntegTests(MongoDbFixture server) : IAsyncDisposable
 {
@@ -51,68 +50,6 @@ public sealed class MongoDbDispatchSignalExtensionsIntegTests(MongoDbFixture ser
 
         // Assert
         Assert.Null(await CompletedAsync(wait));
-    }
-
-    [Fact]
-    public void Validate_UseMongoDbDispatchSignalWithTheMongoDbStores_Succeeds()
-    {
-        // Arrange
-        var host = NewHost(static builder => builder.UseMongoDbDispatchSignal());
-
-        // Act
-        var exception = Record.Exception(host.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        Assert.Null(exception);
-    }
-
-    [Fact]
-    public async Task Validate_UseMongoDbDispatchSignalWithNoMongoDbStores_ThrowsOptionsValidationExceptionThatNamesUseMongoDbStores()
-    {
-        // Arrange
-        var services = TestHost.CreateServices();
-        services.AddMsgHatch().AddTestChannel().UseTransport(static _ => TestTransports.For(TestChannel.Id)).UseInMemoryStores()
-            .UseMongoDbDispatchSignal();
-        await using var host = services.Build();
-
-        // Act
-        var exception = Record.Exception(host.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.StartsWith("UseMongoDbDispatchSignal needs the MongoDB stores of UseMongoDbStores", failure, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("Inbox")]
-    [InlineData("Outbox")]
-    public void Validate_NoPollingForOneDispatcher_ThrowsOptionsValidationExceptionForItsOptions(string dispatcher)
-    {
-        // Arrange
-        var host = NewHost(builder => builder.UseMongoDbDispatchSignal()
-            .Services.Configure<DispatchOptions>(dispatcher, static o => o.EnablePolling = false));
-
-        // Act
-        var exception = Record.Exception(host.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        var failure = Assert.IsType<OptionsValidationException>(exception);
-        Assert.Equal((typeof(DispatchOptions), dispatcher), (failure.OptionsType, failure.OptionsName));
-        Assert.StartsWith("UseMongoDbDispatchSignal needs EnablePolling ", Assert.Single(failure.Failures), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Validate_AfterUseDispatchSignal_NamesBothSetupMethods()
-    {
-        // Arrange
-        var host = NewHost(static builder => builder.UseDispatchSignal(static _ => new InProcessDispatchSignal()).UseMongoDbDispatchSignal());
-
-        // Act
-        var exception = Record.Exception(host.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.StartsWith("UseDispatchSignal and UseMongoDbDispatchSignal select ", failure, StringComparison.Ordinal);
     }
 
     private static async Task ChangeAsync(ServiceProvider host, string change, DispatchTopic topic)

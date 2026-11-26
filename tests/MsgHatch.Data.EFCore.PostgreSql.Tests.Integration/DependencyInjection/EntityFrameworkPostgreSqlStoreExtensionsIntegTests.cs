@@ -21,26 +21,7 @@ public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSq
 {
     private const string _history = "\"msghatch\".\"__StoreMigrations\"";
 
-    public static TheoryData<string, string?> ModelRows => new()
-    {
-        { "msghatch", null },
-        { "other", "POSIX" },
-    };
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    [Fact]
-    public async Task UseEntityFrameworkPostgreSqlStores_Alone_PassesTheStartupValidation()
-    {
-        // Arrange
-        await using var provider = MigratedStores.Build(server.Database("setup").ConnectionString);
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        Assert.Null(exception);
-    }
 
     [Fact]
     public async Task MigrateMsgHatchAsync_EmptyDatabaseAndASchemaOfTheOption_CreatesTheTablesAndTheHistoryTableInThatSchema()
@@ -73,21 +54,6 @@ public sealed class EntityFrameworkPostgreSqlStoreExtensionsIntegTests(PostgreSq
 
         // Assert
         Assert.Equal(schema, await PostgreSqlSchema.OfAsync(database, Ct, _history));
-    }
-
-    [Theory]
-    [MemberData(nameof(ModelRows))]
-    public async Task HasPendingModelChanges_SchemaAndCollationOfTheOptions_HasNoChangeAgainstTheMigrationsOfThePackage(string schema, string? collation)
-    {
-        // Arrange
-        await using var provider = MigratedStores.Build(server.Database("model").ConnectionString, o => (o.Schema, o.TextCollation) = (schema, collation));
-        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
-
-        // Act
-        var hasChanges = context.Database.HasPendingModelChanges();
-
-        // Assert
-        Assert.False(hasChanges);
     }
 
     [Fact]

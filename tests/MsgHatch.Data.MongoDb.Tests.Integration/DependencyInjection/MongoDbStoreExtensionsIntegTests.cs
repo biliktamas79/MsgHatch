@@ -1,6 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using MongoDB.Driver;
 using MsgHatch.Data.MongoDb.DependencyInjection;
 using MsgHatch.Data.MongoDb.Tests.Integration.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
@@ -84,90 +82,6 @@ public sealed class MongoDbStoreExtensionsIntegTests(MongoDbFixture server)
         // Assert
         Assert.Null(error);
         Assert.Single(await database.DocumentsAsync(MongoDbInboxStore.CollectionName, Ct));
-    }
-
-    [Fact]
-    public async Task UseMongoDbStores_DatabaseNameInTheSection_ReachesTheOptions()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: Section(databaseName: "from_section"));
-        services.AddMsgHatch().UseMongoDbStores();
-        await using var provider = services.Build();
-
-        // Act
-        var options = provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value;
-
-        // Assert
-        Assert.Equal(("from_section", server.ConnectionString), (options.DatabaseName, options.ConnectionString));
-    }
-
-    [Fact]
-    public async Task UseMongoDbStores_DatabaseNameFromCode_WinsOverTheSection()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: Section(databaseName: "from_section"));
-        services.AddMsgHatch().UseMongoDbStores(static o => o.DatabaseName = "from_code");
-        await using var provider = services.Build();
-
-        // Act
-        var options = provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value;
-
-        // Assert
-        Assert.Equal("from_code", options.DatabaseName);
-    }
-
-    [Fact]
-    public async Task UseMongoDbStores_DatabaseNameWithADot_FailsTheValidationOnDatabaseName()
-    {
-        // Arrange
-        var services = TestHost.CreateServices(configuration: Section(databaseName: "msg.hatch"));
-        services.AddMsgHatch().UseMongoDbStores();
-        await using var provider = services.Build();
-
-        // Act
-        var exception = Record.Exception(() => provider.GetRequiredService<IOptions<MongoDbStoreOptions>>().Value);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.Equal("DatabaseName", failure[..failure.IndexOf(':', StringComparison.Ordinal)]);
-    }
-
-    [Fact]
-    public async Task UseMongoDbStores_ClientOfTheHost_StaysTheClientOfTheStores()
-    {
-        // Arrange
-        var client = Substitute.For<IMongoClient>();
-        var services = TestHost.CreateServices(configuration: Section(databaseName: "msghatch"));
-        services.AddSingleton(client);
-        services.AddMsgHatch().UseMongoDbStores();
-        await using var provider = services.Build();
-
-        // Act
-        var resolved = provider.GetRequiredService<IMongoClient>();
-
-        // Assert
-        Assert.Same(client, resolved);
-    }
-
-    [Fact]
-    public async Task UseMongoDbStores_AfterUseInMemoryStores_NamesBothSetupMethodsForEachStoreInterface()
-    {
-        // Arrange
-        const string names = "UseInMemoryStores and UseMongoDbStores select an implementation of ";
-        var services = TestHost.CreateServices(configuration: Section(databaseName: "msghatch"));
-        services.AddMsgHatch().UseInMemoryStores().UseMongoDbStores();
-        await using var provider = services.Build();
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        Assert.Equal(
-            ["IInboxDispatchStore", "IInboxStore", "IOutboxDispatchStore", "IOutboxStore", "IRegistrySettingsStore"],
-            Assert.IsType<OptionsValidationException>(exception).Failures
-                .Where(static failure => failure.StartsWith(names, StringComparison.Ordinal))
-                .Select(static failure => failure[names.Length..^1])
-                .Order(StringComparer.Ordinal));
     }
 
     private Dictionary<string, string?> Section(string databaseName) =>

@@ -75,6 +75,7 @@
     <Project Path="tests/MsgHatch.Domain.Tests.Unit/MsgHatch.Domain.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.SourceGeneration.Tests.Unit/MsgHatch.SourceGeneration.Tests.Unit.csproj" />
     <Project Path="tests/SchemaMigrator.Tests.Integration/SchemaMigrator.Tests.Integration.csproj" />
+    <Project Path="tests/SchemaMigrator.Tests.Unit/SchemaMigrator.Tests.Unit.csproj" />
     <Project Path="tests/SignalRDemo.Tests.Unit/SignalRDemo.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.Consumer.Tests.Unit/WolverineExample.Consumer.Tests.Unit.csproj" />
     <Project Path="tests/WolverineExample.UserSimulator.Tests.Unit/WolverineExample.UserSimulator.Tests.Unit.csproj" />
@@ -95,8 +96,11 @@
   </Folder>
   <Folder Name="/tests/Data/">
     <Project Path="tests/MsgHatch.Data.EFCore.MySql.Tests.Integration/MsgHatch.Data.EFCore.MySql.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.MySql.Tests.Unit/MsgHatch.Data.EFCore.MySql.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Unit/MsgHatch.Data.EFCore.PostgreSql.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.SqlServer.Tests.Integration/MsgHatch.Data.EFCore.SqlServer.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Data.EFCore.SqlServer.Tests.Unit/MsgHatch.Data.EFCore.SqlServer.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.Tests.Integration/MsgHatch.Data.EFCore.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Data.EFCore.Tests.Unit/MsgHatch.Data.EFCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Data.FileSystem.Tests.Unit/MsgHatch.Data.FileSystem.Tests.Unit.csproj" />
@@ -117,8 +121,11 @@
     <Project Path="tests/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit/MsgHatch.Subscriptions.Caching.FusionCache.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit/MsgHatch.Subscriptions.Caching.Hybrid.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Integration/MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Unit/MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Unit/MsgHatch.Subscriptions.Data.EFCore.PostgreSql.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Integration.csproj" />
+    <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Unit/MsgHatch.Subscriptions.Data.EFCore.SqlServer.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration/MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit/MsgHatch.Subscriptions.Data.EFCore.Tests.Unit.csproj" />
     <Project Path="tests/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit/MsgHatch.Subscriptions.Data.FileSystem.Tests.Unit.csproj" />

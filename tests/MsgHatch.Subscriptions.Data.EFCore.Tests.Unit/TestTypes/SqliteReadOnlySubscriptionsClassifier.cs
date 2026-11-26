@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
 using MsgHatch.Domain.Failures;
 
-namespace MsgHatch.Subscriptions.Data.EFCore.Tests.Integration.TestTypes;
+namespace MsgHatch.Subscriptions.Data.EFCore.Tests.Unit.TestTypes;
 
 #region readme:classifier-type
 public sealed class SqliteReadOnlySubscriptionsClassifier : IExceptionClassifier<MsgHatchSubscriptionDbContext>

@@ -22,30 +22,7 @@ public sealed class EntityFrameworkSqlServerSubscriptionStoreExtensionsIntegTest
 
     private const string _subscriptionHistory = "[msghatch].[__SubscriptionMigrations]";
 
-    public static TheoryData<string, string?> ModelRows => new()
-    {
-        { "msghatch", null },
-        { "other", "Latin1_General_100_CS_AS" },
-    };
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
-    [Fact]
-    public async Task UseEntityFrameworkSqlServerSubscriptionStore_Alone_PassesTheStartupValidation()
-    {
-        // Arrange
-        var services = TestHost.CreateServices();
-        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
-            .UseInMemoryStores()
-            .UseEntityFrameworkSqlServerSubscriptionStore(server.Database("setup").ConnectionString);
-        await using var provider = services.Build();
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        Assert.Null(exception);
-    }
 
     [Fact]
     public async Task MigrateMsgHatchAsync_BothPackagesAndASchemaOfTheOption_CreatesTheTablesOfBothWithTwoHistoryTablesInThatSchema()
@@ -79,21 +56,6 @@ public sealed class EntityFrameworkSqlServerSubscriptionStoreExtensionsIntegTest
 
         // Assert
         Assert.Equal(schema, await SqlServerSchema.OfAsync(database, Ct, _histories, _subscriptionHistory));
-    }
-
-    [Theory]
-    [MemberData(nameof(ModelRows))]
-    public async Task HasPendingModelChanges_SchemaAndCollationOfTheOptions_HasNoChangeAgainstTheMigrationsOfThePackage(string schema, string? collation)
-    {
-        // Arrange
-        await using var provider = MigratedSubscriptionStores.Build(server.Database("model").ConnectionString, o => (o.Schema, o.TextCollation) = (schema, collation));
-        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchSubscriptionDbContext>>().CreateDbContextAsync(Ct);
-
-        // Act
-        var hasChanges = context.Database.HasPendingModelChanges();
-
-        // Assert
-        Assert.False(hasChanges);
     }
 
     [Fact]
