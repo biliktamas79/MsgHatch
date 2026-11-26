@@ -64,6 +64,21 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
     }
 
     [Fact]
+    public async Task ClaimDueAsync_EventThatAddsAPropertyToTheDocument_FailsTheRowAndKeepsItsTenant()
+    {
+        // Arrange
+        var unreadable = await AddAsync(AMessage(T1));
+        _database.Execute($$"""UPDATE Inbox SET Content = '{"text":"x"}, "tenant": "t2"' WHERE Id = '{{unreadable.Delivery.Id:D}}'""");
+
+        // Act
+        var result = await ClaimAsync();
+
+        // Assert
+        Assert.Empty(result.Value.Messages);
+        Assert.Equal(["t1", "Failed"], Assert.Single(_database.Rows("SELECT TenantId, Status FROM Inbox")));
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_FirstCandidatesThatAnotherDispatcherTookFirst_ClaimsTheNextDueMessages()
     {
         // Arrange
@@ -127,6 +142,51 @@ public sealed class EntityFrameworkInboxStoreUnitTests : InboxStoreTestsBase<Ent
         // Assert
         Assert.Equal(Errors.SerializationFailed, error?.Type);
         Assert.Empty(await TestData.GetStoredAsync(Ct));
+    }
+
+    [Fact]
+    public async Task AddAsync_DatabaseThatDoesNotExist_ReturnsUnavailable()
+    {
+        // Arrange
+        var missingDatabase = new FailingConnectionInterceptor();
+        var store = new EntityFrameworkInboxStore(
+            new SqliteTestDatabase().ContextsOf<MsgHatchDbContext>(o => o.AddInterceptors(missingDatabase)), new MsgHatchJson(TestContentTypes.ARegistry()));
+
+        // Act
+        var error = await store.For(T1).AddAsync(AMessage(T1), Ct);
+
+        // Assert
+        Assert.Equal((Errors.Unavailable, 1), (error?.Type, missingDatabase.Opens));
+    }
+
+    [Fact]
+    public async Task AddAsync_InsertThatFailsWithNoStoredKey_ReturnsUnavailableAndAddsNothing()
+    {
+        // Arrange
+        _database.RefuseInserts("Inbox");
+
+        // Act
+        var error = await TenantStore(T1).AddAsync(AMessage(T1), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Unavailable, error?.Type);
+        Assert.Empty(await TestData.GetStoredAsync(Ct));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_ConnectionThatThrowsAnExceptionOfNoDatabase_ThrowsItToTheCaller()
+    {
+        // Arrange
+        var failure = new NotSupportedException("not a database failure");
+        var store = new EntityFrameworkInboxStore(
+            _database.ContextsOf<MsgHatchDbContext>(o => o.AddInterceptors(new FailingConnectionInterceptor(failure))),
+            new MsgHatchJson(TestContentTypes.ARegistry()));
+
+        // Act
+        var exception = await Record.ExceptionAsync(async () => await store.ClaimDueAsync(10, Now, TimeSpan.FromSeconds(30), Ct));
+
+        // Assert
+        Assert.Same(failure, exception);
     }
 
     [Fact]

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.MySql\MsgHatch.Data.EFCore.MySql.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.EFCore.Tests.Unit\MsgHatch.Data.EFCore.Tests.Unit.csproj" />
     <ProjectReference Include="..\MsgHatch.Domain.Tests.Unit\MsgHatch.Domain.Tests.Unit.csproj" />
   </ItemGroup>
 

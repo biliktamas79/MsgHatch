@@ -100,23 +100,6 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
     }
 
     [Fact]
-    public async Task RequireCurrentSchema_MigrationThatIsNotApplied_FailsTheStartupWithTheContextAndTheMigration()
-    {
-        // Arrange
-        var database = server.Database("require_pending");
-        await using var provider = MigratedStores.Build(database.ConnectionString, static o => o.RequireCurrentSchema = true);
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.Equal(
-            (true, true),
-            (failure.Contains(nameof(MsgHatchDbContext), StringComparison.Ordinal), failure.Contains("_Initial", StringComparison.Ordinal)));
-    }
-
-    [Fact]
     public async Task RequireCurrentSchema_EachMigrationApplied_PassesTheStartup()
     {
         // Arrange
@@ -184,26 +167,6 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsIntegTests(SqlServerF
                 """,
                 Ct));
         Assert.False(context.Database.HasPendingModelChanges());
-    }
-
-    [Fact]
-    public async Task Stores_DatabaseWithNoMigrations_GiveValidationFailed()
-    {
-        // Arrange
-        var database = server.Database("unmigrated");
-        await database.CreateEmptyAsync(Ct);
-        await using var provider = MigratedStores.Build(database.ConnectionString);
-        var contexts = provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>();
-        var json = new MsgHatchJson(TestContentTypes.ARegistry());
-        var now = TestHost.Start.UtcDateTime;
-
-        // Act
-        var inbox = await new EntityFrameworkInboxStore(contexts, json).ClaimDueAsync(10, now, TimeSpan.FromSeconds(30), Ct);
-        var outbox = await new EntityFrameworkOutboxStore(contexts, json).ClaimDueAsync(TestChannel.Id, 10, now, TimeSpan.FromSeconds(30), Ct);
-        var registry = await new EntityFrameworkRegistrySettingsStore(contexts).GetEntriesAsync(Ct);
-
-        // Assert
-        Assert.Equal([Errors.ValidationFailed, Errors.ValidationFailed, Errors.ValidationFailed], [inbox.Error?.Type, outbox.Error?.Type, registry.Error?.Type]);
     }
 
     [Fact]

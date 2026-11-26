@@ -1,4 +1,4 @@
-using System.Reflection;
+using MsgHatch.Data.EFCore.MySql.Tests.Unit.TestTypes;
 using MsgHatch.Data.EFCore.Providers;
 using MySqlConnector;
 
@@ -7,8 +7,8 @@ namespace MsgHatch.Data.EFCore.MySql.Tests.Unit;
 /// <summary>
 /// The error types of the MySQL dialect (D322): a missing permission or a failed login is rejected, and a missing table or
 /// column or a value that is too long fails the validation, so the dispatcher does not retry them. Each other number gives
-/// null, so the built-in mapping keeps it transient. MySqlConnector has no public constructor of <see cref="MySqlException"/>,
-/// so the test calls its non-public constructor, and needs no server.
+/// null, so the built-in mapping keeps it transient. The test builds each <see cref="MySqlException"/> with
+/// <see cref="TestMySqlExceptions"/>, so it needs no server.
 /// </summary>
 public sealed class MySqlStoreDialectUnitTests
 {
@@ -30,8 +30,7 @@ public sealed class MySqlStoreDialectUnitTests
     {
         // Arrange
         IEntityFrameworkStoreDialect dialect = MySqlStoreDialect.Instance;
-        var exception = (MySqlException)Activator.CreateInstance(
-            typeof(MySqlException), BindingFlags.Instance | BindingFlags.NonPublic, binder: null, [number, "The message of the server."], culture: null)!;
+        var exception = TestMySqlExceptions.AMySqlException(number);
 
         // Act
         var type = dialect.ErrorTypeOf(exception);

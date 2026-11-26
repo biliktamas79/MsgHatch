@@ -412,6 +412,20 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
     }
 
     [Fact]
+    public async Task CheckHealthAsync_TopicThatDoesNotExist_ReturnsUnavailable()
+    {
+        // Arrange
+        using var sns = FakeSnsHttp.ClientThatAnswers(HttpStatusCode.NotFound, "NotFound", new Dictionary<string, string>());
+        var client = new AmazonSnsBrokerClient(sns, Options.Create(AnOptions()));
+
+        // Act
+        var error = await client.CheckHealthAsync(Ct);
+
+        // Assert
+        Assert.Equal((Errors.Unavailable, typeof(NotFoundException)), (error?.Type, error?.Exception?.GetType()));
+    }
+
+    [Fact]
     public async Task CheckHealthAsync_CancelledToken_ReturnsOperationCancelled()
     {
         // Arrange

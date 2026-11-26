@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MsgHatch.Data.EFCore.PostgreSql\MsgHatch.Data.EFCore.PostgreSql.csproj" />
+    <ProjectReference Include="..\MsgHatch.Data.EFCore.Tests.Unit\MsgHatch.Data.EFCore.Tests.Unit.csproj" />
     <ProjectReference Include="..\MsgHatch.Domain.Tests.Unit\MsgHatch.Domain.Tests.Unit.csproj" />
   </ItemGroup>
 

@@ -1,7 +1,6 @@
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Dispatch;
-using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Persistence;
@@ -49,20 +48,6 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal(
             batch.Select(static message => new[] { message.Delivery.Id.ToString("D") }),
             await Database.RowsAsync("SELECT Id FROM [msghatch].[Outbox] ORDER BY Sequence", Ct));
-    }
-
-    [Fact]
-    public async Task AddAsync_MessageOfAnUnregisteredType_ReturnsSerializationFailedAndAddsNothingOfTheBatch()
-    {
-        // Arrange
-        OutgoingMessage[] batch = [AMessage(T1), AMessage(T1) with { ContentType = "Test:Unknown" }];
-
-        // Act
-        var error = await TenantStore(T1).AddAsync(batch, Ct);
-
-        // Assert
-        Assert.Equal(Errors.SerializationFailed, error?.Type);
-        Assert.Empty(await TestData.GetStoredAsync(Ct));
     }
 
     [Fact]
@@ -159,26 +144,6 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
     }
 
     [Fact]
-    public async Task ClaimDueAsync_RowWithAnEnvelopeThatIsNotJson_FailsTheRowAndClaimsTheOtherMessage()
-    {
-        // Arrange
-        var unreadable = await AddAsync(AMessage(T1));
-        var message = await AddAsync(AMessage(T1));
-        await Database.ExecuteAsync($"UPDATE [msghatch].[Outbox] SET Content = '{{ not json' WHERE Id = '{unreadable.Delivery.Id:D}'", Ct);
-
-        // Act
-        var result = await ClaimAsync();
-
-        // Assert
-        Assert.Equal(message.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
-        Assert.Equal(
-            ["Failed", "SerializationFailed", null],
-            Assert.Single(await Database.RowsAsync(
-                $"SELECT Status, LEFT(LastError, CHARINDEX(':', LastError) - 1), LeaseUntilUtc FROM [msghatch].[Outbox] WHERE Id = '{unreadable.Delivery.Id:D}'",
-                Ct)));
-    }
-
-    [Fact]
     public async Task ClaimDueAsync_RowWithANewerVersionThanTheCode_StaysPendingWithItsLeaseEndAsTheNextDueTime()
     {
         // Arrange
@@ -193,35 +158,6 @@ public sealed class EntityFrameworkOutboxStoreIntegTests(SqlServerFixture server
         Assert.Equal(
             ["Pending", "2030-01-01T00:00:30.0000000Z"],
             Assert.Single(await Database.RowsAsync("SELECT Status, NextTryAtUtc FROM [msghatch].[Outbox]", Ct)));
-    }
-
-    [Fact]
-    public async Task ClaimDueAsync_DownRowWithAnUnknownReason_ReturnsSerializationFailed()
-    {
-        // Arrange
-        await AddAsync(AMessage(T1));
-        await Store.SetChannelDownAsync(
-            new ChannelDown(TestChannel.Id, ChannelDownReason.Operator, Now, NextCheckAtUtc: null, ErrorCode: null, ErrorName: null, "maintenance"), Ct);
-        await Database.ExecuteAsync("UPDATE [msghatch].[ChannelState] SET Reason = 'Unknown'", Ct);
-
-        // Act
-        var result = await ClaimAsync();
-
-        // Assert
-        Assert.Equal(Errors.SerializationFailed, result.Error?.Type);
-    }
-
-    [Fact]
-    public async Task ClaimDueAsync_DatabaseThatDoesNotExist_ReturnsUnavailable()
-    {
-        // Arrange
-        var store = new EntityFrameworkOutboxStore(server.Database("missing").Contexts, new MsgHatchJson(TestContentTypes.ARegistry()));
-
-        // Act
-        var result = await store.ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
-
-        // Assert
-        Assert.Equal(Errors.Unavailable, result.Error?.Type);
     }
 
     [Fact]

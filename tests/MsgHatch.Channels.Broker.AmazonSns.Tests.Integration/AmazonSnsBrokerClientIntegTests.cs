@@ -6,7 +6,6 @@ using MsgHatch.Channels.Broker.AmazonSns.Tests.Integration.TestTypes;
 using MsgHatch.Channels.Broker.AmazonSns.Tests.Unit.TestTypes;
 using MsgHatch.Channels.Broker.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
-using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 
 [assembly: AssemblyFixture(typeof(NoAwsCredentials))]
@@ -57,19 +56,6 @@ public sealed class AmazonSnsBrokerClientIntegTests
 
         // Assert
         Assert.Null(error);
-    }
-
-    [Fact(Skip = SnsAccount.NotConfigured, SkipUnless = nameof(SnsAccount.IsConfigured), SkipType = typeof(SnsAccount))]
-    public async Task CheckHealthAsync_TopicThatDoesNotExist_ReturnsUnavailable()
-    {
-        // Arrange
-        await using var provider = HostWith(SnsAccount.MissingTopicArn);
-
-        // Act
-        var error = await provider.GetRequiredService<IBrokerClient>().CheckHealthAsync(Ct);
-
-        // Assert
-        Assert.Equal(Errors.Unavailable, error?.Type);
     }
 
     private static ServiceProvider HostWith(string topicArn)

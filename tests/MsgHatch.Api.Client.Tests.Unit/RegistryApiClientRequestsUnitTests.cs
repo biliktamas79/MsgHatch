@@ -22,6 +22,19 @@ public sealed class RegistryApiClientRequestsUnitTests
 
     public static TheoryData<HttpStatusCode> RejectedRows => [HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden];
 
+    public static TheoryData<string, int, string, int> ProblemRows => new()
+    {
+        { "a problem of the API with its type", 404, """{"status":404,"detail":"No channel.","errorType":{"code":404,"name":"NotFound","isTransient":false}}""", 404 },
+        { "a problem of the API with a type of the consumer", 409, """{"status":409,"errorType":{"code":470,"name":"QuotaExceeded","isTransient":true}}""", 470 },
+        { "a 404 of a route that the host does not map", 404, """{"title":"Not Found","status":404}""", 500 },
+        { "a 408 of the host", 408, """{"title":"Request Timeout","status":408}""", 503 },
+        { "a 429 of the host", 429, """{"title":"Too Many Requests","status":429}""", 429 },
+        { "a 500 of the host", 500, """{"title":"Internal Server Error","status":500}""", 500 },
+        { "a 502 of a proxy with an HTML body", 502, "<html>Bad gateway</html>", 503 },
+        { "a 503 of the host", 503, """{"title":"Service Unavailable","status":503}""", 503 },
+        { "a 504 of a proxy with a JSON body that is not an object", 504, "[]", 503 },
+    };
+
     public static TheoryData<string, string> NotAllowedRows => new()
     {
         { "a null item", "[null]" },
@@ -81,6 +94,22 @@ public sealed class RegistryApiClientRequestsUnitTests
 
         // Assert
         Assert.Equal((Errors.Rejected, Errors.Rejected), (channels.Error?.Type, types.Error?.Type));
+    }
+
+    [Theory]
+    [MemberData(nameof(ProblemRows))]
+    public async Task GetChannelsAsync_ProblemResponse_GivesTheErrorTypeOfTheRow(string row, int status, string body, int expectedCode)
+    {
+        // Arrange
+        var handler = new StubHandler((HttpStatusCode)status, body);
+        await using var provider = AProvider(handler);
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var channels = await scope.ServiceProvider.GetRequiredService<IRegistryQueries>().GetChannelsAsync(Ct);
+
+        // Assert
+        Assert.Equal((row, (int?)expectedCode, "/registry/channels"), (row, channels.Error?.Type.Code, Assert.Single(handler.Uris).PathAndQuery));
     }
 
     [Theory]

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Subscriptions.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Tests.Unit.Contracts;
@@ -19,12 +20,27 @@ public sealed class EntityFrameworkSubscriptionStoreUnitTests(EntityFrameworkAcm
     {
         { "unknown level", "UPDATE Subscription SET Level = 'Team'", 415 },
         { "owner that does not match its level", "UPDATE Subscription SET Level = 'User'", 415 },
+        { "invalid message type name", "UPDATE Subscription SET MessageType = 'not a name!'", 415 },
         { "invalid settings JSON", "UPDATE Subscription SET Settings = '{'", 415 },
         { "newer settings version", "UPDATE Subscription SET SettingsVersion = 2", 426 },
         { "named users that are not a JSON array", "UPDATE Subscription SET NamedUsers = '{'", 415 },
+        { "named users that are NULL", "UPDATE Subscription SET NamedUsers = NULL", 415 },
     };
 
     private EntityFrameworkSubscriptionStoreTestData Data => EntityFrameworkSubscriptionStoreTestData.Of(Store);
+
+    [Fact]
+    public async Task AddAsync_SettingsOfAnUnregisteredChannel_GivesSerializationFailedAndStoresNothing()
+    {
+        // Arrange
+        var subscription = Scenario.S6 with { Channel = TestSubscriptions.TestChannel, Settings = new TestChannelSettings() };
+
+        // Act
+        var error = await Store.AddAsync(subscription, Ct);
+
+        // Assert
+        Assert.Equal(((int?)415, (Subscription?)null), (CodeOf(error), (await Store.GetAsync(subscription.Id, Ct)).Value));
+    }
 
     [Fact]
     public async Task AddAsync_SubscriptionForNamedUsers_WritesTheFieldsAsTextAndEmptyTextsForNoTenantAndNoUser()
@@ -87,6 +103,22 @@ public sealed class EntityFrameworkSubscriptionStoreUnitTests(EntityFrameworkAcm
 
         // Assert
         Assert.Equal((row, (int?)expectedCode), (row, stored.Error?.Type.Code));
+    }
+
+    [Fact]
+    public async Task AddAsync_DatabaseThatDoesNotExist_GivesUnavailable()
+    {
+        // Arrange
+        var missingDatabase = new FailingConnectionInterceptor();
+        var store = new EntityFrameworkSubscriptionStore(
+            new SqliteTestDatabase().ContextsOf<MsgHatchSubscriptionDbContext>(o => o.AddInterceptors(missingDatabase)), TenantKey.None,
+            ScenarioContentTypes.SettingsJson);
+
+        // Act
+        var error = await store.AddAsync(Scenario.S6, Ct);
+
+        // Assert
+        Assert.Equal(((int?)503, 1), (CodeOf(error), missingDatabase.Opens));
     }
 
     [Fact]

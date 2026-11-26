@@ -1,11 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
-using MsgHatch.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
-using MsgHatch.Domain.DependencyInjection;
-using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Subscriptions.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Subscriptions.Data.EFCore.MySql.Tests.Integration.TestTypes;
 
@@ -109,34 +104,5 @@ public sealed class EntityFrameworkMySqlSubscriptionStoreExtensionsIntegTests(My
         Assert.Equal(await MySqlSchema.OfAsync(migrated, Ct, _history, _subscriptionHistory), afterFirstRun);
         Assert.Equal(afterFirstRun, await MySqlSchema.OfAsync(scripted, Ct, _history, _subscriptionHistory));
         Assert.DoesNotContain("ALTER DATABASE", script, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task RequireCurrentSchema_SubscriptionMigrationThatIsNotApplied_FailsTheStartupWithTheContextAndTheMigration()
-    {
-        // Arrange
-        var database = server.Database("require", MigratedSubscriptionStores.TablePrefix);
-        await using (var stores = StoresOnly(database).Build())
-        {
-            await stores.MigrateMsgHatchAsync(ct: Ct);
-        }
-
-        await using var provider = MigratedSubscriptionStores.Build(database.ConnectionString, static o => o.RequireCurrentSchema = true);
-
-        // Act
-        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
-
-        // Assert
-        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
-        Assert.Equal(
-            (true, true),
-            (failure.Contains(nameof(MsgHatchSubscriptionDbContext), StringComparison.Ordinal), failure.Contains("_Initial", StringComparison.Ordinal)));
-    }
-
-    private static IServiceCollection StoresOnly(MySqlTestDatabase database)
-    {
-        var services = TestHost.CreateServices();
-        services.AddMsgHatch().UseEntityFrameworkMySqlStores(database.ConnectionString);
-        return services;
     }
 }

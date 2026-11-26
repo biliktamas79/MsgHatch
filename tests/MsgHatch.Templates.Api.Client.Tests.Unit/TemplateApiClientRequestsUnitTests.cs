@@ -42,6 +42,20 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
 
     public static TheoryData<string> BrokenRuleRows => [.. _brokenRules.Keys];
 
+    public static TheoryData<string, int, string, int> ProblemRows => new()
+    {
+        { "a problem of the API with its type", 404, """{"status":404,"detail":"No template.","errorType":{"code":404,"name":"NotFound","isTransient":false}}""", 404 },
+        { "a problem of the API with a type of the consumer", 409, """{"status":409,"errorType":{"code":470,"name":"QuotaExceeded","isTransient":true}}""", 470 },
+        { "a 401 of the host", 401, """{"title":"Unauthorized","status":401}""", 403 },
+        { "a 403 of the host", 403, """{"title":"Forbidden","status":403}""", 403 },
+        { "a 408 of the host", 408, """{"title":"Request Timeout","status":408}""", 503 },
+        { "a 429 of the host", 429, """{"title":"Too Many Requests","status":429}""", 429 },
+        { "a 500 of the host", 500, """{"title":"Internal Server Error","status":500}""", 500 },
+        { "a 502 of a proxy with an HTML body", 502, "<html>Bad gateway</html>", 503 },
+        { "a 503 of the host", 503, """{"title":"Service Unavailable","status":503}""", 503 },
+        { "a 504 of a proxy with a JSON body that is not an object", 504, "[]", 503 },
+    };
+
     [Theory]
     [MemberData(nameof(BrokenRuleRows))]
     public async Task Operation_InputThatBreaksARule_GivesValidationFailedWithNoRequest(string row)
@@ -72,6 +86,22 @@ public sealed class TemplateApiClientRequestsUnitTests(TemplateFolder folder) : 
 
         // Assert
         Assert.Equal("/templates/parts, /templates/parts?tenantId=t%201", string.Join(", ", handler.Uris.Select(static uri => uri.PathAndQuery)));
+    }
+
+    [Theory]
+    [MemberData(nameof(ProblemRows))]
+    public async Task GetTemplatePartsAsync_ProblemResponse_GivesTheErrorTypeOfTheRow(string row, int status, string body, int expectedCode)
+    {
+        // Arrange
+        var handler = new StubHandler((HttpStatusCode)status, body);
+        await using var provider = ClientOn(handler);
+        await using var scope = provider.CreateAsyncScope();
+
+        // Act
+        var parts = await scope.ServiceProvider.GetRequiredService<ITemplateQueries>().GetTemplatePartsAsync(type: null, Ct);
+
+        // Assert
+        Assert.Equal((row, (int?)expectedCode, "/templates/parts"), (row, parts.Error?.Type.Code, Assert.Single(handler.Uris).PathAndQuery));
     }
 
     [Theory]

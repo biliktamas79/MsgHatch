@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -93,6 +94,51 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
         Assert.Equal((null, message.Delivery.Id), (error, Assert.Single(claim.Value.Messages).Delivery.Id));
     }
 
+    [Theory]
+    [InlineData("name", "Initial")]
+    [InlineData("name in lower case", "initial")]
+    [InlineData("id", "20261124171400_Initial")]
+    public async Task MigrateAsync_TargetMigrationOfTheHost_AppliesThatMigration(string row, string target)
+    {
+        // Arrange
+        await using var provider = Build(_database.ConnectionString);
+        await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
+
+        // Act
+        await context.Database.MigrateAsync(target, Ct);
+
+        // Assert
+        Assert.Equal((row, "20261124171400_Initial"), (row, Assert.Single(_database.Rows("SELECT MigrationId FROM __StoreMigrations"))[0]));
+    }
+
+    [Fact]
+    public async Task ScriptMsgHatchMigrationsAsync_SqlServerContextWithNoMigrations_GivesTheScriptOfItsHistoryTableInItsSchema()
+    {
+        // Arrange
+        await using var provider = Build(static o => o.UseSqlServer("Server=127.0.0.1,1;Database=script"));
+
+        // Act
+        var script = await provider.ScriptMsgHatchMigrationsAsync(Ct);
+
+        // Assert
+        Assert.Contains("CREATE TABLE [msghatch].[__StoreMigrations]", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ScriptMsgHatchMigrationsAsync_CancelledToken_ThrowsOperationCanceledException()
+    {
+        // Arrange
+        await using var provider = Build(_database.ConnectionString);
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        await cancelled.CancelAsync();
+
+        // Act
+        var exception = await Record.ExceptionAsync(() => provider.ScriptMsgHatchMigrationsAsync(cancelled.Token));
+
+        // Assert
+        Assert.IsType<OperationCanceledException>(exception);
+    }
+
     [Fact]
     public async Task HasPendingModelChanges_ModelOfTheContext_HasNoChangeAgainstTheMigrationsOfTheHost()
     {
@@ -124,6 +170,27 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
     }
 
     [Fact]
+    public async Task RequireCurrentSchema_HistoryThatIsNotReadable_FailsTheStartupWithTheContext()
+    {
+        // Arrange
+        var ioError = new SqliteException("disk I/O error", 10);
+        var failingConnection = new FailingConnectionInterceptor(ioError);
+        await using var provider = Build(
+            o => SqliteHostMigrations.UseSqlite(o.AddInterceptors(failingConnection), _database.ConnectionString), requireCurrentSchema: true);
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.Equal(
+            (true, true, true, 1),
+            (failure.StartsWith("UseEntityFrameworkStores requires the current schema", StringComparison.Ordinal),
+                failure.Contains(nameof(MsgHatchDbContext), StringComparison.Ordinal), failure.EndsWith(ioError.Message, StringComparison.Ordinal),
+                failingConnection.Opens));
+    }
+
+    [Fact]
     public async Task RequireCurrentSchema_EachMigrationApplied_PassesTheStartup()
     {
         // Arrange
@@ -145,11 +212,14 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
     private static List<string?[]> SchemaOf(SqliteTestDatabase database) =>
         [.. database.Rows("SELECT type, name, sql FROM sqlite_master ORDER BY type, name"), .. database.Rows("SELECT * FROM __StoreMigrations")];
 
-    private static ServiceProvider Build(string connectionString, bool requireCurrentSchema = false)
+    private static ServiceProvider Build(string connectionString, bool requireCurrentSchema = false) =>
+        Build(o => SqliteHostMigrations.UseSqlite(o, connectionString), requireCurrentSchema);
+
+    private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure, bool requireCurrentSchema = false)
     {
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => (o.EnableLogging, o.Roles) = (false, MsgHatchRoles.Consumer))
-            .UseEntityFrameworkStores(o => SqliteHostMigrations.UseSqlite(o, connectionString), o => o.RequireCurrentSchema = requireCurrentSchema)
+            .UseEntityFrameworkStores(configure, o => o.RequireCurrentSchema = requireCurrentSchema)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => NSubstitute.Substitute.For<MsgHatch.Domain.Routing.IMessageRouter<TestEvent>>()));
         return services.Build();
     }

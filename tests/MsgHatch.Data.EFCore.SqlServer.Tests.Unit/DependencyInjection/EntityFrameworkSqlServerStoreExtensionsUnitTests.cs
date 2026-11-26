@@ -1,14 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.SqlServer.Tests.Unit.TestTypes;
+using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Persistence;
+using MsgHatch.Domain.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Data.EFCore.SqlServer.Tests.Unit.DependencyInjection;
 
 /// <summary>
-/// <c>UseEntityFrameworkSqlServerStores</c> with no database (D318, D320): the startup validation, and the model has no pending
-/// change against the migrations of the package. No test opens a connection, so the connection string names a closed
-/// port.
+/// <c>UseEntityFrameworkSqlServerStores</c> with no database (D318, D320, D322): the startup validation, the model has no
+/// pending change against the migrations of the package, the startup check of <c>RequireCurrentSchema</c> with a doubled
+/// history of the migrations, and the error of a missing table with a doubled connection. No test opens a connection, so
+/// the connection string names a closed port.
 /// </summary>
 public sealed class EntityFrameworkSqlServerStoreExtensionsUnitTests
 {
@@ -48,5 +54,44 @@ public sealed class EntityFrameworkSqlServerStoreExtensionsUnitTests
 
         // Assert
         Assert.False(hasChanges);
+    }
+
+    [Fact]
+    public async Task RequireCurrentSchema_MigrationThatIsNotApplied_FailsTheStartupWithTheContextAndTheMigration()
+    {
+        // Arrange
+        await using var provider = MigratedStores.BuildWithDoubles(
+            _connectionString, static o => o.ReplaceService<IHistoryRepository, NoAppliedMigrations>(), static o => o.RequireCurrentSchema = true);
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        var failure = Assert.Single(Assert.IsType<OptionsValidationException>(exception).Failures);
+        Assert.Equal(
+            (true, true),
+            (failure.Contains(nameof(MsgHatchDbContext), StringComparison.Ordinal), failure.Contains("_Initial", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task Stores_DatabaseWithNoMigrations_GiveValidationFailed()
+    {
+        // Arrange
+        const int invalidObjectName = 208;
+        var missingTable = new FailingConnectionInterceptor(TestSqlExceptions.ASqlException(invalidObjectName));
+        await using var provider = MigratedStores.BuildWithDoubles(_connectionString, o => o.AddInterceptors(missingTable));
+        var contexts = provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>();
+        var json = new MsgHatchJson(TestContentTypes.ARegistry());
+        var now = TestHost.Start.UtcDateTime;
+
+        // Act
+        var inbox = await new EntityFrameworkInboxStore(contexts, json).ClaimDueAsync(10, now, TimeSpan.FromSeconds(30), Ct);
+        var outbox = await new EntityFrameworkOutboxStore(contexts, json).ClaimDueAsync(TestChannel.Id, 10, now, TimeSpan.FromSeconds(30), Ct);
+        var registry = await new EntityFrameworkRegistrySettingsStore(contexts).GetEntriesAsync(Ct);
+
+        // Assert
+        Assert.Equal(
+            (Errors.ValidationFailed, Errors.ValidationFailed, Errors.ValidationFailed, 3),
+            (inbox.Error?.Type, outbox.Error?.Type, registry.Error?.Type, missingTable.Opens));
     }
 }

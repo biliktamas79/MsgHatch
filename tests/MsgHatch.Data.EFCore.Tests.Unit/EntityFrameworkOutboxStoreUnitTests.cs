@@ -62,6 +62,20 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
     }
 
     [Fact]
+    public async Task AddAsync_MessageOfAnUnregisteredType_ReturnsSerializationFailedAndAddsNothingOfTheBatch()
+    {
+        // Arrange
+        OutgoingMessage[] batch = [AMessage(T1), AMessage(T1) with { ContentType = "Test:Unknown" }];
+
+        // Act
+        var error = await TenantStore(T1).AddAsync(batch, Ct);
+
+        // Assert
+        Assert.Equal(Errors.SerializationFailed, error?.Type);
+        Assert.Empty(await TestData.GetStoredAsync(Ct));
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_DueMessage_WritesTheClaimTokenAndTheDueTimeBeforeTheClaim()
     {
         // Arrange
@@ -125,8 +139,9 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         // Assert
         Assert.Equal(message.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
         Assert.Equal(
-            ["Failed", null],
-            Assert.Single(_database.Rows($"SELECT Status, LeaseUntilUtc FROM Outbox WHERE Id = '{unreadable.Delivery.Id:D}'")));
+            ["Failed", "SerializationFailed", null],
+            Assert.Single(_database.Rows(
+                $"SELECT Status, substr(LastError, 1, instr(LastError, ':') - 1), LeaseUntilUtc FROM Outbox WHERE Id = '{unreadable.Delivery.Id:D}'")));
     }
 
     [Fact]
@@ -173,6 +188,21 @@ public sealed class EntityFrameworkOutboxStoreUnitTests : OutboxStoreTestsBase<E
         Assert.Equal(
             ["2", "Up", "Down", "5400000", null, null],
             Assert.Single(_database.Rows("SELECT Version, Kind, PreviousKind, PreviousDurationMs, Reason, NextCheckAtUtc FROM ChannelState WHERE Version = 2")));
+    }
+
+    [Fact]
+    public async Task ClaimDueAsync_DatabaseThatDoesNotExist_ReturnsUnavailable()
+    {
+        // Arrange
+        var missingDatabase = new FailingConnectionInterceptor();
+        var store = new EntityFrameworkOutboxStore(
+            new SqliteTestDatabase().ContextsOf<MsgHatchDbContext>(o => o.AddInterceptors(missingDatabase)), new MsgHatchJson(TestContentTypes.ARegistry()));
+
+        // Act
+        var result = await store.ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
+
+        // Assert
+        Assert.Equal((Errors.Unavailable, 1), (result.Error?.Type, missingDatabase.Opens));
     }
 
     [Fact]

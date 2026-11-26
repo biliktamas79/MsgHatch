@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using MsgHatch.Dispatch.RabbitMq.DependencyInjection;
 using MsgHatch.Dispatch.RabbitMq.Tests.Unit.TestTypes;
@@ -11,8 +12,9 @@ using MsgHatch.Domain.Tests.Unit.TestTypes;
 namespace MsgHatch.Dispatch.RabbitMq.Tests.Unit;
 
 /// <summary>
-/// The RabbitMQ signal with no broker (D305): a listener closes each connection, so each connect fails. The tests wait for
-/// the connect with real time and <see cref="TestHost.HangGuard"/>, and end the pause with the fake clock.
+/// The RabbitMQ signal with no broker (D305): a listener closes each connection, so each connect fails, or a silent
+/// listener keeps the connect in the AMQP handshake. The tests wait for the connect with real time and
+/// <see cref="TestHost.HangGuard"/>, and end the pause with the fake clock.
 /// </summary>
 public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
 {
@@ -24,16 +26,14 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
     /// <summary>A real time in which the signal can connect to the listener many times, so a missing pause shows.</summary>
     private static readonly TimeSpan _timeForManyConnects = TimeSpan.FromMilliseconds(300);
 
+    /// <summary>A real time in which a warning that the signal logs after the end of its connect shows.</summary>
+    private static readonly TimeSpan _timeForALateWarning = TimeSpan.FromMilliseconds(300);
+
     private readonly ClosingListener _broker = new();
     private readonly FakeTimeProvider _time = TestHost.NewFakeTime();
     private readonly ServiceProvider _host;
 
-    public RabbitMqDispatchSignalUnitTests()
-    {
-        var services = TestHost.CreateServices(_time);
-        services.AddMsgHatch().UseInMemoryStores().UseRabbitMqDispatchSignal(o => o.Uri = _broker.Uri);
-        _host = services.Build();
-    }
+    public RabbitMqDispatchSignalUnitTests() => _host = HostOn(_broker.Uri, _time);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -98,6 +98,93 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
         Assert.Equal(Errors.Unavailable, error?.Type);
         var warning = Assert.Single(_host.LogRecords(), static record => record.Id.Id == _noConnection);
         Assert.Equal(LogLevel.Warning, warning.Level);
+    }
+
+    [Fact]
+    public async Task NotifyAsync_WhileItConnects_ReturnsNoError()
+    {
+        // Arrange
+        using var broker = new SilentListener();
+        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        var signal = host.GetRequiredService<IDispatchSignal>();
+
+        // Act
+        var error = await signal.NotifyAsync(_topic, Ct);
+
+        // Assert
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public async Task WaitAsync_NotificationOfTheOwnProcessWhileItConnects_CompletesTheWait()
+    {
+        // Arrange
+        using var broker = new SilentListener();
+        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        var signal = host.GetRequiredService<IDispatchSignal>();
+        var wait = signal.WaitAsync(_topic, Ct);
+
+        // Act
+        await signal.NotifyAsync(_topic, Ct);
+
+        // Assert
+        Assert.Null(await CompletedAsync(wait));
+    }
+
+    [Fact]
+    public async Task WaitAsync_CallerCancelsWhileItConnects_ReturnsOperationCancelled()
+    {
+        // Arrange
+        using var broker = new SilentListener();
+        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        var wait = host.GetRequiredService<IDispatchSignal>().WaitAsync(_topic, cancel.Token);
+
+        // Act
+        await cancel.CancelAsync();
+
+        // Assert
+        Assert.Equal(Errors.OperationCancelled, (await CompletedAsync(wait))?.Type);
+    }
+
+    [Fact]
+    public async Task WaitAsync_AfterTheDispose_ReturnsUnavailableAtOnceWithNoConnect()
+    {
+        // Arrange
+        var signal = Signal;
+        await _host.DisposeAsync();
+
+        // Act
+        var wait = signal.WaitAsync(_topic, Ct);
+
+        // Assert
+        Assert.True(wait.IsCompleted);
+        Assert.Equal((Errors.Unavailable, 0), ((await wait)?.Type, _broker.Connections));
+    }
+
+    [Fact]
+    public async Task WaitAsync_DisposeWhileItConnects_ReturnsUnavailableAndLogsNoWarning()
+    {
+        // Arrange
+        using var broker = new SilentListener();
+        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        var logs = host.GetFakeLogCollector();
+        var wait = host.GetRequiredService<IDispatchSignal>().WaitAsync(_topic, Ct);
+
+        // Act
+        await host.DisposeAsync();
+        var error = await CompletedAsync(wait);
+        await Task.Delay(_timeForALateWarning, TimeProvider.System, Ct);
+
+        // Assert
+        Assert.Equal((Errors.Unavailable, 0), (error?.Type, logs.GetSnapshot().Count(static record => record.Id.Id == _noConnection)));
+    }
+
+    private static ServiceProvider HostOn(Uri broker, FakeTimeProvider time)
+    {
+        var services = TestHost.CreateServices(time);
+        services.AddMsgHatch().UseInMemoryStores().UseRabbitMqDispatchSignal(o => o.Uri = broker);
+        return services.Build();
     }
 
     private static Task<Error?> CompletedAsync(ValueTask<Error?> wait) =>

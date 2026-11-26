@@ -23,9 +23,6 @@ public static class SnsAccount
         && !string.IsNullOrWhiteSpace(Settings.Region) && !string.IsNullOrWhiteSpace(Settings.TopicArn)
         && !string.IsNullOrWhiteSpace(Settings.QueueUrl);
 
-    /// <summary>The ARN of a topic that does not exist, in the account and the region of the topic of the settings.</summary>
-    public static string MissingTopicArn => $"{Settings.TopicArn![..(Settings.TopicArn!.LastIndexOf(':') + 1)]}msghatch-missing-{Guid.NewGuid():N}";
-
     public static IAmazonSimpleNotificationService NewSnsClient() =>
         new AmazonSimpleNotificationServiceClient(Credentials(), RegionEndpoint.GetBySystemName(Settings.Region));
 

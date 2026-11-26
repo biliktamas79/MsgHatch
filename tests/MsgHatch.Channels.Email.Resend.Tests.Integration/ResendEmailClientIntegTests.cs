@@ -3,7 +3,6 @@ using MsgHatch.Channels.Email.Resend.DependencyInjection;
 using MsgHatch.Channels.Email.Resend.Tests.Integration.TestTypes;
 using MsgHatch.Channels.Email.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
-using MsgHatch.Domain.Failures;
 using MsgHatch.Templates.Tests.Unit.TestTypes;
 
 namespace MsgHatch.Channels.Email.Resend.Tests.Integration;
@@ -11,12 +10,10 @@ namespace MsgHatch.Channels.Email.Resend.Tests.Integration;
 /// <summary>
 /// The Resend client against the real Resend API, through <c>UseResend</c> (section 4.6). The account comes from
 /// <see cref="ResendAccount"/>, and each test is skipped while its API key is empty. Each accepted email counts toward the
-/// quota of the account. A test with a wrong API key sends no email.
+/// quota of the account.
 /// </summary>
 public sealed class ResendEmailClientIntegTests
 {
-    private const string _wrongApiKey = "re_msghatch_wrong_key";
-
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact(Skip = ResendAccount.NotConfigured, SkipUnless = nameof(ResendAccount.IsConfigured), SkipType = typeof(ResendAccount))]
@@ -68,20 +65,6 @@ public sealed class ResendEmailClientIntegTests
     }
 
     [Fact(Skip = ResendAccount.NotConfigured, SkipUnless = nameof(ResendAccount.IsConfigured), SkipType = typeof(ResendAccount))]
-    public async Task SendAsync_WrongApiKey_ReturnsUnavailable()
-    {
-        // Arrange
-        await using var provider = HostWith(apiKey: _wrongApiKey);
-        var email = new EmailMessage(ResendAccount.Settings.Recipient!, "MsgHatch test: wrong API key", "<p>Not sent</p>");
-
-        // Act
-        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), email, Ct);
-
-        // Assert
-        Assert.Equal(Errors.Unavailable, result.Error?.Type);
-    }
-
-    [Fact(Skip = ResendAccount.NotConfigured, SkipUnless = nameof(ResendAccount.IsConfigured), SkipType = typeof(ResendAccount))]
     public async Task CheckHealthAsync_ApiKeyOfTheAccount_ReturnsNull()
     {
         // Arrange
@@ -94,25 +77,12 @@ public sealed class ResendEmailClientIntegTests
         Assert.Null(error);
     }
 
-    [Fact(Skip = ResendAccount.NotConfigured, SkipUnless = nameof(ResendAccount.IsConfigured), SkipType = typeof(ResendAccount))]
-    public async Task CheckHealthAsync_WrongApiKey_ReturnsUnavailable()
-    {
-        // Arrange
-        await using var provider = HostWith(apiKey: _wrongApiKey);
-
-        // Act
-        var error = await provider.GetRequiredService<IEmailClient>().CheckHealthAsync(Ct);
-
-        // Assert
-        Assert.Equal(Errors.Unavailable, error?.Type);
-    }
-
-    private static ServiceProvider HostWith(string? senderName = null, string? apiKey = null)
+    private static ServiceProvider HostWith(string? senderName = null)
     {
         var services = TestHost.CreateServices();
         services.AddMsgHatch().UseResend(o =>
         {
-            o.ApiKey = apiKey ?? ResendAccount.Settings.ApiKey!;
+            o.ApiKey = ResendAccount.Settings.ApiKey!;
             o.SenderEmail = ResendAccount.Settings.SenderEmail!;
             o.SenderName = senderName;
         });

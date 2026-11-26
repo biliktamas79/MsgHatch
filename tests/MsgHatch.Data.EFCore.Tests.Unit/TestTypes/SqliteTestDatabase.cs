@@ -81,6 +81,10 @@ public sealed class SqliteTestDatabase
         return command.ExecuteNonQuery();
     }
 
+    /// <summary>Makes each insert into a table fail with a <see cref="SqliteException"/>, as a refused write gives it. The reads still work.</summary>
+    public void RefuseInserts(string table) =>
+        Execute($"CREATE TRIGGER Refuse{table}Inserts BEFORE INSERT ON {table} BEGIN SELECT RAISE(ABORT, 'refused'); END");
+
     private SqliteConnection Open()
     {
         var connection = new SqliteConnection(ConnectionString);
