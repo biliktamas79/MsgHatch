@@ -111,6 +111,10 @@ The options are `EntityFrameworkStoreOptions` of `MsgHatch.Data.EFCore`:
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.7.0 (2026-11-25)
 
 - Breaking: the new column `OwnerKey` holds the SHA-256 of the 7 key values of a subscription: the tenant, the message type, the level, the company, the user, the channel, and the recipient kind. The unique index `UX_Subscription_Owner` has only this column, so it has 32 bytes on each provider, also on MySQL, which refuses an index key of more than 3,072 bytes. The key compares bytes, so a `TextCollation` that ignores case gives one owner for each spelling of an id. The new index `IX_Subscription_Type` on the tenant and the message type serves the delivery read. A host with migrations of its own makes them again.

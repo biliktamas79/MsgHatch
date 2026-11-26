@@ -12,6 +12,10 @@ dotnet add package MsgHatch.Templates.Api.Contracts
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the bodies of the template management API with their JSON context.

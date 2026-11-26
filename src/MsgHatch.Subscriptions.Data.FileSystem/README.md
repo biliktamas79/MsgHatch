@@ -37,6 +37,10 @@ The options are `FileStoreOptions` of `MsgHatch.Data.FileSystem`:
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the JSON file subscription store with `UseFileSubscriptionStore`.

@@ -1,4 +1,6 @@
 # MsgHatch
+![MsgHatch icon](assets/icon.png)
+
 A flexible and extensible .NET library that can generate and handle various message formats - such as emails, SMS or push notifications - based on templates.
 
 MsgHatch turns domain events into messages, and delivers them by email, as real-time UI updates with SignalR, or through a message broker such as RabbitMQ, Amazon SQS, or Kafka with Wolverine, or Amazon SNS directly. A router decides who gets each message on which channel. The optional package `MsgHatch.Subscriptions` is a router with managed subscriptions.

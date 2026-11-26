@@ -3502,9 +3502,11 @@ Packages (D308):
 - A pack turns each project reference into a package dependency with the version of the pack. For example, `MsgHatch.Channels.Email.AmazonSes` 0.1.0 depends on `MsgHatch.Channels.Email` 0.1.0 or later. An analyzer reference with `ReferenceOutputAssembly="false"` gives no dependency.
 - `MsgHatch.Templates` carries the generator assembly in `analyzers/dotnet/cs`, so the placeholder payload generator runs in each consumer. The assembly also holds the HTTP client generator, which adds its internal attributes of the namespace `MsgHatch.Http` to each consumer compilation. A consumer does not use them, and an internal type of one assembly does not conflict with another assembly.
 - The SDK adds Source Link, so the nuspec of each package holds the repository URL and the commit. Each package has a symbol package `.snupkg`.
+- Each package has the icon `icon.png` in its root as `PackageIcon`. `Directory.Build.props` packs it from `assets/icon.png`: a 128 × 128 PNG, which is transparent outside the rounded tile. nuget.org takes a PNG or a JPEG of at most 1 MB, and recommends 128 × 128. `assets/icon.svg` is the source of the PNG.
 
 `pwsh ./pack.ps1 [-VersionSuffix <suffix>]` packs the solution in Release into `artifacts/packages`. It fails when:
 - A package has another version, no license expression `Apache-2.0`, no description, no tags, no repository commit, or no symbol package.
+- A package has no icon `icon.png`, or its icon is not a 128 × 128 PNG of at most 1 MB.
 - A package depends on `MsgHatch.SourceGeneration`, or on a MsgHatch package of another version.
 - A packable project under `src/` has no package, or a package has no packable project under `src/`.
 - `MsgHatch.Templates` has no generator, or a package does not hold a file of the `wwwroot` folder of its project or the bundle of its scoped CSS.

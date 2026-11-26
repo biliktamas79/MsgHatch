@@ -157,6 +157,10 @@ A database with no schemas inside it, for example MySQL, where a schema is a dat
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.7.0 (2026-11-25)
 
 - The new package `MsgHatch.Data.EFCore.MySql` ships the dialect and the migrations for MySQL.

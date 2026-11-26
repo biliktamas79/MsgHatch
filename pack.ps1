@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 # Packs each packable project in Release into artifacts/packages, and checks each package.
-# Fails when a package has a wrong version or wrong metadata, when a package is missing,
+# Fails when a package has a wrong version, wrong metadata, or no icon, when a package is missing,
 # or when a package has no project under src/.
 param([string]$VersionSuffix = '')
 
@@ -25,6 +25,26 @@ function Read-PackageEntry([System.IO.Compression.ZipArchive]$zip, [string]$path
     try { $reader.ReadToEnd() } finally { $reader.Dispose() }
 }
 
+function Read-PackageBytes([System.IO.Compression.ZipArchive]$zip, [string]$path) {
+    $entry = $zip.GetEntry($path)
+    if (-not $entry) { return , [byte[]]@() }
+    $stream = $entry.Open()
+    $memory = [System.IO.MemoryStream]::new()
+    try { $stream.CopyTo($memory); , $memory.ToArray() } finally { $stream.Dispose() }
+}
+
+function Read-BigEndianInt32([byte[]]$bytes, [int]$offset) {
+    ($bytes[$offset] -shl 24) -bor ($bytes[$offset + 1] -shl 16) -bor ($bytes[$offset + 2] -shl 8) -bor $bytes[$offset + 3]
+}
+
+function Get-IconFailures([string]$id, [string]$icon, [byte[]]$bytes) {
+    if ($icon -ne 'icon.png' -or $bytes.Length -eq 0) { return "$id has no icon icon.png." }
+    $pngSignature = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+    $isPng = $bytes.Length -ge 24 -and [System.Linq.Enumerable]::SequenceEqual([byte[]]$bytes[0..7], $pngSignature)
+    if (-not $isPng -or (Read-BigEndianInt32 $bytes 16) -ne 128 -or (Read-BigEndianInt32 $bytes 20) -ne 128) { "$id has an icon that is not a 128 x 128 PNG." }
+    if ($bytes.Length -gt 1MB) { "$id has an icon of more than 1 MB." }
+}
+
 function Get-SourceFiles([string]$folder, [string]$filter) {
     Get-ChildItem $folder -Filter $filter -Recurse -File -ErrorAction Ignore |
         Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' }
@@ -47,6 +67,7 @@ function Get-PackageFailures([string]$file, [string]$expectedVersion) {
     try {
         $entries = @($zip.Entries | ForEach-Object { $_.FullName })
         $nuspec = [xml](Read-PackageEntry $zip ($entries | Where-Object { $_ -like '*.nuspec' }))
+        $iconBytes = Read-PackageBytes $zip 'icon.png'
     }
     finally { $zip.Dispose() }
 
@@ -57,6 +78,7 @@ function Get-PackageFailures([string]$file, [string]$expectedVersion) {
     if ([string]::IsNullOrWhiteSpace($metadata.description) -or $metadata.description -eq 'Package Description') { "$id has no description." }
     if ([string]::IsNullOrWhiteSpace($metadata.tags)) { "$id has no tags." }
     if ($metadata.readme -ne 'README.md' -or $entries -notcontains 'README.md') { "$id has no README." }
+    Get-IconFailures $id $metadata.icon $iconBytes
     if (-not $metadata.repository -or [string]::IsNullOrWhiteSpace($metadata.repository.commit)) { "$id has no repository commit." }
     if (-not (Test-Path (Join-Path $output "$id.$expectedVersion.snupkg"))) { "$id has no symbol package." }
 

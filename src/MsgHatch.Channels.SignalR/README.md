@@ -40,6 +40,10 @@ In the payload builder of a message type, `AsSignalR(name, version, json)` regis
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.6.0 (2026-11-25)
 
 - Breaking: the package id is `MsgHatch.Channels.SignalR`, not `MsgHatch.SignalR`. Each namespace starts with `MsgHatch.Channels.SignalR`, not `MsgHatch.SignalR`. The class names and the setup methods do not change, so a host changes only its package reference and its `using` directives.

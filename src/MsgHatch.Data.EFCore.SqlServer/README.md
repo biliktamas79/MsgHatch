@@ -96,6 +96,10 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.5.0 (2026-11-24)
 
 - The option `JsonColumnType = "json"` gives the JSON columns the type `json` of SQL Server 2025 and Azure SQL. With no option, they stay `nvarchar(max)`. Breaking: a JSON column has no collation.

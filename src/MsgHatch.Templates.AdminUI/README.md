@@ -23,6 +23,10 @@ The host maps the pages with the assembly of `TemplateAdminRoutes` as an additio
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the template list, view, and edit pages with the preview, and the editor extension point, with `AddMsgHatchTemplatesAdminUI`.

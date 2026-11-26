@@ -47,6 +47,10 @@ await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.7.0 (2026-11-25)
 
 - The first version: `UseEntityFrameworkMySqlSubscriptionStore`, the collation of the dialect of `MsgHatch.Data.EFCore.MySql`, and the migrations of `MsgHatchSubscriptionDbContext` for MySQL.

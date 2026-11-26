@@ -52,6 +52,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.2.1 (2026-11-24)
 
 - The package depends on the latest stable version of `Microsoft.Extensions.Caching.Hybrid` within the major 10 at the time of the pack, not on 10.11.0. The API does not change.

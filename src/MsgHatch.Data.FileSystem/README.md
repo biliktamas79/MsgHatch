@@ -46,6 +46,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.1.1 (2026-11-23)
 
 - Fix: on Linux and macOS, two parallel changes of the state of one channel could both report success, and the second state row replaced the first. So the pause of an operator could be lost. A new state row now gets its name with a hard link, which fails when the row exists.

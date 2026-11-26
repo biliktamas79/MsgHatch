@@ -42,6 +42,10 @@ The options of the mapping are code only, with no configuration section:
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the HTTP endpoints of the subscription management API and of the routing verification with `MapMsgHatchSubscriptions`.

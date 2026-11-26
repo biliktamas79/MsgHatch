@@ -37,6 +37,10 @@ await serviceProvider.MigrateMsgHatchAsync(ct: cancellationToken);
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.7.0 (2026-11-25)
 
 - Breaking: the new column `OwnerKey` holds the SHA-256 of the 7 key values of a subscription, and the unique index `UX_Subscription_Owner` has only this column. The new index `IX_Subscription_Type` on the tenant and the message type serves the delivery read. The new `Initial` migration of the package creates them, so a database of an earlier version needs a new database or a manual change.

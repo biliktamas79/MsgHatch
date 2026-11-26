@@ -57,6 +57,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.2.1 (2026-11-24)
 
 - The package depends on the latest stable version of `MongoDB.Driver` within the major 3 at the time of the pack, not on 3.14.0. The API does not change.

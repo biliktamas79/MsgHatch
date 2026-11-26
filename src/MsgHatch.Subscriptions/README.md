@@ -32,6 +32,10 @@ The example app of the repository shows a complete registration: [`ExampleSetup.
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the subscription router with `UseSubscriptions`, the management API, the routing verifier, the recipient directory contract, the in-memory subscription store, and the subscription cache wrapper.

@@ -12,7 +12,7 @@
     <IsUnitOrIntegrationTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit')) Or $(MSBuildProjectName.EndsWith('.Tests.Integration'))">true</IsUnitOrIntegrationTestProject>
     <IsTestExecutable>$(IsUnitOrIntegrationTestProject)</IsTestExecutable>
     <IsTestExecutable Condition="$(MSBuildProjectName.EndsWith('.Tests.Performance'))">true</IsTestExecutable>
-    <VersionPrefix>0.7.0</VersionPrefix>
+    <VersionPrefix>0.7.1</VersionPrefix>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsSourceProject)' == 'true'">
@@ -30,11 +30,13 @@
     <EnablePackageValidation>true</EnablePackageValidation>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsSourceProject)' == 'true'">
     <Compile Include="$(MSBuildThisFileDirectory)src/GeneratedCodeSuppressions.cs" Link="GeneratedCodeSuppressions.cs" />
     <None Include="$(MSBuildProjectDirectory)/README.md" Pack="true" PackagePath="/" />
+    <None Include="$(MSBuildThisFileDirectory)assets/icon.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(IsSourceProject)' != 'true'">

@@ -48,6 +48,10 @@ services.AddMsgHatch()
 
 ## Version history
 
+### 0.7.1 (2026-11-26)
+
+- The package has the MsgHatch icon. The code and the API do not change.
+
 ### 0.1.0 (2026-11-22)
 
 - The first version: the named pipe dispatch signal between the processes of one machine with `UseNamedPipeDispatchSignal`.
