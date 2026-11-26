@@ -26,6 +26,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         Assert.Equal(["Edit", "Delete"], rows[0].Children[^1].Children.Select(static button => button.TextContent));
         Assert.Equal(["User 7", "Notices", "OptOut", "All channels"], rows[1].Children.Take(4).Select(static cell => cell.TextContent));
         Assert.Equal("msghatch/subscriptions/3f2c6b1e-7a40-4c1d-9a7e-1b2c3d4e5f60", rows[0].QuerySelector("a")!.GetAttribute("href"));
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -68,6 +69,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal(["Company", "2 named users"], cut.FindAll("tr[data-row]").Select(static row => row.Children[4].TextContent));
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -81,6 +83,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal("There are no subscriptions.", cut.Find("[data-state=empty]").TextContent);
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -94,6 +97,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -107,6 +111,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -154,6 +159,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         // Assert
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
         Assert.Equal(("Channel", "Yes"), (row.Children[2].TextContent, row.Children[5].TextContent));
+        Queries.Received(3).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -217,6 +223,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code"));
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -238,6 +245,8 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal(["Pager"], cut.FindAll("tr[data-row]").Select(static row => row.Children[3].TextContent));
+        await Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(Level: SubscriptionLevel.Company), Arg.Any<CancellationToken>());
+        await Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(Level: SubscriptionLevel.User), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -253,6 +262,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         // Assert
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
         Assert.Equal("Pager", row.Children[3].TextContent);
+        Queries.Received(2).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -325,7 +335,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         var expected = new SubscriptionDraft(SubscriptionOwner.Default, Requests, SubscriptionKind.Channel, Fax, new FaxSettings("1"),
             SubscriptionRecipients.ForUsers([new UserId("1"), new UserId("2")]));
         Commands.Received(1).CreateAsync(expected, Arg.Any<CancellationToken>());
-        Queries.ReceivedWithAnyArgs(2).GetSubscriptionsAsync(default!, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
         Assert.Equal((0, "http://localhost/"), (cut.FindAll(".modal").Count, Navigation.Uri));
     }
 
@@ -365,6 +375,9 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
         // Assert
         var alert = cut.Find(".modal [data-actions-middle] .alert-danger");
         Assert.Equal((duplicate, "409", 1, 1), (alert.TextContent, alert.GetAttribute("data-error-code"), cut.FindAll(".modal").Count, cut.FindAll(".alert-danger").Count));
+        var expected = new SubscriptionDraft(SubscriptionOwner.Default, Requests, SubscriptionKind.OptOut, Fax, Settings: null, SubscriptionRecipients.ScopeUsers);
+        Commands.Received(1).CreateAsync(expected, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -413,6 +426,9 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal((AdminErrors.RejectedText, 1), (cut.Find(".modal .alert-danger").TextContent, cut.FindAll(".modal").Count));
+        var expected = new SubscriptionDraft(SubscriptionOwner.Default, Requests, SubscriptionKind.Channel, Fax, new FaxSettings("1"), SubscriptionRecipients.ScopeUsers);
+        Commands.Received(1).CreateAsync(expected, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -463,6 +479,8 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
             "owner: Company 42, type: Requests, kind: Channel, channel: Fax, recipients: Scope users, mandatory: No, revision: 3",
             string.Join(", ", cut.FindAll(".modal [data-delete-details] [data-detail]").Select(static dd => $"{dd.GetAttribute("data-detail")}: {dd.TextContent}")));
         Assert.Single(cut.FindAll(".modal [data-delete-effect]"));
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
+        Commands.DidNotReceiveWithAnyArgs().DeleteAsync(default, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -479,7 +497,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Commands.Received(1).DeleteAsync(Id, Arg.Any<CancellationToken>());
-        Queries.ReceivedWithAnyArgs(2).GetSubscriptionsAsync(default!, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
         Assert.Empty(cut.FindAll(".modal"));
     }
 
@@ -513,6 +531,7 @@ public sealed class SubscriptionListPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal((AdminErrors.RejectedText, 1), (cut.Find("[data-list-body] > .alert-danger").TextContent, cut.FindAll("tr[data-row]").Count));
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     private void GivenSubscriptions(params Subscription[] subscriptions) =>

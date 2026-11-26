@@ -25,6 +25,9 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
             ("Channels", 2, RegistryAdminRoutes.Channel(Email).TrimStart('/'), RegistryAdminRoutes.ChannelEdit(Email).TrimStart('/')),
             (cut.Find("[data-list-header] h1").TextContent, rows[0].QuerySelectorAll("[data-feature].badge").Length,
                 rows[0].QuerySelector("[data-action=view]")?.GetAttribute("href"), rows[0].QuerySelector("[data-action=edit]")?.GetAttribute("href")));
+        Queries.Received(1).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetChannelHistoryAsync(Sms, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetChannelHistoryAsync(Fax, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -99,6 +102,7 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal("There are no channels.", cut.Find("[data-state=empty]").TextContent);
+        Queries.DidNotReceiveWithAnyArgs().GetChannelHistoryAsync(default, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -112,6 +116,8 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+        Queries.DidNotReceive().GetMessageTypesAsync(Arg.Any<CancellationToken>());
+        Queries.DidNotReceiveWithAnyArgs().GetChannelHistoryAsync(default, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -125,5 +131,6 @@ public sealed class ChannelListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal((AdminErrors.RejectedText, 0), (cut.Find(".alert-danger").TextContent, cut.FindAll("tr[data-row]").Count));
+        Queries.DidNotReceiveWithAnyArgs().GetChannelHistoryAsync(default, Arg.Any<CancellationToken>());
     }
 }

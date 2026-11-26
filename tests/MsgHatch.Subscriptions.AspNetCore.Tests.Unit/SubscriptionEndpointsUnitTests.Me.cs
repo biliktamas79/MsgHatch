@@ -129,6 +129,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal((400, "ValidationFailed"), await EndpointHost.ProblemOf(response));
+        await host.Manager.DidNotReceiveWithAnyArgs().GetMessageTypesAsync(default!, Ct);
     }
 
     [Fact]
@@ -160,6 +161,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal((400, "ValidationFailed"), await EndpointHost.ProblemOf(response));
+        await host.Manager.DidNotReceiveWithAnyArgs().GetSubscriptionsAsync(default!, Ct);
     }
 
     [Fact]
@@ -222,6 +224,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal((503, "Unavailable"), await EndpointHost.ProblemOf(response));
+        await host.Manager.Received(1).GetSubscriptionAsync(Guid.Parse(_anId), Arg.Any<CancellationToken>());
     }
 
     [Fact]

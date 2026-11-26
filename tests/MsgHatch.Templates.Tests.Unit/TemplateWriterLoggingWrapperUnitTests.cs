@@ -30,13 +30,15 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
     public async Task UseTemplateStore_WritableStore_ResolvesAsAWriterThatGivesTheResultOfTheInnerWriter(bool enableLogging)
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AWritableStore(), enableLogging);
+        var inner = AWritableStore();
+        await using var provider = BuildWithSharedStore(inner, enableLogging);
 
         // Act
         var result = await ((ITemplateWriter)provider.GetRequiredService<ITemplateStore>()).SaveAsync(_lookup, _text, 0, Ct);
 
         // Assert
         Assert.Same(_entry, result.Value);
+        await ((ITemplateWriter)inner).Received(1).SaveAsync(_lookup, _text, 0, Ct);
     }
 
     [Fact]
@@ -104,7 +106,8 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
     public async Task SaveAsync_Entry_LogsInformationWithItsEventIdAndTheVersionAndNotTheText()
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AWritableStore());
+        var inner = AWritableStore();
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         await Writer(provider).SaveAsync(_lookup, _text, 0, Ct);
@@ -114,6 +117,7 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         Assert.Equal(
             (LogLevel.Information, 2010, _entry.Version.ToString(System.Globalization.CultureInfo.InvariantCulture), false),
             (record.Level, record.Id.Id, record.GetStructuredStateValue("Version"), record.ContainsText(_text)));
+        await ((ITemplateWriter)inner).Received(1).SaveAsync(_lookup, _text, 0, Ct);
     }
 
     [Fact]
@@ -131,13 +135,15 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 2011, false), (record.Level, record.Id.Id, record.ContainsText(_text)));
+        await ((ITemplateWriter)inner).Received(1).SaveAsync(_lookup, _text, 0, Ct);
     }
 
     [Fact]
     public async Task DeleteAsync_NoError_LogsInformationWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AWritableStore());
+        var inner = AWritableStore();
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         var error = await Writer(provider).DeleteAsync(_lookup, Ct);
@@ -145,6 +151,7 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((null, LogLevel.Information, 2012), (error, record.Level, record.Id.Id));
+        await ((ITemplateWriter)inner).Received(1).DeleteAsync(_lookup, Ct);
     }
 
     [Fact]
@@ -162,13 +169,15 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((error, LogLevel.Warning, 2013), (result, record.Level, record.Id.Id));
+        await ((ITemplateWriter)inner).Received(1).DeleteAsync(_lookup, Ct);
     }
 
     [Fact]
     public async Task ListAsync_Entries_ReturnsThemAndLogsDebugWithTheCount()
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AWritableStore());
+        var inner = AWritableStore();
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         var entries = await Writer(provider).ListAsync(new TemplateQuery(), Ct);
@@ -177,6 +186,7 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         Assert.Equal([_entry, _entry], entries.Value);
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Debug, 2014, "2"), (record.Level, record.Id.Id, record.GetStructuredStateValue("Count")));
+        await ((ITemplateWriter)inner).Received(1).ListAsync(new TemplateQuery(), Ct);
     }
 
     [Fact]
@@ -194,6 +204,7 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 2015), (record.Level, record.Id.Id));
+        await ((ITemplateWriter)inner).Received(1).ListAsync(new TemplateQuery(), Ct);
     }
 
     [Fact]
@@ -211,6 +222,7 @@ public sealed class TemplateWriterLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(("t1", 2010), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
+        await ((ITemplateWriter)inner).Received(1).SaveAsync(_lookup, _text, 0, Ct);
     }
 
     [Fact]

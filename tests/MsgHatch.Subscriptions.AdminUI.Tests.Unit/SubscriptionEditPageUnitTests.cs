@@ -117,6 +117,7 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+        Queries.DidNotReceiveWithAnyArgs().GetSubscriptionAsync(default, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -206,6 +207,10 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
         Assert.Equal("5", cut.Find("[data-field=revision]").TextContent);
         Assert.Equal("{\n  \"number\": \"789\"\n}", cut.Find("#msghatch-edit-settings").GetAttribute("value"));
         Assert.Equal(AdminErrors.ConflictText, cut.Find(".alert-danger").TextContent);
+        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.Channel, Fax,
+            new FaxSettings("456"), SubscriptionRecipients.ScopeUsers);
+        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetSubscriptionAsync(Id, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -221,6 +226,10 @@ public sealed class SubscriptionEditPageUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal("A mandatory subscription is a default or company subscription for the scope users.", cut.Find("[data-actions-middle] .alert-danger").TextContent);
+        var expected = new SubscriptionDraft(SubscriptionOwner.ForCompany(new CompanyId("42")), Requests, SubscriptionKind.Channel, Fax,
+            new FaxSettings("123"), SubscriptionRecipients.ScopeUsers);
+        Commands.Received(1).UpdateAsync(Id, 3, expected, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetSubscriptionAsync(Id, Arg.Any<CancellationToken>());
     }
 
     [Fact]

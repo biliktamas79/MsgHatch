@@ -183,6 +183,8 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal((0, 1), (cut.FindAll("[data-content]").Count, cut.FindAll("[data-action=show-content]").Count));
+        DeliveryQueries.Received(1).GetOutgoingMessageAsync(_otherId, Arg.Any<CancellationToken>());
+        DeliveryQueries.DidNotReceive().GetOutgoingContentAsync(_otherId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -197,9 +199,10 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
         cut.Find("[data-action=retry]").Click();
 
         // Assert
-        DeliveryCommands.Received(1).RetryOutgoingAsync(Arg.Is<OutboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
-        DeliveryQueries.Received(2).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
         Assert.Equal("Matched 1, changed 1.", cut.Find("[data-action-result].alert-success").TextContent);
+        DeliveryCommands.Received(1).RetryOutgoingAsync(Arg.Is<OutboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
+        DeliveryCommands.DidNotReceiveWithAnyArgs().CancelOutgoingAsync(default!, Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(2).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -214,11 +217,12 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
         cut.Find("[data-action=cancel]").Click();
 
         // Assert
-        DeliveryCommands.Received(1).CancelOutgoingAsync(Arg.Is<OutboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
-        DeliveryCommands.DidNotReceiveWithAnyArgs().RetryOutgoingAsync(default!, Arg.Any<CancellationToken>());
         Assert.Equal(
             "The message did not change, because it is done, cancelled, leased, or expired.",
             cut.Find("[data-action-result]").TextContent);
+        DeliveryCommands.Received(1).CancelOutgoingAsync(Arg.Is<OutboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
+        DeliveryCommands.DidNotReceiveWithAnyArgs().RetryOutgoingAsync(default!, Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(2).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -234,6 +238,8 @@ public sealed class OutgoingMessagePageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-action-result].alert-danger").TextContent);
+        DeliveryCommands.Received(1).CancelOutgoingAsync(Arg.Is<OutboxQuery>(query => IsOneMessage(query)), Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(2).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
     }
 
     [Fact]

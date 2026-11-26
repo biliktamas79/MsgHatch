@@ -34,9 +34,10 @@ public sealed partial class MsgHatchBuilderUnitTests
 
         // Assert
         Assert.Equal(
-            ("None,t1", 2, 2),
-            (string.Join(',', keys.Select(static key => key.Tenant?.Value ?? "None")), queries.ReceivedCalls().Count(),
+            ("None,t1", 2),
+            (string.Join(',', keys.Select(static key => key.Tenant?.Value ?? "None")),
                 provider.LogRecords().Count(static record => record.Id.Id == 2909)));
+        _ = queries.Received(2).GetChannelsAsync(Ct);
     }
 
     [Fact]

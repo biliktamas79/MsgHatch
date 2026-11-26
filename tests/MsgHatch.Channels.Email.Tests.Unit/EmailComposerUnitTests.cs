@@ -3,6 +3,7 @@ using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Routing;
 using MsgHatch.Templates;
 using MsgHatch.Channels.Email.Tests.Unit.TestTypes;
+using NSubstitute;
 using static MsgHatch.Channels.Email.Tests.Unit.TestTypes.TestRoutes;
 
 namespace MsgHatch.Channels.Email.Tests.Unit;
@@ -11,6 +12,8 @@ namespace MsgHatch.Channels.Email.Tests.Unit;
 public sealed class EmailComposerUnitTests
 {
     private static readonly MessageType _type = new("TestEvent");
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private readonly ComposerDoubles _doubles = new();
 
@@ -141,6 +144,7 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Same(error, result.Error);
+        await _doubles.Engine.DidNotReceiveWithAnyArgs().PrepareAsync(default!, Ct);
     }
 
     [Fact]
@@ -154,6 +158,7 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Equal(Errors.ValidationFailed, result.Error?.Type);
+        await _doubles.Engine.DidNotReceiveWithAnyArgs().PrepareAsync(default!, Ct);
     }
 
     [Fact]
@@ -180,6 +185,8 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Equal([0, 404, 0, 404], result.Value.Select(CodeOf));
+        await _doubles.Engine.Received(1).PrepareAsync(new TemplateRequest(_type, "hu", null, "subject", TemplatePartKind.PlainText), Ct);
+        await _doubles.Engine.DidNotReceive().PrepareAsync(Arg.Is<TemplateRequest>(static request => request.Language == "hu" && request.Part == "body"), Ct);
     }
 
     [Fact]
@@ -280,6 +287,8 @@ public sealed class EmailComposerUnitTests
 
         // Assert
         Assert.Equal([404], result.Value.Select(CodeOf));
+        await _doubles.Engine.Received(1).PrepareAsync(new TemplateRequest(_type, "en", null, part, kind), Ct);
+        await _doubles.Engine.DidNotReceive().PrepareAsync(Arg.Is<TemplateRequest>(static request => request.Optional), Ct);
     }
 
     [Fact]

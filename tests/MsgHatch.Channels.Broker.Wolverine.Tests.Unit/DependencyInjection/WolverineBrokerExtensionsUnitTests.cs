@@ -116,6 +116,7 @@ public sealed class WolverineBrokerExtensionsUnitTests
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        runtime.Received(1).AssertHasStarted();
     }
 
     private static IWolverineRuntime ARuntime(bool syncRetryBlock)

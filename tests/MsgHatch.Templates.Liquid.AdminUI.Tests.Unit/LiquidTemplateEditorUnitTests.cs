@@ -142,8 +142,9 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
         _clock.Advance(TimeSpan.FromMilliseconds(1));
 
         // Assert
-        cut.WaitForAssertion(() => _queries.ReceivedWithAnyArgs(1).CheckTemplateAsync(default, default!, Arg.Any<CancellationToken>()));
-        _queries.Received(1).CheckTemplateAsync(_lookup, "abcd", Arg.Any<CancellationToken>());
+        cut.WaitForAssertion(() => _queries.Received(1).CheckTemplateAsync(_lookup, "abcd", Arg.Any<CancellationToken>()));
+        _queries.DidNotReceive().CheckTemplateAsync(_lookup, "ab", Arg.Any<CancellationToken>());
+        _queries.DidNotReceive().CheckTemplateAsync(_lookup, "abc", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -161,6 +162,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
         cut.WaitForAssertion(() => Assert.Equal("2:4", cut.Find("mark.template-issue").GetAttribute("data-mark")));
         Assert.Equal("x", cut.Find("mark.template-issue").TextContent);
         Assert.Equal("Line 2, column 4: The tag is not known.", cut.Find("[data-issue]").TextContent);
+        _queries.Received(1).CheckTemplateAsync(_lookup, "ab\ncd x", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -177,6 +179,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
         // Assert
         cut.WaitForAssertion(() => Assert.Equal("The filter shout is not known.", cut.Find("[data-issue]").TextContent));
         Assert.Empty(cut.FindAll("mark"));
+        _queries.Received(1).CheckTemplateAsync(_lookup, "{{ x | shout }}", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -193,6 +196,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
         // Assert
         cut.WaitForAssertion(() => Assert.Equal("Line 5, column 1: The tag has no end.", cut.Find("[data-issue]").TextContent));
         Assert.Empty(cut.FindAll("mark"));
+        _queries.Received(1).CheckTemplateAsync(_lookup, "a", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -209,6 +213,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
 
         // Assert
         cut.WaitForAssertion(() => Assert.Contains(AdminErrors.UnavailableText, cut.Find("[data-state=check-failed]").TextContent, StringComparison.Ordinal));
+        _queries.Received(1).CheckTemplateAsync(_lookup, "ab", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -249,6 +254,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
 
         // Assert
         Assert.True(canSave);
+        _ = _queries.Received(1).CheckTemplateAsync(_lookup, "Hi {{ Name }}", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -264,6 +270,7 @@ public sealed class LiquidTemplateEditorUnitTests : BunitContext
 
         // Assert
         Assert.True(canSave);
+        _ = _queries.Received(1).CheckTemplateAsync(_lookup, "Hi", Arg.Any<CancellationToken>());
     }
 
     [Fact]

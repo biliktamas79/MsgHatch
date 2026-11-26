@@ -34,9 +34,10 @@ public sealed partial class MsgHatchBuilderUnitTests
 
         // Assert
         Assert.Equal(
-            ("None,t1", 2, 2),
-            (string.Join(',', keys.Select(static key => key.Tenant?.Value ?? "None")), queries.ReceivedCalls().Count(),
+            ("None,t1", 2),
+            (string.Join(',', keys.Select(static key => key.Tenant?.Value ?? "None")),
                 provider.LogRecords().Count(static record => record.Id.Id == 1800)));
+        _ = queries.Received(2).GetChannelsAsync(Ct);
     }
 
     [Fact]
@@ -55,8 +56,9 @@ public sealed partial class MsgHatchBuilderUnitTests
 
         // Assert
         Assert.Equal(
-            ((Error?)null, 1, 1),
-            (error, commands.ReceivedCalls().Count(), provider.LogRecords().Count(static record => record.Id.Id == 1802)));
+            ((Error?)null, 1),
+            (error, provider.LogRecords().Count(static record => record.Id.Id == 1802)));
+        _ = commands.Received(1).ResumeChannelAsync(TestChannel.Id, Ct);
     }
 
     [Theory]

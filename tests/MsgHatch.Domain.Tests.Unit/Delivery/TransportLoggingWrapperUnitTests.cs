@@ -38,14 +38,17 @@ public sealed class TransportLoggingWrapperUnitTests
     {
         // Arrange
         var receipt = new PublishReceipt("provider-7");
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id, receipt));
+        var inner = TestTransports.For(TestChannel.Id, receipt);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        var result = await transport.SendAsync(TestMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        var result = await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         Assert.Equal(receipt, result.Value);
+        _ = inner.Received(1).SendAsync(message, null, Ct);
     }
 
     [Fact]
@@ -53,94 +56,113 @@ public sealed class TransportLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id, expected));
+        var inner = TestTransports.For(TestChannel.Id, expected);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        var result = await transport.SendAsync(TestMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        var result = await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         Assert.Same(expected, result.Error);
+        _ = inner.Received(1).SendAsync(message, null, Ct);
     }
 
     [Fact]
     public async Task SendAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id, new Error(Errors.RateLimited)));
+        var inner = TestTransports.For(TestChannel.Id, new Error(Errors.RateLimited));
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        await transport.SendAsync(TestMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 1351), (record.Level, record.Id.Id));
+        _ = inner.Received(1).SendAsync(message, null, Ct);
     }
 
     [Fact]
     public async Task SendAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id, new Error(Errors.Rejected)));
+        var inner = TestTransports.For(TestChannel.Id, new Error(Errors.Rejected));
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        await transport.SendAsync(TestMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1351), (record.Level, record.Id.Id));
+        _ = inner.Received(1).SendAsync(message, null, Ct);
     }
 
     [Fact]
     public async Task SendAsync_Success_LogsADebugRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id));
+        var inner = TestTransports.For(TestChannel.Id);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        await transport.SendAsync(TestMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Debug, 1350), (record.Level, record.Id.Id));
+        _ = inner.Received(1).SendAsync(message, null, Ct);
     }
 
     [Fact]
     public async Task SendAsync_MessageWithATenant_LogsTheTenantOfTheMessage()
     {
         // Arrange
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id));
+        var inner = TestTransports.For(TestChannel.Id);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
+        var message = TestMessages.AnOutgoingMessage(tenant: new TenantId("t1"));
 
         // Act
-        await transport.SendAsync(TestMessages.AnOutgoingMessage(tenant: new TenantId("t1")), redirectTo: null, Ct);
+        await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         Assert.Equal("t1", Assert.Single(provider.LogRecords()).GetStructuredStateValue("Tenant"));
+        _ = inner.Received(1).SendAsync(message, null, Ct);
     }
 
     [Fact]
     public async Task SendAsync_TestMessage_LogsTheTestFlag()
     {
         // Arrange
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id));
+        var inner = TestTransports.For(TestChannel.Id);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
+        var message = TestMessages.AnOutgoingMessage(flags: MessageFlags.Test);
 
         // Act
-        await transport.SendAsync(TestMessages.AnOutgoingMessage(flags: MessageFlags.Test), redirectTo: null, Ct);
+        await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         Assert.Equal("Test", Assert.Single(provider.LogRecords()).GetStructuredStateValue("MessageFlags"));
+        _ = inner.Received(1).SendAsync(message, null, Ct);
     }
 
     [Fact]
     public async Task SendAsync_RedirectedTestMessage_NoLogRecordContainsAChannelAddress()
     {
         // Arrange
-        await using var provider = BuildWith(TestTransports.For(TestChannel.Id));
+        var inner = TestTransports.For(TestChannel.Id);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
         var message = TestMessages.AnOutgoingMessage(new TestEnvelope(_address), flags: MessageFlags.Test);
 
@@ -151,6 +173,7 @@ public sealed class TransportLoggingWrapperUnitTests
         Assert.NotEmpty(provider.LogRecords());
         Assert.DoesNotContain(
             provider.LogRecords(), static record => record.ContainsText(_address) || record.ContainsText(_redirectAddress));
+        _ = inner.Received(1).SendAsync(message, _redirectAddress, Ct);
     }
 
     [Fact]
@@ -158,7 +181,8 @@ public sealed class TransportLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AHealthCheck(expected));
+        var inner = AHealthCheck(expected);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
 
         // Act
@@ -166,13 +190,15 @@ public sealed class TransportLoggingWrapperUnitTests
 
         // Assert
         Assert.Same(expected, error);
+        _ = inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]
     public async Task CheckHealthAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AHealthCheck(new Error(Errors.Unavailable)));
+        var inner = AHealthCheck(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
 
         // Act
@@ -181,13 +207,15 @@ public sealed class TransportLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 1353), (record.Level, record.Id.Id));
+        _ = inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]
     public async Task CheckHealthAsync_Success_LogsADebugRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AHealthCheck(error: null));
+        var inner = AHealthCheck(error: null);
+        await using var provider = BuildWith(inner);
         var transport = provider.GetRequiredService<ITransport>();
 
         // Act
@@ -196,6 +224,7 @@ public sealed class TransportLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((null, LogLevel.Debug, 1352), (error, record.Level, record.Id.Id));
+        _ = inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]

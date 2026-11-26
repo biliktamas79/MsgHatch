@@ -49,6 +49,7 @@ public sealed partial class NotificationServiceUnitTests
                 "msghatch.failed=0", "msghatch.skipped=0",
             ],
             span.TagObjects.Select(static tag => $"{tag.Key}={tag.Value}"));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -71,6 +72,8 @@ public sealed partial class NotificationServiceUnitTests
             ["msghatch.routes=2", "msghatch.stored=1", "msghatch.failed=0", "msghatch.skipped=1"],
             span.TagObjects.Select(static tag => $"{tag.Key}={tag.Value}").Where(static tag => tag.StartsWith("msghatch.r", StringComparison.Ordinal)
                 || tag.StartsWith("msghatch.s", StringComparison.Ordinal) || tag.StartsWith("msghatch.f", StringComparison.Ordinal)));
+        _ = _doubles.SecondComposer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -89,6 +92,7 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
         Assert.Equal("t1", span.GetTagItem("msghatch.tenant"));
+        _ = _doubles.Store(_t1).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -107,6 +111,7 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
         Assert.Equal([span.Id, span.Id], _doubles.Stored.Select(static m => m.TraceParent));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -123,6 +128,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal([parent.Id, parent.Id], _doubles.Stored.Select(static m => m.TraceParent));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -138,6 +144,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal([null, null], _doubles.Stored.Select(static m => m.TraceParent));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -146,19 +153,23 @@ public sealed partial class NotificationServiceUnitTests
         // Arrange
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<MessageRoute>>>(new Error(Errors.Unavailable, "provider down")));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
         var spans = new ConcurrentQueue<Activity>();
         using var listener = ListenTo([MsgHatchTelemetry.SourceName, _testSource.Name], spans);
         using var parent = _testSource.StartActivity("test")!;
 
         // Act
-        await ProcessAsync(provider, AContext());
+        await ProcessAsync(provider, context);
 
         // Assert
         var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
         Assert.Equal(
             (ActivityStatusCode.Error, (string?)null, (object?)"Unavailable"),
             (span.Status, span.StatusDescription, span.GetTagItem("error.type")));
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -166,6 +177,7 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new InvalidOperationException("defect"));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
         using var duration = new MetricCollector<double>(
             provider.GetRequiredService<IMeterFactory>(), MsgHatchTelemetry.MeterName, "msghatch.process.duration");
@@ -174,13 +186,15 @@ public sealed partial class NotificationServiceUnitTests
         using var parent = _testSource.StartActivity("test")!;
 
         // Act
-        await ProcessAsync(provider, AContext());
+        await ProcessAsync(provider, context);
 
         // Assert
         var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
         var measurement = Assert.Single(duration.GetMeasurementSnapshot());
         Assert.Equal((ActivityStatusCode.Error, (object?)"Exception"), (span.Status, span.GetTagItem("error.type")));
         Assert.Equal(["error.type=Exception", "msghatch.message_type=TestEvent", "msghatch.test=False"], TagsOf(measurement.Tags));
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -190,6 +204,7 @@ public sealed partial class NotificationServiceUnitTests
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancellation.CancelAsync();
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException(cancellation.Token));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
         using var duration = new MetricCollector<double>(
             provider.GetRequiredService<IMeterFactory>(), MsgHatchTelemetry.MeterName, "msghatch.process.duration");
@@ -198,13 +213,15 @@ public sealed partial class NotificationServiceUnitTests
         using var parent = _testSource.StartActivity("test")!;
 
         // Act
-        await ProcessAsync(provider, AContext(), cancellation.Token);
+        await ProcessAsync(provider, context, cancellation.Token);
 
         // Assert
         var span = Assert.Single(spans, s => s.Source.Name == MsgHatchTelemetry.SourceName && s.ParentSpanId == parent.SpanId);
         var measurement = Assert.Single(duration.GetMeasurementSnapshot());
         Assert.Equal((object?)"OperationCancelled", span.GetTagItem("error.type"));
         Assert.Equal(["error.type=OperationCancelled", "msghatch.message_type=TestEvent", "msghatch.test=False"], TagsOf(measurement.Tags));
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), cancellation.Token);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -223,6 +240,7 @@ public sealed partial class NotificationServiceUnitTests
         var measurement = Assert.Single(received.GetMeasurementSnapshot());
         Assert.Equal(1, measurement.Value);
         Assert.Equal(["msghatch.message_type=TestEvent", "msghatch.test=True"], TagsOf(measurement.Tags));
+        _ = _doubles.Store(_t1).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -244,6 +262,7 @@ public sealed partial class NotificationServiceUnitTests
                 "1: msghatch.channel=Second, msghatch.message_type=TestEvent, msghatch.test=False",
             ],
             stored.GetMeasurementSnapshot().Select(static m => $"{m.Value}: {string.Join(", ", TagsOf(m.Tags))}"));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -263,6 +282,7 @@ public sealed partial class NotificationServiceUnitTests
         Assert.Equal(
             "1: error.type=ValidationFailed, msghatch.channel=Test, msghatch.message_type=TestEvent",
             $"{measurement.Value}: {string.Join(", ", TagsOf(measurement.Tags))}");
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -275,17 +295,20 @@ public sealed partial class NotificationServiceUnitTests
             _time.Advance(TimeSpan.FromSeconds(2));
             return ValueTask.FromResult(ErrorOr<IReadOnlyList<MessageRoute>>.ForValue(_doubles.Routes));
         });
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
         using var duration = new MetricCollector<double>(
             provider.GetRequiredService<IMeterFactory>(), MsgHatchTelemetry.MeterName, "msghatch.process.duration");
 
         // Act
-        await ProcessAsync(provider, AContext());
+        await ProcessAsync(provider, context);
 
         // Assert
         var measurement = Assert.Single(duration.GetMeasurementSnapshot());
         Assert.Equal(2.0, measurement.Value);
         Assert.Equal(["msghatch.message_type=TestEvent", "msghatch.test=False"], TagsOf(measurement.Tags));
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -318,6 +341,7 @@ public sealed partial class NotificationServiceUnitTests
         Assert.NotEmpty(metricTags);
         Assert.DoesNotContain(metricTags, static tag => tag.StartsWith("msghatch.tenant=", StringComparison.Ordinal));
         Assert.DoesNotContain(metricTags.Concat(spanTags), static tag => tag.Contains(_address, StringComparison.Ordinal));
+        _ = _doubles.Store(_t1).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     private static ActivityListener ListenTo(string[] sourceNames, ConcurrentQueue<Activity> stopped)

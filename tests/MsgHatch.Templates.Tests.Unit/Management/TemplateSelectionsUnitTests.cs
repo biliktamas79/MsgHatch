@@ -144,7 +144,9 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
     public async Task Operation_Success_LogsItsEventIdAndLevelWithTheTenant(string operation, int eventId, int level)
     {
         // Arrange
-        await using var provider = HostWith(static b => b.UseTemplateQueries((_, _) => SucceedingQueries()).UseTemplateCommands((_, _) => SucceedingCommands()), false, true);
+        var queries = SucceedingQueries();
+        var commands = SucceedingCommands();
+        await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => queries).UseTemplateCommands((_, _) => commands), false, true);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -153,6 +155,7 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         // Assert
         var record = Assert.Single(ManagementRecords(provider));
         Assert.Equal((operation, eventId, level, "t1"), (operation, record.Id.Id, (int)record.Level, record.GetStructuredStateValue("Tenant")));
+        await AssertForwardedOnlyTheCallOfAsync(queries, commands, operation);
     }
 
     [Theory]
@@ -161,7 +164,9 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
     {
         // Arrange
         var error = new Error(Errors.Unavailable);
-        await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => FailingQueries(error)).UseTemplateCommands((_, _) => FailingCommands(error)), false, true);
+        var queries = FailingQueries(error);
+        var commands = FailingCommands(error);
+        await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => queries).UseTemplateCommands((_, _) => commands), false, true);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -170,6 +175,7 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         // Assert
         var record = Assert.Single(ManagementRecords(provider));
         Assert.Equal((operation, true, eventId, level), (operation, ReferenceEquals(error, returned), record.Id.Id, (int)record.Level));
+        await AssertForwardedOnlyTheCallOfAsync(queries, commands, operation);
     }
 
     [Fact]
@@ -177,7 +183,8 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
     {
         // Arrange
         var error = new Error(Errors.TemplateInvalid, "The template has an unclosed placeholder.");
-        await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => FailingQueries(error)), false, true);
+        var queries = FailingQueries(error);
+        await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => queries), false, true);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -186,13 +193,16 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         // Assert
         var record = Assert.Single(ManagementRecords(provider));
         Assert.Equal((2030, LogLevel.Information), (record.Id.Id, record.Level));
+        await queries.Received(1).PreviewTemplateAsync(_lookup, "Text", Ct);
     }
 
     [Fact]
     public async Task Operations_TemplateTextAndCompanyId_NoLogRecordContainsThem()
     {
         // Arrange
-        await using var provider = HostWith(static b => b.UseTemplateQueries((_, _) => SucceedingQueries()).UseTemplateCommands((_, _) => SucceedingCommands()), false, true);
+        var queries = SucceedingQueries();
+        var commands = SucceedingCommands();
+        await using var provider = HostWith(b => b.UseTemplateQueries((_, _) => queries).UseTemplateCommands((_, _) => commands), false, true);
         await using var scope = provider.CreateAsyncScope();
         var lookup = _lookup with { Scope = "acme-company" };
 
@@ -205,9 +215,27 @@ public sealed class TemplateSelectionsUnitTests(TemplateFolder folder) : IClassF
         Assert.Equal(
             (3, false),
             (ManagementRecords(provider).Count, provider.LogRecords().Any(static record => record.ContainsText("Secret") || record.ContainsText("acme"))));
+        await queries.Received(1).CheckTemplateAsync(lookup, "Secret text", Ct);
+        await queries.Received(1).PreviewTemplateAsync(lookup, "Secret text", Ct);
+        await commands.Received(1).SaveTemplateAsync(lookup, "Secret text", 0, Ct);
     }
 
     private static int LogLevelOf(LogLevel level) => (int)level;
+
+    private static Task AssertForwardedOnlyTheCallOfAsync(ITemplateQueries queries, ITemplateCommands commands, string operation)
+    {
+        Assert.Single(queries.ReceivedCalls().Concat(commands.ReceivedCalls()));
+        return operation switch
+        {
+            "GetTemplates" => queries.Received(1).GetTemplatesAsync(new TemplateQuery(), Ct).AsTask(),
+            "GetTemplate" => queries.Received(1).GetTemplateAsync(_lookup, Ct).AsTask(),
+            "GetTemplateParts" => queries.Received(1).GetTemplatePartsAsync(type: null, Ct).AsTask(),
+            "CheckTemplate" => queries.Received(1).CheckTemplateAsync(_lookup, "Text", Ct).AsTask(),
+            "PreviewTemplate" => queries.Received(1).PreviewTemplateAsync(_lookup, "Text", Ct).AsTask(),
+            "SaveTemplate" => commands.Received(1).SaveTemplateAsync(_lookup, "Text", 0, Ct).AsTask(),
+            _ => commands.Received(1).DeleteTemplateAsync(_lookup, Ct).AsTask(),
+        };
+    }
 
     private static void Select(MsgHatchBuilder builder, string selected, ITemplateQueries queries, ITemplateCommands commands)
     {

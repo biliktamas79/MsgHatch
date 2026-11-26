@@ -181,12 +181,14 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
     {
         // Arrange
         _ses.SendEmailAsync(default!, Ct).ThrowsAsyncForAnyArgs(exception);
+        var id = Guid.NewGuid();
 
         // Act
-        var result = await Client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        var result = await Client.SendAsync(id, TestMessages.AnEmail(), Ct);
 
         // Assert
         Assert.Equal((row, (int?)expectedCode), (row, result.Error?.Type.Code));
+        await _ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == id.ToString()), Ct);
     }
 
     [Fact]
@@ -195,12 +197,14 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
         // Arrange
         var client = new AmazonSimpleEmailServiceClient(_ses, Options.Create(AnOptions()), classifiers: [new SesConflictClassifier()]);
         _ses.SendEmailAsync(default!, Ct).ThrowsAsyncForAnyArgs(new HttpRequestException());
+        var id = Guid.NewGuid();
 
         // Act
-        var result = await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        var result = await client.SendAsync(id, TestMessages.AnEmail(), Ct);
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        await _ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == id.ToString()), Ct);
     }
 
     [Fact]
@@ -211,12 +215,14 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await stop.CancelAsync();
         _ses.SendEmailAsync(default!, Ct).ThrowsAsyncForAnyArgs(new OperationCanceledException());
+        var id = Guid.NewGuid();
 
         // Act
-        var result = await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), stop.Token);
+        var result = await client.SendAsync(id, TestMessages.AnEmail(), stop.Token);
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        await _ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == id.ToString()), stop.Token);
     }
 
     [Theory]
@@ -225,13 +231,15 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
     {
         // Arrange
         _ses.SendEmailAsync(default!, Ct).ThrowsAsyncForAnyArgs(exception);
+        var id = Guid.NewGuid();
 
         // Act
-        await Client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        await Client.SendAsync(id, TestMessages.AnEmail(), Ct);
 
         // Assert
         var record = Assert.Single(_logger.Collector.GetSnapshot());
         Assert.Equal((row, LogLevel.Critical, 2100, false), (row, record.Level, record.Id.Id, record.Message.Contains(_address, StringComparison.Ordinal)));
+        await _ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == id.ToString()), Ct);
     }
 
     [Fact]
@@ -239,12 +247,14 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
     {
         // Arrange
         Driver.Fails(Errors.Rejected);
+        var id = Guid.NewGuid();
 
         // Act
-        await Client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        await Client.SendAsync(id, TestMessages.AnEmail(), Ct);
 
         // Assert
         Assert.Empty(_logger.Collector.GetSnapshot());
+        await _ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == id.ToString()), Ct);
     }
 
     [Fact]
@@ -252,12 +262,14 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
     {
         // Arrange
         Driver.Fails(Errors.Rejected);
+        var id = Guid.NewGuid();
 
         // Act
-        var result = await Client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        var result = await Client.SendAsync(id, TestMessages.AnEmail(), Ct);
 
         // Assert
         Assert.DoesNotContain(_address, result.Error?.Message ?? _address, StringComparison.Ordinal);
+        await _ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == id.ToString()), Ct);
     }
 
     [Fact]
@@ -271,6 +283,7 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
 
         // Assert
         Assert.Equal(Errors.Unavailable, error?.Type);
+        await _ses.Received(1).GetAccountAsync(Arg.Any<GetAccountRequest>(), Ct);
     }
 
     [Fact]
@@ -284,6 +297,7 @@ public sealed class AmazonSimpleEmailServiceClientUnitTests : EmailClientTestsBa
 
         // Assert
         Assert.Null(error);
+        await _ses.Received(1).GetAccountAsync(Arg.Any<GetAccountRequest>(), Ct);
     }
 
     [Theory]

@@ -175,12 +175,14 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
     {
         // Arrange
         _hub.Proxy.SendCoreAsync(default!, default!, Ct).ReturnsForAnyArgs(Task.FromException(exception));
+        var message = SignalRMessages.AnOutgoingMessage();
 
         // Act
-        var result = await Transport.SendAsync(SignalRMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        var result = await Transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         Assert.Equal((row, expectedCode, exception), (row, result.Error?.Type.Code, result.Error?.Exception));
+        await _hub.Proxy.Received(1).SendCoreAsync("TestEvent", Arg.Is<object?[]>(arguments => arguments.Length == 1 && ReferenceEquals(arguments[0], message.Envelope.Payload)), Ct);
     }
 
     [Fact]
@@ -189,12 +191,14 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
         // Arrange
         var transport = new SignalRTransport<TestHub>(_hub.Hub, [new ConflictClassifier<SignalRTransport<TestHub>>()]);
         _hub.Proxy.SendCoreAsync(default!, default!, Ct).ReturnsForAnyArgs(Task.FromException(new IOException()));
+        var message = SignalRMessages.AnOutgoingMessage();
 
         // Act
-        var result = await transport.SendAsync(SignalRMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        var result = await transport.SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        await _hub.Proxy.Received(1).SendCoreAsync("TestEvent", Arg.Is<object?[]>(arguments => arguments.Length == 1 && ReferenceEquals(arguments[0], message.Envelope.Payload)), Ct);
     }
 
     [Fact]
@@ -205,12 +209,14 @@ public sealed class SignalRTransportUnitTests : TransportTestsBase<SignalRTransp
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await stop.CancelAsync();
         _hub.Proxy.SendCoreAsync(default!, default!, Ct).ReturnsForAnyArgs(Task.FromException(new OperationCanceledException()));
+        var message = SignalRMessages.AnOutgoingMessage();
 
         // Act
-        var result = await transport.SendAsync(SignalRMessages.AnOutgoingMessage(), redirectTo: null, stop.Token);
+        var result = await transport.SendAsync(message, redirectTo: null, stop.Token);
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        await _hub.Proxy.Received(1).SendCoreAsync("TestEvent", Arg.Is<object?[]>(arguments => arguments.Length == 1 && ReferenceEquals(arguments[0], message.Envelope.Payload)), stop.Token);
     }
 
     [Fact]

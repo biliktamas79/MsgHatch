@@ -132,6 +132,7 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
 
         // Assert
         Assert.Equal((row, expectedCode is null ? 0 : 1), (row, issues.Value.Count));
+        await testData.Store.DidNotReceive().FindAsync(Arg.Is<TemplateLookup>(lookup => lookup.Type == Type), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -165,6 +166,7 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
 
         // Assert
         Assert.Equal(("first", "first", "second"), (first, sameVersion, newVersion));
+        await testData.Store.Received(3).FindAsync(lookup, Ct);
     }
 
     [Fact]
@@ -178,6 +180,8 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
 
         // Assert
         Assert.Equal("English", outcome);
+        await testData.Store.Received(1).FindAsync(ALookup() with { Language = "hu" }, Ct);
+        await testData.Store.Received(1).FindAsync(ALookup(), Ct);
     }
 
     [Theory]
@@ -205,10 +209,12 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
     public async Task PrepareAsync_EngineOfATenant_TakesTheTemplateFromTheTemplateStoreOfTheTenant()
     {
         // Arrange
+        var sharedStore = AStoreWithTheText("Shared text");
+        var tenantStore = AStoreWithTheText("Tenant text");
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.DefaultLanguage = "en")
-            .UseTemplateStore(_ => AStoreWithTheText("Shared text"))
-            .UseTenantTemplateStore((_, _) => AStoreWithTheText("Tenant text"))
+            .UseTemplateStore(_ => sharedStore)
+            .UseTenantTemplateStore((_, _) => tenantStore)
             .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", LiquidTemplates.Engine)));
         await using var provider = services.Build();
         await using var scope = provider.CreateAsyncScope();
@@ -219,6 +225,8 @@ public sealed class LiquidTemplateEngineUnitTests(LiquidTemplateTestData testDat
 
         // Assert
         Assert.Equal("Tenant text", outcome);
+        await tenantStore.Received(1).FindAsync(ALookup(), Ct);
+        await sharedStore.DidNotReceiveWithAnyArgs().FindAsync(default, Ct);
     }
 
     private static ITemplateStore AStoreWithTheText(string text)

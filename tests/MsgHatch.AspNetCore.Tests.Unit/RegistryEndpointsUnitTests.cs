@@ -87,6 +87,8 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
             (HttpStatusCode.OK,
                 """{"channel":"Test","displayName":"Shop email","description":null,"enabled":false,"revision":4,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+        await _host.Writer.Received(1).SaveChannelAsync(
+            new ChannelEntry(TestChannel.Id, "Shop email", null, Enabled: false, Revision: 3, default), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -101,6 +103,10 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
             (HttpStatusCode.OK,
                 """{"type":"TestEvent","displayName":null,"description":null,"enabled":false,"disabledChannels":["Second"],"revision":1,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+        await _host.Writer.Received(1).SaveMessageTypeAsync(
+            Arg.Is<MessageTypeEntry>(static entry =>
+                entry.Type == new MessageType("TestEvent") && !entry.Enabled && entry.Revision == 0 && entry.DisabledChannels.SequenceEqual(new[] { TestChannel.SecondId })),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -118,6 +124,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
             + """{"id":"Second","name":"Second test channel","description":null,"features":"GroupDelivery","enabled":true,"revision":4,"current":null,"entry":"""
             + """{"channel":"Second","displayName":null,"description":null,"enabled":true,"revision":4,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}}]""",
             json);
+        await _host.Writer.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -134,6 +141,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
             """[{"name":"TestEvent","displayName":null,"description":null,"channels":["Test","Second"],"enabled":true,"disabledChannels":[],"revision":2,"entry":"""
             + """{"type":"TestEvent","displayName":null,"description":null,"enabled":true,"disabledChannels":[],"revision":2,"lastModifiedAtUtc":"2030-01-01T00:00:00Z"}}]""",
             json);
+        await _host.Writer.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
     }
 
     public static TheoryData<int, HttpStatusCode> ErrorRows => new()
@@ -166,6 +174,8 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal((expected, error.Type.Name), (response.StatusCode, await TitleOf(response)));
+        await _host.Writer.Received(1).SaveChannelAsync(
+            Arg.Is<ChannelEntry>(static entry => entry.Channel == TestChannel.Id && entry.Enabled && entry.Revision == 0), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -187,6 +197,10 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal((problem, problem, problem, problem), (channels, types, save, reset));
+        await _host.Writer.Received(2).GetEntriesAsync(Arg.Any<CancellationToken>());
+        await _host.Writer.Received(1).SaveMessageTypeAsync(
+            Arg.Is<MessageTypeEntry>(static entry => entry.Type == new MessageType("TestEvent") && entry.Enabled && entry.Revision == 0), Arg.Any<CancellationToken>());
+        await _host.Writer.Received(1).ResetChannelAsync(TestChannel.Id, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -203,6 +217,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
         Assert.Equal(
             ($"{HttpStatusCode.BadRequest}", (string?)Errors.ValidationFailed.Name, (int?)Errors.ValidationFailed.Code),
             (problem.Status, problem.Title, problem.ErrorCode));
+        Assert.Empty(_host.Writer.ReceivedCalls());
     }
 
     [Fact]
@@ -216,6 +231,8 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await _host.Writer.Received(1).SaveMessageTypeAsync(
+            Arg.Is<MessageTypeEntry>(static entry => entry.Type == new MessageType("TestEvent") && entry.Enabled && entry.Revision == 0), Arg.Any<CancellationToken>());
     }
 
     public static TheoryData<string, string> DeleteRows => new()
@@ -233,6 +250,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal((member, HttpStatusCode.NoContent), (member, response.StatusCode));
+        Assert.Equal([member], _host.Writer.ReceivedCalls().Select(static call => call.GetMethodInfo().Name));
     }
 
     [Theory]
@@ -249,6 +267,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal((member, HttpStatusCode.ServiceUnavailable), (member, response.StatusCode));
+        Assert.Equal([member], _host.Writer.ReceivedCalls().Select(static call => call.GetMethodInfo().Name));
     }
 
     public static TheoryData<string> GetRows => ["/registry/channels", "/registry/message-types"];
@@ -265,6 +284,7 @@ public sealed partial class RegistryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        await _host.Writer.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
     }
 
     public static TheoryData<string, string, string?> InvalidRequestRows => new()

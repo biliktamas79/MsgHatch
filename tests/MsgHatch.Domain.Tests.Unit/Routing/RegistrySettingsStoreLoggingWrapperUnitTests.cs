@@ -36,7 +36,8 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStoreOf(expected));
+        var inner = AStoreOf(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IRegistrySettingsStore>();
 
         // Act
@@ -45,6 +46,7 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((expected, LogLevel.Warning, eventId), (error, record.Level, record.Id.Id));
+        AssertOneInnerCallWithTheArgumentsOfCallAsync(inner, member);
     }
 
     [Theory]
@@ -52,7 +54,8 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
     public async Task Member_PermanentError_LogsAnErrorWithItsEventId(string member, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(new Error(Errors.Conflict)));
+        var inner = AStoreOf(new Error(Errors.Conflict));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IRegistrySettingsStore>();
 
         // Act
@@ -61,6 +64,7 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, eventId), (record.Level, record.Id.Id));
+        AssertOneInnerCallWithTheArgumentsOfCallAsync(inner, member);
     }
 
     [Theory]
@@ -68,7 +72,8 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
     public async Task Member_Cancelled_LogsAnInformationRecordWithItsEventId(string member, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(new Error(Errors.OperationCancelled)));
+        var inner = AStoreOf(new Error(Errors.OperationCancelled));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IRegistrySettingsStore>();
 
         // Act
@@ -77,6 +82,7 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Information, eventId), (record.Level, record.Id.Id));
+        AssertOneInnerCallWithTheArgumentsOfCallAsync(inner, member);
     }
 
     [Theory]
@@ -84,7 +90,8 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
     public async Task Member_Success_LogsADebugRecordWithItsEventId(string member, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IRegistrySettingsStore>();
 
         // Act
@@ -93,6 +100,7 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((Error?)null, LogLevel.Debug, eventId), (error, record.Level, record.Id.Id));
+        AssertOneInnerCallWithTheArgumentsOfCallAsync(inner, member);
     }
 
     [Fact]
@@ -112,37 +120,44 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
         var record = Assert.Single(provider.LogRecords());
         Assert.Same(entries, result.Value);
         Assert.Equal(("2", "1"), (record.GetStructuredStateValue("ChannelCount"), record.GetStructuredStateValue("MessageTypeCount")));
+        _ = inner.Received(1).GetEntriesAsync(Ct);
     }
 
     [Fact]
     public async Task SaveChannelEntryAsync_EntryWithTexts_LogsTheNameAndTheRevisionAndNoText()
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IRegistrySettingsStore>();
+        var entry = AChannelEntry();
 
         // Act
-        await store.SaveChannelEntryAsync(AChannelEntry(), Ct);
+        await store.SaveChannelEntryAsync(entry, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(("Email", "3"), (record.GetStructuredStateValue("Entry"), record.GetStructuredStateValue("Revision")));
         Assert.False(record.ContainsText(_displayName) || record.ContainsText(_description));
+        _ = inner.Received(1).SaveChannelEntryAsync(entry, Ct);
     }
 
     [Fact]
     public async Task SaveMessageTypeEntryAsync_EntryWithTexts_LogsNoText()
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IRegistrySettingsStore>();
+        var entry = AMessageTypeEntry();
 
         // Act
-        await store.SaveMessageTypeEntryAsync(AMessageTypeEntry(), Ct);
+        await store.SaveMessageTypeEntryAsync(entry, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.False(record.ContainsText(_displayName) || record.ContainsText(_description));
+        _ = inner.Received(1).SaveMessageTypeEntryAsync(entry, Ct);
     }
 
     [Fact]
@@ -179,6 +194,29 @@ public sealed class RegistrySettingsStoreLoggingWrapperUnitTests
         nameof(IRegistrySettingsStore.DeleteChannelEntryAsync) => await store.DeleteChannelEntryAsync(new ChannelId("Email"), Ct),
         _ => await store.DeleteMessageTypeEntryAsync(new MessageType("A"), Ct),
     };
+
+    private static void AssertOneInnerCallWithTheArgumentsOfCallAsync(IRegistrySettingsStore inner, string member)
+    {
+        switch (member)
+        {
+            case nameof(IRegistrySettingsStore.GetEntriesAsync):
+                _ = inner.Received(1).GetEntriesAsync(Ct);
+                break;
+            case nameof(IRegistrySettingsStore.SaveChannelEntryAsync):
+                _ = inner.Received(1).SaveChannelEntryAsync(AChannelEntry(), Ct);
+                break;
+            case nameof(IRegistrySettingsStore.SaveMessageTypeEntryAsync):
+                _ = inner.Received(1).SaveMessageTypeEntryAsync(
+                    Arg.Is<MessageTypeEntry>(entry => entry.Type == new MessageType("A") && entry.DisplayName == _displayName && entry.Revision == 1), Ct);
+                break;
+            case nameof(IRegistrySettingsStore.DeleteChannelEntryAsync):
+                _ = inner.Received(1).DeleteChannelEntryAsync(new ChannelId("Email"), Ct);
+                break;
+            default:
+                _ = inner.Received(1).DeleteMessageTypeEntryAsync(new MessageType("A"), Ct);
+                break;
+        }
+    }
 
     private static IRegistrySettingsStore AStoreOf(Error? error)
     {

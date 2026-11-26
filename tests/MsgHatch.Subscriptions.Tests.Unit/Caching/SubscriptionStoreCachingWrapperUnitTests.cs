@@ -89,13 +89,15 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     public async Task FindForDeliveryAsync_MissForAllOwners_ReturnsTheSubscriptionsOfTheStore()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(_default, _acme, _user1), ABackend());
+        var store = AStore(_default, _acme, _user1);
+        await using var provider = BuildWith(store, ABackend());
 
         // Act
         var result = await StoreOf(provider).FindForDeliveryAsync(_a, [_acmeId, _globexId], [_user1Id, _user2Id], Ct);
 
         // Assert
         Assert.Equal("acme, default, user1", Names(result.Value));
+        await store.Received(1).FindForDeliveryAsync(_a, CompaniesAre(_acmeId, _globexId), UsersAre(_user1Id, _user2Id), Ct);
     }
 
     [Fact]
@@ -116,14 +118,16 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     public async Task FindForDeliveryAsync_HitForSomeOwners_ReturnsAllSubscriptionsWholeAndTheDefaultsOneTime()
     {
         // Arrange
+        var store = AStore(_default, _globex, _user2);
         await using var provider = BuildWith(
-            AStore(_default, _globex, _user2), ABackend(($"{_t1}:A:d", [_default]), ($"{_t1}:A:c:100", [_acme]), ($"{_t1}:A:u:1", [_user1])));
+            store, ABackend(($"{_t1}:A:d", [_default]), ($"{_t1}:A:c:100", [_acme]), ($"{_t1}:A:u:1", [_user1])));
 
         // Act
         var result = await StoreOf(provider).FindForDeliveryAsync(_a, [_acmeId, _globexId], [_user1Id, _user2Id], Ct);
 
         // Assert
         Assert.Equal("acme, default, globex, user1, user2", Names(result.Value));
+        await store.Received(1).FindForDeliveryAsync(_a, CompaniesAre(_globexId), UsersAre(_user2Id), Ct);
     }
 
     [Fact]
@@ -131,13 +135,15 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     {
         // Arrange
         var store = AStore();
-        await using var provider = BuildWith(store, ABackend(($"{_t1}:A:d", [_default]), ($"{_t1}:A:c:100", [_acme]), ($"{_t1}:A:u:1", [])));
+        var backend = ABackend(($"{_t1}:A:d", [_default]), ($"{_t1}:A:c:100", [_acme]), ($"{_t1}:A:u:1", []));
+        await using var provider = BuildWith(store, backend);
 
         // Act
         var result = await StoreOf(provider).FindForDeliveryAsync(_a, [_acmeId], [_user1Id], Ct);
 
         // Assert
         Assert.Equal(("acme, default", 0), (Names(result.Value), store.ReceivedCalls().Count()));
+        await backend.DidNotReceiveWithAnyArgs().SetAsync(default!, default!, default!, default, Ct);
     }
 
     [Fact]
@@ -230,14 +236,16 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     {
         // Arrange
         var error = new Error(Errors.Unavailable);
+        var store = AStoreThatFailsToFind(error);
         var backend = ABackend();
-        await using var provider = BuildWith(AStoreThatFailsToFind(error), backend);
+        await using var provider = BuildWith(store, backend);
 
         // Act
         var result = await StoreOf(provider).FindForDeliveryAsync(_a, [_acmeId], [_user1Id], Ct);
 
         // Assert
         Assert.Equal((true, 0), (ReferenceEquals(error, result.Error), SetCalls(backend).Length));
+        await store.Received(1).FindForDeliveryAsync(_a, CompaniesAre(_acmeId), UsersAre(_user1Id), Ct);
     }
 
     [Fact]
@@ -245,26 +253,35 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     {
         // Arrange
         var store = AStore(_default, _user1);
-        await using var provider = BuildWith(store, ABackendThatFailsIn(nameof(ISubscriptionCacheBackend.TryGetAsync)));
+        var backend = ABackendThatFailsIn(nameof(ISubscriptionCacheBackend.TryGetAsync));
+        await using var provider = BuildWith(store, backend);
 
         // Act
         var result = await StoreOf(provider).FindForDeliveryAsync(_a, [], [_user1Id], Ct);
 
         // Assert
-        Assert.Equal(("default, user1", 1), (Names(result.Value), FindCalls(store).Length));
+        Assert.Equal("default, user1", Names(result.Value));
+        await backend.Received(1).TryGetAsync($"{_t1}:A:d", Ct);
+        await backend.Received(1).TryGetAsync($"{_t1}:A:u:1", Ct);
+        await store.Received(1).FindForDeliveryAsync(_a, CompaniesAre(), UsersAre(_user1Id), Ct);
     }
 
     [Fact]
     public async Task FindForDeliveryAsync_BackendSetError_ReturnsTheSubscriptionsOfTheStore()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(_default, _user1), ABackendThatFailsIn(nameof(ISubscriptionCacheBackend.SetAsync)));
+        var store = AStore(_default, _user1);
+        var backend = ABackendThatFailsIn(nameof(ISubscriptionCacheBackend.SetAsync));
+        await using var provider = BuildWith(store, backend);
 
         // Act
         var result = await StoreOf(provider).FindForDeliveryAsync(_a, [], [_user1Id], Ct);
 
         // Assert
         Assert.Equal((false, "default, user1"), (result.IsError, Names(result.Value)));
+        await store.Received(1).FindForDeliveryAsync(_a, CompaniesAre(), UsersAre(_user1Id), Ct);
+        await backend.Received(1).SetAsync($"{_t1}:A:d", SubscriptionsAre(_default), TagsAre(_t1, $"{_t1}:d"), TimeSpan.FromMinutes(1), Ct);
+        await backend.Received(1).SetAsync($"{_t1}:A:u:1", SubscriptionsAre(_user1), TagsAre(_t1, $"{_t1}:u:1"), TimeSpan.FromMinutes(1), Ct);
     }
 
     [Theory]
@@ -308,14 +325,16 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     public async Task Change_InnerSuccess_RemovesTheOwnerTagOfTheSubscription(string operation)
     {
         // Arrange
+        var store = AStore(_user1);
         var backend = ABackend();
-        await using var provider = BuildWith(AStore(_user1), backend);
+        await using var provider = BuildWith(store, backend);
 
         // Act
         var error = await ChangeAsync(StoreOf(provider), operation);
 
         // Assert
         Assert.Equal((operation, (Error?)null, $"{_t1}:u:1"), (operation, error, string.Join(", ", RemovedTags(backend))));
+        await ReceivedOneChangeOfUser1Async(store, operation);
     }
 
     [Theory]
@@ -324,14 +343,16 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     {
         // Arrange
         var error = new Error(Errors.Conflict);
+        var store = AStoreThatFailsToChange(error);
         var backend = ABackend();
-        await using var provider = BuildWith(AStoreThatFailsToChange(error), backend);
+        await using var provider = BuildWith(store, backend);
 
         // Act
         var result = await ChangeAsync(StoreOf(provider), operation);
 
         // Assert
         Assert.Equal((operation, true, 0), (operation, ReferenceEquals(error, result), RemovedTags(backend).Length));
+        await ReceivedOneChangeOfUser1Async(store, operation);
     }
 
     [Fact]
@@ -351,37 +372,43 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
             (true, 0, 0),
             (ReferenceEquals(error, result), store.ReceivedCalls().Count(static call => call.GetMethodInfo().Name == nameof(ISubscriptionStore.DeleteAsync)),
                 RemovedTags(backend).Length));
+        await store.Received(1).GetAsync(_user1.Id, Ct);
     }
 
     [Fact]
     public async Task DeleteAsync_UnknownId_DeletesAndRemovesNoTag()
     {
         // Arrange
+        var id = Guid.NewGuid();
         var store = AStore();
         var backend = ABackend();
         await using var provider = BuildWith(store, backend);
 
         // Act
-        var error = await StoreOf(provider).DeleteAsync(Guid.NewGuid(), Ct);
+        var error = await StoreOf(provider).DeleteAsync(id, Ct);
 
         // Assert
-        Assert.Equal(
-            ((Error?)null, 1, 0),
-            (error, store.ReceivedCalls().Count(static call => call.GetMethodInfo().Name == nameof(ISubscriptionStore.DeleteAsync)),
-                RemovedTags(backend).Length));
+        Assert.Null(error);
+        await store.Received(1).GetAsync(id, Ct);
+        await store.Received(1).DeleteAsync(id, Ct);
+        await backend.DidNotReceiveWithAnyArgs().RemoveByTagAsync(default!, Ct);
     }
 
     [Fact]
     public async Task AddAsync_BackendRemoveError_Succeeds()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(_user1), ABackendThatFailsIn(nameof(ISubscriptionCacheBackend.RemoveByTagAsync)));
+        var store = AStore(_user1);
+        var backend = ABackendThatFailsIn(nameof(ISubscriptionCacheBackend.RemoveByTagAsync));
+        await using var provider = BuildWith(store, backend);
 
         // Act
         var error = await StoreOf(provider).AddAsync(_user1, Ct);
 
         // Assert
         Assert.Null(error);
+        await store.Received(1).AddAsync(_user1, Ct);
+        await backend.Received(1).RemoveByTagAsync($"{_t1}:u:1", Ct);
     }
 
     [Theory]
@@ -389,8 +416,9 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
     public async Task Read_AnyQuery_ReturnsTheResultOfTheStoreAndUsesNoCache(string operation)
     {
         // Arrange
+        var inner = AStore(_user1);
         var backend = ABackend();
-        await using var provider = BuildWith(AStore(_user1), backend);
+        await using var provider = BuildWith(inner, backend);
         var store = StoreOf(provider);
 
         // Act
@@ -398,6 +426,7 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
 
         // Assert
         Assert.Equal((operation, "user1", 0), (operation, names, backend.ReceivedCalls().Count()));
+        await ReceivedOneReadOfUser1Async(inner, operation);
     }
 
     private static ISubscriptionStore StoreOf(IServiceProvider provider) => provider.GetRequiredKeyedService<ISubscriptionStore>(_keyT1);
@@ -473,6 +502,47 @@ public sealed class SubscriptionStoreCachingWrapperUnitTests
         "Update" => await store.UpdateAsync(_user1 with { Revision = 2 }, 1, Ct),
         _ => await store.DeleteAsync(_user1.Id, Ct),
     };
+
+    private static async Task ReceivedOneChangeOfUser1Async(ISubscriptionStore store, string operation)
+    {
+        switch (operation)
+        {
+            case "Add":
+                await store.Received(1).AddAsync(_user1, Ct);
+                break;
+            case "Update":
+                await store.Received(1).UpdateAsync(_user1 with { Revision = 2 }, 1, Ct);
+                break;
+            default:
+                await store.Received(1).GetAsync(_user1.Id, Ct);
+                await store.Received(1).DeleteAsync(_user1.Id, Ct);
+                break;
+        }
+    }
+
+    private static async Task ReceivedOneReadOfUser1Async(ISubscriptionStore store, string operation)
+    {
+        if (operation == "Query")
+        {
+            await store.Received(1).QueryAsync(new SubscriptionQuery(), Ct);
+        }
+        else
+        {
+            await store.Received(1).GetAsync(_user1.Id, Ct);
+        }
+    }
+
+    private static IReadOnlyList<CompanyId> CompaniesAre(params CompanyId[] expected) =>
+        Arg.Is<IReadOnlyList<CompanyId>>(actual => actual.SequenceEqual(expected));
+
+    private static IReadOnlyList<UserId> UsersAre(params UserId[] expected) =>
+        Arg.Is<IReadOnlyList<UserId>>(actual => actual.SequenceEqual(expected));
+
+    private static IReadOnlyList<Subscription> SubscriptionsAre(params Subscription[] expected) =>
+        Arg.Is<IReadOnlyList<Subscription>>(actual => actual.SequenceEqual(expected));
+
+    private static IReadOnlyList<string> TagsAre(params string[] expected) =>
+        Arg.Is<IReadOnlyList<string>>(actual => actual.SequenceEqual(expected));
 
     private static string Names(IEnumerable<Subscription> subscriptions) =>
         string.Join(", ", subscriptions.Select(static subscription => _names[subscription.Id]).Order(StringComparer.Ordinal));

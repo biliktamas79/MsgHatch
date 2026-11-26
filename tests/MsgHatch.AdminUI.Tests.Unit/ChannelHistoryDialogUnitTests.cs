@@ -74,6 +74,7 @@ public sealed class ChannelHistoryDialogUnitTests : RegistryPageContext
             [("up", "width: 100%")],
             cut.FindAll("[data-segment]").Select(static segment => (segment.GetAttribute("data-segment"), segment.GetAttribute("style"))));
         Assert.Equal("No down state in 30 days.", cut.Find("[data-dialog] [data-state=empty]").TextContent);
+        Queries.Received(1).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
     }
 
     [Fact]

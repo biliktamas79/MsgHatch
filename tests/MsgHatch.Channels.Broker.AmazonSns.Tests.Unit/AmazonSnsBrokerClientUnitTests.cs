@@ -203,6 +203,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Equal(receipt, result.Value);
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.MessageAttributes.Count == 10), Ct);
     }
 
     [Fact]
@@ -239,6 +240,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Equal((row, (Error?)null), (row, result.IsError ? result.Error : null));
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(r => r.MessageAttributes.ContainsKey(name)), Ct);
     }
 
     [Theory]
@@ -277,6 +279,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.DoesNotContain("x-secret", result.Error?.Message ?? "x-secret", StringComparison.Ordinal);
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Ct);
     }
 
     [Theory]
@@ -291,6 +294,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Equal((row, (int?)expectedCode), (row, result.Error?.Type.Code));
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Ct);
     }
 
     [Fact]
@@ -305,6 +309,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Ct);
     }
 
     [Fact]
@@ -321,6 +326,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.TopicArn == _topicOfTheTestMessage), stop.Token);
     }
 
     [Theory]
@@ -336,6 +342,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
         // Assert
         var record = Assert.Single(_logger.Collector.GetSnapshot());
         Assert.Equal((row, LogLevel.Critical, 2310, false), (row, record.Level, record.Id.Id, record.Message.Contains("x-secret", StringComparison.Ordinal)));
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Ct);
     }
 
     [Fact]
@@ -349,6 +356,7 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Empty(_logger.Collector.GetSnapshot());
+        await _sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Ct);
     }
 
     [Fact]
@@ -379,6 +387,8 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Null(error);
+        await _sns.Received(1).GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _defaultTopic), Ct);
+        await _sns.Received(1).GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Ct);
     }
 
     [Fact]
@@ -395,6 +405,8 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Equal(Errors.Unavailable, error?.Type);
+        await _sns.Received(1).GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _defaultTopic), Ct);
+        await _sns.DidNotReceive().GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -409,6 +421,8 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
         // Assert
         var record = Assert.Single(_logger.Collector.GetSnapshot());
         Assert.Equal((LogLevel.Critical, 2310), (record.Level, record.Id.Id));
+        await _sns.Received(1).GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _defaultTopic), Ct);
+        await _sns.DidNotReceive().GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -438,6 +452,8 @@ public sealed class AmazonSnsBrokerClientUnitTests : BrokerClientTestsBase<Amazo
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, error?.Type);
+        await _sns.Received(1).GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _defaultTopic), stop.Token);
+        await _sns.DidNotReceive().GetTopicAttributesAsync(Arg.Is<GetTopicAttributesRequest>(static r => r.TopicArn == _topicOfTheTestMessage), Arg.Any<CancellationToken>());
     }
 
     [Theory]

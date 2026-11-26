@@ -23,14 +23,17 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
     public async Task AddAsync_InnerSuccess_ReturnsTheResultUnchanged()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        OutgoingMessage[] messages = [AMessage()];
 
         // Act
-        var error = await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+        var error = await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Null(error);
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
@@ -38,119 +41,145 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStore(expected));
+        var inner = AStore(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        OutgoingMessage[] messages = [AMessage()];
 
         // Act
-        var error = await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+        var error = await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Same(expected, error);
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
     public async Task AddAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.Unavailable)));
+        var inner = AStore(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        OutgoingMessage[] messages = [AMessage()];
 
         // Act
-        await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+        await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 1301), (record.Level, record.Id.Id));
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
     public async Task AddAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.ValidationFailed)));
+        var inner = AStore(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        OutgoingMessage[] messages = [AMessage()];
 
         // Act
-        await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+        await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1301), (record.Level, record.Id.Id));
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
     public async Task AddAsync_CancelledError_LogsInformationWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.OperationCancelled)));
+        var inner = AStore(new Error(Errors.OperationCancelled));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        OutgoingMessage[] messages = [AMessage()];
 
         // Act
-        await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+        await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Information, 1301), (record.Level, record.Id.Id));
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
     public async Task AddAsync_EmptyList_LogsADebugRecordWithACountOfZero()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
 
+        OutgoingMessage[] messages = [];
+
         // Act
-        await store.AddAsync([], TestContext.Current.CancellationToken);
+        await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Debug, "0"), (record.Level, record.GetStructuredStateValue("Count")));
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
     public async Task AddAsync_Success_LogsADebugRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        OutgoingMessage[] messages = [AMessage()];
 
         // Act
-        await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+        await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Debug, 1300), (record.Level, record.Id.Id));
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
     public async Task AddAsync_TenantStoreOfAKey_LogsTheTenantOfTheKey()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        OutgoingMessage[] messages = [AMessage()];
 
         // Act
-        await store.AddAsync([AMessage()], TestContext.Current.CancellationToken);
+        await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.Equal("t1", Assert.Single(provider.LogRecords()).GetStructuredStateValue("Tenant"));
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
     public async Task AddAsync_TestMessage_NoLogRecordContainsTheChannelAddress()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
         var message = TestMessages.AnOutgoingMessage(new TestEnvelope(_address), tenant: _t1.Tenant, flags: MessageFlags.Test);
 
+        OutgoingMessage[] messages = [message];
+
         // Act
-        await store.AddAsync([message], TestContext.Current.CancellationToken);
+        await store.AddAsync(messages, TestContext.Current.CancellationToken);
 
         // Assert
         Assert.NotEmpty(provider.LogRecords());
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_address));
+        _ = inner.Received(1).AddAsync(messages, Ct);
     }
 
     [Fact]
@@ -178,15 +207,18 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AManagedStore(expected));
+        var inner = AManagedStore(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, ids);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((expected, LogLevel.Warning, 1319), (error, record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, ids);
     }
 
     [Theory]
@@ -194,15 +226,18 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
     public async Task ManagementMember_PermanentError_LogsAnErrorWithItsEventId(string member)
     {
         // Arrange
-        await using var provider = BuildWith(AManagedStore(new Error(Errors.ValidationFailed)));
+        var inner = AManagedStore(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        await CallAsync(store, member);
+        await CallAsync(store, member, ids);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1319), (record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, ids);
     }
 
     [Theory]
@@ -210,15 +245,18 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
     public async Task ManagementMember_Success_LogsTheTenantOfTheKeyWithItsEventId(string member)
     {
         // Arrange
-        await using var provider = BuildWith(AManagedStore(error: null));
+        var inner = AManagedStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, ids);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((Error?)null, LogLevel.Debug, 1318, "t1"), (error, record.Level, record.Id.Id, record.GetStructuredStateValue("Tenant")));
+        AssertForwardedOnce(inner, member, ids);
     }
 
     [Fact]
@@ -229,12 +267,14 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
         inner.RetryAsync(default!, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(4)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        var changed = await store.RetryAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, 3, Ct);
+        var changed = await store.RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct);
 
         // Assert
         Assert.Equal(4, changed.Value);
+        _ = inner.Received(1).RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct);
     }
 
     [Fact]
@@ -246,22 +286,48 @@ public sealed class OutboxStoreLoggingWrapperUnitTests
         inner.GetAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<OutgoingMessageHistory?>.ForValue(expected)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IOutboxStore>(_t1);
+        var id = Guid.NewGuid();
 
         // Act
-        var result = await store.GetAsync(Guid.NewGuid(), Ct);
+        var result = await store.GetAsync(id, Ct);
 
         // Assert
         Assert.Same(expected, result.Value);
+        _ = inner.Received(1).GetAsync(id, Ct);
     }
 
-    private static async Task<Error?> CallAsync(IOutboxStore store, string member) => member switch
+    private static async Task<Error?> CallAsync(IOutboxStore store, string member, Guid[] ids) => member switch
     {
         nameof(IOutboxStore.QueryAsync) => (await store.QueryAsync(new OutboxQuery(), Ct)).Error,
-        nameof(IOutboxStore.GetAsync) => (await store.GetAsync(Guid.NewGuid(), Ct)).Error,
+        nameof(IOutboxStore.GetAsync) => (await store.GetAsync(ids[0], Ct)).Error,
         nameof(IOutboxStore.CountAsync) => (await store.CountAsync(new TrafficQuery(), Ct)).Error,
-        nameof(IOutboxStore.RetryAsync) => (await store.RetryAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, 3, Ct)).Error,
-        _ => (await store.CancelAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, Ct)).Error,
+        nameof(IOutboxStore.RetryAsync) => (await store.RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct)).Error,
+        _ => (await store.CancelAsync(ids, TestMessages.CreatedAtUtc, Ct)).Error,
     };
+
+    /// <summary>Asserts that the wrapper called the member of <see cref="CallAsync"/> on the inner store one time with the same arguments, and no other member.</summary>
+    private static void AssertForwardedOnce(IOutboxStore inner, string member, Guid[] ids)
+    {
+        Assert.Single(inner.ReceivedCalls());
+        switch (member)
+        {
+            case nameof(IOutboxStore.QueryAsync):
+                _ = inner.Received(1).QueryAsync(new OutboxQuery(), Ct);
+                break;
+            case nameof(IOutboxStore.GetAsync):
+                _ = inner.Received(1).GetAsync(ids[0], Ct);
+                break;
+            case nameof(IOutboxStore.CountAsync):
+                _ = inner.Received(1).CountAsync(new TrafficQuery(), Ct);
+                break;
+            case nameof(IOutboxStore.RetryAsync):
+                _ = inner.Received(1).RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct);
+                break;
+            default:
+                _ = inner.Received(1).CancelAsync(ids, TestMessages.CreatedAtUtc, Ct);
+                break;
+        }
+    }
 
     private static IOutboxStore AManagedStore(Error? error)
     {

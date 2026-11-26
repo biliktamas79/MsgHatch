@@ -7,6 +7,7 @@ using MsgHatch.Api.Contracts;
 using MsgHatch.AspNetCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Management;
+using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
 
 namespace MsgHatch.AspNetCore.Tests.Unit;
@@ -21,6 +22,7 @@ public sealed partial class DeliveryEndpointsUnitTests
 
         // Assert
         Assert.Equal((1, 0), (_host.T2Queries.ReceivedCalls().Count(), _host.Calls.Count()));
+        await _host.T2Queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -31,6 +33,7 @@ public sealed partial class DeliveryEndpointsUnitTests
 
         // Assert
         Assert.Equal((1, 0), (_host.Queries.ReceivedCalls().Count(), _host.T2Calls.Count()));
+        await _host.Queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -41,6 +44,7 @@ public sealed partial class DeliveryEndpointsUnitTests
 
         // Assert
         Assert.Equal((1, 0), (_host.T2Commands.ReceivedCalls().Count(), _host.Calls.Count()));
+        await _host.T2Commands.Received(1).RetryOutgoingAsync(new OutboxQuery(Channel: TestChannel.Id), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -93,6 +97,10 @@ public sealed partial class DeliveryEndpointsUnitTests
 
         // Assert
         Assert.Equal((problem, problem, problem, problem), (detail, content, resume, testData));
+        await _host.Queries.Received(1).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
+        await _host.Queries.Received(1).GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>());
+        await _host.Commands.Received(1).ResumeChannelAsync(TestChannel.Id, Arg.Any<CancellationToken>());
+        await _host.Commands.Received(1).DeleteTestDataAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -108,6 +116,7 @@ public sealed partial class DeliveryEndpointsUnitTests
         Assert.Equal(
             (HttpStatusCode.OK, """{"inboxMessages":2,"outboxMessages":5}""", 1),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct), _host.Commands.ReceivedCalls().Count()));
+        await _host.Commands.Received(1).DeleteTestDataAsync(Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -200,11 +209,11 @@ public sealed partial class DeliveryEndpointsUnitTests
     }
 
     [Theory]
-    [InlineData(DeliveryHost.AdminRole, "/delivery/channels", HttpStatusCode.OK)]
-    [InlineData(DeliveryHost.ContentRole, "/delivery/channels", HttpStatusCode.Forbidden)]
-    [InlineData(DeliveryHost.ContentRole, "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", HttpStatusCode.OK)]
-    [InlineData(DeliveryHost.AdminRole, "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", HttpStatusCode.Forbidden)]
-    public async Task Group_PolicyOfTheOtherGroup_DoesNotApply(string role, string path, HttpStatusCode expected)
+    [InlineData(DeliveryHost.AdminRole, "/delivery/channels", HttpStatusCode.OK, 1)]
+    [InlineData(DeliveryHost.ContentRole, "/delivery/channels", HttpStatusCode.Forbidden, 0)]
+    [InlineData(DeliveryHost.ContentRole, "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", HttpStatusCode.OK, 1)]
+    [InlineData(DeliveryHost.AdminRole, "/delivery/outbox/7d2e4b1a-5c3f-5a9e-8b10-4f6a2d9c0e31/content", HttpStatusCode.Forbidden, 0)]
+    public async Task Group_PolicyOfTheOtherGroup_DoesNotApply(string role, string path, HttpStatusCode expected, int expectedCalls)
     {
         // Arrange
         _host.Queries.GetChannelsAsync(Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ChannelStatus>>.ForValue([])));
@@ -216,6 +225,6 @@ public sealed partial class DeliveryEndpointsUnitTests
         var response = await client.GetAsync(new Uri(path, UriKind.Relative), Ct);
 
         // Assert
-        Assert.Equal(expected, response.StatusCode);
+        Assert.Equal((expected, expectedCalls), (response.StatusCode, _host.Calls.Count()));
     }
 }

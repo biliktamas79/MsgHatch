@@ -23,7 +23,9 @@ public sealed class OutboxDispatcherLoggingWrapperUnitTests
     public async Task DispatchPendingAsync_Success_ReturnsTheSummaryAndLogsADebugRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new ClaimResult<OutgoingMessage>([TestMessages.AnOutgoingMessage()], null)));
+        var message = TestMessages.AnOutgoingMessage();
+        var store = AStore(new ClaimResult<OutgoingMessage>([message], null));
+        await using var provider = BuildWith(store);
 
         // Act
         var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
@@ -31,6 +33,9 @@ public sealed class OutboxDispatcherLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1314);
         Assert.Equal((new DispatchSummary(1, 1, 0, 0), LogLevel.Debug, "1"), (summary.Value, record.Level, record.GetStructuredStateValue("Claimed")));
+        _ = store.Received(1).ClaimDueAsync(TestChannel.Id, 10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
+        _ = store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -38,7 +43,8 @@ public sealed class OutboxDispatcherLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStore(expected));
+        var store = AStore(expected);
+        await using var provider = BuildWith(store);
 
         // Act
         var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
@@ -46,19 +52,22 @@ public sealed class OutboxDispatcherLoggingWrapperUnitTests
         // Assert
         Assert.Same(expected, summary.Error);
         Assert.Equal(LogLevel.Warning, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1315).Level);
+        _ = store.Received(1).ClaimDueAsync(TestChannel.Id, 10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
     }
 
     [Fact]
     public async Task DispatchPendingAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.ValidationFailed)));
+        var store = AStore(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(store);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
         Assert.Equal(LogLevel.Error, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1315).Level);
+        _ = store.Received(1).ClaimDueAsync(TestChannel.Id, 10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
     }
 
     [Fact]
@@ -82,13 +91,15 @@ public sealed class OutboxDispatcherLoggingWrapperUnitTests
     public async Task AddMsgHatch_EnableLoggingFalse_RegistersNoLoggingWrapperOfTheDispatcher()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.Unavailable)), enableLogging: false);
+        var store = AStore(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(store, enableLogging: false);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
         Assert.DoesNotContain(provider.LogRecords(), static r => r.Id.Id is >= 1312 and <= 1315);
+        _ = store.Received(1).ClaimDueAsync(TestChannel.Id, 10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
     }
 
     private static IOutboxDispatchStore AStore(ErrorOr<ClaimResult<OutgoingMessage>> claimed)

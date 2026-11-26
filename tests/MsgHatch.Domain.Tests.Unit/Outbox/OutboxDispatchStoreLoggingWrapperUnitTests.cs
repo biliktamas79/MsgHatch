@@ -23,7 +23,8 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     {
         // Arrange
         const int count = 3;
-        await using var provider = BuildWith(AStore(count));
+        var inner = AStore(count);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
 
         // Act
@@ -31,6 +32,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Equal(count, deleted.Value);
+        _ = inner.Received(1).DeleteTestDataAsync(Ct);
     }
 
     [Fact]
@@ -38,7 +40,8 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStore(expected));
+        var inner = AStore(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
 
         // Act
@@ -46,13 +49,15 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Same(expected, deleted.Error);
+        _ = inner.Received(1).DeleteTestDataAsync(Ct);
     }
 
     [Fact]
     public async Task DeleteTestDataAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.Unavailable)));
+        var inner = AStore(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
 
         // Act
@@ -61,13 +66,15 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 1303), (record.Level, record.Id.Id));
+        _ = inner.Received(1).DeleteTestDataAsync(Ct);
     }
 
     [Fact]
     public async Task DeleteTestDataAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.ValidationFailed)));
+        var inner = AStore(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
 
         // Act
@@ -76,6 +83,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1303), (record.Level, record.Id.Id));
+        _ = inner.Received(1).DeleteTestDataAsync(Ct);
     }
 
     [Fact]
@@ -124,15 +132,18 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStoreOf(expected));
+        var inner = AStoreOf(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, message);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((expected, LogLevel.Warning, eventId), (error, record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, message);
     }
 
     [Theory]
@@ -140,15 +151,18 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     public async Task Member_PermanentError_LogsAnErrorWithItsEventId(string member, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(new Error(Errors.ValidationFailed)));
+        var inner = AStoreOf(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        await CallAsync(store, member);
+        await CallAsync(store, member, message);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, eventId), (record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, message);
     }
 
     [Theory]
@@ -156,15 +170,18 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     public async Task Member_Success_LogsADebugRecordWithItsEventId(string member, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
+        var message = TestMessages.AnOutgoingMessage();
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, message);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((Error?)null, LogLevel.Debug, eventId), (error, record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, message);
     }
 
     [Fact]
@@ -183,6 +200,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Same(claimed, result.Value);
+        _ = inner.Received(1).ClaimDueAsync(TestChannel.Id, 1, TestMessages.CreatedAtUtc, TimeSpan.FromSeconds(30), Ct);
     }
 
     [Fact]
@@ -204,6 +222,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Same(rows, counts.Value);
+        _ = inner.Received(1).CountAsync(new TrafficQuery(), Ct);
     }
 
     [Fact]
@@ -220,13 +239,15 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Equal(7, purged.Value);
+        _ = inner.Received(1).PurgeAsync(TestMessages.CreatedAtUtc, 10, Ct);
     }
 
     [Fact]
     public async Task RecordTryAsync_TestMessageOfATenant_LogsTheTenantAndTheTestFlagAndNoChannelAddress()
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
         var message = TestMessages.AnOutgoingMessage(new TestEnvelope(_address), tenant: new TenantId("t1"), flags: MessageFlags.Test);
 
@@ -237,6 +258,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(("t1", "Test"), (record.GetStructuredStateValue("Tenant"), record.GetStructuredStateValue("MessageFlags")));
         Assert.False(record.ContainsText(_address));
+        _ = inner.Received(1).RecordTryAsync(message, ATry(message), null, Ct);
     }
 
     [Fact]
@@ -244,7 +266,8 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     {
         // Arrange
         const string note = "call client1@example.com";
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
 
         // Act
@@ -252,6 +275,7 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.False(Assert.Single(provider.LogRecords()).ContainsText(note));
+        _ = inner.Received(1).SetChannelDownAsync(APause(note), Ct);
     }
 
     private const string _address = "client1@example.com";
@@ -264,10 +288,9 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
     private static PublishTry ATry(OutgoingMessage message) =>
         new(message.Delivery.Id, 1, TestMessages.CreatedAtUtc, TestMessages.CreatedAtUtc, PublishOutcome.Succeeded, "provider-1", null, null, null);
 
-    private static async Task<Error?> CallAsync(IOutboxDispatchStore store, string member)
+    private static async Task<Error?> CallAsync(IOutboxDispatchStore store, string member, OutgoingMessage message)
     {
         var now = TestMessages.CreatedAtUtc;
-        var message = TestMessages.AnOutgoingMessage();
         return member switch
         {
             nameof(IOutboxDispatchStore.ClaimDueAsync) => (await store.ClaimDueAsync(TestChannel.Id, 1, now, TimeSpan.FromSeconds(30), Ct)).Error,
@@ -280,6 +303,43 @@ public sealed class OutboxDispatchStoreLoggingWrapperUnitTests
             nameof(IOutboxDispatchStore.CountAsync) => (await store.CountAsync(new TrafficQuery(), Ct)).Error,
             _ => (await store.PurgeAsync(now, 10, Ct)).Error,
         };
+    }
+
+    /// <summary>Asserts that the wrapper called the member of <see cref="CallAsync"/> on the inner store one time with the same arguments, and no other member.</summary>
+    private static void AssertForwardedOnce(IOutboxDispatchStore inner, string member, OutgoingMessage message)
+    {
+        var now = TestMessages.CreatedAtUtc;
+        Assert.Single(inner.ReceivedCalls());
+        switch (member)
+        {
+            case nameof(IOutboxDispatchStore.ClaimDueAsync):
+                _ = inner.Received(1).ClaimDueAsync(TestChannel.Id, 1, now, TimeSpan.FromSeconds(30), Ct);
+                break;
+            case nameof(IOutboxDispatchStore.RecordTryAsync):
+                _ = inner.Received(1).RecordTryAsync(message, ATry(message), null, Ct);
+                break;
+            case nameof(IOutboxDispatchStore.GetDownChannelsAsync):
+                _ = inner.Received(1).GetDownChannelsAsync(Ct);
+                break;
+            case nameof(IOutboxDispatchStore.SetChannelDownAsync):
+                _ = inner.Received(1).SetChannelDownAsync(APause("note"), Ct);
+                break;
+            case nameof(IOutboxDispatchStore.SetChannelUpAsync):
+                _ = inner.Received(1).SetChannelUpAsync(TestChannel.Id, null, now, Ct);
+                break;
+            case nameof(IOutboxDispatchStore.GetChannelStatesAsync):
+                _ = inner.Received(1).GetChannelStatesAsync(now, Ct);
+                break;
+            case nameof(IOutboxDispatchStore.TryStartChannelCheckAsync):
+                _ = inner.Received(1).TryStartChannelCheckAsync(TestChannel.Id, now, now.AddSeconds(30), Ct);
+                break;
+            case nameof(IOutboxDispatchStore.CountAsync):
+                _ = inner.Received(1).CountAsync(new TrafficQuery(), Ct);
+                break;
+            default:
+                _ = inner.Received(1).PurgeAsync(now, 10, Ct);
+                break;
+        }
     }
 
     private static IOutboxDispatchStore AStoreOf(Error? error)

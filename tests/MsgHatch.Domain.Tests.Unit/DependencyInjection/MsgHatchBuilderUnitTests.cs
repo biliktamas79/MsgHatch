@@ -337,7 +337,8 @@ public sealed partial class MsgHatchBuilderUnitTests
     public async Task UseStorageForEachTenant_LoggingEnabled_ResolvesTheTenantSourceAndEachStoreAsItsLoggingWrapper()
     {
         // Arrange
-        await using var provider = BuildForEachTenant(enableLogging: true);
+        var source = ATenantSourceOfT1();
+        await using var provider = BuildForEachTenant(source, enableLogging: true);
         await provider.GetRequiredKeyedService<IInboxStore>(_t1).AddAsync(TestMessages.AReceivedMessage(new TestEvent("text"), _t1.Tenant), Ct);
         await provider.GetRequiredKeyedService<IOutboxStore>(_t1).AddAsync([TestMessages.AnOutgoingMessage(tenant: _t1.Tenant, channel: TestChannel.Id)], Ct);
 
@@ -348,6 +349,7 @@ public sealed partial class MsgHatchBuilderUnitTests
         // Assert
         Assert.Equal((1, 1), (inbox.Value.Messages.Count, outbox.Value.Messages.Count));
         Assert.Equal([1200, 1202, 1300, 1304, 1500, 1500], provider.LogRecords().Select(static record => record.Id.Id).Order());
+        _ = source.Received(2).GetTenantsAsync(Ct);
     }
 
     [Fact]
@@ -355,7 +357,8 @@ public sealed partial class MsgHatchBuilderUnitTests
     {
         // Arrange
         List<TenantKey> calls = [];
-        await using var provider = BuildForEachTenant(enableLogging: false, calls);
+        var source = ATenantSourceOfT1();
+        await using var provider = BuildForEachTenant(source, enableLogging: false, calls);
         var store = provider.GetRequiredService<IOutboxDispatchStore>();
         await store.ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
 
@@ -364,6 +367,7 @@ public sealed partial class MsgHatchBuilderUnitTests
 
         // Assert
         Assert.Equal([TenantKey.None, _t1], calls);
+        _ = source.Received(2).GetTenantsAsync(Ct);
     }
 
     [Fact]
@@ -408,11 +412,16 @@ public sealed partial class MsgHatchBuilderUnitTests
 
     private static DateTime Now => TestHost.Start.UtcDateTime;
 
-    /// <summary>A host with an in-memory store for each key, as keyed singletons, and a tenant source with the tenant t1.</summary>
-    private static ServiceProvider BuildForEachTenant(bool enableLogging, List<TenantKey>? outboxDispatchCalls = null)
+    private static ITenantSource ATenantSourceOfT1()
     {
         var source = Substitute.For<ITenantSource>();
         source.GetTenantsAsync(default).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<TenantId>>.ForValue([_t1.Tenant!.Value])));
+        return source;
+    }
+
+    /// <summary>A host with an in-memory store for each key, as keyed singletons, and the tenant source.</summary>
+    private static ServiceProvider BuildForEachTenant(ITenantSource source, bool enableLogging, List<TenantKey>? outboxDispatchCalls = null)
+    {
         var services = TestHost.CreateServices();
         services.AddKeyedSingleton(KeyedService.AnyKey, static (_, _) => new InMemoryInboxStore());
         services.AddKeyedSingleton(KeyedService.AnyKey, static (_, _) => new InMemoryOutboxStore());

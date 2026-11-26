@@ -61,6 +61,7 @@ public sealed partial class NotificationServiceUnitTests
         // Assert: the event fails, so the inbox or the broker gives it again, and no message of the first channel is stored
         Assert.Equal(Errors.OperationCancelled, stopped.Error?.Type);
         Assert.Empty(outbox.GetMessages());
+        _ = secondComposer.Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u2"), stop.Token);
 
         // Act: the event comes again
         var again = await ProcessAsync(provider, context);
@@ -68,13 +69,15 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         Assert.Equal(2, again.Value.Stored);
         Assert.Equal([("u1", 0), ("u2", 0)], outbox.GetMessages().Select(static m => (m.Target.Id, m.Delivery.TryCount)));
+        _ = secondComposer.Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u2"), Ct);
     }
 
     [Fact]
     public async Task ProcessAsync_SameEventAgainAfterAStopBeforeItsAcknowledgment_KeepsOneCopyOfEachMessageWithNoTry()
     {
         // Arrange
-        await using var provider = BuildWithInMemoryStoresAndTwoChannels(AnOtherEnvelopeComposer());
+        var secondComposer = AnOtherEnvelopeComposer();
+        await using var provider = BuildWithInMemoryStoresAndTwoChannels(secondComposer);
         var outbox = provider.GetRequiredService<InMemoryOutboxStore>();
         var context = AContext(_tenant);
         await ProcessAsync(provider, context); // stored, but the host stops before the inbox or the broker acknowledges the event
@@ -84,6 +87,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal([("u1", 0), ("u2", 0)], outbox.GetMessages().Select(static m => (m.Target.Id, m.Delivery.TryCount)));
+        _ = secondComposer.Received(2).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u2"), Ct);
     }
 
     private static IEnvelopeComposer<TestEvent, OtherTestEnvelope> AnOtherEnvelopeComposer() =>

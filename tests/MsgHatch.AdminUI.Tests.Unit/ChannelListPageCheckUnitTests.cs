@@ -40,6 +40,7 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
         // Assert
         var alert = cut.Find("[data-check-result]");
         Assert.Equal((expectedText, true), (alert.TextContent, alert.ClassList.Contains(expectedClass)));
+        Commands.Received(1).CheckChannelAsync(Sms, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -56,6 +57,7 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
         // Assert
         var alert = cut.Find("[data-check-result]");
         Assert.Equal((AdminErrors.RejectedText, true), (alert.TextContent, alert.ClassList.Contains("alert-danger")));
+        Commands.Received(1).CheckChannelAsync(Email, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -69,6 +71,7 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
         cut.FindAll("[data-action=check]")[0].Click();
 
         // Assert
+        Commands.Received(1).CheckChannelAsync(Email, Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
@@ -87,6 +90,7 @@ public sealed class ChannelListPageCheckUnitTests : RegistryPageContext
 
         // Assert
         cut.WaitForAssertion(() => Assert.Equal(("True True True", "False False False"), (whileRunning, DisabledFlagsOf(cut))));
+        Commands.Received(1).CheckChannelAsync(Fax, Arg.Any<CancellationToken>());
     }
 
     [Fact]

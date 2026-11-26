@@ -108,6 +108,8 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         Assert.Equal(1, result.Value.Stored);
         Assert.Equal(LogLevel.Warning, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1010).Level);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
+        _ = signal.Received(1).NotifyAsync(DispatchTopic.ForChannel(TestChannel.Id), Ct);
     }
 
     [Fact]

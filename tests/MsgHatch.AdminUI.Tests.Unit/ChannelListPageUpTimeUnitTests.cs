@@ -20,6 +20,7 @@ public sealed class ChannelListPageUpTimeUnitTests : RegistryPageContext
         Assert.Equal(
             ["1 day: 100 %", "1 week: 100 %", "30 days: 100 %"],
             cut.FindAll("tr[data-row]")[0].QuerySelectorAll("[data-up-time]").Select(static window => window.TextContent));
+        Queries.Received(1).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -55,6 +56,9 @@ public sealed class ChannelListPageUpTimeUnitTests : RegistryPageContext
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-history-error] .alert-danger").TextContent);
         Assert.Equal([3, 0, 3], cut.FindAll("tr[data-row]").Select(static row => row.QuerySelectorAll("[data-up-time]").Length));
+        Queries.Received(1).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetChannelHistoryAsync(Sms, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetChannelHistoryAsync(Fax, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -67,7 +71,9 @@ public sealed class ChannelListPageUpTimeUnitTests : RegistryPageContext
         cut.Find("[data-action=check]").Click();
 
         // Assert
+        Commands.Received(1).CheckChannelAsync(Email, Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelHistoryAsync(Email, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetChannelHistoryAsync(Sms, Arg.Any<CancellationToken>());
         Queries.Received(2).GetChannelHistoryAsync(Fax, Arg.Any<CancellationToken>());
     }
 

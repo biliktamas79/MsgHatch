@@ -22,6 +22,8 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
     private const string _validDraft = """{"level":"Default","messageType":"B","kind":"OptOut","revision":1}""";
 
+    private static readonly SubscriptionDraft _draftOfTheValidBody = new(SubscriptionOwner.Default, new MessageType("B"), SubscriptionKind.OptOut, null, null);
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public static TheoryData<string, string, string, string?, string> RouteRows => new()
@@ -242,6 +244,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal((status, row, "The test failure.", ErrorTypeBody.From(error)), await EndpointHost.ProblemWithErrorTypeOf(response));
+        await host.Manager.Received(1).GetSubscriptionAsync(Guid.Parse(_anId), Arg.Any<CancellationToken>());
     }
 
     private static string CallsOf(ISubscriptionManagement manager) =>

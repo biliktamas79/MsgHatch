@@ -102,6 +102,7 @@ public sealed class ChannelViewPageDeliveryUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-action-error] .alert-danger").TextContent);
+        DeliveryCommands.Received(1).ResumeChannelAsync(Email, Arg.Any<CancellationToken>());
     }
 
     private static ChannelStatus Status(ChannelId channel, int pending, int pendingTest, DateTime? oldestDue) =>

@@ -26,6 +26,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal([MessageFlags.Test, MessageFlags.Test], _doubles.Stored.Select(static m => m.Flags));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -35,13 +36,16 @@ public sealed partial class NotificationServiceUnitTests
         var error = new Error(Errors.Unavailable);
         _doubles.Composer(TenantKey.None).ComposeAsync(default!, default, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<ErrorOr<TestEnvelope>>>>(error));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var results = await PreviewAsync(provider, AContext(), [ARoute("u1")]);
+        var results = await PreviewAsync(provider, context, [ARoute("u1")]);
 
         // Assert
         Assert.Same(error, results.Error);
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
+        _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
     }
 
     [Fact]
@@ -49,14 +53,17 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         MessageRoute[] routes = [ARoute("u1"), ARoute("u2", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings()), ARoute("u3")];
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var results = await PreviewAsync(provider, AContext(), routes);
+        var results = await PreviewAsync(provider, context, routes);
 
         // Assert
         Assert.Equal(routes, results.Value.Select(static r => r.Route));
         Assert.Empty(_doubles.Stored);
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1", "u3"), Ct);
+        _ = _doubles.SecondComposer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u2"), Ct);
         _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
         _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
@@ -77,6 +84,9 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         Assert.Equal(_doubles.Stored, results.Value.Select(static r => r.Message));
         Assert.Equal([MessageFlags.Test, MessageFlags.Test], results.Value.Select(static r => r.Message!.Flags));
+        _ = _doubles.Router(_t1).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(_t1).Received(2).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1", "u2"), Ct);
+        _ = _doubles.Store(_t1).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -84,15 +94,19 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         MessageRoute[] routes = [ARoute("u1"), ARoute("u1", address: "second@example.com")]; // the second route has the same target and channel
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var results = await PreviewAsync(provider, AContext(), routes);
+        var results = await PreviewAsync(provider, context, routes);
 
         // Assert
         Assert.Equal(
             [(true, (int?)null), (false, 409)],
             results.Value.Select(static r => (r.Message is not null, r.Error?.Type.Code)));
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(
+            ReceivedMessageOf(context), Arg.Is<ReadOnlyMemory<MessageRoute>>(r => r.ToArray().SequenceEqual(new[] { routes[0] })), Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -101,15 +115,18 @@ public sealed partial class NotificationServiceUnitTests
         // Arrange
         MessageRoute[] routes = [ARoute("u1"), ARoute("u2")];
         _doubles.Routes = routes;
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var results = await PreviewAsync(provider, AContext(), routes: null);
+        var results = await PreviewAsync(provider, context, routes: null);
 
         // Assert
         Assert.Equal(routes, results.Value.Select(static r => r.Route));
-        _ = _doubles.Router(TenantKey.None).ReceivedWithAnyArgs(1).RouteAsync(default!, Ct);
         Assert.Empty(_doubles.Stored);
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(
+            Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == context.MessageId && m.Flags == MessageFlags.Test), Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -125,6 +142,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(Errors.NotFound, results.Error?.Type);
+        _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
     }
 
     public static TheoryData<string> PositionRows => new() { "OneChannelAsAnArray", "OneChannelAsAList", "TwoChannelsInTurns", "FailedRouteInTheMiddle" };
@@ -183,26 +201,31 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         MessageRoute[] routes = [ARoute("u1"), ARoute("u2"), ARoute("u1", address: "second@example.com")];
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var results = await PreviewAsync(provider, AContext(), routes);
+        var results = await PreviewAsync(provider, context, routes);
 
         // Assert
         Assert.Equal([null, null, 409], results.Value.Select(static result => result.Error?.Type.Code));
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(
+            ReceivedMessageOf(context), Arg.Is<ReadOnlyMemory<MessageRoute>>(r => r.ToArray().SequenceEqual(new[] { routes[0], routes[1] })), Ct);
     }
 
     [Fact]
     public async Task PreviewAsync_OneRoute_GivesNoConflict()
     {
         // Arrange
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var results = await PreviewAsync(provider, AContext(), [ARoute("u1")]);
+        var results = await PreviewAsync(provider, context, [ARoute("u1")]);
 
         // Assert
         Assert.Null(Assert.Single(results.Value).Error);
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
     }
 
     private static IReadOnlyList<MessageRoute> PositionRoutes(string row) => row switch

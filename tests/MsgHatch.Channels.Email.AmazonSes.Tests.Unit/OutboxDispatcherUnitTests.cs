@@ -39,11 +39,12 @@ public sealed class OutboxDispatcherUnitTests
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        await ses.ReceivedWithAnyArgs(1).SendEmailAsync(default!, Ct);
         Assert.Equal(
             [(email.Delivery.Id, DeliveryStatus.Done, 1), (other.Delivery.Id, DeliveryStatus.Pending, 0)],
             provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()
                 .Select(static m => (m.Delivery.Id, m.Delivery.Status, m.Delivery.TryCount)));
+        await ses.Received(1).SendEmailAsync(
+            Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == email.Delivery.Id.ToString()), Arg.Any<CancellationToken>());
     }
 
     private static OutgoingMessage<string> AnOutgoingMessageOfAnotherChannel()

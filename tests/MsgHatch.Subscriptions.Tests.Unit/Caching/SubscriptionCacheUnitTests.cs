@@ -58,13 +58,15 @@ public sealed class SubscriptionCacheUnitTests
     {
         // Arrange
         var error = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(ABackendThatFailsToRemove(error));
+        var backend = ABackendThatFailsToRemove(error);
+        await using var provider = BuildWith(backend);
 
         // Act
         var result = await provider.GetRequiredKeyedService<ISubscriptionCache>(_t1).InvalidateAllAsync(Ct);
 
         // Assert
         Assert.Same(error, result);
+        await backend.Received(1).RemoveByTagAsync("msghatch:sub:t:t1", Ct);
     }
 
     private static SubscriptionOwner OwnerOf(string? company, string? user) =>

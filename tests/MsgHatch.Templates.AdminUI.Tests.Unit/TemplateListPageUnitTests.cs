@@ -36,6 +36,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
             (TemplateAdminRoutes.View(company).TrimStart('/'), TemplateAdminRoutes.Edit(company).TrimStart('/')),
             (rows[1].QuerySelector("[data-action=view]")!.GetAttribute("href"), rows[1].QuerySelector("[data-action=edit]")!.GetAttribute("href")));
         Assert.Equal("msghatch/templates/Requests/hu/body/Html/view?companyId=42", rows[1].QuerySelector("[data-action=view]")!.GetAttribute("href"));
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -52,6 +53,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
             ("Templates", 3, 2, true),
             (cut.Find("[data-list-header] h1").TextContent, cut.FindAll("[data-list-filters] select").Count, cut.FindAll("[data-list-filters] input").Count,
                 cut.Find("[data-list-body]").QuerySelector("[data-list-scroll] table") is not null));
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -68,6 +70,8 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         Assert.Equal(
             ("Built in", "Built in"),
             (cut.Find("tr[data-row]").Children[5].TextContent, cut.Find(".modal [data-metadata] [data-field=version]").TextContent));
+        AssertReadThePartsAndAllTemplatesOnce();
+        Commands.DidNotReceiveWithAnyArgs().DeleteTemplateAsync(default, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -81,6 +85,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal("There are no templates.", cut.Find("[data-state=empty]").TextContent);
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -94,6 +99,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -107,6 +113,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -120,6 +127,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(["", "Requests"], cut.FindAll("#msghatch-template-type option").Select(static option => option.GetAttribute("value")));
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -134,6 +142,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         // Assert
         Assert.Equal(["", "subject", "body"], cut.FindAll("#msghatch-template-part-filter option").Select(static option => option.GetAttribute("value")));
         Assert.Equal(["", "PlainText", "Html"], cut.FindAll("#msghatch-template-kind option").Select(static option => option.GetAttribute("value")));
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -155,6 +164,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         // Assert
         var row = Assert.Single(cut.FindAll("tr[data-row]"));
         Assert.Equal(["Requests", "en", "All companies", "body", "Html", "1"], row.Children.SkipLast(1).Select(static cell => cell.TextContent));
+        Queries.Received(3).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -205,6 +215,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         cut.WaitForAssertion(() => Assert.Equal(("en hu", "hu"), (beforeThePause, LanguagesOf(cut))));
+        _ = Queries.Received(2).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -228,6 +239,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(["42"], cut.FindAll("tr[data-row]").Select(static row => row.Children[2].TextContent));
+        _ = Queries.Received(1).GetTemplatesAsync(new TemplateQuery(null, "42"), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -295,6 +307,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".modal-body .alert-danger").TextContent);
         Assert.Empty(cut.FindAll("[data-action=open-editor]"));
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -311,6 +324,7 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         // Assert
         Assert.Single(cut.FindAll(".modal-body [data-state=no-parts]"));
         Assert.Empty(cut.FindAll("[data-action=open-editor]"));
+        AssertReadThePartsAndAllTemplatesOnce();
     }
 
     [Fact]
@@ -381,9 +395,9 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
         cut.Find("[data-action=confirm-delete]").Click();
 
         // Assert
-        Commands.Received(1).DeleteTemplateAsync(company, Arg.Any<CancellationToken>());
-        Queries.ReceivedWithAnyArgs(2).GetTemplatesAsync(default!, Arg.Any<CancellationToken>());
         Assert.Empty(cut.FindAll(".modal"));
+        Commands.Received(1).DeleteTemplateAsync(company, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -416,6 +430,14 @@ public sealed class TemplateListPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal((AdminErrors.RejectedText, 1), (cut.Find("[data-list-body] > .alert-danger").TextContent, cut.FindAll("tr[data-row]").Count));
+        Commands.Received(1).DeleteTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
+        Queries.Received(1).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
+    }
+
+    private void AssertReadThePartsAndAllTemplatesOnce()
+    {
+        Queries.Received(1).GetTemplatePartsAsync(null, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
     }
 
     private static string LanguagesOf(IRenderedComponent<TemplateListPage> cut) =>

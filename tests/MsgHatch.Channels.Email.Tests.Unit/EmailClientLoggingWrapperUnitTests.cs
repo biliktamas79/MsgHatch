@@ -26,13 +26,15 @@ public sealed class EmailClientLoggingWrapperUnitTests
     {
         // Arrange
         var receipt = new PublishReceipt("ses-7");
-        await using var provider = BuildWith(AClient(receipt));
+        var (inner, id, email) = (AClient(receipt), Guid.NewGuid(), TestMessages.AnEmail());
+        await using var provider = BuildWith(inner);
 
         // Act
-        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(id, email, Ct);
 
         // Assert
         Assert.Equal(receipt, result.Value);
+        await inner.Received(1).SendAsync(id, email, Ct);
     }
 
     [Fact]
@@ -40,70 +42,79 @@ public sealed class EmailClientLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Rejected);
-        await using var provider = BuildWith(AClient(expected));
+        var (inner, id, email) = (AClient(expected), Guid.NewGuid(), TestMessages.AnEmail());
+        await using var provider = BuildWith(inner);
 
         // Act
-        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(id, email, Ct);
 
         // Assert
         Assert.Same(expected, result.Error);
+        await inner.Received(1).SendAsync(id, email, Ct);
     }
 
     [Fact]
     public async Task SendAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AClient(new Error(Errors.RateLimited)));
+        var (inner, id, email) = (AClient(new Error(Errors.RateLimited)), Guid.NewGuid(), TestMessages.AnEmail());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        await provider.GetRequiredService<IEmailClient>().SendAsync(id, email, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 2005), (record.Level, record.Id.Id));
+        await inner.Received(1).SendAsync(id, email, Ct);
     }
 
     [Fact]
     public async Task SendAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AClient(new Error(Errors.Rejected)));
+        var (inner, id, email) = (AClient(new Error(Errors.Rejected)), Guid.NewGuid(), TestMessages.AnEmail());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        await provider.GetRequiredService<IEmailClient>().SendAsync(id, email, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 2005), (record.Level, record.Id.Id));
+        await inner.Received(1).SendAsync(id, email, Ct);
     }
 
     [Fact]
     public async Task SendAsync_CancelledError_LogsInformationWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AClient(new Error(Errors.OperationCancelled)));
+        var (inner, id, email) = (AClient(new Error(Errors.OperationCancelled)), Guid.NewGuid(), TestMessages.AnEmail());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        await provider.GetRequiredService<IEmailClient>().SendAsync(id, email, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Information, 2005), (record.Level, record.Id.Id));
+        await inner.Received(1).SendAsync(id, email, Ct);
     }
 
     [Fact]
     public async Task SendAsync_Success_LogsADebugRecordWithTheOutgoingMessageId()
     {
         // Arrange
-        var id = Guid.NewGuid();
-        await using var provider = BuildWith(AClient(new PublishReceipt("ses-1")));
+        var (inner, id, email) = (AClient(new PublishReceipt("ses-1")), Guid.NewGuid(), TestMessages.AnEmail());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IEmailClient>().SendAsync(id, TestMessages.AnEmail(), Ct);
+        await provider.GetRequiredService<IEmailClient>().SendAsync(id, email, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Debug, 2004, id.ToString()), (record.Level, record.Id.Id, record.GetStructuredStateValue("OutgoingMessageId")));
+        await inner.Received(1).SendAsync(id, email, Ct);
     }
 
     [Theory]
@@ -113,15 +124,17 @@ public sealed class EmailClientLoggingWrapperUnitTests
     {
         // Arrange
         ErrorOr<PublishReceipt> result = rejected ? new Error(Errors.Rejected) : new PublishReceipt("ses-1");
-        await using var provider = BuildWith(AClient(result));
+        var (inner, id) = (AClient(result), Guid.NewGuid());
+        await using var provider = BuildWith(inner);
         var email = TestMessages.AnEmail(to: _address, subject: _subject, cc: [_address, _address], bcc: [_address, _address]);
 
         // Act
-        await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), email, Ct);
+        await provider.GetRequiredService<IEmailClient>().SendAsync(id, email, Ct);
 
         // Assert
         Assert.NotEmpty(provider.LogRecords());
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_address) || record.ContainsText(_subject));
+        await inner.Received(1).SendAsync(id, email, Ct);
     }
 
     [Fact]
@@ -129,20 +142,23 @@ public sealed class EmailClientLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AHealthCheck(expected));
+        var inner = AHealthCheck(expected);
+        await using var provider = BuildWith(inner);
 
         // Act
         var error = await provider.GetRequiredService<IEmailClient>().CheckHealthAsync(Ct);
 
         // Assert
         Assert.Same(expected, error);
+        await inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]
     public async Task CheckHealthAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AHealthCheck(new Error(Errors.Unavailable)));
+        var inner = AHealthCheck(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(inner);
 
         // Act
         await provider.GetRequiredService<IEmailClient>().CheckHealthAsync(Ct);
@@ -150,13 +166,15 @@ public sealed class EmailClientLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 2007), (record.Level, record.Id.Id));
+        await inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]
     public async Task CheckHealthAsync_Success_LogsADebugRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AHealthCheck(error: null));
+        var inner = AHealthCheck(error: null);
+        await using var provider = BuildWith(inner);
 
         // Act
         var error = await provider.GetRequiredService<IEmailClient>().CheckHealthAsync(Ct);
@@ -164,6 +182,7 @@ public sealed class EmailClientLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((null, LogLevel.Debug, 2006), (error, record.Level, record.Id.Id));
+        await inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]

@@ -50,7 +50,7 @@ public sealed partial class NotificationServiceUnitTests
                 m.Event == domainEvent && m.Delivery.Id == context.MessageId && m.Tenant == context.Tenant
                 && m.Flags == context.Flags && m.Type == new MessageType("TestEvent") && m.ContentVersion == 2
                 && m.Delivery.CreatedAtUtc == TestHost.Start.UtcDateTime),
-            Arg.Any<CancellationToken>());
+            Ct);
     }
 
     [Fact]
@@ -65,20 +65,23 @@ public sealed partial class NotificationServiceUnitTests
             ARoute("u4", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings()),
         ];
         _doubles.Routes = routes;
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        await ProcessAsync(provider, AContext());
+        await ProcessAsync(provider, context);
 
         // Assert
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
         _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(
-            Arg.Any<ReceivedMessage<TestEvent>>(),
+            ReceivedMessageOf(context),
             Arg.Is<ReadOnlyMemory<MessageRoute>>(r => r.ToArray().SequenceEqual(new[] { routes[0], routes[2] })),
-            Arg.Any<CancellationToken>());
+            Ct);
         _ = _doubles.SecondComposer(TenantKey.None).Received(1).ComposeAsync(
-            Arg.Any<ReceivedMessage<TestEvent>>(),
+            ReceivedMessageOf(context),
             Arg.Is<ReadOnlyMemory<MessageRoute>>(r => r.ToArray().SequenceEqual(new[] { routes[1], routes[3] })),
-            Arg.Any<CancellationToken>());
+            Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2", "u3", "u4"), Ct);
     }
 
     [Fact]
@@ -86,15 +89,16 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Routes = [ARoute("u1")];
+        var context = AContext(_tenant);
         await using var provider = _doubles.Build(_time);
 
         // Act
-        await ProcessAsync(provider, AContext(_tenant));
+        await ProcessAsync(provider, context);
 
         // Assert
-        _ = _doubles.Router(_t1).ReceivedWithAnyArgs(1).RouteAsync(default!, Ct);
-        _ = _doubles.Composer(_t1).ReceivedWithAnyArgs(1).ComposeAsync(default!, default, Ct);
-        _ = _doubles.Store(_t1).ReceivedWithAnyArgs(1).AddAsync(default!, Ct);
+        _ = _doubles.Router(_t1).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(_t1).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
+        _ = _doubles.Store(_t1).Received(1).AddAsync(Arg.Is<IReadOnlyList<OutgoingMessage>>(m => m.Single().Tenant == _tenant), Ct);
         _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
         _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
@@ -141,15 +145,16 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Routes = [ARoute("u1")];
+        var context = AContext(tenant: null);
         await using var provider = _doubles.Build(_time);
 
         // Act
-        await ProcessAsync(provider, AContext(tenant: null));
+        await ProcessAsync(provider, context);
 
         // Assert
-        _ = _doubles.Router(TenantKey.None).ReceivedWithAnyArgs(1).RouteAsync(default!, Ct);
-        _ = _doubles.Composer(TenantKey.None).ReceivedWithAnyArgs(1).ComposeAsync(default!, default, Ct);
-        _ = _doubles.Store(TenantKey.None).ReceivedWithAnyArgs(1).AddAsync(default!, Ct);
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(Arg.Is<IReadOnlyList<OutgoingMessage>>(m => m.Single().Tenant == null), Ct);
         _ = _doubles.Router(_t1).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
     }
 
@@ -159,15 +164,18 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Routes = [ARoute("u1"), FailingRoutes[failingRoute], ARoute("u2")];
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal((2, 1), (result.Value.Stored, result.Value.Failed));
         Assert.Equal([errorCode], result.Value.Errors.Select(static e => e.Type.Code));
         Assert.Equal(["u1", "u2"], _doubles.Stored.Select(static m => m.Target.Id));
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1", "u2"), Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -175,13 +183,16 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Routes = [];
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal((0, 0), (result.Value.Stored, result.Value.Failed));
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
         _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
@@ -205,6 +216,7 @@ public sealed partial class NotificationServiceUnitTests
                 (context.MessageId, _tenant, new MessageType("TestEvent"), second.Target, second.Trace),
             ],
             _doubles.Stored.Select(static m => (m.SourceMessageId, m.Tenant, m.Type, m.Target, m.Trace)));
+        _ = _doubles.Store(_t1).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -212,16 +224,19 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Routes = [ARoute("u1", address: "client1@example.com")];
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        await ProcessAsync(provider, AContext());
+        await ProcessAsync(provider, context);
 
         // Assert
         var message = Assert.IsType<OutgoingMessage<TestEnvelope>>(Assert.Single(_doubles.Stored));
         Assert.Equal(
             (TestChannel.Id, "Test:TestEnvelope", 1, 1, new TestEnvelope("client1@example.com")),
             (message.Channel, message.ContentType, message.ContentVersion, message.SchemaVersion, message.Envelope));
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -240,6 +255,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(firstIds, _doubles.Stored.Select(static m => m.Delivery.Id));
+        _ = _doubles.Store(_t1).Received(2).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -259,6 +275,8 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         Assert.Empty(firstIds.Intersect(_doubles.Stored.Select(static m => m.Delivery.Id)));
         Assert.Equal(2, _doubles.Stored.Count);
+        _ = _doubles.Store(_t1).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
+        _ = _doubles.Store(TenantKey.For(new TenantId("t2"))).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -272,6 +290,8 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(Errors.NotFound, result.Error?.Type);
+        _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -281,13 +301,17 @@ public sealed partial class NotificationServiceUnitTests
         var error = new Error(Errors.Unavailable);
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<MessageRoute>>>(error));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Same(error, result.Error);
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -304,6 +328,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Same(error, result.Error);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -315,15 +340,18 @@ public sealed partial class NotificationServiceUnitTests
         _doubles.Composer(TenantKey.None).ComposeAsync(default!, default, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ErrorOr<TestEnvelope>>>.ForValue(
                 [new TestEnvelope("first"), error])));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal((1, 1), (result.Value.Stored, result.Value.Failed));
         Assert.Equal([error], result.Value.Errors);
         Assert.Equal(["u1"], _doubles.Stored.Select(static m => m.Target.Id));
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1", "u2"), Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -334,14 +362,17 @@ public sealed partial class NotificationServiceUnitTests
         _doubles.Routes = [ARoute("u1")];
         _doubles.Composer(TenantKey.None).ComposeAsync(default!, default, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult<ErrorOr<IReadOnlyList<ErrorOr<TestEnvelope>>>>(error));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Same(error, result.Error);
         Assert.Empty(_doubles.Stored);
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -360,6 +391,7 @@ public sealed partial class NotificationServiceUnitTests
         // Assert
         Assert.Equal([Errors.ValidationFailed], result.Value.Errors.Select(static e => e.Type));
         Assert.Equal(["u1"], _doubles.Stored.Select(static m => m.Target.Id));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -369,13 +401,16 @@ public sealed partial class NotificationServiceUnitTests
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         await cancellation.CancelAsync();
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException(cancellation.Token));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext(), cancellation.Token);
+        var result = await ProcessAsync(provider, context, cancellation.Token);
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), cancellation.Token);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
     }
 
     [Fact]
@@ -383,13 +418,17 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new OperationCanceledException()); // the token of the call is not cancelled
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal(Errors.Exception, result.Error?.Type);
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -421,6 +460,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(2, result.Value.Stored);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Theory]
@@ -433,14 +473,17 @@ public sealed partial class NotificationServiceUnitTests
         _doubles.Composer(TenantKey.None).ComposeAsync(default!, default, Ct)
             .ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<IReadOnlyList<ErrorOr<TestEnvelope>>>.ForValue(
                 [.. Enumerable.Repeat<ErrorOr<TestEnvelope>>(new TestEnvelope("envelope"), envelopeCount)]))); // not one envelope for each route
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal(Errors.ValidationFailed, result.Error?.Type);
         Assert.Empty(_doubles.Stored);
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1", "u2"), Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -448,13 +491,17 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Router(TenantKey.None).RouteAsync(default!, Ct).ThrowsForAnyArgs(new InvalidOperationException("defect"));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal(Errors.Exception, result.Error?.Type);
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -473,6 +520,7 @@ public sealed partial class NotificationServiceUnitTests
         Assert.Equal(
             (TestHost.Start.UtcDateTime.AddMinutes(15), 8, TestHost.Start.UtcDateTime),
             (delivery.ExpiresAtUtc, delivery.MaxTryCount, delivery.CreatedAtUtc));
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -496,6 +544,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(TestHost.Start.UtcDateTime.AddMinutes(5), Assert.Single(_doubles.Stored).Delivery.ExpiresAtUtc);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     private static async Task ProcessOneAfterTheOtherAsync(IServiceProvider provider, IEnumerable<TenantId?> tenants)

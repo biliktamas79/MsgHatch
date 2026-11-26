@@ -4,7 +4,9 @@ using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
+using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using NSubstitute;
 
 namespace MsgHatch.Domain.Tests.Unit.Pipeline;
 
@@ -33,4 +35,23 @@ public sealed partial class NotificationServiceUnitTests
     private static Task<ErrorOr<NotificationResult>> ProcessAsync(
         IServiceProvider provider, MessageContext context, CancellationToken? ct = null) =>
         ProcessAsync(provider, new TestEvent("text"), context, ct);
+
+    private static ReceivedMessage<TestEvent> ReceivedMessageOf(MessageContext context) =>
+        Arg.Is<ReceivedMessage<TestEvent>>(message => message.Delivery.Id == context.MessageId && message.Tenant == context.Tenant);
+
+    private static IReadOnlyList<OutgoingMessage> OutgoingMessagesTo(params string[] targetIds)
+    {
+        var expected = string.Join(',', targetIds);
+        return Arg.Is<IReadOnlyList<OutgoingMessage>>(messages => TargetIdsOf(messages) == expected);
+    }
+
+    private static ReadOnlyMemory<MessageRoute> RoutesTo(params string[] targetIds)
+    {
+        var expected = string.Join(',', targetIds);
+        return Arg.Is<ReadOnlyMemory<MessageRoute>>(routes => TargetIdsOf(routes.ToArray()) == expected);
+    }
+
+    private static string TargetIdsOf(IEnumerable<OutgoingMessage> messages) => string.Join(',', messages.Select(static message => message.Target.Id));
+
+    private static string TargetIdsOf(IEnumerable<MessageRoute> routes) => string.Join(',', routes.Select(static route => route.Target.Id));
 }

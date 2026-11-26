@@ -25,13 +25,15 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
     {
         // Arrange
         var source = ASource("Order shipped");
-        await using var provider = BuildWithSharedStore(AStore(ErrorOr<TemplateSource?>.ForValue(source)));
+        var inner = AStore(ErrorOr<TemplateSource?>.ForValue(source));
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
 
         // Assert
         Assert.Same(source, result.Value);
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]
@@ -39,20 +41,23 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
     {
         // Arrange
         var error = new Error(Errors.Unavailable);
-        await using var provider = BuildWithSharedStore(AStore(error));
+        var inner = AStore(error);
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         var result = await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
 
         // Assert
         Assert.Same(error, result.Error);
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]
     public async Task FindAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AStore(new Error(Errors.Unavailable)));
+        var inner = AStore(new Error(Errors.Unavailable));
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
@@ -60,13 +65,15 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 2001), (record.Level, record.Id.Id));
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]
     public async Task FindAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AStore(new Error(Errors.SerializationFailed)));
+        var inner = AStore(new Error(Errors.SerializationFailed));
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
@@ -74,13 +81,15 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 2001), (record.Level, record.Id.Id));
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]
     public async Task FindAsync_CancelledError_LogsInformationWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AStore(new Error(Errors.OperationCancelled)));
+        var inner = AStore(new Error(Errors.OperationCancelled));
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
@@ -88,6 +97,7 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Information, 2001), (record.Level, record.Id.Id));
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]
@@ -95,10 +105,11 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
     {
         // Arrange
         var source = ASource("Order shipped");
+        var inner = AStore(ErrorOr<TemplateSource?>.ForValue(source));
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddSingleton<TimeProvider>(TestHost.NewFakeTime());
-        services.AddMsgHatch().UseTemplateStore(_ => AStore(ErrorOr<TemplateSource?>.ForValue(source)));
+        services.AddMsgHatch().UseTemplateStore(_ => inner);
         await using var provider = services.Build();
 
         // Act
@@ -106,6 +117,7 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Same(source, result.Value);
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]
@@ -123,13 +135,15 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(("t1", 2000), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]
     public async Task FindAsync_TemplateWithAnAddressInItsText_NoLogRecordContainsTheText()
     {
         // Arrange
-        await using var provider = BuildWithSharedStore(AStore(ErrorOr<TemplateSource?>.ForValue(ASource($"Order for {_address}"))));
+        var inner = AStore(ErrorOr<TemplateSource?>.ForValue(ASource($"Order for {_address}")));
+        await using var provider = BuildWithSharedStore(inner);
 
         // Act
         await provider.GetRequiredService<ITemplateStore>().FindAsync(_lookup, Ct);
@@ -137,6 +151,7 @@ public sealed class TemplateStoreLoggingWrapperUnitTests
         // Assert
         Assert.NotEmpty(provider.LogRecords());
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_address));
+        await inner.Received(1).FindAsync(_lookup, Ct);
     }
 
     [Fact]

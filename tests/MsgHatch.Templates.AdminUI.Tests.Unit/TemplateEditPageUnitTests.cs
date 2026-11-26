@@ -116,14 +116,16 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
         Clock.Advance(TimeSpan.FromMilliseconds(300));
         cut.Find("textarea").Input("Hi {{Name}}!");
         Clock.Advance(TimeSpan.FromMilliseconds(499));
-        Queries.ReceivedWithAnyArgs(1).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), Arg.Is<string>(static text => text != "Hello {{Name}}"), Arg.Any<CancellationToken>());
 
         Clock.Advance(TimeSpan.FromMilliseconds(1));
 
         // Assert
-        cut.WaitForAssertion(() => Queries.ReceivedWithAnyArgs(2).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>()));
-        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hi {{Name}}!", Arg.Any<CancellationToken>());
+        cut.WaitForAssertion(() => Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hi {{Name}}!", Arg.Any<CancellationToken>()));
         Assert.Equal(("col-lg-6", "col-lg-6"), (cut.Find("[data-column=text]").ClassName, cut.Find("[data-column=preview]").ClassName));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), "Hi", Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), "Hi {{Name}}", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -165,6 +167,8 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal("For 42", TextOf(cut));
+        Queries.Received(1).GetTemplateAsync(Lookup(scope: "42"), Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -192,6 +196,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        Queries.DidNotReceiveWithAnyArgs().GetTemplateAsync(default, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -205,6 +210,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal("400", cut.Find(".alert-danger").GetAttribute("data-error-code"));
+        Queries.DidNotReceiveWithAnyArgs().GetTemplatePartsAsync(default, Arg.Any<CancellationToken>());
         Queries.DidNotReceiveWithAnyArgs().GetTemplateAsync(default, Arg.Any<CancellationToken>());
     }
 
@@ -272,19 +278,26 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
         Assert.Equal("Theirs", TextOf(cut));
         Assert.Equal("9", cut.Find("[data-field=version]").TextContent);
         Assert.Equal(AdminErrors.ConflictText, cut.Find("[data-actions-middle] .alert-danger").TextContent);
+        Commands.Received(1).SaveTemplateAsync(Lookup(), "Mine", 7, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void ClickSave_TemplateInvalid_ShowsTheMessageNextToTheText()
     {
+        // Arrange
         Commands.SaveTemplateAsync(Lookup(), "{{ Name", 7, Arg.Any<CancellationToken>()).Returns(Fail<TemplateEntry>(Errors.TemplateInvalid, "The tag has no end."));
         var cut = RenderPage();
         cut.Find("textarea").Input("{{ Name");
 
+        // Act
         cut.Find("[data-action=save]").Click();
 
+        // Assert
         Assert.Equal("The tag has no end.", cut.Find("textarea ~ [data-issue]").TextContent);
         Assert.Empty(cut.FindAll(".alert-danger"));
+        Commands.Received(1).SaveTemplateAsync(Lookup(), "{{ Name", 7, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -299,6 +312,8 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal("The store is not writable.", cut.Find("[data-actions-middle] .alert-danger").TextContent);
+        Commands.Received(1).SaveTemplateAsync(Lookup(), "Hello {{Name}}", 7, Arg.Any<CancellationToken>());
+        Queries.Received(1).GetTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -391,6 +406,7 @@ public sealed class TemplateEditPageUnitTests : TemplatePageContext
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-actions-middle] .alert-danger").TextContent);
         Assert.Equal("http://localhost/", Navigation.Uri);
+        Commands.Received(1).DeleteTemplateAsync(Lookup(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

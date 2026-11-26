@@ -112,6 +112,7 @@ public sealed partial class TenantInboxDispatchStoreUnitTests
         Assert.Equal(
             (1502, LogLevel.Error, "t1", (string?)null),
             (record.Id.Id, record.Level, record.GetStructuredStateValue("TenantId"), record.GetStructuredStateValue("Channel")));
+        _ = failing.Received(1).ClaimDueAsync(10, Now, TimeSpan.FromSeconds(30), Ct);
     }
 
     private static Guid[] IdsIn(InMemoryInboxStore store) => [.. store.GetMessages().Select(static message => message.Delivery.Id)];

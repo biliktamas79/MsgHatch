@@ -72,6 +72,7 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
 
         // Assert
         Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, null, null, Enabled: false, Revision: 2, default), Arg.Any<CancellationToken>());
+        Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -87,11 +88,12 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Commands.Received(1).SaveChannelAsync(Arg.Is<ChannelEntry>(static entry => entry.DisplayName == "Shop email"), Arg.Any<CancellationToken>());
         Assert.Equal(
             ("Saved.", "Shop email", "2", 1, 0),
             (cut.Find("[data-actions-middle] [data-state=saved]").TextContent, ValueOf(cut, "display-name"), cut.Find("[data-field=revision]").TextContent,
                 cut.FindAll("[data-action=reset]").Count, cut.FindAll("[data-state=pending]").Count));
+        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, "Shop email", null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
+        Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -110,6 +112,8 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
         Assert.Equal(
             (AdminErrors.ConflictText, "Shop email", 0),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, ValueOf(cut, "display-name"), cut.FindAll("[data-state=saved]").Count));
+        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, "My name", null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
+        Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -126,8 +130,10 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(
-            ("DisplayName has at most 200 characters.", "My name", 1),
-            (cut.Find("[data-actions-middle] .alert-danger").TextContent, ValueOf(cut, "display-name"), Queries.ReceivedCalls().Count()));
+            ("DisplayName has at most 200 characters.", "My name"),
+            (cut.Find("[data-actions-middle] .alert-danger").TextContent, ValueOf(cut, "display-name")));
+        Commands.Received(1).SaveChannelAsync(new ChannelEntry(Email, "My name", null, Enabled: true, Revision: 2, default), Arg.Any<CancellationToken>());
+        Queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -190,11 +196,12 @@ public sealed class ChannelEditPageUnitTests : RegistryPageContext
         cut.Find("[data-action=confirm-delete]").Click();
 
         // Assert
-        Commands.Received(1).ResetChannelAsync(Email, Arg.Any<CancellationToken>());
         Assert.Equal(
             ("", "Email channel", true, "save", 0),
             (ValueOf(cut, "display-name"), PlaceholderOf(cut, "display-name"), cut.Find("[data-field=enabled]").HasAttribute("checked"), ActionsOf(cut),
                 cut.FindAll("[data-dialog]").Count));
+        Commands.Received(1).ResetChannelAsync(Email, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

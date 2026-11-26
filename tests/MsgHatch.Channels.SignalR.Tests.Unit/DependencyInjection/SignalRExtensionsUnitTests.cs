@@ -77,12 +77,14 @@ public sealed class SignalRExtensionsUnitTests
         services.AddMsgHatch().UseInMemoryStores().UseSignalR<TestHub>()
             .AddExceptionClassifier<SignalRTransport<TestHub>, ConflictClassifier<SignalRTransport<TestHub>>>();
         await using var provider = services.Build();
+        var message = SignalRMessages.AnOutgoingMessage();
 
         // Act
-        var result = await Assert.Single(provider.GetServices<ITransport>()).SendAsync(SignalRMessages.AnOutgoingMessage(), redirectTo: null, Ct);
+        var result = await Assert.Single(provider.GetServices<ITransport>()).SendAsync(message, redirectTo: null, Ct);
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        await hub.Proxy.Received(1).SendCoreAsync("TestEvent", Arg.Is<object?[]>(arguments => arguments.Length == 1 && ReferenceEquals(arguments[0], message.Envelope.Payload)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -135,12 +137,15 @@ public sealed class SignalRExtensionsUnitTests
         services.AddSingleton(hub.Hub);
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseSignalR<TestHub>();
         await using var provider = services.Build();
-        await provider.GetRequiredService<IOutboxStore>().AddAsync([SignalRMessages.AnOutgoingMessage(flags: MessageFlags.Test)], Ct);
+        var message = SignalRMessages.AnOutgoingMessage(flags: MessageFlags.Test);
+        await provider.GetRequiredService<IOutboxStore>().AddAsync([message], Ct);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        await hub.Proxy.ReceivedWithAnyArgs(1).SendCoreAsync(default!, default!, Ct);
+        hub.Clients.Received(1).User("u1");
+        hub.Clients.DidNotReceiveWithAnyArgs().Group(default!);
+        await hub.Proxy.Received(1).SendCoreAsync("TestEvent", Arg.Is<object?[]>(arguments => arguments.Length == 1 && Equals(arguments[0], message.Envelope.Payload)), Arg.Any<CancellationToken>());
     }
 }

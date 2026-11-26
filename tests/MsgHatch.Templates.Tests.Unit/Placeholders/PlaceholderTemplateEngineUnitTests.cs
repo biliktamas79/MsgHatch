@@ -25,6 +25,12 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
     private static readonly string[] _tenantWithScope =
         ["tenant:hu:acme", "tenant:hu:", "shared:hu:acme", "shared:hu:", "tenant:en:acme", "tenant:en:", "shared:en:acme", "shared:en:"];
 
+    private static readonly string[] _sharedWithScope = ["shared:hu:acme", "shared:hu:", "shared:en:acme", "shared:en:"];
+
+    private static readonly string[] _tenantWithNoScope = ["tenant:hu:", "shared:hu:", "tenant:en:", "shared:en:"];
+
+    private static readonly string[] _sharedWithNoScope = ["shared:hu:", "shared:en:"];
+
     public static TheoryData<string, string, string> ParserRows => new()
     {
         { "literal text", "Order shipped", "Order shipped" },
@@ -45,26 +51,26 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
     };
 
 
-    public static TheoryData<string, bool, string?, string[], string> FallbackRows => new()
+    public static TheoryData<string, bool, string?, string[], string, string[]> FallbackRows => new()
     {
-        { "tenant, scope, lookup 1", true, "acme", _tenantWithScope, "tenant:hu:acme" },
-        { "tenant, scope, lookup 2", true, "acme", _tenantWithScope[1..], "tenant:hu:" },
-        { "tenant, scope, lookup 3", true, "acme", _tenantWithScope[2..], "shared:hu:acme" },
-        { "tenant, scope, lookup 4", true, "acme", _tenantWithScope[3..], "shared:hu:" },
-        { "tenant, scope, lookup 5", true, "acme", _tenantWithScope[4..], "tenant:en:acme" },
-        { "tenant, scope, lookup 6", true, "acme", _tenantWithScope[5..], "tenant:en:" },
-        { "tenant, scope, lookup 7", true, "acme", _tenantWithScope[6..], "shared:en:acme" },
-        { "tenant, scope, lookup 8", true, "acme", _tenantWithScope[7..], "shared:en:" },
-        { "no tenant, scope, lookup 1", false, "acme", _tenantWithScope, "shared:hu:acme" },
-        { "no tenant, scope, lookup 2", false, "acme", ["tenant:hu:acme", "tenant:hu:", "shared:hu:", "shared:en:acme", "shared:en:"], "shared:hu:" },
-        { "no tenant, scope, lookup 3", false, "acme", ["tenant:hu:acme", "tenant:hu:", "shared:en:acme", "shared:en:"], "shared:en:acme" },
-        { "no tenant, scope, lookup 4", false, "acme", ["tenant:hu:acme", "tenant:en:acme", "tenant:en:", "shared:en:"], "shared:en:" },
-        { "tenant, no scope, lookup 1", true, null, _tenantWithScope, "tenant:hu:" },
-        { "tenant, no scope, lookup 2", true, null, ["tenant:hu:acme", "shared:hu:acme", "shared:hu:", "tenant:en:", "shared:en:"], "shared:hu:" },
-        { "tenant, no scope, lookup 3", true, null, ["shared:hu:acme", "tenant:en:acme", "tenant:en:", "shared:en:"], "tenant:en:" },
-        { "tenant, no scope, lookup 4", true, null, ["tenant:hu:acme", "tenant:en:acme", "shared:en:acme", "shared:en:"], "shared:en:" },
-        { "no tenant, no scope, lookup 1", false, null, _tenantWithScope, "shared:hu:" },
-        { "no tenant, no scope, lookup 2", false, null, ["tenant:hu:", "shared:hu:acme", "tenant:en:", "shared:en:acme", "shared:en:"], "shared:en:" },
+        { "tenant, scope, lookup 1", true, "acme", _tenantWithScope, "tenant:hu:acme", _tenantWithScope[..1] },
+        { "tenant, scope, lookup 2", true, "acme", _tenantWithScope[1..], "tenant:hu:", _tenantWithScope[..2] },
+        { "tenant, scope, lookup 3", true, "acme", _tenantWithScope[2..], "shared:hu:acme", _tenantWithScope[..3] },
+        { "tenant, scope, lookup 4", true, "acme", _tenantWithScope[3..], "shared:hu:", _tenantWithScope[..4] },
+        { "tenant, scope, lookup 5", true, "acme", _tenantWithScope[4..], "tenant:en:acme", _tenantWithScope[..5] },
+        { "tenant, scope, lookup 6", true, "acme", _tenantWithScope[5..], "tenant:en:", _tenantWithScope[..6] },
+        { "tenant, scope, lookup 7", true, "acme", _tenantWithScope[6..], "shared:en:acme", _tenantWithScope[..7] },
+        { "tenant, scope, lookup 8", true, "acme", _tenantWithScope[7..], "shared:en:", _tenantWithScope },
+        { "no tenant, scope, lookup 1", false, "acme", _tenantWithScope, "shared:hu:acme", _sharedWithScope[..1] },
+        { "no tenant, scope, lookup 2", false, "acme", ["tenant:hu:acme", "tenant:hu:", "shared:hu:", "shared:en:acme", "shared:en:"], "shared:hu:", _sharedWithScope[..2] },
+        { "no tenant, scope, lookup 3", false, "acme", ["tenant:hu:acme", "tenant:hu:", "shared:en:acme", "shared:en:"], "shared:en:acme", _sharedWithScope[..3] },
+        { "no tenant, scope, lookup 4", false, "acme", ["tenant:hu:acme", "tenant:en:acme", "tenant:en:", "shared:en:"], "shared:en:", _sharedWithScope },
+        { "tenant, no scope, lookup 1", true, null, _tenantWithScope, "tenant:hu:", _tenantWithNoScope[..1] },
+        { "tenant, no scope, lookup 2", true, null, ["tenant:hu:acme", "shared:hu:acme", "shared:hu:", "tenant:en:", "shared:en:"], "shared:hu:", _tenantWithNoScope[..2] },
+        { "tenant, no scope, lookup 3", true, null, ["shared:hu:acme", "tenant:en:acme", "tenant:en:", "shared:en:"], "tenant:en:", _tenantWithNoScope[..3] },
+        { "tenant, no scope, lookup 4", true, null, ["tenant:hu:acme", "tenant:en:acme", "shared:en:acme", "shared:en:"], "shared:en:", _tenantWithNoScope },
+        { "no tenant, no scope, lookup 1", false, null, _tenantWithScope, "shared:hu:", _sharedWithNoScope[..1] },
+        { "no tenant, no scope, lookup 2", false, null, ["tenant:hu:", "shared:hu:acme", "tenant:en:", "shared:en:acme", "shared:en:"], "shared:en:", _sharedWithNoScope },
     };
 
     [Theory]
@@ -79,6 +85,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal((row, expectedOutcome), (row, outcome));
+        await store.Received(1).FindAsync(ALookup(), Ct);
     }
 
     [Theory]
@@ -108,6 +115,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal(422, CodeOf(result));
+        await store.Received(1).FindAsync(ALookup(kind), Ct);
     }
 
     [Fact]
@@ -127,6 +135,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal("First", outcome);
+        await store.Received(2).FindAsync(ALookup(), Ct);
     }
 
     [Fact]
@@ -146,6 +155,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal("Second", outcome);
+        await store.Received(2).FindAsync(ALookup(), Ct);
     }
 
     [Fact]
@@ -161,6 +171,8 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal(("<&lt;b&gt;>", "<<b>>"), (html, text));
+        await store.Received(1).FindAsync(ALookup(TemplatePartKind.Html), Ct);
+        await store.Received(1).FindAsync(ALookup(TemplatePartKind.PlainText), Ct);
     }
 
     [Fact]
@@ -176,6 +188,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal("<p>" + string.Concat(Enumerable.Repeat("&lt;", 300)) + "</p>", rendered.Value);
+        await store.Received(1).FindAsync(ALookup(TemplatePartKind.Html), Ct);
     }
 
     [Fact]
@@ -191,12 +204,13 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal("[Client 1]", rendered.Value);
+        await store.Received(1).FindAsync(ALookup(), Ct);
     }
 
     [Theory]
     [MemberData(nameof(FallbackRows))]
     public async Task PrepareAsync_TemplatesOfTheFallbackFromTheContainer_GivesTheFirstTemplateInTheOrderOfD123(
-        string row, bool withTenant, string? scope, string[] seeded, string expectedTemplate)
+        string row, bool withTenant, string? scope, string[] seeded, string expectedTemplate, string[] expectedLookups)
     {
         // Arrange
         var stores = new FallbackStores(seeded);
@@ -207,6 +221,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal((row, expectedTemplate), (row, outcome));
+        Assert.Equal((row, string.Join(", ", expectedLookups)), (row, string.Join(", ", stores.Lookups)));
     }
 
     [Fact]
@@ -222,6 +237,14 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
         // Assert
         Assert.Equal(404, CodeOf(result));
         Assert.Equal(_tenantWithScope, stores.Lookups);
+        await stores.Tenant.Received(1).FindAsync(ALookupIn("hu", "acme"), Ct);
+        await stores.Tenant.Received(1).FindAsync(ALookupIn("hu", scope: null), Ct);
+        await stores.Tenant.Received(1).FindAsync(ALookupIn("en", "acme"), Ct);
+        await stores.Tenant.Received(1).FindAsync(ALookupIn("en", scope: null), Ct);
+        await stores.Shared.Received(1).FindAsync(ALookupIn("hu", "acme"), Ct);
+        await stores.Shared.Received(1).FindAsync(ALookupIn("hu", scope: null), Ct);
+        await stores.Shared.Received(1).FindAsync(ALookupIn("en", "acme"), Ct);
+        await stores.Shared.Received(1).FindAsync(ALookupIn("en", scope: null), Ct);
     }
 
     [Fact]
@@ -279,6 +302,7 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
 
         // Assert
         Assert.Equal("shared:hu:acme", outcome);
+        Assert.Equal(["tenant:hu:acme", "shared:hu:acme"], stores.Lookups);
     }
 
     [Fact]
@@ -296,6 +320,8 @@ public sealed class PlaceholderTemplateEngineUnitTests(PlaceholderTemplateTestDa
         Assert.Same(error, result.Error);
         Assert.Equal(["tenant:hu:acme"], stores.Lookups);
     }
+
+    private TemplateLookup ALookupIn(string language, string? scope) => ALookup() with { Language = language, Scope = scope };
 
     private static PlaceholderTemplateEngine<OrderEmail> EngineWith(ITemplateStore? tenantStore, ITemplateStore sharedStore) =>
         new(tenantStore, sharedStore, Options.Create(new MsgHatchOptions { DefaultLanguage = "en" }));

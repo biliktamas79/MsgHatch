@@ -232,6 +232,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
                 json.RootElement.GetProperty("trace").GetProperty("reason").GetString(),
                 json.RootElement.GetProperty("tries")[0].GetProperty("outcome").GetString(),
                 text.Contains("client1@example.com", StringComparison.Ordinal)));
+        await _host.Queries.Received(1).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -250,6 +251,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
         Assert.Equal(
             (expected, "application/json"),
             (await response.Content.ReadAsStringAsync(Ct), response.Content.Headers.ContentType?.MediaType));
+        await _host.Queries.Received(1).GetOutgoingContentAsync(_id, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -266,6 +268,7 @@ public sealed partial class DeliveryEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(expected, text);
+        await _host.Queries.Received(1).GetReceivedContentAsync(_id, Arg.Any<CancellationToken>());
     }
 
     private static bool SameQuery(OutboxQuery query, OutboxQuery expected, Guid[] ids) =>

@@ -147,6 +147,9 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-dialog] .alert-danger").TextContent);
+        DeliveryCommands.Received(1).PauseChannelAsync(Email, null, Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
+        Queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -196,6 +199,7 @@ public sealed class ChannelListPageDeliveryUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-action-error] .alert-danger").TextContent);
+        DeliveryCommands.Received(1).ResumeChannelAsync(Sms, Arg.Any<CancellationToken>());
     }
 
     private static ChannelStatus Status(ChannelId channel, int pending, int pendingTest, DateTime? oldestDue) =>

@@ -13,7 +13,7 @@ public sealed class SignalRComposerUnitTests
 {
     private readonly IPayloadLoader<TestEvent, TestPayload> _loader = Substitute.For<IPayloadLoader<TestEvent, TestPayload>>();
 
-    private readonly List<MessageRoute[]> _loadCalls = [];
+    private readonly ReceivedMessage<TestEvent> _message = TestMessages.AReceivedMessage(new TestEvent("1001"));
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -28,7 +28,7 @@ public sealed class SignalRComposerUnitTests
         await ComposeAsync(routes);
 
         // Assert
-        Assert.Equal(routes, Assert.Single(_loadCalls));
+        await _loader.Received(1).LoadAsync(_message, RoutesAre(routes), Ct);
     }
 
     [Fact]
@@ -37,12 +37,14 @@ public sealed class SignalRComposerUnitTests
         // Arrange
         TestPayload[] payloads = [new("first"), new("second")];
         LoaderGives(_ => ErrorOr<IReadOnlyList<TestPayload>>.ForValue(payloads));
+        MessageRoute[] routes = [SignalRRoutes.AUserRoute(), SignalRRoutes.ACompanyRoute()];
 
         // Act
-        var result = await ComposeAsync(SignalRRoutes.AUserRoute(), SignalRRoutes.ACompanyRoute());
+        var result = await ComposeAsync(routes);
 
         // Assert
         Assert.Equal(payloads, result.Value.Select(static envelope => envelope.Value.Payload));
+        await _loader.Received(1).LoadAsync(_message, RoutesAre(routes), Ct);
     }
 
     [Fact]
@@ -51,12 +53,14 @@ public sealed class SignalRComposerUnitTests
         // Arrange
         var error = new Error(Errors.Unavailable);
         LoaderGives(_ => error);
+        var route = SignalRRoutes.AUserRoute();
 
         // Act
-        var result = await ComposeAsync(SignalRRoutes.AUserRoute());
+        var result = await ComposeAsync(route);
 
         // Assert
         Assert.Same(error, result.Error);
+        await _loader.Received(1).LoadAsync(_message, RoutesAre([route]), Ct);
     }
 
     [Fact]
@@ -64,12 +68,14 @@ public sealed class SignalRComposerUnitTests
     {
         // Arrange
         LoaderGives(static _ => ErrorOr<IReadOnlyList<TestPayload>>.ForValue([new TestPayload("only one")]));
+        MessageRoute[] routes = [SignalRRoutes.AUserRoute("u1"), SignalRRoutes.AUserRoute("u2")];
 
         // Act
-        var result = await ComposeAsync(SignalRRoutes.AUserRoute("u1"), SignalRRoutes.AUserRoute("u2"));
+        var result = await ComposeAsync(routes);
 
         // Assert
         Assert.Equal(Errors.ValidationFailed, result.Error?.Type);
+        await _loader.Received(1).LoadAsync(_message, RoutesAre(routes), Ct);
     }
 
     [Fact]
@@ -77,24 +83,25 @@ public sealed class SignalRComposerUnitTests
     {
         // Arrange
         LoaderGives(static _ => ErrorOr<IReadOnlyList<TestPayload>>.ForValue([new TestPayload("u1"), null!]));
+        MessageRoute[] routes = [SignalRRoutes.AUserRoute("u1"), SignalRRoutes.AUserRoute("u2")];
 
         // Act
-        var result = await ComposeAsync(SignalRRoutes.AUserRoute("u1"), SignalRRoutes.AUserRoute("u2"));
+        var result = await ComposeAsync(routes);
 
         // Assert
         Assert.Equal(
             [((ErrorType?)null, "u1"), (Errors.ValidationFailed, null)],
             result.Value.Select(static envelope => (envelope.Error?.Type, envelope.IsSuccess ? envelope.Value.Payload.Text : null)));
+        await _loader.Received(1).LoadAsync(_message, RoutesAre(routes), Ct);
     }
+
+    private static ReadOnlyMemory<MessageRoute> RoutesAre(MessageRoute[] routes) =>
+        Arg.Is<ReadOnlyMemory<MessageRoute>>(given => given.ToArray().SequenceEqual(routes));
 
     private void LoaderGives(Func<MessageRoute[], ErrorOr<IReadOnlyList<TestPayload>>> result) =>
         _loader.LoadAsync(default!, default, default).ReturnsForAnyArgs(call =>
-        {
-            var routes = call.ArgAt<ReadOnlyMemory<MessageRoute>>(1).ToArray();
-            _loadCalls.Add(routes);
-            return ValueTask.FromResult(result(routes));
-        });
+            ValueTask.FromResult(result(call.ArgAt<ReadOnlyMemory<MessageRoute>>(1).ToArray())));
 
     private ValueTask<ErrorOr<IReadOnlyList<ErrorOr<SignalREnvelope<TestPayload>>>>> ComposeAsync(params MessageRoute[] routes) =>
-        new SignalRComposer<TestEvent, TestPayload>(_loader).ComposeAsync(TestMessages.AReceivedMessage(new TestEvent("1001")), routes, Ct);
+        new SignalRComposer<TestEvent, TestPayload>(_loader).ComposeAsync(_message, routes, Ct);
 }

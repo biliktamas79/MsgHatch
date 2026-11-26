@@ -26,13 +26,15 @@ public sealed class BrokerClientLoggingWrapperUnitTests
     {
         // Arrange
         var receipt = new PublishReceipt("broker-7");
-        await using var provider = BuildWith(AClient(receipt));
+        var (inner, publish) = (AClient(receipt), APublish());
+        await using var provider = BuildWith(inner);
 
         // Act
-        var result = await provider.GetRequiredService<IBrokerClient>().PublishAsync(APublish(), Ct);
+        var result = await provider.GetRequiredService<IBrokerClient>().PublishAsync(publish, Ct);
 
         // Assert
         Assert.Equal(receipt, result.Value);
+        await inner.Received(1).PublishAsync(publish, Ct);
     }
 
     [Fact]
@@ -40,63 +42,71 @@ public sealed class BrokerClientLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Rejected);
-        await using var provider = BuildWith(AClient(expected));
+        var (inner, publish) = (AClient(expected), APublish());
+        await using var provider = BuildWith(inner);
 
         // Act
-        var result = await provider.GetRequiredService<IBrokerClient>().PublishAsync(APublish(), Ct);
+        var result = await provider.GetRequiredService<IBrokerClient>().PublishAsync(publish, Ct);
 
         // Assert
         Assert.Same(expected, result.Error);
+        await inner.Received(1).PublishAsync(publish, Ct);
     }
 
     [Fact]
     public async Task PublishAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AClient(new Error(Errors.Unavailable)));
+        var (inner, publish) = (AClient(new Error(Errors.Unavailable)), APublish());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IBrokerClient>().PublishAsync(APublish(), Ct);
+        await provider.GetRequiredService<IBrokerClient>().PublishAsync(publish, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 2301), (record.Level, record.Id.Id));
+        await inner.Received(1).PublishAsync(publish, Ct);
     }
 
     [Fact]
     public async Task PublishAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AClient(new Error(Errors.Rejected)));
+        var (inner, publish) = (AClient(new Error(Errors.Rejected)), APublish());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IBrokerClient>().PublishAsync(APublish(), Ct);
+        await provider.GetRequiredService<IBrokerClient>().PublishAsync(publish, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 2301), (record.Level, record.Id.Id));
+        await inner.Received(1).PublishAsync(publish, Ct);
     }
 
     [Fact]
     public async Task PublishAsync_CancelledError_LogsInformationWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AClient(new Error(Errors.OperationCancelled)));
+        var (inner, publish) = (AClient(new Error(Errors.OperationCancelled)), APublish());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IBrokerClient>().PublishAsync(APublish(), Ct);
+        await provider.GetRequiredService<IBrokerClient>().PublishAsync(publish, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Information, 2301), (record.Level, record.Id.Id));
+        await inner.Received(1).PublishAsync(publish, Ct);
     }
 
     [Fact]
     public async Task PublishAsync_Success_LogsADebugRecordWithTheOutgoingMessageId()
     {
         // Arrange
-        var publish = APublish();
-        await using var provider = BuildWith(AClient(new PublishReceipt("broker-1")));
+        var (inner, publish) = (AClient(new PublishReceipt("broker-1")), APublish());
+        await using var provider = BuildWith(inner);
 
         // Act
         await provider.GetRequiredService<IBrokerClient>().PublishAsync(publish, Ct);
@@ -106,6 +116,7 @@ public sealed class BrokerClientLoggingWrapperUnitTests
         Assert.Equal(
             (LogLevel.Debug, 2300, publish.MessageId.ToString()),
             (record.Level, record.Id.Id, record.GetStructuredStateValue("OutgoingMessageId")));
+        await inner.Received(1).PublishAsync(publish, Ct);
     }
 
     [Theory]
@@ -115,14 +126,16 @@ public sealed class BrokerClientLoggingWrapperUnitTests
     {
         // Arrange
         ErrorOr<PublishReceipt> result = rejected ? new Error(Errors.Rejected) : new PublishReceipt("broker-1");
-        await using var provider = BuildWith(AClient(result));
+        var (inner, publish) = (AClient(result), APublish());
+        await using var provider = BuildWith(inner);
 
         // Act
-        await provider.GetRequiredService<IBrokerClient>().PublishAsync(APublish(), Ct);
+        await provider.GetRequiredService<IBrokerClient>().PublishAsync(publish, Ct);
 
         // Assert
         Assert.NotEmpty(provider.LogRecords());
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_payloadText) || record.ContainsText(_headerValue));
+        await inner.Received(1).PublishAsync(publish, Ct);
     }
 
     [Fact]
@@ -130,20 +143,23 @@ public sealed class BrokerClientLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AHealthCheck(expected));
+        var inner = AHealthCheck(expected);
+        await using var provider = BuildWith(inner);
 
         // Act
         var error = await provider.GetRequiredService<IBrokerClient>().CheckHealthAsync(Ct);
 
         // Assert
         Assert.Same(expected, error);
+        await inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]
     public async Task CheckHealthAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AHealthCheck(new Error(Errors.Unavailable)));
+        var inner = AHealthCheck(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(inner);
 
         // Act
         await provider.GetRequiredService<IBrokerClient>().CheckHealthAsync(Ct);
@@ -151,13 +167,15 @@ public sealed class BrokerClientLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 2303), (record.Level, record.Id.Id));
+        await inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]
     public async Task CheckHealthAsync_Success_LogsADebugRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AHealthCheck(error: null));
+        var inner = AHealthCheck(error: null);
+        await using var provider = BuildWith(inner);
 
         // Act
         var error = await provider.GetRequiredService<IBrokerClient>().CheckHealthAsync(Ct);
@@ -165,6 +183,7 @@ public sealed class BrokerClientLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((null, LogLevel.Debug, 2302), (error, record.Level, record.Id.Id));
+        await inner.Received(1).CheckHealthAsync(Ct);
     }
 
     [Fact]

@@ -30,6 +30,8 @@ public sealed partial class NotificationServiceUnitTests
         Assert.Equal((0, 0, 0, 0), (result.Value.Stored, result.Value.Failed, result.Value.Errors.Count, result.Value.Skipped));
         Assert.Empty(_doubles.Stored);
         _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -49,6 +51,7 @@ public sealed partial class NotificationServiceUnitTests
             (LogLevel.Information, 1011, context.MessageId.ToString(), "t1", "Test"),
             (record.Level, record.Id.Id, record.GetStructuredStateValue("MessageId"), record.GetStructuredStateValue("Tenant"),
                 record.GetStructuredStateValue("MessageFlags")));
+        _ = _doubles.Router(_t1).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
     }
 
     [Fact]
@@ -57,14 +60,18 @@ public sealed partial class NotificationServiceUnitTests
         // Arrange
         _doubles.Routes = [ARoute("u1"), ARoute("u2", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings()), ARoute("u3")];
         var disabled = new ChannelEntry(TestChannel.SecondId, null, null, Enabled: false, Revision: 1, TestHost.Start.UtcDateTime);
+        var context = AContext();
         await using var provider = _doubles.Build(_time, more: b => b.UseRegistrySettingsStore(_ => StoreWith(disabled)).UseStoredRegistry());
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal((2, 0, 1), (result.Value.Stored, result.Value.Failed, result.Value.Skipped));
         Assert.Equal(["u1", "u3"], _doubles.Stored.Select(static message => message.Target.Id));
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1", "u3"), Ct);
+        _ = _doubles.SecondComposer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u3"), Ct);
     }
 
     [Fact]
@@ -74,13 +81,17 @@ public sealed partial class NotificationServiceUnitTests
         _doubles.Routes = [ARoute("u1", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings()), ARoute("u2"), ARoute("u3")];
         await using var provider = _doubles.Build(
             _time, more: b => b.UseRegistrySettingsStore(_ => StoreWith(ADisabledMessageType() with { Enabled = true, DisabledChannels = [TestChannel.Id] })).UseStoredRegistry());
+        var context = AContext();
 
         // Act
-        var result = await ProcessAsync(provider, AContext());
+        var result = await ProcessAsync(provider, context);
 
         // Assert
         Assert.Equal((1, 0, 2), (result.Value.Stored, result.Value.Failed, result.Value.Skipped));
         Assert.Equal(TestChannel.SecondId, Assert.Single(_doubles.Stored).Channel);
+        _ = _doubles.Composer(TenantKey.None).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.SecondComposer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1"), Ct);
     }
 
     [Fact]
@@ -89,16 +100,20 @@ public sealed partial class NotificationServiceUnitTests
         // Arrange
         _doubles.Routes = [ARoute("u1")];
         var disabled = new ChannelEntry(TestChannel.Id, null, null, Enabled: false, Revision: 1, TestHost.Start.UtcDateTime);
+        var context = AContext(_tenant);
         await using var provider = _doubles.Build(_time, enableLogging: false, more: b => b.UseRegistrySettingsStore(_ => StoreWith(disabled)).UseStoredRegistry());
 
         // Act
-        await ProcessAsync(provider, AContext(_tenant));
+        await ProcessAsync(provider, context);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(
             (LogLevel.Debug, 1012, "Test", "t1"),
             (record.Level, record.Id.Id, record.GetStructuredStateValue("Channel"), record.GetStructuredStateValue("Tenant")));
+        _ = _doubles.Router(_t1).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Composer(_t1).DidNotReceiveWithAnyArgs().ComposeAsync(default!, default, Ct);
+        _ = _doubles.Store(_t1).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -119,6 +134,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal((true, 0), (waited, result.Value.Stored));
+        _ = store.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
         _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
     }
 
@@ -127,14 +143,16 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Routes = [ARoute("u1"), ARoute("u2")];
-        await using var provider = _doubles.Build(
-            _time, more: b => b.UseRegistrySettingsStore(_ => RegistryTestHost.AStoreThatFails(new Error(Errors.Unavailable))).UseStoredRegistry());
+        var store = RegistryTestHost.AStoreThatFails(new Error(Errors.Unavailable));
+        await using var provider = _doubles.Build(_time, more: b => b.UseRegistrySettingsStore(_ => store).UseStoredRegistry());
 
         // Act
         var result = await ProcessAsync(provider, AContext()).WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct);
 
         // Assert
         Assert.Equal((2, 0), (result.Value.Stored, result.Value.Skipped));
+        _ = store.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
+        _ = _doubles.Store(TenantKey.None).Received(1).AddAsync(OutgoingMessagesTo("u1", "u2"), Ct);
     }
 
     [Fact]
@@ -153,6 +171,8 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        _ = store.Received(1).GetEntriesAsync(Arg.Any<CancellationToken>());
+        _ = _doubles.Router(TenantKey.None).DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
     }
 
     [Fact]
@@ -160,13 +180,16 @@ public sealed partial class NotificationServiceUnitTests
     {
         // Arrange
         _doubles.Routes = [ARoute("u1"), ARoute("u2")];
+        var context = AContext();
         await using var provider = _doubles.Build(_time, more: b => b.UseRegistrySettingsStore(_ => StoreWith(ADisabledMessageType())).UseStoredRegistry());
 
         // Act
-        var results = await PreviewAsync(provider);
+        var results = await PreviewAsync(provider, context);
 
         // Assert
         Assert.Equal(["u1", "u2"], results.Value.Select(static result => result.Message!.Target.Id));
+        _ = _doubles.Router(TenantKey.None).Received(1).RouteAsync(ReceivedMessageOf(context), Ct);
+        _ = _doubles.Store(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -175,13 +198,16 @@ public sealed partial class NotificationServiceUnitTests
         // Arrange
         _doubles.Routes = [ARoute("u1"), ARoute("u2", channel: TestChannel.SecondId, settings: new OtherTestChannelSettings())];
         var disabled = new ChannelEntry(TestChannel.SecondId, null, null, Enabled: false, Revision: 1, TestHost.Start.UtcDateTime);
+        var context = AContext();
         await using var provider = _doubles.Build(_time, more: b => b.UseRegistrySettingsStore(_ => StoreWith(disabled)).UseStoredRegistry());
 
         // Act
-        var results = await PreviewAsync(provider);
+        var results = await PreviewAsync(provider, context);
 
         // Assert
         Assert.Equal([TestChannel.Id, TestChannel.SecondId], results.Value.Select(static result => result.Message!.Channel));
+        _ = _doubles.Composer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u1"), Ct);
+        _ = _doubles.SecondComposer(TenantKey.None).Received(1).ComposeAsync(ReceivedMessageOf(context), RoutesTo("u2"), Ct);
     }
 
     private static MessageTypeEntry ADisabledMessageType() =>
@@ -201,9 +227,9 @@ public sealed partial class NotificationServiceUnitTests
         return store;
     }
 
-    private static async Task<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync(IServiceProvider provider)
+    private static async Task<ErrorOr<IReadOnlyList<RouteResult>>> PreviewAsync(IServiceProvider provider, MessageContext context)
     {
         await using var scope = provider.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<INotificationService>().PreviewAsync(new TestEvent("text"), AContext(), routes: null, Ct);
+        return await scope.ServiceProvider.GetRequiredService<INotificationService>().PreviewAsync(new TestEvent("text"), context, routes: null, Ct);
     }
 }

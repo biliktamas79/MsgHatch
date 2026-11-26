@@ -31,6 +31,7 @@ public sealed partial class DeliveryEndpointsUnitTests
             (channel.GetProperty("id").GetString(), channel.GetProperty("down").GetProperty("reason").GetString(),
                 channel.GetProperty("down").GetProperty("note").GetString(), channel.GetProperty("pending").GetInt32(),
                 channel.GetProperty("pendingTest").GetInt32()));
+        await _host.Queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -52,6 +53,7 @@ public sealed partial class DeliveryEndpointsUnitTests
             {"inbox":[{"type":"OrderShipped","channel":null,"status":"Failed","test":true,"count":3,"oldestDueAtUtc":null}],"outbox":[{"type":"OrderShipped","channel":"Test","status":"Pending","test":false,"count":5,"oldestDueAtUtc":"2030-01-01T10:00:00Z"}]}
             """,
             text);
+        await _host.Queries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -72,6 +74,7 @@ public sealed partial class DeliveryEndpointsUnitTests
             ("t2", "TestEvent", "Test", JsonValueKind.Null, false),
             (item.GetProperty("tenant").GetString(), item.GetProperty("type").GetString(), item.GetProperty("flags").GetString(),
                 json.RootElement.GetProperty("next").ValueKind, text.Contains("event text", StringComparison.Ordinal)));
+        await _host.T2Queries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -88,5 +91,6 @@ public sealed partial class DeliveryEndpointsUnitTests
         // Assert
         using var json = JsonDocument.Parse(text);
         Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("trace").ValueKind);
+        await _host.Queries.Received(1).GetOutgoingMessageAsync(_id, Arg.Any<CancellationToken>());
     }
 }

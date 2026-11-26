@@ -217,7 +217,8 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
         var result = await provider.GetRequiredService<EntityFrameworkInboxStore>().ClaimDueAsync(10, Now, TimeSpan.FromSeconds(30), cancelled.Token);
 
         // Assert
-        Assert.Equal((Errors.OperationCancelled, 0), (result.Error?.Type, classifier.ReceivedCalls().Count()));
+        Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        classifier.DidNotReceive().Classify(Arg.Any<Exception>());
     }
 
     private static ServiceProvider Build(Action<DbContextOptionsBuilder> configure, Action<MsgHatchBuilder>? setup = null)

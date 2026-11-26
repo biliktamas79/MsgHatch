@@ -23,7 +23,8 @@ public sealed class InboxProcessorLoggingWrapperUnitTests
     public async Task ProcessPendingAsync_Success_ReturnsTheSummaryAndLogsADebugRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new ClaimResult<ReceivedMessage>([], null)));
+        var store = AStore(new ClaimResult<ReceivedMessage>([], null));
+        await using var provider = BuildWith(store);
 
         // Act
         var summary = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
@@ -31,6 +32,7 @@ public sealed class InboxProcessorLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1210);
         Assert.Equal((new DispatchSummary(0, 0, 0, 0), LogLevel.Debug), (summary.Value, record.Level));
+        _ = store.Received(1).ClaimDueAsync(10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
     }
 
     [Fact]
@@ -38,7 +40,8 @@ public sealed class InboxProcessorLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStore(expected));
+        var store = AStore(expected);
+        await using var provider = BuildWith(store);
 
         // Act
         var summary = await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
@@ -46,19 +49,22 @@ public sealed class InboxProcessorLoggingWrapperUnitTests
         // Assert
         Assert.Same(expected, summary.Error);
         Assert.Equal(LogLevel.Warning, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1211).Level);
+        _ = store.Received(1).ClaimDueAsync(10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
     }
 
     [Fact]
     public async Task ProcessPendingAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.ValidationFailed)));
+        var store = AStore(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(store);
 
         // Act
         await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
 
         // Assert
         Assert.Equal(LogLevel.Error, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1211).Level);
+        _ = store.Received(1).ClaimDueAsync(10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
     }
 
     [Fact]
@@ -82,13 +88,15 @@ public sealed class InboxProcessorLoggingWrapperUnitTests
     public async Task AddMsgHatch_EnableLoggingFalse_RegistersNoLoggingWrapperOfTheProcessor()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.Unavailable)), enableLogging: false);
+        var store = AStore(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(store, enableLogging: false);
 
         // Act
         await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
 
         // Assert
         Assert.DoesNotContain(provider.LogRecords(), static r => r.Id.Id is >= 1208 and <= 1211);
+        _ = store.Received(1).ClaimDueAsync(10, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Ct);
     }
 
     private static IInboxDispatchStore AStore(ErrorOr<ClaimResult<ReceivedMessage>> claimed)

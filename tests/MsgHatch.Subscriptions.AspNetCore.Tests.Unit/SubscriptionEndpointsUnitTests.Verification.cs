@@ -16,6 +16,9 @@ public sealed partial class SubscriptionEndpointsUnitTests
 {
     private const string _verificationBody = """{"testUsers":["1","3"],"languages":["en","hu"],"messageType":"B"}""";
 
+    private static readonly UserId[] _verificationUsers = [new("1"), new("3")];
+    private static readonly string[] _verificationLanguages = ["en", "hu"];
+
     public static TheoryData<string, string?, string> VerificationTenantRows => new()
     {
         { "tenantId t2", "?tenantId=t2", "t2" },
@@ -82,6 +85,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
                 + """{"messageType":"B","testCase":null,"level":"Company","companyId":"100","userId":null,"targetKind":null,"targetId":null,"channel":"Email","language":null,"outcome":"Skipped","errorCode":null,"errorName":null,"trace":null}],"""
                 + "\"passed\":1,\"failed\":1,\"skipped\":1}"),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+        await host.Verifier.Received(1).VerifyAsync(TheRequestOfTheVerificationBody(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -140,6 +144,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal((status, row), await EndpointHost.ProblemOf(response));
+        await host.Verifier.Received(1).VerifyAsync(TheRequestOfTheVerificationBody(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -154,4 +159,8 @@ public sealed partial class SubscriptionEndpointsUnitTests
         // Assert
         Assert.Equal((false, 0), (response.IsSuccessStatusCode, host.Verifier.ReceivedCalls().Count()));
     }
+
+    private static RoutingVerificationRequest TheRequestOfTheVerificationBody() =>
+        Arg.Is<RoutingVerificationRequest>(request => request.TestUsers.SequenceEqual(_verificationUsers)
+            && request.Languages.SequenceEqual(_verificationLanguages) && request.Type == new MessageType("B"));
 }

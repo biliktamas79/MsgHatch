@@ -94,8 +94,9 @@ public sealed partial class NotificationServiceUnitTests
         await AcceptAsync(provider, new TestEvent("text"), context);
 
         // Assert
-        await _doubles.Inbox(_t1).ReceivedWithAnyArgs(1).AddAsync(default!, Ct);
         Assert.Equal(context.MessageId, Assert.Single(_doubles.Accepted).Delivery.Id);
+        _ = _doubles.Inbox(_t1).Received(1).AddAsync(Arg.Is<ReceivedMessage>(m => m.Delivery.Id == context.MessageId && m.Tenant == _tenant), Ct);
+        _ = _doubles.Inbox(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -109,6 +110,7 @@ public sealed partial class NotificationServiceUnitTests
 
         // Assert
         Assert.Equal(Errors.NotFound, accepted.Error?.Type);
+        _ = _doubles.Inbox(TenantKey.None).DidNotReceiveWithAnyArgs().AddAsync(default!, Ct);
     }
 
     [Fact]
@@ -117,13 +119,15 @@ public sealed partial class NotificationServiceUnitTests
         // Arrange
         var expected = new Error(Errors.Unavailable);
         _doubles.Inbox(TenantKey.None).AddAsync(default!, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(expected));
+        var context = AContext();
         await using var provider = _doubles.Build(_time);
 
         // Act
-        var accepted = await AcceptAsync(provider, new TestEvent("text"), AContext());
+        var accepted = await AcceptAsync(provider, new TestEvent("text"), context);
 
         // Assert
         Assert.Same(expected, accepted.Error);
+        _ = _doubles.Inbox(TenantKey.None).Received(1).AddAsync(Arg.Is<ReceivedMessage>(m => m.Delivery.Id == context.MessageId), Ct);
     }
 
     [Fact]

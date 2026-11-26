@@ -30,6 +30,7 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
             ["2030-01-01 10:00:05 UTC", "Requests", "3 / 8", "Timeout of the handler", "View"],
             cells.Where(static (_, index) => index != 1).Select(SpacedTextOf));
         Assert.Equal(["Failed", "Test"], cells[1].QuerySelectorAll(".badge").Select(static badge => badge.TextContent));
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -43,6 +44,7 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal("msghatch/inbox/00000000-0000-0000-0000-000000000001", cut.Find("[data-action=view]").GetAttribute("href"));
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -55,6 +57,7 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
         Assert.Equal(
             ("There are no received messages.", true),
             (cut.Find("[data-state=empty]").TextContent, cut.Find("[data-list-pager]").QuerySelector("[data-page=older]") is not null));
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -68,6 +71,7 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -81,6 +85,7 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -140,6 +145,10 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
         Assert.Equal(
             (new InboxQuery(CreatedFromUtc: _created, CreatedToUtc: _created.AddDays(1), IncludeTest: true), DateTimeKind.Utc, DateTimeKind.Utc),
             (query, query.CreatedFromUtc!.Value.Kind, query.CreatedToUtc!.Value.Kind));
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(CreatedFromUtc: _created), Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(new InboxQuery(CreatedFromUtc: _created, CreatedToUtc: _created.AddDays(1)), Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetReceivedMessagesAsync(
+            new InboxQuery(CreatedFromUtc: _created, CreatedToUtc: _created.AddDays(1), IncludeTest: true), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -244,9 +253,10 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
         cut.Find("[data-action=confirm]").Click();
 
         // Assert
-        DeliveryCommands.Received(1).RetryReceivedAsync(_failed, Arg.Any<CancellationToken>());
-        DeliveryQueries.Received(2).GetReceivedMessagesAsync(_failed, Arg.Any<CancellationToken>());
         Assert.Equal("Matched 5, changed 3.", cut.Find("[data-action-result]").TextContent);
+        DeliveryCommands.Received(1).RetryReceivedAsync(_failed, Arg.Any<CancellationToken>());
+        DeliveryCommands.DidNotReceiveWithAnyArgs().CancelReceivedAsync(default!, Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(2).GetReceivedMessagesAsync(_failed, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -262,8 +272,10 @@ public sealed class InboxListPageUnitTests : RegistryPageContext
         cut.Find("[data-action=confirm]").Click();
 
         // Assert
-        DeliveryCommands.Received(1).CancelReceivedAsync(_failed, Arg.Any<CancellationToken>());
         Assert.Equal("Matched 2, changed 1.", cut.Find("[data-action-result]").TextContent);
+        DeliveryCommands.Received(1).CancelReceivedAsync(_failed, Arg.Any<CancellationToken>());
+        DeliveryCommands.DidNotReceiveWithAnyArgs().RetryReceivedAsync(default!, Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(2).GetReceivedMessagesAsync(_failed, Arg.Any<CancellationToken>());
     }
 
     private static (bool Retry, bool Cancel) BulkActionsDisabled(IRenderedComponent<InboxListPage> cut) =>

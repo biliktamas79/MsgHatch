@@ -68,6 +68,7 @@ public sealed class EmbeddedResourceTemplateStoreUnitTests()
 
         // Assert
         Assert.Equal(Errors.Unavailable, result.Error?.Type);
+        assembly.Received(1).GetManifestResourceStream("Prefix.TestEvent.en.subject.txt");
     }
 
     [Theory]

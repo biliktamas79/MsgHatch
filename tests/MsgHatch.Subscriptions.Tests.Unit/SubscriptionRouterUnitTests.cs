@@ -41,7 +41,11 @@ public sealed partial class SubscriptionRouterUnitTests
         { "D", ["GetUsersAsync(u:1)", "GetUsersAsync(u:2)"] },
     };
 
-    public static TheoryData<string> FailingServices => ["store", "directory"];
+    public static TheoryData<string, string, string> FailingServices => new()
+    {
+        { "store", "FindForDeliveryAsync(A; c:100; u:1)", "GetUsersAsync(u:1)" },
+        { "directory", "", "GetUsersAsync(u:1)" },
+    };
 
     public static TheoryData<string, string, string> StoredOwnerRows => new()
     {
@@ -108,6 +112,9 @@ public sealed partial class SubscriptionRouterUnitTests
 
         // Assert
         Assert.Equal((0, 0, "t2"), (result.Value.Stored, provider.GetRequiredService<InMemoryOutboxStore>().GetMessages().Count, Keys(_stores)));
+        Assert.Equal(
+            ("FindForDeliveryAsync(A; c:; u:1)", "GetUsersAsync(u:1)"),
+            (string.Join(" ", ScenarioDoubles.Calls(_stores[TenantKey.For(_t2)])), string.Join(" ", ScenarioDoubles.Calls(_directories[TenantKey.For(_t2)]))));
     }
 
     [Theory]
@@ -140,7 +147,7 @@ public sealed partial class SubscriptionRouterUnitTests
 
     [Theory]
     [MemberData(nameof(FailingServices))]
-    public async Task ProcessAsync_ErrorOfTheStoreOrTheDirectory_FailsTheEventWithThatError(string failing)
+    public async Task ProcessAsync_ErrorOfTheStoreOrTheDirectory_FailsTheEventWithThatError(string failing, string storeCalls, string directoryCalls)
     {
         // Arrange
         var error = new Error(Errors.Unavailable);
@@ -152,7 +159,10 @@ public sealed partial class SubscriptionRouterUnitTests
         var result = await provider.ProcessAsync(new EventA(["1"]));
 
         // Assert
-        Assert.Equal((failing, true), (failing, ReferenceEquals(error, result.Error)));
+        Assert.Equal(
+            (failing, true, storeCalls, directoryCalls),
+            (failing, ReferenceEquals(error, result.Error), string.Join(" ", ScenarioDoubles.Calls(_stores[TenantKey.None])),
+                string.Join(" ", ScenarioDoubles.Calls(_directories[TenantKey.None]))));
     }
 
     [Fact]
@@ -169,6 +179,7 @@ public sealed partial class SubscriptionRouterUnitTests
 
         // Assert
         Assert.Same(error, result.Error);
+        Assert.Equal("GetUsersAsync(u:1) GetCompanyAsync(c:100)", string.Join(" ", ScenarioDoubles.Calls(directory)));
     }
 
     [Theory]

@@ -121,6 +121,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
         Assert.Equal(
             (HttpStatusCode.Created, $"/subscriptions/{Scenario.S6.Id}", ExpectedJson.S6),
             (response.StatusCode, response.Headers.Location?.OriginalString, await response.Content.ReadAsStringAsync(Ct)));
+        await host.Manager.Received(1).CreateAsync(_draftOfTheValidBody, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -137,6 +138,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
         Assert.Equal(
             (HttpStatusCode.Created, $"/subscriptions/{Scenario.S6.Id}?tenantId=t2"),
             (response.StatusCode, response.Headers.Location?.OriginalString));
+        await host.T2Manager.Received(1).CreateAsync(_draftOfTheValidBody, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -199,6 +201,7 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal((409, "Conflict"), await EndpointHost.ProblemOf(response));
+        await host.Manager.Received(1).UpdateAsync(Guid.Parse(_anId), 1, _draftOfTheValidBody, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -255,5 +258,6 @@ public sealed partial class SubscriptionEndpointsUnitTests
 
         // Assert
         Assert.Equal((503, "Unavailable"), await EndpointHost.ProblemOf(response));
+        await host.Manager.Received(1).DeleteAsync(Guid.Parse(_anId), Arg.Any<CancellationToken>());
     }
 }

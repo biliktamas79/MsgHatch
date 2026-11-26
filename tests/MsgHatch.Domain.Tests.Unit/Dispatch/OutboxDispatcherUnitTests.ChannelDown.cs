@@ -113,6 +113,8 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(expectedRecords, provider.LogRecords().Count(static r => r.Id.Id == 1402 && r.Level == LogLevel.Error));
+        await _doubles.Store.Received(1).SetChannelDownAsync(
+            Arg.Is<ChannelDown>(d => d.Channel == TestChannel.Id && d.Reason == ChannelDownReason.Errors && d.ErrorCode == 503), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -123,16 +125,20 @@ public sealed partial class OutboxDispatcherUnitTests
         var ofTheSecondChannel = AMessage(TestChannel.SecondId);
         _doubles.ClaimsGive(TestChannel.SecondId, Claim(ofTheSecondChannel));
         var transport = TestTransports.For(TestChannel.Id, new Error(Errors.Unavailable));
-        await using var provider = BuildWithTheDownOptions(transport, TestTransports.For(TestChannel.SecondId));
+        var second = TestTransports.For(TestChannel.SecondId);
+        await using var provider = BuildWithTheDownOptions(transport, second);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        await transport.ReceivedWithAnyArgs(3).SendAsync(default!, default, Ct);
         RecordCall[] records = [await _doubles.NextRecordAsync(), await _doubles.NextRecordAsync(), await _doubles.NextRecordAsync(), await _doubles.NextRecordAsync()];
         Assert.Equal([TestChannel.Id, TestChannel.Id, TestChannel.Id, TestChannel.SecondId], records.Select(static r => r.Message.Channel));
         Assert.False(_doubles.HasMoreRecords);
+        await transport.Received(3).SendAsync(Arg.Is<OutgoingMessage>(m => m.Channel == TestChannel.Id), null, Arg.Any<CancellationToken>());
+        await second.Received(1).SendAsync(ofTheSecondChannel, null, Arg.Any<CancellationToken>());
+        await _doubles.Store.Received(1).SetChannelDownAsync(
+            Arg.Is<ChannelDown>(d => d.Channel == TestChannel.Id && d.ErrorCode == 503), Arg.Any<CancellationToken>());
     }
 
     [Fact]

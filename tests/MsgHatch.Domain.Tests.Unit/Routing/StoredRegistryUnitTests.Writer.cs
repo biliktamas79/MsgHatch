@@ -58,6 +58,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal((row, !valid, valid ? 1 : 0), (row, saved.Error?.Type == Errors.ValidationFailed, SaveCalls(store)));
+        _ = store.Received(valid ? 1 : 0).SaveChannelEntryAsync(entry with { Revision = revision + 1, LastModifiedAtUtc = TestHost.Start.UtcDateTime }, Ct);
     }
 
     [Theory]
@@ -75,6 +76,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal((row, !valid, valid ? 1 : 0), (row, saved.Error?.Type == Errors.ValidationFailed, SaveCalls(store)));
+        _ = store.Received(valid ? 1 : 0).SaveMessageTypeEntryAsync(entry with { Revision = revision + 1, LastModifiedAtUtc = TestHost.Start.UtcDateTime }, Ct);
     }
 
     [Fact]
@@ -189,14 +191,17 @@ public sealed partial class StoredRegistryUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = Build(AStoreThatFails(expected), enableLogging: false);
+        var store = AStoreThatFails(expected);
+        await using var provider = Build(store, enableLogging: false);
         var registry = provider.GetRequiredService<IMessageRegistry>();
+        var entry = AChannelEntry();
 
         // Act
-        var saved = await provider.GetRequiredService<IRegistryWriter>().SaveChannelAsync(AChannelEntry(), Ct);
+        var saved = await provider.GetRequiredService<IRegistryWriter>().SaveChannelAsync(entry, Ct);
 
         // Assert
         Assert.Equal((expected, "Test channel"), (saved.Error, registry.FindChannel(TestChannel.Id)!.Name));
+        _ = store.Received(1).SaveChannelEntryAsync(entry with { Revision = 1, LastModifiedAtUtc = TestHost.Start.UtcDateTime }, Ct);
     }
 
     [Fact]
@@ -204,14 +209,17 @@ public sealed partial class StoredRegistryUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = Build(AStoreThatFails(expected), enableLogging: false);
+        var store = AStoreThatFails(expected);
+        await using var provider = Build(store, enableLogging: false);
         var registry = provider.GetRequiredService<IMessageRegistry>();
+        var entry = AMessageTypeEntry(enabled: false);
 
         // Act
-        var saved = await provider.GetRequiredService<IRegistryWriter>().SaveMessageTypeAsync(AMessageTypeEntry(enabled: false), Ct);
+        var saved = await provider.GetRequiredService<IRegistryWriter>().SaveMessageTypeAsync(entry, Ct);
 
         // Assert
         Assert.Equal((expected, true), (saved.Error, registry.FindMessageType(TestEventType)!.Enabled));
+        _ = store.Received(1).SaveMessageTypeEntryAsync(entry with { Revision = 1, LastModifiedAtUtc = TestHost.Start.UtcDateTime }, Ct);
     }
 
     [Fact]
@@ -263,6 +271,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal((expected, "Stored"), (error, registry.FindChannel(TestChannel.Id)!.Name));
+        _ = store.Received(1).DeleteChannelEntryAsync(TestChannel.Id, Ct);
     }
 
     [Fact]
@@ -280,6 +289,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Equal((expected, false), (error, registry.FindMessageType(TestEventType)!.Enabled));
+        _ = store.Received(1).DeleteMessageTypeEntryAsync(TestEventType, Ct);
     }
 
     [Fact]
@@ -295,6 +305,7 @@ public sealed partial class StoredRegistryUnitTests
 
         // Assert
         Assert.Same(entries, read.Value);
+        _ = store.Received(1).GetEntriesAsync(Ct);
     }
 
     private static int SaveCalls(IRegistrySettingsStore store) =>

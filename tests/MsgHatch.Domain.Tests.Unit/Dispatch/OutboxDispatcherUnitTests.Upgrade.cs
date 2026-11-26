@@ -36,13 +36,17 @@ public sealed partial class OutboxDispatcherUnitTests
         // Arrange
         var stored = AVersionOneMessage("old");
         _doubles.ClaimsGive(TestChannel.Id, Claim(stored));
-        await using var provider = BuildWithEnvelopeVersionTwo(TestTransports.For(TestChannel.Id));
+        var transport = TestTransports.For(TestChannel.Id);
+        await using var provider = BuildWithEnvelopeVersionTwo(transport);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
         Assert.Same(stored, (await _doubles.NextRecordAsync()).Message);
+        _ = transport.Received(1).SendAsync(Arg.Is<OutgoingMessage>(m => m.ContentVersion == 2), null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            stored, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]

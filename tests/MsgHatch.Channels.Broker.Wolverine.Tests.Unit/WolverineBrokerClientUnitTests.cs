@@ -67,12 +67,14 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     {
         // Arrange
         _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.FromException(exception));
+        var publish = APublish();
 
         // Act
-        var result = await Client.PublishAsync(APublish(), Ct);
+        var result = await Client.PublishAsync(publish, Ct);
 
         // Assert
         Assert.Equal((row, expectedCode, exception), (row, result.Error?.Type.Code, result.Error?.Exception));
+        await AssertSentOnceAsync(publish);
     }
 
     [Fact]
@@ -80,12 +82,14 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
     {
         // Arrange
         _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(_ => throw new IndeterminateRoutesException(typeof(TestPayload)));
+        var publish = APublish();
 
         // Act
-        var result = await Client.PublishAsync(APublish(), Ct);
+        var result = await Client.PublishAsync(publish, Ct);
 
         // Assert
         Assert.Equal(Errors.NotFound, result.Error?.Type);
+        await AssertSentOnceAsync(publish);
     }
 
     [Fact]
@@ -112,12 +116,14 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
             stop.Cancel();
             return new ValueTask(new TaskCompletionSource().Task);
         });
+        var publish = APublish();
 
         // Act
-        var result = await Client.PublishAsync(APublish(), stop.Token).AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct);
+        var result = await Client.PublishAsync(publish, stop.Token).AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct);
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        await AssertSentOnceAsync(publish);
     }
 
     [Fact]
@@ -126,12 +132,14 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
         // Arrange
         var client = new WolverineBrokerClient(() => _bus, [new ConflictClassifier<WolverineBrokerClient>()]);
         _bus.SendAsync<object>(default!, default).ReturnsForAnyArgs(ValueTask.FromException(new IOException()));
+        var publish = APublish();
 
         // Act
-        var result = await client.PublishAsync(APublish(), Ct);
+        var result = await client.PublishAsync(publish, Ct);
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        await AssertSentOnceAsync(publish);
     }
 
     [Fact]
@@ -147,6 +155,7 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        await _bus.DidNotReceiveWithAnyArgs().SendAsync<object>(default!, default);
     }
 
     [Fact]
@@ -173,7 +182,8 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseBrokerClient(_ => Client)
             .AddContentTypeOfBrokerMessages();
         await using var provider = services.Build();
-        await provider.GetRequiredService<IOutboxStore>().AddAsync([BrokerMessages.AnOutgoingMessage()], Ct);
+        var message = BrokerMessages.AnOutgoingMessage();
+        await provider.GetRequiredService<IOutboxStore>().AddAsync([message], Ct);
         var spans = new ConcurrentQueue<Activity>();
         using var listener = SequentialTelemetry.ListenTo([MsgHatchTelemetry.SourceName], spans);
 
@@ -183,6 +193,8 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
         // Assert
         var send = Assert.Single(spans, static span => span.DisplayName == "send Broker");
         Assert.Equal(send.Id, currentAtPublish);
+        await _bus.Received(1).SendAsync<object>(
+            message.Envelope.Payload, Arg.Is<DeliveryOptions>(options => options.Headers["msghatch-id"] == message.Delivery.Id.ToString()));
     }
 
     [Fact]
@@ -281,4 +293,8 @@ public sealed class WolverineBrokerClientUnitTests : BrokerClientTestsBase<Wolve
         // Assert
         Assert.Equal((row, expectedCode), (row, result.Error?.Type.Code));
     }
+
+    private ValueTask AssertSentOnceAsync(BrokerPublish publish) =>
+        _bus.Received(1).SendAsync<object>(
+            publish.Payload, Arg.Is<DeliveryOptions>(options => options.Headers["msghatch-id"] == publish.Headers["msghatch-id"]));
 }

@@ -203,6 +203,7 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
 
         // Assert
         Assert.Equal(added.Delivery.Id, Assert.Single(result.Value.Messages).Delivery.Id);
+        _ = store.Received(2).ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
 
         async ValueTask<ErrorOr<ClaimResult<OutgoingMessage>>> ClaimThenAddAsync(CallInfo call)
         {
@@ -284,7 +285,8 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
     {
         // Arrange
         Stores.Listed.Add(T1.Tenant!.Value);
-        Stores.OutboxDispatchStores[T1] = AStoreThatFails(new Error(Errors.Unavailable));
+        var failing = AStoreThatFails(new Error(Errors.Unavailable));
+        Stores.OutboxDispatchStores[T1] = failing;
         var ofT2 = await AddAsync(AMessage(T2));
 
         // Act
@@ -296,13 +298,15 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
         Assert.Equal(
             (1502, LogLevel.Warning, "t1", "Test"),
             (record.Id.Id, record.Level, record.GetStructuredStateValue("TenantId"), record.GetStructuredStateValue("Channel")));
+        _ = failing.Received(1).ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
     }
 
     [Fact]
     public async Task ClaimDueAsync_StoreOfNoTenantFails_ReturnsItsErrorAndAsksNoTenant()
     {
         // Arrange
-        Stores.OutboxDispatchStores[TenantKey.None] = AStoreThatFails(new Error(Errors.Unavailable));
+        var failing = AStoreThatFails(new Error(Errors.Unavailable));
+        Stores.OutboxDispatchStores[TenantKey.None] = failing;
         var message = await AddAsync(AMessage(T2));
 
         // Act
@@ -310,6 +314,7 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
 
         // Assert
         Assert.Equal((Errors.Unavailable, (DateTime?)null), (result.Error?.Type, (await StoredAsync(message.Delivery.Id)).Delivery.LeaseUntilUtc));
+        _ = failing.Received(1).ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
     }
 
     [Fact]
@@ -317,7 +322,8 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
     {
         // Arrange
         Stores.Listed.Add(T1.Tenant!.Value);
-        Stores.OutboxDispatchStores[T1] = AStoreThatFails(new Error(Errors.OperationCancelled));
+        var failing = AStoreThatFails(new Error(Errors.OperationCancelled));
+        Stores.OutboxDispatchStores[T1] = failing;
         await AddAsync(AMessage(T2));
 
         // Act
@@ -325,6 +331,7 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
 
         // Assert
         Assert.Equal(Errors.OperationCancelled, result.Error?.Type);
+        _ = failing.Received(1).ClaimDueAsync(TestChannel.Id, 10, Now, TimeSpan.FromSeconds(30), Ct);
     }
 
     [Fact]
@@ -373,13 +380,15 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
     {
         // Arrange
         Stores.Listed.Add(T1.Tenant!.Value);
-        Stores.OutboxDispatchStores[T1] = AStoreThatFails(new Error(Errors.Unavailable));
+        var failing = AStoreThatFails(new Error(Errors.Unavailable));
+        Stores.OutboxDispatchStores[T1] = failing;
 
         // Act
         var result = await Store.CountAsync(new TrafficQuery(), Ct);
 
         // Assert
         Assert.Equal(Errors.Unavailable, result.Error?.Type);
+        _ = failing.Received(1).CountAsync(new TrafficQuery(), Ct);
     }
 
     [Fact]
@@ -387,13 +396,15 @@ public sealed partial class TenantOutboxDispatchStoreUnitTests
     {
         // Arrange
         Stores.Listed.Add(T1.Tenant!.Value);
-        Stores.OutboxDispatchStores[T1] = AStoreThatFails(new Error(Errors.Unavailable));
+        var failing = AStoreThatFails(new Error(Errors.Unavailable));
+        Stores.OutboxDispatchStores[T1] = failing;
 
         // Act
         var result = await Store.PurgeAsync(Now, 10, Ct);
 
         // Assert
         Assert.Equal(Errors.Unavailable, result.Error?.Type);
+        _ = failing.Received(1).PurgeAsync(Now, 10, Ct);
     }
 
     private static Guid[] IdsIn(InMemoryOutboxStore store) => [.. store.GetMessages().Select(static message => message.Delivery.Id)];

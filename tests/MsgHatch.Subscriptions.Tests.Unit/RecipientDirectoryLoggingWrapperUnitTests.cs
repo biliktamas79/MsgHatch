@@ -19,6 +19,7 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
         [TestSubscriptions.AUser("1", email: _userEmail), TestSubscriptions.AUser("2", uiLanguage: "hu")];
 
     private static readonly CompanyProfile _company = TestSubscriptions.ACompany(email: _companyEmail);
+    private static readonly UserId[] _userIds = [new("1"), new("2")];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -59,7 +60,8 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
     public async Task Operation_InnerSuccess_ReturnsTheResultUnchanged(string operation, object? expected)
     {
         // Arrange
-        await using var provider = BuildWith(ADirectory(error: null));
+        var inner = ADirectory(error: null);
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -67,6 +69,7 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
 
         // Assert
         Assert.Equal((operation, true, (Error?)null), (operation, ReferenceEquals(expected, result.Value), result.Error));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Theory]
@@ -75,7 +78,8 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
     {
         // Arrange
         var error = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(ADirectory(error));
+        var inner = ADirectory(error);
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -83,6 +87,7 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
 
         // Assert
         Assert.Equal((operation, true), (operation, ReferenceEquals(error, result.Error)));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Theory]
@@ -90,7 +95,8 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
     public async Task Operation_InnerSuccess_LogsADebugRecordWithItsEventIdAndTheTenantOfTheKey(string operation, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(ADirectory(error: null));
+        var inner = ADirectory(error: null);
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -99,6 +105,7 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((operation, LogLevel.Debug, eventId, "t1"), (operation, record.Level, record.Id.Id, record.GetStructuredStateValue("Tenant")));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Theory]
@@ -106,7 +113,8 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
     public async Task Operation_InnerError_LogsTheLevelOfTheErrorWithItsEventId(string operation, int errorCode, LogLevel level, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(ADirectory(new Error(ErrorTypeOf(errorCode))));
+        var inner = ADirectory(new Error(ErrorTypeOf(errorCode)));
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -115,6 +123,7 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((operation, errorCode, level, eventId), (operation, errorCode, record.Level, record.Id.Id));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Theory]
@@ -122,7 +131,8 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
     public async Task Operation_ProfilesWithEmailAddresses_NoLogRecordContainsAnAddress(string operation)
     {
         // Arrange
-        await using var provider = BuildWith(ADirectory(error: null));
+        var inner = ADirectory(error: null);
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -132,13 +142,15 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
         Assert.Equal(
             (operation, 1, false),
             (operation, provider.LogRecords().Count, provider.LogRecords().Any(static record => record.ContainsText(_userEmail) || record.ContainsText(_companyEmail))));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Fact]
     public async Task GetUsersAsync_DirectoryOfNoTenant_LogsNoTenant()
     {
         // Arrange
-        await using var provider = BuildWith(ADirectory(error: null));
+        var inner = ADirectory(error: null);
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
 
         // Act
@@ -147,6 +159,7 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((string?)null, 1112), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
+        await ReceivedOneCallAsync(inner, "GetUsers");
     }
 
     [Fact]
@@ -181,10 +194,26 @@ public sealed class RecipientDirectoryLoggingWrapperUnitTests
     private static async Task<(object? Value, Error? Error)> CallAsync(IRecipientDirectory directory, string operation) =>
         operation switch
         {
-            "GetUsers" => Of(await directory.GetUsersAsync([new UserId("1"), new UserId("2")], Ct)),
+            "GetUsers" => Of(await directory.GetUsersAsync(_userIds, Ct)),
             "GetCompanyUsers" => Of(await directory.GetCompanyUsersAsync(new CompanyId("100"), Ct)),
             _ => Of(await directory.GetCompanyAsync(new CompanyId("100"), Ct)),
         };
+
+    private static async Task ReceivedOneCallAsync(IRecipientDirectory inner, string operation)
+    {
+        switch (operation)
+        {
+            case "GetUsers":
+                await inner.Received(1).GetUsersAsync(_userIds, Ct);
+                break;
+            case "GetCompanyUsers":
+                await inner.Received(1).GetCompanyUsersAsync(new CompanyId("100"), Ct);
+                break;
+            default:
+                await inner.Received(1).GetCompanyAsync(new CompanyId("100"), Ct);
+                break;
+        }
+    }
 
     private static (object? Value, Error? Error) Of<T>(ErrorOr<T> result) => result.IsError ? (null, result.Error) : (result.Value, null);
 

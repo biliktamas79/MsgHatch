@@ -18,6 +18,8 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
 {
     private const string _path = "/templates/OrderShipped/hu/subject/PlainText";
 
+    private static readonly TemplateLookup _lookup = new(new MessageType("OrderShipped"), "hu", Scope: null, "subject", TemplatePartKind.PlainText);
+
     private TemplateEndpointHost _host = null!;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -154,6 +156,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
             (HttpStatusCode.OK,
                 """[{"messageType":"A","language":"en","companyId":null,"part":"subject","kind":"PlainText","version":5,"versionText":"Version five"},{"messageType":"A","language":"hu","companyId":"42","part":"body","kind":"Html","version":6,"versionText":null}]"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+        await _host.Manager.Received(1).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -167,6 +170,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
             (HttpStatusCode.OK,
                 """{"messageType":"OrderShipped","language":"hu","companyId":"42","part":"subject","kind":"PlainText","version":5,"text":"Order of {{Name}}","versionText":null}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+        await _host.Manager.Received(1).GetTemplateAsync(_lookup with { Scope = "42" }, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -179,6 +183,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         Assert.Equal(
             (HttpStatusCode.OK, """{"messageType":"OrderShipped","language":"hu","companyId":null,"part":"subject","kind":"PlainText","version":7,"versionText":null}"""),
             (response.StatusCode, await response.Content.ReadAsStringAsync(Ct)));
+        await _host.Manager.Received(1).SaveTemplateAsync(_lookup, "Rendelés", 0, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -189,6 +194,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await _host.Manager.Received(1).DeleteTemplateAsync(_lookup, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -342,6 +348,7 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         Assert.Equal(
             (expected, error.Type.Name, "The manager failed.", ErrorTypeBody.From(error.Type)),
             (response.StatusCode, problem.Title, problem.Detail, problem.ErrorType));
+        await _host.Manager.Received(1).SaveTemplateAsync(_lookup, "Rendelés", 0, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -369,6 +376,12 @@ public sealed class TemplateEndpointsUnitTests : IAsyncLifetime
         Assert.Equal(
             (expected, expected, expected, expected, expected, expected),
             (list.StatusCode, read.StatusCode, delete.StatusCode, parts.StatusCode, check.StatusCode, preview.StatusCode));
+        await _host.Manager.Received(1).GetTemplatesAsync(new TemplateQuery(), Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).GetTemplateAsync(_lookup, Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).DeleteTemplateAsync(_lookup, Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).GetTemplatePartsAsync(null, Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).CheckTemplateAsync(_lookup, "Rendelés", Arg.Any<CancellationToken>());
+        await _host.Manager.Received(1).PreviewTemplateAsync(_lookup, "Rendelés", Arg.Any<CancellationToken>());
     }
 
     private static ErrorType ErrorTypeOf(int code) => Errors.Find(code)!;

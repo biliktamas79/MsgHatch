@@ -27,6 +27,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
             ("", "<p>Hello <b>Sample</b></p><script>alert(1)</script>"),
             (frame.GetAttribute("sandbox"), frame.GetAttribute("srcdoc")));
         Assert.Empty(cut.FindAll("pre"));
+        Queries.Received(1).PreviewTemplateAsync(_body, "<p>Hello {{Name}}</p>", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -41,6 +42,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
         // Assert
         Assert.Equal("Hello <Sample>", cut.Find("pre[data-preview=text]").TextContent);
         Assert.Empty(cut.FindAll("iframe"));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -58,6 +60,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
         Assert.Equal(
             ("Email:Requests, Push:Requests", "From the email", "From the push"),
             (string.Join(", ", cut.FindAll("select option").Select(static option => option.TextContent)), first, cut.Find("pre").TextContent));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Text", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -71,6 +74,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
 
         // Assert
         Assert.Empty(cut.FindAll("select"));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Text", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -92,18 +96,23 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal("No sample data", cut.Find("[data-state=no-sample]").TextContent);
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Text", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public void Render_TemplateInvalid_ShowsItsMessageInPlaceOfThePreview()
     {
+        // Arrange
         Queries.PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>())
             .ReturnsForAnyArgs(Fail<IReadOnlyList<TemplatePreview>>(Errors.TemplateInvalid, "The template has an unclosed placeholder."));
 
+        // Act
         var cut = RenderPane(Lookup(), "Hello {{Name");
 
+        // Assert
         Assert.Equal("The template has an unclosed placeholder.", cut.Find(".alert-danger").TextContent);
         Assert.Empty(cut.FindAll("[data-preview]"));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -117,6 +126,7 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Text", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -133,13 +143,15 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
         Clock.Advance(TimeSpan.FromMilliseconds(300));
         cut.Render(p => p.Add(x => x.Text, "abcd"));
         Clock.Advance(TimeSpan.FromMilliseconds(499));
-        Queries.ReceivedWithAnyArgs(1).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), Arg.Is<string>(static text => text != "a"), Arg.Any<CancellationToken>());
 
         Clock.Advance(TimeSpan.FromMilliseconds(1));
 
         // Assert
-        cut.WaitForAssertion(() => Queries.ReceivedWithAnyArgs(2).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>()));
-        Queries.Received(1).PreviewTemplateAsync(Lookup(), "abcd", Arg.Any<CancellationToken>());
+        cut.WaitForAssertion(() => Queries.Received(1).PreviewTemplateAsync(Lookup(), "abcd", Arg.Any<CancellationToken>()));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "a", Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), "ab", Arg.Any<CancellationToken>());
+        Queries.DidNotReceive().PreviewTemplateAsync(Lookup(), "abc", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -160,6 +172,8 @@ public sealed class TemplatePreviewPaneUnitTests : TemplatePageContext
 
         // Assert
         Assert.Equal((true, "Later"), (first.IsCancellationRequested, cut.Find("pre").TextContent));
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "a", Arg.Any<CancellationToken>());
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "ab", Arg.Any<CancellationToken>());
     }
 
     private void GivenPreviews(params TemplatePreview[] previews) =>

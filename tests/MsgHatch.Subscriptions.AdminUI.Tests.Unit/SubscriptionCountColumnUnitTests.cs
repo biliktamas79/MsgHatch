@@ -63,6 +63,7 @@ public sealed class SubscriptionCountColumnUnitTests : SubscriptionPageContext
                 "msghatch/subscriptions?type=Requests&level=User",
             ],
             cut.FindAll("tr[data-row]")[0].QuerySelectorAll("td[data-column=Subscriptions] a[data-item]").Select(static link => link.GetAttribute("href")));
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -78,6 +79,7 @@ public sealed class SubscriptionCountColumnUnitTests : SubscriptionPageContext
         Assert.Equal(
             ($"Subscriptions: {AdminErrors.UnavailableText}", 2),
             (cut.Find("[data-column-error=Subscriptions]").TextContent, cut.FindAll("tr[data-row]").Count));
+        Queries.Received(1).GetSubscriptionsAsync(new SubscriptionQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -94,6 +96,8 @@ public sealed class SubscriptionCountColumnUnitTests : SubscriptionPageContext
 
         // Assert
         Assert.Equal($"Subscriptions: {AdminErrors.RejectedText}", cut.Find("[data-column-error=Subscriptions]").TextContent);
+        _registry.Received(2).GetMessageTypesAsync(Arg.Any<CancellationToken>());
+        Queries.DidNotReceiveWithAnyArgs().GetSubscriptionsAsync(default!, Arg.Any<CancellationToken>());
     }
 
     private void GivenSubscriptions(params Subscription[] subscriptions) =>

@@ -21,7 +21,8 @@ public sealed class TenantSourceLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(ASourceOf(expected));
+        var inner = ASourceOf(expected);
+        await using var provider = BuildWith(inner);
 
         // Act
         var result = await provider.GetRequiredService<ITenantSource>().GetTenantsAsync(Ct);
@@ -29,13 +30,15 @@ public sealed class TenantSourceLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((expected, LogLevel.Warning, 1501), (result.Error, record.Level, record.Id.Id));
+        _ = inner.Received(1).GetTenantsAsync(Ct);
     }
 
     [Fact]
     public async Task GetTenantsAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(ASourceOf(new Error(Errors.SerializationFailed)));
+        var inner = ASourceOf(new Error(Errors.SerializationFailed));
+        await using var provider = BuildWith(inner);
 
         // Act
         await provider.GetRequiredService<ITenantSource>().GetTenantsAsync(Ct);
@@ -43,13 +46,15 @@ public sealed class TenantSourceLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1501), (record.Level, record.Id.Id));
+        _ = inner.Received(1).GetTenantsAsync(Ct);
     }
 
     [Fact]
     public async Task GetTenantsAsync_Cancelled_LogsAnInformationRecordWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(ASourceOf(new Error(Errors.OperationCancelled)));
+        var inner = ASourceOf(new Error(Errors.OperationCancelled));
+        await using var provider = BuildWith(inner);
 
         // Act
         await provider.GetRequiredService<ITenantSource>().GetTenantsAsync(Ct);
@@ -57,6 +62,7 @@ public sealed class TenantSourceLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Information, 1501), (record.Level, record.Id.Id));
+        _ = inner.Received(1).GetTenantsAsync(Ct);
     }
 
     [Fact]
@@ -64,7 +70,8 @@ public sealed class TenantSourceLoggingWrapperUnitTests
     {
         // Arrange
         IReadOnlyList<TenantId> tenants = [new TenantId(_secretTenant), new TenantId("t2")];
-        await using var provider = BuildWith(ASourceOf(tenants));
+        var inner = ASourceOf(tenants);
+        await using var provider = BuildWith(inner);
 
         // Act
         var result = await provider.GetRequiredService<ITenantSource>().GetTenantsAsync(Ct);
@@ -73,6 +80,7 @@ public sealed class TenantSourceLoggingWrapperUnitTests
         var record = Assert.Single(provider.LogRecords());
         Assert.Same(tenants, result.Value);
         Assert.Equal((LogLevel.Debug, 1500, "2", false), (record.Level, record.Id.Id, record.GetStructuredStateValue("TenantCount"), record.ContainsText(_secretTenant)));
+        _ = inner.Received(1).GetTenantsAsync(Ct);
     }
 
     [Fact]

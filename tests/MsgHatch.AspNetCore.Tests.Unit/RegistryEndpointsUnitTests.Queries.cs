@@ -35,6 +35,7 @@ public sealed partial class RegistryEndpointsUnitTests
         Assert.Equal(
             ("""[{"id":"Sms","name":"Text messages","description":"Short texts","features":"Languages","enabled":false,"revision":7,"current":null,"entry":null}]""", 1, 0),
             (json, keys.Count(static key => key == TenantKey.None), host.Writer.ReceivedCalls().Count()));
+        await queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -58,6 +59,7 @@ public sealed partial class RegistryEndpointsUnitTests
             + """nd":"Down","sinceUtc":"2026-11-18T13:32:00Z","previousKind":"Up","previousDurationMs":240000,"reason":"Errors","nextCheck"""
             + """AtUtc":"2026-11-18T13:32:30Z","errorCode":503,"errorName":"Unavailable","note":null},"entry":null}]""",
             json);
+        await queries.Received(1).GetChannelsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -120,5 +122,6 @@ public sealed partial class RegistryEndpointsUnitTests
         Assert.Equal(
             ("""[{"name":"Invoices","displayName":"Invoices","description":null,"channels":["Sms"],"enabled":true,"disabledChannels":["Sms"],"revision":2,"entry":null}]""", 1, 0),
             (json, keys.Count(static key => key == TenantKey.None), host.Writer.ReceivedCalls().Count()));
+        await queries.Received(1).GetMessageTypesAsync(Arg.Any<CancellationToken>());
     }
 }

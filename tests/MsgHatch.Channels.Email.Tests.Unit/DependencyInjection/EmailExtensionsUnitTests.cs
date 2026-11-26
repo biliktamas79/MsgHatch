@@ -414,13 +414,14 @@ public sealed class EmailExtensionsUnitTests(TemplateFolder folder) : IClassFixt
         var services = TestHost.CreateServices(configuration: new Dictionary<string, string?> { ["MsgHatch:TestDelivery:Email:Mode"] = "Deliver" });
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseEmailClient(_ => client);
         await using var provider = services.Build();
-        await provider.GetRequiredService<IOutboxStore>().AddAsync([TestMessages.AnOutgoingEmail(flags: MessageFlags.Test)], Ct);
+        var message = TestMessages.AnOutgoingEmail(flags: MessageFlags.Test);
+        await provider.GetRequiredService<IOutboxStore>().AddAsync([message], Ct);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        await client.ReceivedWithAnyArgs(1).SendAsync(default, default!, Ct);
+        await client.Received(1).SendAsync(message.Delivery.Id, message.Envelope, Arg.Any<CancellationToken>());
     }
 
     [Fact]

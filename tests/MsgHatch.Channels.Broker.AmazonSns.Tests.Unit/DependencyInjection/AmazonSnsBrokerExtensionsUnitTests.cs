@@ -69,7 +69,8 @@ public sealed class AmazonSnsBrokerExtensionsUnitTests : IDisposable
         // Assert
         Assert.IsNotType<AmazonSnsBrokerClient>(client);
         Assert.Equal(2300, Assert.Single(provider.LogRecords()).Id.Id);
-        await sns.ReceivedWithAnyArgs(1).PublishAsync(default(PublishRequest)!, Ct);
+        await sns.Received(1).PublishAsync(
+            Arg.Is<PublishRequest>(static r => r.TopicArn == _topic && r.MessageAttributes["msghatch-id"].StringValue == "id-1"), Ct);
     }
 
     [Fact]
@@ -89,6 +90,7 @@ public sealed class AmazonSnsBrokerExtensionsUnitTests : IDisposable
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        await sns.Received(1).PublishAsync(Arg.Is<PublishRequest>(static r => r.TopicArn == _topic), Ct);
     }
 
     [Fact]

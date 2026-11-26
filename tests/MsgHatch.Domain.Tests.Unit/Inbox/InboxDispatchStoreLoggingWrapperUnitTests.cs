@@ -42,15 +42,18 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStoreOf(expected));
+        var inner = AStoreOf(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IInboxDispatchStore>();
+        var message = AMessage();
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, message);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((expected, LogLevel.Warning, eventId), (error, record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, message);
     }
 
     [Theory]
@@ -58,15 +61,18 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
     public async Task Member_PermanentError_LogsAnErrorWithItsEventId(string member, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(new Error(Errors.ValidationFailed)));
+        var inner = AStoreOf(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IInboxDispatchStore>();
+        var message = AMessage();
 
         // Act
-        await CallAsync(store, member);
+        await CallAsync(store, member, message);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, eventId), (record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, message);
     }
 
     [Theory]
@@ -74,15 +80,18 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
     public async Task Member_Success_LogsADebugRecordWithItsEventId(string member, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IInboxDispatchStore>();
+        var message = AMessage();
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, message);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((Error?)null, LogLevel.Debug, eventId), (error, record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, message);
     }
 
     [Fact]
@@ -101,6 +110,7 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Same(claimed, result.Value);
+        _ = inner.Received(1).ClaimDueAsync(1, TestMessages.CreatedAtUtc, TimeSpan.FromSeconds(30), Ct);
     }
 
     [Fact]
@@ -117,13 +127,15 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
 
         // Assert
         Assert.Equal(7, purged.Value);
+        _ = inner.Received(1).PurgeAsync(TestMessages.CreatedAtUtc, 10, Ct);
     }
 
     [Fact]
     public async Task CompleteAsync_TestMessageOfATenant_LogsTheTenantAndTheTestFlagAndNoEvent()
     {
         // Arrange
-        await using var provider = BuildWith(AStoreOf(error: null));
+        var inner = AStoreOf(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredService<IInboxDispatchStore>();
         var message = TestMessages.AReceivedMessage(new TestEvent(_eventText), new TenantId("t1"), flags: MessageFlags.Test);
 
@@ -134,6 +146,7 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(("t1", "Test"), (record.GetStructuredStateValue("Tenant"), record.GetStructuredStateValue("MessageFlags")));
         Assert.False(record.ContainsText(_eventText));
+        _ = inner.Received(1).CompleteAsync(message, TestMessages.CreatedAtUtc, Ct);
     }
 
     [Fact]
@@ -152,17 +165,42 @@ public sealed class InboxDispatchStoreLoggingWrapperUnitTests
 
     private static ReceivedMessage<TestEvent> AMessage() => TestMessages.AReceivedMessage(new TestEvent("text"));
 
-    private static async Task<Error?> CallAsync(IInboxDispatchStore store, string member)
+    private static async Task<Error?> CallAsync(IInboxDispatchStore store, string member, ReceivedMessage message)
     {
         var now = TestMessages.CreatedAtUtc;
         return member switch
         {
             nameof(IInboxDispatchStore.ClaimDueAsync) => (await store.ClaimDueAsync(1, now, TimeSpan.FromSeconds(30), Ct)).Error,
-            nameof(IInboxDispatchStore.CompleteAsync) => await store.CompleteAsync(AMessage(), now, Ct),
-            nameof(IInboxDispatchStore.FailAsync) => await store.FailAsync(AMessage(), "Unavailable", now, now.AddSeconds(5), Ct),
+            nameof(IInboxDispatchStore.CompleteAsync) => await store.CompleteAsync(message, now, Ct),
+            nameof(IInboxDispatchStore.FailAsync) => await store.FailAsync(message, "Unavailable", now, now.AddSeconds(5), Ct),
             nameof(IInboxDispatchStore.DeleteTestDataAsync) => (await store.DeleteTestDataAsync(Ct)).Error,
             _ => (await store.PurgeAsync(now, 10, Ct)).Error,
         };
+    }
+
+    /// <summary>Asserts that the wrapper called the member of <see cref="CallAsync"/> on the inner store one time with the same arguments, and no other member.</summary>
+    private static void AssertForwardedOnce(IInboxDispatchStore inner, string member, ReceivedMessage message)
+    {
+        var now = TestMessages.CreatedAtUtc;
+        Assert.Single(inner.ReceivedCalls());
+        switch (member)
+        {
+            case nameof(IInboxDispatchStore.ClaimDueAsync):
+                _ = inner.Received(1).ClaimDueAsync(1, now, TimeSpan.FromSeconds(30), Ct);
+                break;
+            case nameof(IInboxDispatchStore.CompleteAsync):
+                _ = inner.Received(1).CompleteAsync(message, now, Ct);
+                break;
+            case nameof(IInboxDispatchStore.FailAsync):
+                _ = inner.Received(1).FailAsync(message, "Unavailable", now, now.AddSeconds(5), Ct);
+                break;
+            case nameof(IInboxDispatchStore.DeleteTestDataAsync):
+                _ = inner.Received(1).DeleteTestDataAsync(Ct);
+                break;
+            default:
+                _ = inner.Received(1).PurgeAsync(now, 10, Ct);
+                break;
+        }
     }
 
     private static IInboxDispatchStore AStoreOf(Error? error)

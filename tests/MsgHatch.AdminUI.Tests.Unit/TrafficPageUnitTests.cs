@@ -44,6 +44,7 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
         Assert.Equal(
             ["Requests Email Pending Yes 7 2029-12-31 23:55:00 UTC", "Requests Sms Done No 12"],
             cut.FindAll("tr[data-outbox-row]").Select(SpacedTextOf));
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -63,6 +64,7 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
                 DeliveryAdminRoutes.OutboxOf(DeliveryStatus.Done, _requests, Sms, createdFromUtc: _from).TrimStart('/'),
             ],
             cut.FindAll("a[data-count]").Select(static link => link.GetAttribute("href")));
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(CreatedFromUtc: _from), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -95,6 +97,10 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
         Assert.Equal(
             (new TrafficQuery(_from, _from.AddDays(1), DeliveryStatus.Failed, IncludeTest: true), DateTimeKind.Utc),
             (query, query.CreatedFromUtc!.Value.Kind));
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(Status: DeliveryStatus.Failed), Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(_from, Status: DeliveryStatus.Failed), Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(_from, _from.AddDays(1), DeliveryStatus.Failed), Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(_from, _from.AddDays(1), DeliveryStatus.Failed, IncludeTest: true), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -108,6 +114,7 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal((AdminErrors.UnavailableText, 0), (cut.Find(".alert-danger").TextContent, cut.FindAll("[data-section]").Count));
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -122,6 +129,7 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(2, cut.FindAll("[data-state=loading]").Count);
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -135,6 +143,7 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(["There are no received messages.", "There are no outgoing messages."], cut.FindAll("[data-state=empty]").Select(static text => text.TextContent));
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -198,6 +207,8 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-deleted-result].alert-danger").TextContent);
+        DeliveryCommands.Received(1).DeleteTestDataAsync(Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(2).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -299,6 +310,8 @@ public sealed class TrafficPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-dialog] .alert-danger").TextContent);
+        DeliveryCommands.Received(1).PurgeAsync(new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc), 1000, Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetTrafficAsync(new TrafficQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

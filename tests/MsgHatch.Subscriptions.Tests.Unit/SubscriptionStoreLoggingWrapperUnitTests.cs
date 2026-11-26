@@ -15,6 +15,8 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
     private static readonly Subscription _subscription = TestSubscriptions.A();
     private static readonly IReadOnlyList<Subscription> _subscriptions = [_subscription, TestSubscriptions.A(type: "B")];
+    private static readonly CompanyId[] _companies = [new("100")];
+    private static readonly UserId[] _users = [new("1")];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -61,13 +63,15 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
     public async Task Operation_InnerSuccess_ReturnsTheResultUnchanged(string operation, object? expected)
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
 
         // Act
         var result = await CallAsync(provider.GetRequiredKeyedService<ISubscriptionStore>(_t1), operation);
 
         // Assert
         Assert.Equal((operation, true, (Error?)null), (operation, ReferenceEquals(expected, result.Value), result.Error));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Theory]
@@ -76,13 +80,15 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
     {
         // Arrange
         var error = new Error(Errors.Conflict);
-        await using var provider = BuildWith(AStore(error));
+        var inner = AStore(error);
+        await using var provider = BuildWith(inner);
 
         // Act
         var result = await CallAsync(provider.GetRequiredKeyedService<ISubscriptionStore>(_t1), operation);
 
         // Assert
         Assert.Equal((operation, true), (operation, ReferenceEquals(error, result.Error)));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Theory]
@@ -90,7 +96,8 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
     public async Task Operation_InnerSuccess_LogsADebugRecordWithItsEventIdAndTheTenantOfTheKey(string operation, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
 
         // Act
         await CallAsync(provider.GetRequiredKeyedService<ISubscriptionStore>(_t1), operation);
@@ -98,6 +105,7 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((operation, LogLevel.Debug, eventId, "t1"), (operation, record.Level, record.Id.Id, record.GetStructuredStateValue("Tenant")));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Theory]
@@ -105,7 +113,8 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
     public async Task Operation_InnerError_LogsTheLevelOfTheErrorWithItsEventId(string operation, int errorCode, LogLevel level, int eventId)
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(ErrorTypeOf(errorCode))));
+        var inner = AStore(new Error(ErrorTypeOf(errorCode)));
+        await using var provider = BuildWith(inner);
 
         // Act
         await CallAsync(provider.GetRequiredKeyedService<ISubscriptionStore>(_t1), operation);
@@ -113,13 +122,15 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((operation, errorCode, level, eventId), (operation, errorCode, record.Level, record.Id.Id));
+        await ReceivedOneCallAsync(inner, operation);
     }
 
     [Fact]
     public async Task FindForDeliveryAsync_StoreOfNoTenant_LogsNoTenant()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
 
         // Act
         await CallAsync(provider.GetRequiredService<ISubscriptionStore>(), "FindForDelivery");
@@ -127,6 +138,7 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((string?)null, 1100), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
+        await ReceivedOneCallAsync(inner, "FindForDelivery");
     }
 
     [Fact]
@@ -160,19 +172,39 @@ public sealed class SubscriptionStoreLoggingWrapperUnitTests
         return store;
     }
 
-    private static async Task<(object? Value, Error? Error)> CallAsync(ISubscriptionStore store, string operation)
+    private static async Task<(object? Value, Error? Error)> CallAsync(ISubscriptionStore store, string operation) => operation switch
     {
-        var companies = new[] { new CompanyId("100") };
-        var users = new[] { new UserId("1") };
-        return operation switch
+        "FindForDelivery" => Of(await store.FindForDeliveryAsync(new MessageType("A"), _companies, _users, Ct)),
+        "Query" => Of(await store.QueryAsync(new SubscriptionQuery(), Ct)),
+        "Get" => Of(await store.GetAsync(_subscription.Id, Ct)),
+        "Add" => (null, await store.AddAsync(_subscription, Ct)),
+        "Update" => (null, await store.UpdateAsync(_subscription with { Revision = 2 }, 1, Ct)),
+        _ => (null, await store.DeleteAsync(_subscription.Id, Ct)),
+    };
+
+    private static async Task ReceivedOneCallAsync(ISubscriptionStore inner, string operation)
+    {
+        switch (operation)
         {
-            "FindForDelivery" => Of(await store.FindForDeliveryAsync(new MessageType("A"), companies, users, Ct)),
-            "Query" => Of(await store.QueryAsync(new SubscriptionQuery(), Ct)),
-            "Get" => Of(await store.GetAsync(_subscription.Id, Ct)),
-            "Add" => (null, await store.AddAsync(_subscription, Ct)),
-            "Update" => (null, await store.UpdateAsync(_subscription with { Revision = 2 }, 1, Ct)),
-            _ => (null, await store.DeleteAsync(_subscription.Id, Ct)),
-        };
+            case "FindForDelivery":
+                await inner.Received(1).FindForDeliveryAsync(new MessageType("A"), _companies, _users, Ct);
+                break;
+            case "Query":
+                await inner.Received(1).QueryAsync(new SubscriptionQuery(), Ct);
+                break;
+            case "Get":
+                await inner.Received(1).GetAsync(_subscription.Id, Ct);
+                break;
+            case "Add":
+                await inner.Received(1).AddAsync(_subscription, Ct);
+                break;
+            case "Update":
+                await inner.Received(1).UpdateAsync(_subscription with { Revision = 2 }, 1, Ct);
+                break;
+            default:
+                await inner.Received(1).DeleteAsync(_subscription.Id, Ct);
+                break;
+        }
     }
 
     private static (object? Value, Error? Error) Of<T>(ErrorOr<T> result) => result.IsError ? (null, result.Error) : (result.Value, null);

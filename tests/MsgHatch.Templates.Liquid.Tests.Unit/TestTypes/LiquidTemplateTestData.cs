@@ -31,12 +31,12 @@ public sealed partial class LiquidTemplateTestData : ITemplateTestData, IAsyncDi
 
     public LiquidTemplateTestData()
     {
-        var store = Substitute.For<ITemplateStore>();
-        store.FindAsync(default, default).ReturnsForAnyArgs(call =>
+        Store = Substitute.For<ITemplateStore>();
+        Store.FindAsync(default, default).ReturnsForAnyArgs(call =>
             ValueTask.FromResult(ErrorOr<TemplateSource?>.ForValue(_templates.GetValueOrDefault(call.ArgAt<TemplateLookup>(0)))));
         var services = TestHost.CreateServices();
         services.AddMsgHatch(static o => o.DefaultLanguage = "en")
-            .UseTemplateStore(_ => store)
+            .UseTemplateStore(_ => Store)
             .AddTestEvent(static m => m.WithPayload<OrderEmail, TestOrderLoader>(static p => p.AsEmail("OrderEmail", LiquidTemplates.Engine)))
             .AddMessage("OtherTestEvent", 1, TestJsonContext.Default.OtherTestEvent, static m => m
                 .WithRouter<TwoEmailRoutesRouter<OtherTestEvent>>()
@@ -44,6 +44,9 @@ public sealed partial class LiquidTemplateTestData : ITemplateTestData, IAsyncDi
         _provider = services.Build();
         _scope = _provider.CreateAsyncScope();
     }
+
+    /// <summary>The shared template store, which each test of the class uses with a message type of its own.</summary>
+    public ITemplateStore Store { get; }
 
     /// <summary>The engine of <see cref="OrderEmail"/> for the key <see cref="TenantKey.None"/>.</summary>
     public ITemplateEngine<OrderEmail> Engine => _scope.ServiceProvider.GetRequiredService<ITemplateEngine<OrderEmail>>();

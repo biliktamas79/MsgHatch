@@ -61,14 +61,16 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
         services.AddMsgHatch().UseAmazonSes(static o => o.SenderEmail = _senderEmail);
         await using var provider = services.Build();
         var client = provider.GetRequiredService<IEmailClient>();
+        var id = Guid.NewGuid();
 
         // Act
-        await client.SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        await client.SendAsync(id, TestMessages.AnEmail(), Ct);
 
         // Assert
         Assert.IsNotType<AmazonSimpleEmailServiceClient>(client);
         Assert.Equal(2004, Assert.Single(provider.LogRecords()).Id.Id);
-        await ses.ReceivedWithAnyArgs(1).SendEmailAsync(default!, Ct);
+        await ses.Received(1).SendEmailAsync(
+            Arg.Is<SendEmailRequest>(r => r.FromEmailAddress == _senderEmail && r.EmailTags[0].Value == id.ToString()), Ct);
     }
 
     [Fact]
@@ -82,12 +84,14 @@ public sealed class AmazonSesExtensionsUnitTests : IDisposable
         services.AddMsgHatch().UseAmazonSes(static o => o.SenderEmail = _senderEmail)
             .AddExceptionClassifier<AmazonSimpleEmailServiceClient, SesConflictClassifier>();
         await using var provider = services.Build();
+        var id = Guid.NewGuid();
 
         // Act
-        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(Guid.NewGuid(), TestMessages.AnEmail(), Ct);
+        var result = await provider.GetRequiredService<IEmailClient>().SendAsync(id, TestMessages.AnEmail(), Ct);
 
         // Assert
         Assert.Equal(Errors.Conflict, result.Error?.Type);
+        await ses.Received(1).SendEmailAsync(Arg.Is<SendEmailRequest>(r => r.EmailTags[0].Value == id.ToString()), Ct);
     }
 
     [Fact]

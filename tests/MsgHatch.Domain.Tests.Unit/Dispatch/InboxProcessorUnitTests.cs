@@ -53,6 +53,8 @@ public sealed class InboxProcessorUnitTests
         Assert.Equal(DeliveryStatus.Done, Stored(provider, message).Delivery.Status);
         var stored = Assert.Single(provider.GetRequiredService<InMemoryOutboxStore>().GetMessages());
         Assert.Equal(((TenantId?)_t1.Tenant, (object)new TestEnvelope("Order 1001 for client1@example.com")), (stored.Tenant, stored.Content));
+        _ = _router.Received(1).RouteAsync(
+            Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id && m.Tenant == _t1.Tenant), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -110,7 +112,7 @@ public sealed class InboxProcessorUnitTests
         // Arrange
         await using var provider = Build(more: static b => b.Services.Configure<RetryOptions>("Test:TestEnvelope", static o => o.Expiry = TimeSpan.FromMinutes(5)));
         var acceptedAtUtc = _time.UtcNow.AddHours(-1);
-        await AddAsync(provider, AMessage() with { Delivery = TestMessages.ADeliveryState() with { CreatedAtUtc = acceptedAtUtc, NextTryAtUtc = acceptedAtUtc } });
+        var message = await AddAsync(provider, AMessage() with { Delivery = TestMessages.ADeliveryState() with { CreatedAtUtc = acceptedAtUtc, NextTryAtUtc = acceptedAtUtc } });
 
         // Act
         await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
@@ -118,6 +120,7 @@ public sealed class InboxProcessorUnitTests
         // Assert
         var delivery = Assert.Single(provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()).Delivery;
         Assert.Equal(((DateTime?)acceptedAtUtc.AddMinutes(5), _time.UtcNow), (delivery.ExpiresAtUtc, delivery.CreatedAtUtc));
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -163,6 +166,7 @@ public sealed class InboxProcessorUnitTests
         // Assert
         Assert.Equal((0, (DateTime?)null, DeliveryStatus.Pending), (afterTheStop.TryCount, afterTheStop.LastTryAtUtc, afterTheStop.Status));
         Assert.Equal(new DispatchSummary(1, 1, 0, 0), summary.Value);
+        _ = _router.Received(2).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -170,14 +174,16 @@ public sealed class InboxProcessorUnitTests
     {
         // Arrange
         await using var provider = Build();
-        await AddAsync(provider, AMessage());
-        await AddAsync(provider, AMessage());
+        var first = await AddAsync(provider, AMessage());
+        var second = await AddAsync(provider, AMessage());
 
         // Act
         await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
 
         // Assert
         Assert.Equal([TenantKey.None, TenantKey.None], _routerKeys);
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == first.Delivery.Id), Arg.Any<CancellationToken>());
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == second.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -196,6 +202,7 @@ public sealed class InboxProcessorUnitTests
         Assert.Equal(
             (DeliveryStatus.Pending, 1, DateTime.Parse("2030-01-01T00:00:05.1178373Z", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal), "RateLimited: Too many", 1),
             (delivery.Status, delivery.TryCount, delivery.NextTryAtUtc, delivery.LastError, summary.Value.Retried));
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == _fixedId), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -213,6 +220,7 @@ public sealed class InboxProcessorUnitTests
         Assert.Equal(
             DateTime.Parse("2030-01-01T00:01:00Z", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal),
             Stored(provider, message).Delivery.NextTryAtUtc);
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == _fixedId), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -228,6 +236,7 @@ public sealed class InboxProcessorUnitTests
 
         // Assert
         Assert.Equal((DeliveryStatus.Failed, "ValidationFailed", 1), (Stored(provider, message).Delivery.Status, Stored(provider, message).Delivery.LastError, summary.Value.Failed));
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -243,6 +252,7 @@ public sealed class InboxProcessorUnitTests
 
         // Assert
         Assert.Equal(DeliveryStatus.Failed, Stored(provider, message).Delivery.Status);
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -259,6 +269,7 @@ public sealed class InboxProcessorUnitTests
         // Assert
         var delivery = Stored(provider, message).Delivery;
         Assert.Equal((DeliveryStatus.Pending, "Exception: defective router"), (delivery.Status, delivery.LastError));
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -274,6 +285,7 @@ public sealed class InboxProcessorUnitTests
         // Assert
         var delivery = Stored(provider, message).Delivery;
         Assert.Equal((DeliveryStatus.Failed, true), (delivery.Status, delivery.LastError?.StartsWith("NotFound", StringComparison.Ordinal)));
+        _ = _router.DidNotReceiveWithAnyArgs().RouteAsync(default!, Ct);
     }
 
     [Fact]
@@ -301,13 +313,15 @@ public sealed class InboxProcessorUnitTests
     {
         // Arrange
         await using var provider = Build();
-        await AddAsync(provider, AMessage() with { Flags = MessageFlags.Test });
+        var message = await AddAsync(provider, AMessage() with { Flags = MessageFlags.Test });
 
         // Act
         await provider.GetRequiredService<IInboxProcessor>().ProcessPendingAsync(10, Ct);
 
         // Assert
         Assert.Equal([MessageFlags.Test], provider.GetRequiredService<InMemoryOutboxStore>().GetMessages().Select(static m => m.Flags));
+        _ = _router.Received(1).RouteAsync(
+            Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id && m.Flags == MessageFlags.Test), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -329,6 +343,7 @@ public sealed class InboxProcessorUnitTests
         Assert.Equal(
             ("process TestEvent", ActivityKind.Consumer, default(ActivitySpanId), false, "4bf92f3577b34da6a3ce929d0e0e4736", (object?)"t1"),
             (span.DisplayName, span.Kind, span.ParentSpanId, span.TraceId == parent.TraceId, link.Context.TraceId.ToString(), span.GetTagItem("msghatch.tenant")));
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -346,6 +361,7 @@ public sealed class InboxProcessorUnitTests
         // Assert
         var span = Assert.Single(spans, s => Equals(s.GetTagItem("messaging.message.id"), message.Delivery.Id.ToString()));
         Assert.Equal(span.Id, Assert.Single(provider.GetRequiredService<InMemoryOutboxStore>().GetMessages()).TraceParent);
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -353,7 +369,7 @@ public sealed class InboxProcessorUnitTests
     {
         // Arrange
         await using var provider = Build();
-        await AddAsync(provider, AMessage());
+        var message = await AddAsync(provider, AMessage());
         var meters = provider.GetRequiredService<IMeterFactory>();
         using var duration = new MetricCollector<double>(meters, MsgHatchTelemetry.MeterName, "msghatch.process.duration");
         using var received = new MetricCollector<long>(meters, MsgHatchTelemetry.MeterName, "msghatch.messages.received");
@@ -363,6 +379,7 @@ public sealed class InboxProcessorUnitTests
 
         // Assert
         Assert.Equal((1, 0), (duration.GetMeasurementSnapshot().Count, received.GetMeasurementSnapshot().Count));
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -392,6 +409,7 @@ public sealed class InboxProcessorUnitTests
 
         // Assert
         Assert.Same(error, summary.Error);
+        _ = store.Received(1).ClaimDueAsync(10, _time.UtcNow, TimeSpan.FromSeconds(60), Ct);
     }
 
     [Fact]
@@ -399,10 +417,11 @@ public sealed class InboxProcessorUnitTests
     {
         // Arrange
         RouterGives(new Error(Errors.RateLimited));
+        var message = AMessage();
         var claims = Channel.CreateUnbounded<DateTime>();
         var store = Substitute.For<IInboxDispatchStore>();
         store.ClaimDueAsync(default, default, default, Ct).ReturnsForAnyArgs(
-            call => Claimed(claims, call.ArgAt<DateTime>(1), AMessage()),
+            call => Claimed(claims, call.ArgAt<DateTime>(1), message),
             call => Claimed(claims, call.ArgAt<DateTime>(1)));
         await using var provider = Build(more: b => b.UseInboxDispatchStore(_ => store).ConfigureInboxDispatch(static o => o.EnablePolling = false));
         await using var running = new RunningLoop(provider.GetRequiredService<IInboxProcessor>().RunAsync);
@@ -415,6 +434,11 @@ public sealed class InboxProcessorUnitTests
 
         // Assert
         Assert.Equal(nextTryAtUtc, await claims.Reader.ReadAsync(Ct).AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct));
+        _ = store.Received(1).ClaimDueAsync(16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = store.Received(1).ClaimDueAsync(16, nextTryAtUtc, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = store.Received(1).FailAsync(message, "RateLimited", TestHost.Start.UtcDateTime, nextTryAtUtc, Arg.Any<CancellationToken>());
+        _ = store.DidNotReceiveWithAnyArgs().CompleteAsync(default!, default, Ct);
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -425,10 +449,11 @@ public sealed class InboxProcessorUnitTests
         _router.RouteAsync(default!, Ct).ReturnsForAnyArgs(call => RateLimitedAfterAsync(fallbackWaitStarted.Task, call.ArgAt<CancellationToken>(1)));
         var signal = Substitute.For<IDispatchSignal>();
         signal.WaitAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Unavailable)));
+        var message = AMessage();
         var claims = Channel.CreateUnbounded<DateTime>();
         var store = Substitute.For<IInboxDispatchStore>();
         store.ClaimDueAsync(default, default, default, Ct).ReturnsForAnyArgs(
-            call => ClaimedWithNextDue(claims, call.ArgAt<DateTime>(1), call.ArgAt<DateTime>(1).AddSeconds(60), AMessage()),
+            call => ClaimedWithNextDue(claims, call.ArgAt<DateTime>(1), call.ArgAt<DateTime>(1).AddSeconds(60), message),
             call => Claimed(claims, call.ArgAt<DateTime>(1)));
         await using var provider = Build(more: b => b.UseInboxDispatchStore(_ => store).UseDispatchSignal(_ => signal)
             .ConfigureInboxDispatch(static o => (o.EnablePolling, o.MaxDegreeOfParallelism) = (false, 1)));
@@ -447,6 +472,12 @@ public sealed class InboxProcessorUnitTests
         Assert.Equal(
             (nextTryAtUtc - TestHost.Start.UtcDateTime, nextTryAtUtc),
             (waitForTheGivenTime, await claims.Reader.ReadAsync(Ct).AsTask().WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct)));
+        _ = store.Received(1).ClaimDueAsync(16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = store.Received(1).ClaimDueAsync(16, nextTryAtUtc, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = store.Received(1).FailAsync(message, "RateLimited", TestHost.Start.UtcDateTime, nextTryAtUtc, Arg.Any<CancellationToken>());
+        _ = _router.Received(1).RouteAsync(Arg.Is<ReceivedMessage<TestEvent>>(m => m.Delivery.Id == message.Delivery.Id), Arg.Any<CancellationToken>());
+        _ = signal.Received().WaitAsync(DispatchTopic.Inbox, Arg.Any<CancellationToken>());
+        _ = signal.DidNotReceive().WaitAsync(Arg.Is<DispatchTopic>(t => t != DispatchTopic.Inbox), Arg.Any<CancellationToken>());
     }
 
     private static ValueTask<ErrorOr<ClaimResult<ReceivedMessage>>> Claimed(Channel<DateTime> claims, DateTime nowUtc, params ReceivedMessage[] messages) =>

@@ -66,6 +66,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
             ("Requests", null, null, true, "Sms", 0),
             (entry?.Type.Name, entry?.DisplayName, entry?.Description, entry?.Enabled, string.Join(',', entry!.DisabledChannels.Select(static channel => channel.Name)),
                 entry.Revision));
+        Queries.Received(2).GetMessageTypesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -83,11 +84,14 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         cut.Find("[data-action=save]").Click();
 
         // Assert
-        Commands.Received(1).SaveMessageTypeAsync(
-            Arg.Is<MessageTypeEntry>(static entry => entry.DisabledChannels.Count == 0 && entry.Revision == 4), Arg.Any<CancellationToken>());
         Assert.Equal(
             ("Saved.", "Email:True Sms:True", "5", 0),
             (cut.Find("[data-actions-middle] [data-state=saved]").TextContent, BoxesOf(cut), cut.Find("[data-field=revision]").TextContent, cut.FindAll("[data-state=pending]").Count));
+        Commands.Received(1).SaveMessageTypeAsync(
+            Arg.Is<MessageTypeEntry>(static entry => entry.Type == _requests && entry.DisplayName == null && entry.Description == "Stored description" && !entry.Enabled
+                && entry.DisabledChannels.Count == 0 && entry.Revision == 4),
+            Arg.Any<CancellationToken>());
+        Queries.Received(2).GetMessageTypesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -106,6 +110,8 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         Assert.Equal(
             (AdminErrors.ConflictText, "Email:True Sms:False", 0),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, BoxesOf(cut), cut.FindAll("[data-state=saved]").Count));
+        Commands.Received(1).SaveMessageTypeAsync(Arg.Is<MessageTypeEntry>(static entry => IsRequestsWithOnlyEmailDisabled(entry)), Arg.Any<CancellationToken>());
+        Queries.Received(2).GetMessageTypesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -124,6 +130,7 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         Assert.Equal(
             ("DisabledChannels has only the channels of the message type Requests.", "Email:False Sms:True", 1),
             (cut.Find("[data-actions-middle] .alert-danger").TextContent, BoxesOf(cut), Queries.ReceivedCalls().Count()));
+        Commands.Received(1).SaveMessageTypeAsync(Arg.Is<MessageTypeEntry>(static entry => IsRequestsWithOnlyEmailDisabled(entry)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -188,10 +195,11 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         cut.Find("[data-action=confirm-delete]").Click();
 
         // Assert
-        Commands.Received(1).ResetMessageTypeAsync(_requests, Arg.Any<CancellationToken>());
         Assert.Equal(
             ("", "Email:True Sms:True", true, "save", 0),
             (ValueOf(cut, "description"), BoxesOf(cut), cut.Find("[data-field=enabled]").HasAttribute("checked"), ActionsOf(cut), cut.FindAll("[data-dialog]").Count));
+        Commands.Received(1).ResetMessageTypeAsync(_requests, Arg.Any<CancellationToken>());
+        Queries.Received(2).GetMessageTypesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -218,6 +226,10 @@ public sealed class MessageTypeEditPageUnitTests : RegistryPageContext
         // Assert
         Assert.Equal(("", "display-name Sms"), (before, MarkedOf(cut)));
     }
+
+    /// <summary>The entry of Requests with no stored text, enabled, at revision 0, with only the box of Email cleared.</summary>
+    private static bool IsRequestsWithOnlyEmailDisabled(MessageTypeEntry entry) =>
+        entry.Type == _requests && entry.DisplayName is null && entry.Description is null && entry.Enabled && entry.DisabledChannels.SequenceEqual([Email]) && entry.Revision == 0;
 
     /// <summary>The fields and the check boxes with a yellow border, by their field name or their channel.</summary>
     private static string MarkedOf(IRenderedComponent<MessageTypeEditPage> cut) =>

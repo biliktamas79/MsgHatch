@@ -77,6 +77,7 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Equal(
             ((TenantId?)new TenantId("t1"), new DeliveryTarget(DeliveryTargetKind.User, "u1"), (object)new TestEnvelope("Order 1001 for client1@example.com")),
             (message.Tenant, message.Target, message.Content));
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
     }
 
     private ServiceProvider BuildProcess(InMemoryOutboxStore outbox, MsgHatchRoles roles, Action<MsgHatchBuilder>? more = null)

@@ -63,6 +63,11 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Equal(
             (string.Join(",", claimed.Select(static m => m.Delivery.Id).Order()), true),
             (string.Join(",", sends.Sent.Order()), sends.MostAtTheSameTime <= 4));
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 20, _doubles.Now, TimeSpan.FromSeconds(60), Ct);
+        _ = transport.Received(20).SendAsync(Arg.Any<OutgoingMessage>(), null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(20).RecordTryAsync(
+            Arg.Is<OutgoingMessage>(m => Array.IndexOf(claimed, m) >= 0), Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null,
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -90,6 +95,15 @@ public sealed partial class OutboxDispatcherUnitTests
             [(claimed[0], 1, PublishOutcome.TransientError, (string?)null), (claimed[1], 2, PublishOutcome.TransientError, null),
              (claimed[2], 3, PublishOutcome.Succeeded, "provider-9")],
             records.Select(static r => (r.Message, r.Try.TryNumber, r.Try.Outcome, r.Try.ProviderMessageId)));
+        Received.InOrder(() =>
+        {
+            _ = transport.SendAsync(claimed[0], null, Arg.Any<CancellationToken>());
+            _ = _doubles.Store.RecordTryAsync(claimed[0], Arg.Is<PublishTry>(t => t.TryNumber == 1), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
+            _ = transport.SendAsync(claimed[1], null, Arg.Any<CancellationToken>());
+            _ = _doubles.Store.RecordTryAsync(claimed[1], Arg.Is<PublishTry>(t => t.TryNumber == 2), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
+            _ = transport.SendAsync(claimed[2], null, Arg.Any<CancellationToken>());
+            _ = _doubles.Store.RecordTryAsync(claimed[2], Arg.Is<PublishTry>(t => t.TryNumber == 3), null, Arg.Any<CancellationToken>());
+        });
     }
 
     [Theory]
@@ -111,7 +125,12 @@ public sealed partial class OutboxDispatcherUnitTests
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        Assert.Equal(DateTime.Parse(expected, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal), (await _doubles.NextRecordAsync()).NextTryAtUtc);
+        var nextTryAtUtc = DateTime.Parse(expected, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
+        Assert.Equal(nextTryAtUtc, (await _doubles.NextRecordAsync()).NextTryAtUtc);
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.TryNumber == tryNumber && t.Outcome == PublishOutcome.TransientError), nextTryAtUtc,
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -120,26 +139,32 @@ public sealed partial class OutboxDispatcherUnitTests
         string row, int errorCode, int? waitSeconds, string? expected)
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(id: _fixedId, maxTryCount: 10)));
+        var message = AMessage(id: _fixedId, maxTryCount: 10);
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
         var error = new Error(Errors.Find(errorCode)!) { RetryAfter = waitSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null };
-        await using var provider = _doubles.Build(transports: TestTransports.For(TestChannel.Id, error));
+        var transport = TestTransports.For(TestChannel.Id, error);
+        await using var provider = _doubles.Build(transports: transport);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        Assert.Equal(
-            (row, expected is null ? (DateTime?)null : DateTime.Parse(expected, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal)),
-            (row, (await _doubles.NextRecordAsync()).NextTryAtUtc));
+        var nextTryAtUtc = expected is null ? (DateTime?)null : DateTime.Parse(expected, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
+        Assert.Equal((row, nextTryAtUtc), (row, (await _doubles.NextRecordAsync()).NextTryAtUtc));
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.ErrorCode == errorCode), nextTryAtUtc, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DispatchPendingAsync_ClockMovesOneSecondOnEachRead_RecordsAStartAndAFinishOneSecondApart()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage()));
+        var message = AMessage();
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
         _doubles.Time.AutoAdvanceAmount = TimeSpan.FromSeconds(1); // the logging wrappers are off, so only the dispatcher reads the clock
-        await using var provider = _doubles.Build(transports: TestTransports.For(TestChannel.Id));
+        var transport = TestTransports.For(TestChannel.Id);
+        await using var provider = _doubles.Build(transports: transport);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
@@ -147,6 +172,8 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         var publishTry = (await _doubles.NextRecordAsync()).Try;
         Assert.Equal(TimeSpan.FromSeconds(1), publishTry.FinishedAtUtc - publishTry.StartedAtUtc);
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(message, publishTry, null, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -155,9 +182,11 @@ public sealed partial class OutboxDispatcherUnitTests
     public async Task DispatchPendingAsync_TransientErrorOnTheLastTryOrPermanentError_RecordsNoNextTryTime(int tryNumber, int errorCode)
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(tryCount: tryNumber - 1, maxTryCount: 8)));
+        var message = AMessage(tryCount: tryNumber - 1, maxTryCount: 8);
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
         var error = errorCode == 503 ? new Error(Errors.Unavailable) : new Error(Errors.Rejected);
-        await using var provider = _doubles.Build(transports: TestTransports.For(TestChannel.Id, error));
+        var transport = TestTransports.For(TestChannel.Id, error);
+        await using var provider = _doubles.Build(transports: transport);
 
         // Act
         var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
@@ -165,13 +194,17 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         var record = await _doubles.NextRecordAsync();
         Assert.Equal(((DateTime?)null, (int?)errorCode, 1), (record.NextTryAtUtc, record.Try.ErrorCode, summary.Value.Failed));
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.TryNumber == tryNumber && t.ErrorCode == errorCode), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DispatchPendingAsync_MessageWithAnExpiryOfFiveMinutes_SendsItWhileTheTimeDoesNotMove()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(expiresAtUtc: _doubles.Now.AddMinutes(5))));
+        var message = AMessage(expiresAtUtc: _doubles.Now.AddMinutes(5));
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
         var transport = TestTransports.For(TestChannel.Id);
         await using var provider = _doubles.Build(transports: transport);
 
@@ -180,7 +213,9 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(PublishOutcome.Succeeded, (await _doubles.NextRecordAsync()).Try.Outcome);
-        await transport.ReceivedWithAnyArgs(1).SendAsync(default!, default, Ct);
+        await transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        await _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -227,10 +262,12 @@ public sealed partial class OutboxDispatcherUnitTests
     public async Task DispatchPendingAsync_FailedRecordTry_RepeatsItOneTimeWithTheSameTry()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage()));
+        var message = AMessage();
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
         _doubles.Store.RecordTryAsync(default!, default!, default, Ct).ReturnsForAnyArgs(
             ValueTask.FromResult<Error?>(new Error(Errors.Unavailable)), ValueTask.FromResult<Error?>(null));
-        await using var provider = _doubles.Build(transports: TestTransports.For(TestChannel.Id));
+        var transport = TestTransports.For(TestChannel.Id);
+        await using var provider = _doubles.Build(transports: transport);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
@@ -239,6 +276,8 @@ public sealed partial class OutboxDispatcherUnitTests
         var tries = RecordedTries(_doubles.Store);
         Assert.Equal(2, tries.Length);
         Assert.Same(tries[0], tries[1]);
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(2).RecordTryAsync(message, tries[0], null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -259,14 +298,22 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Equal(second, (await _doubles.NextRecordAsync()).Message);
         var record = Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1400);
         Assert.Equal((LogLevel.Error, "500"), (record.Level, record.GetStructuredStateValue("ErrorCode")));
+        _ = transport.Received(1).SendAsync(first, null, Arg.Any<CancellationToken>());
+        _ = transport.Received(1).SendAsync(second, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            first, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            second, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DispatchPendingAsync_TransportThatThrows_LogsTheExceptionAndRecordsATransientExceptionTryWithANextTryTime()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(tryCount: 0, maxTryCount: 8)));
-        await using var provider = _doubles.Build(transports: AThrowingTransport());
+        var message = AMessage(tryCount: 0, maxTryCount: 8);
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
+        var transport = AThrowingTransport();
+        await using var provider = _doubles.Build(transports: transport);
 
         // Act
         var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
@@ -277,14 +324,19 @@ public sealed partial class OutboxDispatcherUnitTests
             (PublishOutcome.TransientError, (int?)500, "Exception", true, 1),
             (record.Try.Outcome, record.Try.ErrorCode, record.Try.ErrorName, record.NextTryAtUtc is not null, summary.Value.Retried));
         Assert.Equal(LogLevel.Error, Assert.Single(provider.LogRecords(), static r => r.Id.Id == 1400).Level);
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.ErrorCode == 500), Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task DispatchPendingAsync_TransportThatThrowsOnTheLastTry_RecordsNoNextTryTimeAndFailsTheMessage()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(tryCount: 7, maxTryCount: 8)));
-        await using var provider = _doubles.Build(transports: AThrowingTransport());
+        var message = AMessage(tryCount: 7, maxTryCount: 8);
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
+        var transport = AThrowingTransport();
+        await using var provider = _doubles.Build(transports: transport);
 
         // Act
         var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
@@ -292,6 +344,9 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         var record = await _doubles.NextRecordAsync();
         Assert.Equal(((DateTime?)null, (int?)500, 1), (record.NextTryAtUtc, record.Try.ErrorCode, summary.Value.Failed));
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.TryNumber == 8 && t.ErrorCode == 500), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -316,6 +371,10 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         var down = Assert.Single(SetDownStates());
         Assert.Equal((int?)429, down.ErrorCode);
+        _ = transport.Received(3).SendAsync(Arg.Any<OutgoingMessage>(), null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).SetChannelDownAsync(
+            Arg.Is<ChannelDown>(d => d.Channel == TestChannel.Id && d.Reason == ChannelDownReason.Errors && d.ErrorCode == 429),
+            Arg.Any<CancellationToken>());
     }
 
     private static ITransport AThrowingTransport()
@@ -337,14 +396,17 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(TestHost.Start.UtcDateTime.AddMinutes(3), (await _doubles.NextClaimAsync()).NowUtc);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 10, TestHost.Start.UtcDateTime.AddMinutes(3), TimeSpan.FromSeconds(60), Ct);
     }
 
     [Fact]
     public async Task DispatchPendingAsync_DispatcherOfTheRootProviderWithScopeValidation_SendsWithNoDiScope()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage()));
-        await using var provider = _doubles.Build(transports: TestTransports.For(TestChannel.Id));
+        var message = AMessage();
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
+        var transport = TestTransports.For(TestChannel.Id);
+        await using var provider = _doubles.Build(transports: transport);
         var dispatcher = provider.GetRequiredService<IOutboxDispatcher>();
 
         // Act
@@ -352,6 +414,9 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(new DispatchSummary(1, 1, 0, 0), summary.Value);
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -365,6 +430,7 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(Errors.ValidationFailed, summary.Error?.Type);
+        _ = _doubles.Store.DidNotReceiveWithAnyArgs().ClaimDueAsync(default, default, default, default, Ct);
     }
 
     [Theory]
@@ -383,6 +449,8 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Equal(
             [(TestChannel.Id, batchSize), (TestChannel.SecondId, batchSize)],
             [ToChannelAndMaxCount(await _doubles.NextClaimAsync()), ToChannelAndMaxCount(await _doubles.NextClaimAsync())]);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, batchSize, _doubles.Now, TimeSpan.FromSeconds(60), Ct);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.SecondId, batchSize, _doubles.Now, TimeSpan.FromSeconds(60), Ct);
     }
 
     private static (ChannelId Channel, int MaxCount) ToChannelAndMaxCount(ClaimCall claim) => (claim.Channel, claim.MaxCount);
@@ -399,6 +467,9 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         Assert.Equal(TestChannel.Id, (await _doubles.NextClaimAsync()).Channel);
         Assert.False(_doubles.HasMoreClaims);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 10, _doubles.Now, TimeSpan.FromSeconds(60), Ct);
+        _ = _doubles.Store.DidNotReceive().ClaimDueAsync(
+            Arg.Is<ChannelId>(c => c != TestChannel.Id), Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -407,13 +478,17 @@ public sealed partial class OutboxDispatcherUnitTests
         // Arrange
         var error = new Error(Errors.Unavailable);
         _doubles.ClaimsGive(TestChannel.Id, error);
-        await using var provider = _doubles.Build(transports: TestTransports.For(TestChannel.Id));
+        var transport = TestTransports.For(TestChannel.Id);
+        await using var provider = _doubles.Build(transports: transport);
 
         // Act
         var summary = await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
         Assert.Same(error, summary.Error);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 10, _doubles.Now, TimeSpan.FromSeconds(60), Ct);
+        _ = transport.DidNotReceiveWithAnyArgs().SendAsync(default!, default, Ct);
+        _ = _doubles.Store.DidNotReceiveWithAnyArgs().RecordTryAsync(default!, default!, default, Ct);
     }
 
     private static PublishTry[] RecordedTries(IOutboxDispatchStore store) =>

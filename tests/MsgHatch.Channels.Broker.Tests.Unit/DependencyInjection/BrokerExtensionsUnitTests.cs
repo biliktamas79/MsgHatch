@@ -89,12 +89,14 @@ public sealed class BrokerExtensionsUnitTests
         services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Publisher).UseInMemoryStores().UseBrokerClient(_ => client)
             .AddContentTypeOfBrokerMessages();
         await using var provider = services.Build();
-        await provider.GetRequiredService<IOutboxStore>().AddAsync([BrokerMessages.AnOutgoingMessage(flags: MessageFlags.Test)], Ct);
+        var message = BrokerMessages.AnOutgoingMessage(flags: MessageFlags.Test);
+        await provider.GetRequiredService<IOutboxStore>().AddAsync([message], Ct);
 
         // Act
         await provider.GetRequiredService<IOutboxDispatcher>().DispatchPendingAsync(10, Ct);
 
         // Assert
-        await client.ReceivedWithAnyArgs(1).PublishAsync(default, Ct);
+        await client.Received(1).PublishAsync(
+            Arg.Is<BrokerPublish>(publish => publish.MessageId == message.Delivery.Id && !publish.Headers.ContainsKey("msghatch-redirect")), Arg.Any<CancellationToken>());
     }
 }

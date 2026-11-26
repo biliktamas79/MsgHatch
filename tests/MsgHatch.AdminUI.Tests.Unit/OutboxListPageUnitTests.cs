@@ -32,6 +32,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
             ["2030-01-01 10:00:05 UTC", "Requests", "Email", "User 1", "3 / 8", "Timeout of the provider", "View"],
             cells.Where(static (_, index) => index != 1).Select(SpacedTextOf));
         Assert.Equal(["Failed", "Test"], cells[1].QuerySelectorAll(".badge").Select(static badge => badge.TextContent));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -49,6 +50,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.True(cut.Find("[data-status]").ClassList.Contains(badgeClass));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -62,6 +64,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(("Failed", 0), (cut.Find("[data-status]").TextContent, cut.FindAll("[data-test]").Count));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -75,6 +78,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal("msghatch/outbox/00000000-0000-0000-0000-000000000001", cut.Find("[data-action=view]").GetAttribute("href"));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -87,6 +91,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
         Assert.Equal(
             ("There are no outgoing messages.", true),
             (cut.Find("[data-state=empty]").TextContent, cut.Find("[data-list-pager]").QuerySelector("[data-page=older]") is not null));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -100,6 +105,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.UnavailableText, cut.Find(".alert-danger").TextContent);
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -113,6 +119,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find(".alert-danger").TextContent);
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -174,6 +181,8 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
         Assert.Equal(
             (new OutboxQuery(CreatedFromUtc: _created, CreatedToUtc: _created.AddDays(1)), DateTimeKind.Utc, DateTimeKind.Utc),
             (query, query.CreatedFromUtc!.Value.Kind, query.CreatedToUtc!.Value.Kind));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(CreatedFromUtc: _created), Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(CreatedFromUtc: _created, CreatedToUtc: _created.AddDays(1)), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -303,6 +312,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal((true, true), (cut.Find("[data-page=newer]").HasAttribute("disabled"), cut.Find("[data-page=older]").HasAttribute("disabled")));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -417,9 +427,10 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
         cut.Find("[data-action=confirm]").Click();
 
         // Assert
-        DeliveryCommands.Received(1).RetryOutgoingAsync(_failed, Arg.Any<CancellationToken>());
-        DeliveryQueries.Received(2).GetOutgoingMessagesAsync(_failed, Arg.Any<CancellationToken>());
         Assert.Equal(("Matched 5, changed 3.", 0), (cut.Find("[data-action-result]").TextContent, cut.FindAll("[data-dialog]").Count));
+        DeliveryCommands.Received(1).RetryOutgoingAsync(_failed, Arg.Any<CancellationToken>());
+        DeliveryCommands.DidNotReceiveWithAnyArgs().CancelOutgoingAsync(default!, Arg.Any<CancellationToken>());
+        DeliveryQueries.Received(2).GetOutgoingMessagesAsync(_failed, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -435,9 +446,10 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
         cut.Find("[data-action=confirm]").Click();
 
         // Assert
+        Assert.Equal("Matched 2, changed 0.", cut.Find("[data-action-result]").TextContent);
         DeliveryCommands.Received(1).CancelOutgoingAsync(_failed, Arg.Any<CancellationToken>());
         DeliveryCommands.DidNotReceiveWithAnyArgs().RetryOutgoingAsync(default!, Arg.Any<CancellationToken>());
-        Assert.Equal("Matched 2, changed 0.", cut.Find("[data-action-result]").TextContent);
+        DeliveryQueries.Received(2).GetOutgoingMessagesAsync(_failed, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -470,6 +482,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Equal(AdminErrors.RejectedText, cut.Find("[data-action-result].alert-danger").TextContent);
+        DeliveryCommands.Received(1).RetryOutgoingAsync(_failed, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -487,6 +500,7 @@ public sealed class OutboxListPageUnitTests : RegistryPageContext
 
         // Assert
         Assert.Empty(cut.FindAll("[data-action-result]"));
+        DeliveryQueries.Received(1).GetOutgoingMessagesAsync(new OutboxQuery(Status: DeliveryStatus.Pending), Arg.Any<CancellationToken>());
     }
 
     private static (bool Retry, bool Cancel) BulkActionsDisabled(IRenderedComponent<OutboxListPage> cut) =>

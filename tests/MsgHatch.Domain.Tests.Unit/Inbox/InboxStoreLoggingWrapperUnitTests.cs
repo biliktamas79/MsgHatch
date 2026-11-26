@@ -24,74 +24,89 @@ public sealed class InboxStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AStore(expected));
+        var inner = AStore(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        var message = AMessage();
 
         // Act
-        var error = await store.AddAsync(AMessage(), Ct);
+        var error = await store.AddAsync(message, Ct);
 
         // Assert
         Assert.Same(expected, error);
+        _ = inner.Received(1).AddAsync(message, Ct);
     }
 
     [Fact]
     public async Task AddAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.Unavailable)));
+        var inner = AStore(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        var message = AMessage();
 
         // Act
-        await store.AddAsync(AMessage(), Ct);
+        await store.AddAsync(message, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 1201), (record.Level, record.Id.Id));
+        _ = inner.Received(1).AddAsync(message, Ct);
     }
 
     [Fact]
     public async Task AddAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(new Error(Errors.ValidationFailed)));
+        var inner = AStore(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        var message = AMessage();
 
         // Act
-        await store.AddAsync(AMessage(), Ct);
+        await store.AddAsync(message, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1201), (record.Level, record.Id.Id));
+        _ = inner.Received(1).AddAsync(message, Ct);
     }
 
     [Fact]
     public async Task AddAsync_Success_LogsTheTenantOfTheKeyWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        var message = AMessage();
 
         // Act
-        var error = await store.AddAsync(AMessage(), Ct);
+        var error = await store.AddAsync(message, Ct);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((Error?)null, LogLevel.Debug, 1200, "t1"), (error, record.Level, record.Id.Id, record.GetStructuredStateValue("Tenant")));
+        _ = inner.Received(1).AddAsync(message, Ct);
     }
 
     [Fact]
     public async Task AddAsync_TestMessage_NoLogRecordContainsTheEvent()
     {
         // Arrange
-        await using var provider = BuildWith(AStore(error: null));
+        var inner = AStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        var message = TestMessages.AReceivedMessage(new TestEvent(_eventText), _t1.Tenant, flags: MessageFlags.Test);
 
         // Act
-        await store.AddAsync(TestMessages.AReceivedMessage(new TestEvent(_eventText), _t1.Tenant, flags: MessageFlags.Test), Ct);
+        await store.AddAsync(message, Ct);
 
         // Assert
         Assert.NotEmpty(provider.LogRecords());
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_eventText));
+        _ = inner.Received(1).AddAsync(message, Ct);
     }
 
     [Fact]
@@ -119,15 +134,18 @@ public sealed class InboxStoreLoggingWrapperUnitTests
     {
         // Arrange
         var expected = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(AManagedStore(expected));
+        var inner = AManagedStore(expected);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, ids);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((expected, LogLevel.Warning, 1215), (error, record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, ids);
     }
 
     [Theory]
@@ -135,15 +153,18 @@ public sealed class InboxStoreLoggingWrapperUnitTests
     public async Task ManagementMember_PermanentError_LogsAnErrorWithItsEventId(string member)
     {
         // Arrange
-        await using var provider = BuildWith(AManagedStore(new Error(Errors.ValidationFailed)));
+        var inner = AManagedStore(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        await CallAsync(store, member);
+        await CallAsync(store, member, ids);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1215), (record.Level, record.Id.Id));
+        AssertForwardedOnce(inner, member, ids);
     }
 
     [Theory]
@@ -151,15 +172,18 @@ public sealed class InboxStoreLoggingWrapperUnitTests
     public async Task ManagementMember_Success_LogsTheTenantOfTheKeyWithItsEventId(string member)
     {
         // Arrange
-        await using var provider = BuildWith(AManagedStore(error: null));
+        var inner = AManagedStore(error: null);
+        await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        var error = await CallAsync(store, member);
+        var error = await CallAsync(store, member, ids);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(((Error?)null, LogLevel.Debug, 1214, "t1"), (error, record.Level, record.Id.Id, record.GetStructuredStateValue("Tenant")));
+        AssertForwardedOnce(inner, member, ids);
     }
 
     [Fact]
@@ -170,12 +194,14 @@ public sealed class InboxStoreLoggingWrapperUnitTests
         inner.RetryAsync(default!, default, default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<int>.ForValue(4)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        Guid[] ids = [Guid.NewGuid()];
 
         // Act
-        var changed = await store.RetryAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, 3, Ct);
+        var changed = await store.RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct);
 
         // Assert
         Assert.Equal(4, changed.Value);
+        _ = inner.Received(1).RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct);
     }
 
     [Fact]
@@ -187,22 +213,48 @@ public sealed class InboxStoreLoggingWrapperUnitTests
         inner.GetAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult(ErrorOr<ReceivedMessage?>.ForValue(expected)));
         await using var provider = BuildWith(inner);
         var store = provider.GetRequiredKeyedService<IInboxStore>(_t1);
+        var id = Guid.NewGuid();
 
         // Act
-        var result = await store.GetAsync(Guid.NewGuid(), Ct);
+        var result = await store.GetAsync(id, Ct);
 
         // Assert
         Assert.Same(expected, result.Value);
+        _ = inner.Received(1).GetAsync(id, Ct);
     }
 
-    private static async Task<Error?> CallAsync(IInboxStore store, string member) => member switch
+    private static async Task<Error?> CallAsync(IInboxStore store, string member, Guid[] ids) => member switch
     {
         nameof(IInboxStore.QueryAsync) => (await store.QueryAsync(new InboxQuery(), Ct)).Error,
-        nameof(IInboxStore.GetAsync) => (await store.GetAsync(Guid.NewGuid(), Ct)).Error,
+        nameof(IInboxStore.GetAsync) => (await store.GetAsync(ids[0], Ct)).Error,
         nameof(IInboxStore.CountAsync) => (await store.CountAsync(new TrafficQuery(), Ct)).Error,
-        nameof(IInboxStore.RetryAsync) => (await store.RetryAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, 3, Ct)).Error,
-        _ => (await store.CancelAsync([Guid.NewGuid()], TestMessages.CreatedAtUtc, Ct)).Error,
+        nameof(IInboxStore.RetryAsync) => (await store.RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct)).Error,
+        _ => (await store.CancelAsync(ids, TestMessages.CreatedAtUtc, Ct)).Error,
     };
+
+    /// <summary>Asserts that the wrapper called the member of <see cref="CallAsync"/> on the inner store one time with the same arguments, and no other member.</summary>
+    private static void AssertForwardedOnce(IInboxStore inner, string member, Guid[] ids)
+    {
+        Assert.Single(inner.ReceivedCalls());
+        switch (member)
+        {
+            case nameof(IInboxStore.QueryAsync):
+                _ = inner.Received(1).QueryAsync(new InboxQuery(), Ct);
+                break;
+            case nameof(IInboxStore.GetAsync):
+                _ = inner.Received(1).GetAsync(ids[0], Ct);
+                break;
+            case nameof(IInboxStore.CountAsync):
+                _ = inner.Received(1).CountAsync(new TrafficQuery(), Ct);
+                break;
+            case nameof(IInboxStore.RetryAsync):
+                _ = inner.Received(1).RetryAsync(ids, TestMessages.CreatedAtUtc, 3, Ct);
+                break;
+            default:
+                _ = inner.Received(1).CancelAsync(ids, TestMessages.CreatedAtUtc, Ct);
+                break;
+        }
+    }
 
     private static IInboxStore AManagedStore(Error? error)
     {

@@ -31,7 +31,7 @@ public sealed class TemplateViewPageUnitTests : TemplatePageContext
         // Assert
         Assert.Equal("Hello Sample", cut.Find("[data-column=preview] pre[data-preview=text]").TextContent);
         Assert.Equal(("col-lg-6", "col-lg-6"), (cut.Find("[data-column=text]").ClassName, cut.Find("[data-column=preview]").ClassName));
-        Queries.ReceivedWithAnyArgs(1).PreviewTemplateAsync(default, default!, Arg.Any<CancellationToken>());
+        Queries.Received(1).PreviewTemplateAsync(Lookup(), "Hello {{Name}}", Arg.Any<CancellationToken>());
     }
 
     [Fact]

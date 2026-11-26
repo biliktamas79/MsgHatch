@@ -35,6 +35,7 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal([1, 2, 4, 8, 16, 30, 30], delays.Select(static delay => delay.TotalSeconds));
+        _ = _doubles.Store.Received(8).ClaimDueAsync(TestChannel.Id, 16, Arg.Any<DateTime>(), TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -52,6 +53,8 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(_doubles.Now, (await _doubles.NextClaimAsync()).NowUtc);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, _doubles.Now, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -69,15 +72,19 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal((TimeSpan.FromSeconds(10), TestHost.Start.UtcDateTime.AddSeconds(10)), (wait, (await _doubles.NextClaimAsync()).NowUtc));
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(
+            TestChannel.Id, 16, TestHost.Start.UtcDateTime.AddSeconds(10), TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunAsync_NoPollingAndATransientError_ClaimsAgainAtTheNextTryTimeWithNoSignal()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage()));
-        await using var provider = _doubles.Build(
-            static o => o.EnablePolling = false, transports: TestTransports.For(TestChannel.Id, new Error(Errors.RateLimited)));
+        var message = AMessage();
+        _doubles.ClaimsGive(TestChannel.Id, Claim(message));
+        var transport = TestTransports.For(TestChannel.Id, new Error(Errors.RateLimited));
+        await using var provider = _doubles.Build(static o => o.EnablePolling = false, transports: transport);
         await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
         await _doubles.NextClaimAsync();
         var nextTryAtUtc = (await _doubles.NextRecordAsync()).NextTryAtUtc!.Value;
@@ -88,6 +95,11 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(nextTryAtUtc, (await _doubles.NextClaimAsync()).NowUtc);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, nextTryAtUtc, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.TransientError), nextTryAtUtc, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -116,6 +128,9 @@ public sealed partial class OutboxDispatcherUnitTests
         ClaimCall[] claims = [await _doubles.NextClaimAsync(), await _doubles.NextClaimAsync()];
         Assert.Equal([TestChannel.Id, TestChannel.SecondId], claims.Select(static c => c.Channel).OrderBy(static c => c.Name, StringComparer.Ordinal).Reverse());
         Assert.Equal((false, 1), (_doubles.HasMoreClaims, claims.Select(static c => c.NowUtc).Concat(firstClaims.Select(static c => c.NowUtc)).Distinct().Count()));
+        _ = _doubles.Store.Received(2).ClaimDueAsync(TestChannel.Id, 16, _doubles.Now, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(2).ClaimDueAsync(TestChannel.SecondId, 16, _doubles.Now, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.ThirdId, 16, _doubles.Now, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -132,6 +147,8 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         ClaimCall[] claims = [await _doubles.NextClaimAsync(), await _doubles.NextClaimAsync()];
         Assert.Equal((2, claims[0].NowUtc), (claims[0].MaxCount, claims[1].NowUtc));
+        _ = _doubles.Store.Received(2).ClaimDueAsync(
+            TestChannel.Id, Arg.Any<int>(), TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -140,9 +157,9 @@ public sealed partial class OutboxDispatcherUnitTests
         // Arrange
         _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(), AMessage()), Claim(AMessage()), Claim(AMessage()));
         var sendStarted = new TaskCompletionSource();
+        var transport = TestTransports.NeverCompleting(TestChannel.Id, sendStarted);
         await using var provider = _doubles.Build(
-            static o => (o.EnablePolling, o.MaxDegreeOfParallelism, o.QueueCapacity) = (false, 1, 2),
-            transports: TestTransports.NeverCompleting(TestChannel.Id, sendStarted));
+            static o => (o.EnablePolling, o.MaxDegreeOfParallelism, o.QueueCapacity) = (false, 1, 2), transports: transport);
 
         // Act
         await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
@@ -152,6 +169,9 @@ public sealed partial class OutboxDispatcherUnitTests
         await sendStarted.Task.WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct);
         Assert.Equal([2, 1], claims.Select(static c => c.MaxCount));
         Assert.False(_doubles.HasMoreClaims);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 2, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 1, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = transport.Received(1).SendAsync(Arg.Any<OutgoingMessage>(), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -190,6 +210,9 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal((TimeSpan.FromSeconds(1), TestHost.Start.UtcDateTime.AddSeconds(1)), (wait, (await _doubles.NextClaimAsync()).NowUtc));
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(
+            TestChannel.Id, 16, TestHost.Start.UtcDateTime.AddSeconds(1), TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -205,13 +228,15 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         ClaimCall[] claims = [await _doubles.NextClaimAsync(), await _doubles.NextClaimAsync()];
         Assert.Equal((claims[0].NowUtc, false), (claims[1].NowUtc, _doubles.Time.HasMoreWaits));
+        _ = _doubles.Store.Received(2).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunAsync_TimeGivenWhileTheLoopStartsItsWait_WaitsUntilTheGivenTime()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, ClaimWithNextDue(_doubles.Now.AddHours(1), AMessage(), AMessage()));
+        OutgoingMessage[] messages = [AMessage(), AMessage()];
+        _doubles.ClaimsGive(TestChannel.Id, ClaimWithNextDue(_doubles.Now.AddHours(1), messages));
         var waitStarts = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var secondSend = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var transport = TestTransports.For(TestChannel.Id);
@@ -232,6 +257,11 @@ public sealed partial class OutboxDispatcherUnitTests
         var nextTryAtUtc = (await _doubles.NextRecordAsync()).NextTryAtUtc!.Value;
         TimeSpan[] waits = [await _doubles.Time.NextWaitAsync(), await _doubles.Time.NextWaitAsync()];
         Assert.Equal([TimeSpan.FromHours(1), nextTryAtUtc - _doubles.Now], waits);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = transport.Received(1).SendAsync(messages[0], null, Arg.Any<CancellationToken>());
+        _ = transport.Received(1).SendAsync(messages[1], null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            messages[0], Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.TransientError), nextTryAtUtc, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -253,6 +283,10 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.Equal(TestHost.Start.UtcDateTime.AddSeconds(1), (await _doubles.NextClaimAsync()).NowUtc);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(
+            TestChannel.Id, 16, TestHost.Start.UtcDateTime.AddSeconds(1), TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = signal.Received().WaitAsync(DispatchTopic.ForChannel(TestChannel.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -261,7 +295,8 @@ public sealed partial class OutboxDispatcherUnitTests
         // Arrange
         var signal = Substitute.For<IDispatchSignal>();
         signal.WaitAsync(default, Ct).ReturnsForAnyArgs(ValueTask.FromResult<Error?>(new Error(Errors.Unavailable)));
-        _doubles.ClaimsGive(TestChannel.Id, ClaimWithNextDue(_doubles.Now.AddSeconds(60), AMessage()));
+        var message = AMessage();
+        _doubles.ClaimsGive(TestChannel.Id, ClaimWithNextDue(_doubles.Now.AddSeconds(60), message));
         var fallbackWaitStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var transport = TestTransports.For(TestChannel.Id);
         transport.SendAsync(default!, default, Ct).ReturnsForAnyArgs(call => RateLimitedAfterAsync(fallbackWaitStarted.Task, call.ArgAt<CancellationToken>(2)));
@@ -282,6 +317,12 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Equal(
             (nextTryAtUtc - TestHost.Start.UtcDateTime, nextTryAtUtc),
             (waitForTheGivenTime, (await _doubles.NextClaimAsync()).NowUtc));
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, nextTryAtUtc, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = transport.Received(1).SendAsync(message, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            message, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.TransientError), nextTryAtUtc, Arg.Any<CancellationToken>());
+        _ = signal.Received().WaitAsync(DispatchTopic.ForChannel(TestChannel.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -304,13 +345,18 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         ClaimCall[] claims = [await _doubles.NextClaimAsync(), await _doubles.NextClaimAsync()];
         Assert.Equal(TestHost.Start.UtcDateTime.AddSeconds(2), claims[1].NowUtc);
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(
+            TestChannel.Id, 16, TestHost.Start.UtcDateTime.AddSeconds(2), TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = signal.Received().WaitAsync(DispatchTopic.ForChannel(TestChannel.Id), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunAsync_Cancelled_ReturnsAndSendsNoMessageThatIsStillInTheWorkQueue()
     {
         // Arrange
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage(), AMessage(), AMessage()));
+        OutgoingMessage[] messages = [AMessage(), AMessage(), AMessage()];
+        _doubles.ClaimsGive(TestChannel.Id, Claim(messages));
         var sendStarted = new TaskCompletionSource();
         var transport = TestTransports.NeverCompleting(TestChannel.Id, sendStarted);
         await using var provider = _doubles.Build(
@@ -323,7 +369,9 @@ public sealed partial class OutboxDispatcherUnitTests
 
         // Assert
         Assert.True(running.Run.IsCompletedSuccessfully);
-        await transport.ReceivedWithAnyArgs(1).SendAsync(default!, default, Ct);
+        await transport.Received(1).SendAsync(messages[0], null, Arg.Any<CancellationToken>());
+        await transport.DidNotReceive().SendAsync(Arg.Is<OutgoingMessage>(m => m != messages[0]), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+        await _doubles.Store.DidNotReceiveWithAnyArgs().RecordTryAsync(default!, default!, default, Ct);
         Assert.False(_doubles.HasMoreRecords);
     }
 
@@ -349,6 +397,11 @@ public sealed partial class OutboxDispatcherUnitTests
         Assert.Equal(
             [await pending.NextRecordAsync(), await pending.NextRecordAsync()],
             [await _doubles.NextRecordAsync(), await _doubles.NextRecordAsync()]);
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            messages[0], Arg.Is<PublishTry>(t => t.TryNumber == 1 && t.Outcome == PublishOutcome.TransientError), Arg.Is<DateTime?>(d => d != null),
+            Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            messages[1], Arg.Is<PublishTry>(t => t.TryNumber == 8 && t.Outcome == PublishOutcome.TransientError), null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -363,18 +416,20 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         ClaimCall[] claims = [await _doubles.NextClaimAsync(), await _doubles.NextClaimAsync()];
         Assert.Equal([TestChannel.Id, TestChannel.SecondId], claims.Select(static c => c.Channel).OrderByDescending(static c => c.Name, StringComparer.Ordinal));
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.Id, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).ClaimDueAsync(TestChannel.SecondId, 16, TestHost.Start.UtcDateTime, TimeSpan.FromSeconds(60), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RunAsync_SendOfTheFirstChannelThatDoesNotComplete_DoesNotDelayTheSendOfTheSecondChannel()
     {
         // Arrange
-        var ofTheSecondChannel = AMessage(TestChannel.SecondId);
-        _doubles.ClaimsGive(TestChannel.Id, Claim(AMessage()));
+        var (ofTheFirstChannel, ofTheSecondChannel) = (AMessage(), AMessage(TestChannel.SecondId));
+        _doubles.ClaimsGive(TestChannel.Id, Claim(ofTheFirstChannel));
         _doubles.ClaimsGive(TestChannel.SecondId, Claim(ofTheSecondChannel));
         var sendStarted = new TaskCompletionSource();
-        await using var provider = _doubles.Build(
-            transports: [TestTransports.NeverCompleting(TestChannel.Id, sendStarted), TestTransports.For(TestChannel.SecondId)]);
+        var (first, second) = (TestTransports.NeverCompleting(TestChannel.Id, sendStarted), TestTransports.For(TestChannel.SecondId));
+        await using var provider = _doubles.Build(transports: [first, second]);
 
         // Act
         await using var running = new RunningLoop(provider.GetRequiredService<IOutboxDispatcher>().RunAsync);
@@ -382,6 +437,12 @@ public sealed partial class OutboxDispatcherUnitTests
         // Assert
         await sendStarted.Task.WaitAsync(TestHost.HangGuard, TimeProvider.System, Ct);
         Assert.Equal(ofTheSecondChannel, (await _doubles.NextRecordAsync()).Message);
+        _ = first.Received(1).SendAsync(ofTheFirstChannel, null, Arg.Any<CancellationToken>());
+        _ = second.Received(1).SendAsync(ofTheSecondChannel, null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.Received(1).RecordTryAsync(
+            ofTheSecondChannel, Arg.Is<PublishTry>(t => t.Outcome == PublishOutcome.Succeeded), null, Arg.Any<CancellationToken>());
+        _ = _doubles.Store.DidNotReceive().RecordTryAsync(
+            ofTheFirstChannel, Arg.Any<PublishTry>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
     }
 
     private static async ValueTask<ErrorOr<PublishReceipt>> RateLimitedAfterAsync(Task waitStarts, CancellationToken ct)

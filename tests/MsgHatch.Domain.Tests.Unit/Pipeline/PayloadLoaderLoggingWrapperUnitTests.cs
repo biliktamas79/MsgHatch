@@ -5,6 +5,7 @@ using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
 using MsgHatch.Domain.Pipeline;
+using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using NSubstitute;
 
@@ -16,19 +17,25 @@ public sealed class PayloadLoaderLoggingWrapperUnitTests
     private const string _address = "client1@example.com";
     private static readonly TenantKey _t1 = TenantKey.For(new TenantId("t1"));
 
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     [Fact]
     public async Task LoadAsync_InnerPayloads_ReturnsThemUnchanged()
     {
         // Arrange
         IReadOnlyList<TestEnvelope> payloads = [new TestEnvelope("first"), new TestEnvelope("second")];
-        await using var provider = BuildWith(ALoader(ErrorOr<IReadOnlyList<TestEnvelope>>.ForValue(payloads)));
+        var inner = ALoader(ErrorOr<IReadOnlyList<TestEnvelope>>.ForValue(payloads));
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
+        var message = AMessage();
+        MessageRoute[] routes = [TestRoutes.ARoute(address: _address)];
 
         // Act
-        var result = await LoadAsync(scope.ServiceProvider);
+        var result = await LoadAsync(scope.ServiceProvider, message, routes);
 
         // Assert
         Assert.Same(payloads, result.Value);
+        _ = inner.Received(1).LoadAsync(message, routes, Ct);
     }
 
     [Fact]
@@ -36,74 +43,94 @@ public sealed class PayloadLoaderLoggingWrapperUnitTests
     {
         // Arrange
         var error = new Error(Errors.Unavailable);
-        await using var provider = BuildWith(ALoader(error));
+        var inner = ALoader(error);
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
+        var message = AMessage();
+        MessageRoute[] routes = [TestRoutes.ARoute(address: _address)];
 
         // Act
-        var result = await LoadAsync(scope.ServiceProvider);
+        var result = await LoadAsync(scope.ServiceProvider, message, routes);
 
         // Assert
         Assert.Same(error, result.Error);
+        _ = inner.Received(1).LoadAsync(message, routes, Ct);
     }
 
     [Fact]
     public async Task LoadAsync_TransientError_LogsAWarningWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(ALoader(new Error(Errors.Unavailable)));
+        var inner = ALoader(new Error(Errors.Unavailable));
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
+        var message = AMessage();
+        MessageRoute[] routes = [TestRoutes.ARoute(address: _address)];
 
         // Act
-        await LoadAsync(scope.ServiceProvider);
+        await LoadAsync(scope.ServiceProvider, message, routes);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Warning, 1003), (record.Level, record.Id.Id));
+        _ = inner.Received(1).LoadAsync(message, routes, Ct);
     }
 
     [Fact]
     public async Task LoadAsync_PermanentError_LogsAnErrorWithItsEventId()
     {
         // Arrange
-        await using var provider = BuildWith(ALoader(new Error(Errors.ValidationFailed)));
+        var inner = ALoader(new Error(Errors.ValidationFailed));
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
+        var message = AMessage();
+        MessageRoute[] routes = [TestRoutes.ARoute(address: _address)];
 
         // Act
-        await LoadAsync(scope.ServiceProvider);
+        await LoadAsync(scope.ServiceProvider, message, routes);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal((LogLevel.Error, 1003), (record.Level, record.Id.Id));
+        _ = inner.Received(1).LoadAsync(message, routes, Ct);
     }
 
     [Fact]
     public async Task LoadAsync_TenantServiceOfAKey_LogsTheTenantOfTheKey()
     {
         // Arrange
-        await using var provider = BuildWith(ALoader(ErrorOr<IReadOnlyList<TestEnvelope>>.ForValue([])));
+        var inner = ALoader(ErrorOr<IReadOnlyList<TestEnvelope>>.ForValue([]));
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
+        var message = AMessage();
+        MessageRoute[] routes = [TestRoutes.ARoute(address: _address)];
 
         // Act
-        await LoadAsync(scope.ServiceProvider);
+        await LoadAsync(scope.ServiceProvider, message, routes);
 
         // Assert
         var record = Assert.Single(provider.LogRecords());
         Assert.Equal(("t1", 1002), (record.GetStructuredStateValue("Tenant"), record.Id.Id));
+        _ = inner.Received(1).LoadAsync(message, routes, Ct);
     }
 
     [Fact]
     public async Task LoadAsync_TestMessage_NoLogRecordContainsTheChannelAddress()
     {
         // Arrange
-        await using var provider = BuildWith(ALoader(ErrorOr<IReadOnlyList<TestEnvelope>>.ForValue([new TestEnvelope(_address)])));
+        var inner = ALoader(ErrorOr<IReadOnlyList<TestEnvelope>>.ForValue([new TestEnvelope(_address)]));
+        await using var provider = BuildWith(inner);
         await using var scope = provider.CreateAsyncScope();
+        var message = AMessage();
+        MessageRoute[] routes = [TestRoutes.ARoute(address: _address)];
 
         // Act
-        await LoadAsync(scope.ServiceProvider);
+        await LoadAsync(scope.ServiceProvider, message, routes);
 
         // Assert
         Assert.NotEmpty(provider.LogRecords());
         Assert.DoesNotContain(provider.LogRecords(), static record => record.ContainsText(_address));
+        _ = inner.Received(1).LoadAsync(message, routes, Ct);
     }
 
     [Fact]
@@ -128,11 +155,12 @@ public sealed class PayloadLoaderLoggingWrapperUnitTests
         return loader;
     }
 
-    private static ValueTask<ErrorOr<IReadOnlyList<TestEnvelope>>> LoadAsync(IServiceProvider scope) =>
-        scope.GetRequiredKeyedService<IPayloadLoader<TestEvent, TestEnvelope>>(_t1).LoadAsync(
-            TestMessages.AReceivedMessage(new TestEvent(_address), _t1.Tenant, flags: MessageFlags.Test),
-            new[] { TestRoutes.ARoute(address: _address) },
-            TestContext.Current.CancellationToken);
+    private static ReceivedMessage<TestEvent> AMessage() =>
+        TestMessages.AReceivedMessage(new TestEvent(_address), _t1.Tenant, flags: MessageFlags.Test);
+
+    private static ValueTask<ErrorOr<IReadOnlyList<TestEnvelope>>> LoadAsync(
+        IServiceProvider scope, ReceivedMessage<TestEvent> message, MessageRoute[] routes) =>
+        scope.GetRequiredKeyedService<IPayloadLoader<TestEvent, TestEnvelope>>(_t1).LoadAsync(message, routes, Ct);
 
     private static ServiceProvider BuildWith(IPayloadLoader<TestEvent, TestEnvelope> inner, bool enableLogging = true)
     {
