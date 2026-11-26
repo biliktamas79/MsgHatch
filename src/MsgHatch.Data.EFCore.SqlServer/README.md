@@ -32,6 +32,19 @@ services.AddMsgHatch()
         sql => sql.EnableRetryOnFailure());
 ```
 
+## Inbox in the transaction of the host
+
+An app with its own `DbContext` can add an event to the inbox in the transaction of that context (D331). The app maps the inbox with `modelBuilder.MapMsgHatchInbox(this)` in `OnModelCreating` of its context, registers the context as a scoped service on the same database, and selects the stores with the type of the context. Here `TestHostContext` is the context of the app:
+
+[//]: # (snippet: host)
+```csharp
+services.AddDbContext<TestHostContext>(o => o.UseSqlServer(connectionString));
+services.AddMsgHatch()
+    .UseEntityFrameworkSqlServerStores<TestHostContext>(connectionString);
+```
+
+The context of the app gets the dialect of SQL Server and the MsgHatch options of the store contexts. `AcceptAsync` adds the inbox row to the context, and does not save, so the `SaveChangesAsync` of the app writes it with the rows of the app. The migrations of the app never contain the inbox table, so `MigrateMsgHatchAsync` still creates it. The README of `MsgHatch.Data.EFCore` describes the mode and its startup checks.
+
 ## JSON columns
 
 The JSON columns stay `nvarchar(max)`, because the type `json` needs SQL Server 2025 or Azure SQL. A host on such a server selects it with the option `JsonColumnType`, for example `o => o.JsonColumnType = "json"`. Then SQL Server checks each write of a document. The migrations of the package take the type of the option at run time.
@@ -95,6 +108,10 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 ```
 
 ## Version history
+
+### 0.9.0 (2026-11-26)
+
+- `UseEntityFrameworkSqlServerStores<TContext>` selects the stores with the inbox in the transaction of the context `TContext` of the host (D331, D332). The context gets the dialect of SQL Server and the MsgHatch options of the store contexts.
 
 ### 0.7.1 (2026-11-26)
 

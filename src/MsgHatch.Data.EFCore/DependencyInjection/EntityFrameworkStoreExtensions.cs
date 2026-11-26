@@ -2,8 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using MsgHatch.Data.EFCore.Model;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Persistence;
 
 namespace MsgHatch.Data.EFCore.DependencyInjection;
@@ -33,19 +36,43 @@ public static class EntityFrameworkStoreExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configure);
-        AddOptions(builder, nameof(UseEntityFrameworkStores), configureOptions);
-        AddContexts<MsgHatchDbContext>(builder.Services, nameof(UseEntityFrameworkStores), configure, "StoreMigrations");
-        builder.Services.TryAddSingleton(static services =>
-            new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>(), ClassifiersOf(services)));
-        builder.Services.TryAddSingleton(static services =>
-            new EntityFrameworkOutboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>(), ClassifiersOf(services)));
-        builder.Services.TryAddSingleton(static services => new EntityFrameworkRegistrySettingsStore(ContextsOf(services), ClassifiersOf(services)));
-        return builder
-            .UseRegistrySettingsStore(static services => services.GetRequiredService<EntityFrameworkRegistrySettingsStore>(), nameof(UseEntityFrameworkStores))
-            .UseInboxStore(static (services, key) => services.GetRequiredService<EntityFrameworkInboxStore>().For(key), nameof(UseEntityFrameworkStores))
-            .UseInboxDispatchStore(static services => services.GetRequiredService<EntityFrameworkInboxStore>(), nameof(UseEntityFrameworkStores))
-            .UseOutboxStore(static (services, key) => services.GetRequiredService<EntityFrameworkOutboxStore>().For(key), nameof(UseEntityFrameworkStores))
-            .UseOutboxDispatchStore(static services => services.GetRequiredService<EntityFrameworkOutboxStore>(), nameof(UseEntityFrameworkStores));
+        return AddStores(
+            builder, nameof(UseEntityFrameworkStores), configure, configureOptions,
+            static (services, key) => services.GetRequiredService<EntityFrameworkInboxStore>().For(key), ServiceLifetime.Singleton);
+    }
+
+    /// <summary>
+    /// Selects the EF Core stores as
+    /// <see cref="UseEntityFrameworkStores(MsgHatchBuilder, Action{DbContextOptionsBuilder}, Action{EntityFrameworkStoreOptions})"/> does, with the inbox in the transaction of the
+    /// context <typeparamref name="TContext"/> of the host (D331, D332). The setup method of a provider package calls it,
+    /// for example <c>UseEntityFrameworkPostgreSqlStores&lt;AppDbContext&gt;</c>. The model of the context maps the inbox
+    /// with <c>modelBuilder.MapMsgHatchInbox(this)</c>. The inbox tenant store is scoped: its <c>AddAsync</c> adds the row to
+    /// the scoped context, and the <c>SaveChangesAsync</c> of the host writes it with the rows of the host. The other stores
+    /// and the inbox loop use the store contexts. The context gets the MsgHatch options and the dialect of the store
+    /// contexts. The startup validation fails when the context is not a scoped service, when its model has no inbox, and
+    /// when it uses another database than the store contexts.
+    /// </summary>
+    /// <typeparam name="TContext">The context of the host, which the host registers, for example with <c>AddDbContext</c>.</typeparam>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="configure">The options of the store contexts, with the provider and its connection.</param>
+    /// <param name="configureOptions">An optional change of the options of the stores in code.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseEntityFrameworkStores<TContext>(
+        this MsgHatchBuilder builder, Action<DbContextOptionsBuilder> configure, Action<EntityFrameworkStoreOptions>? configureOptions = null)
+        where TContext : DbContext
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configure);
+        var setupMethod = $"{nameof(UseEntityFrameworkStores)}<{typeof(TContext).Name}>";
+        builder.Services.ConfigureDbContext<TContext>(static (services, options) =>
+            StoreOptionsExtension.CopyTo(options, services.GetRequiredService<DbContextOptions<MsgHatchDbContext>>()));
+        builder.Services.AddOptions<HostContextSetupCheck<TContext>>().Configure(check => check.SetupMethod = setupMethod).ValidateOnStart();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IValidateOptions<HostContextSetupCheck<TContext>>, HostContextSetupValidator<TContext>>());
+        return AddStores(
+            builder, setupMethod, configure, configureOptions,
+            static (services, key) => services.GetRequiredService<EntityFrameworkInboxStore>().For(key, services.GetRequiredService<TContext>()),
+            ServiceLifetime.Scoped);
     }
 
     /// <summary>
@@ -82,6 +109,25 @@ public static class EntityFrameworkStoreExtensions
         services.AddOptions<EntityFrameworkSetupCheck<TContext>>().Configure(check => check.SetupMethod = setupMethod).ValidateOnStart();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<EntityFrameworkSetupCheck<TContext>>, EntityFrameworkSetupValidator<TContext>>());
+    }
+
+    private static MsgHatchBuilder AddStores(
+        MsgHatchBuilder builder, string setupMethod, Action<DbContextOptionsBuilder> configure, Action<EntityFrameworkStoreOptions>? configureOptions,
+        Func<IServiceProvider, TenantKey, IInboxStore> inbox, ServiceLifetime inboxLifetime)
+    {
+        AddOptions(builder, setupMethod, configureOptions);
+        AddContexts<MsgHatchDbContext>(builder.Services, setupMethod, configure, "StoreMigrations");
+        builder.Services.TryAddSingleton(static services =>
+            new EntityFrameworkInboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>(), ClassifiersOf(services)));
+        builder.Services.TryAddSingleton(static services =>
+            new EntityFrameworkOutboxStore(ContextsOf(services), services.GetRequiredService<MsgHatchJson>(), ClassifiersOf(services)));
+        builder.Services.TryAddSingleton(static services => new EntityFrameworkRegistrySettingsStore(ContextsOf(services), ClassifiersOf(services)));
+        return builder
+            .UseRegistrySettingsStore(static services => services.GetRequiredService<EntityFrameworkRegistrySettingsStore>(), setupMethod)
+            .UseInboxStore(inbox, setupMethod, inboxLifetime)
+            .UseInboxDispatchStore(static services => services.GetRequiredService<EntityFrameworkInboxStore>(), setupMethod)
+            .UseOutboxStore(static (services, key) => services.GetRequiredService<EntityFrameworkOutboxStore>().For(key), setupMethod)
+            .UseOutboxDispatchStore(static services => services.GetRequiredService<EntityFrameworkOutboxStore>(), setupMethod);
     }
 
     private static IDbContextFactory<MsgHatchDbContext> ContextsOf(IServiceProvider services) =>

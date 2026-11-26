@@ -15,7 +15,9 @@ namespace MsgHatch.Data.EFCore;
 /// The inbox on EF Core (section 4.5, D120, D318): one row of the table <c>Inbox</c> for each received message,
 /// with the columns of its delivery state, and its event as JSON in the column <c>Content</c> (D143). The key of a row is
 /// the tenant and the id, so an add of a stored key changes nothing. Each operation makes its own context through the
-/// pooled factory (D130). It is the dispatch store of all tenants, and <see cref="For"/> gives the tenant store of one key.
+/// pooled factory (D130), except the staged add of the tenant store of <see cref="For(TenantKey, DbContext)"/>, which adds
+/// to the context of the host (D332). It is the dispatch store of all tenants, and <see cref="For(TenantKey)"/> gives the
+/// tenant store of one key.
 /// </summary>
 public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
 {
@@ -41,7 +43,24 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
     /// <summary>Gives the tenant store of one key. It reads and writes only the messages of its tenant.</summary>
     /// <param name="key">The tenant key.</param>
     /// <returns>The tenant store.</returns>
-    public IInboxStore For(TenantKey key) => new TenantStore(this, key);
+    public IInboxStore For(TenantKey key) => new TenantStore(this, key, hostContext: null);
+
+    /// <summary>
+    /// Gives the tenant store of one key with the inbox in the transaction of the host (D331, D332). Its
+    /// <see cref="IInboxStore.AddAsync"/> adds the row to the context of the host, and does not save, so the
+    /// <c>SaveChangesAsync</c> of the host writes the row with the rows of the host. With no save, nothing is stored. An id
+    /// that is stored fails that save with the <see cref="DbUpdateException"/> of EF Core. A second add of an id that the
+    /// context tracks adds nothing more. Each other member uses the contexts of the factory, as the store of
+    /// <see cref="For(TenantKey)"/> does. The model of the context needs <c>MapMsgHatchInbox</c>.
+    /// </summary>
+    /// <param name="key">The tenant key.</param>
+    /// <param name="context">The context of the host.</param>
+    /// <returns>The tenant store.</returns>
+    public IInboxStore For(TenantKey key, DbContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new TenantStore(this, key, context);
+    }
 
     /// <inheritdoc />
     public async ValueTask<ErrorOr<ClaimResult<ReceivedMessage>>> ClaimDueAsync(
@@ -102,7 +121,7 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
             ct);
     }
 
-    private async ValueTask<Error?> AddAsync(TenantKey key, ReceivedMessage message, CancellationToken ct)
+    private async ValueTask<Error?> AddAsync(TenantKey key, ReceivedMessage message, DbContext? hostContext, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(message);
         if (message.Tenant != key.Tenant)
@@ -114,6 +133,12 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
         if (document.IsError)
         {
             return document.Error;
+        }
+
+        if (hostContext is not null)
+        {
+            Stage(hostContext, MessageRows.Received(message, document.Value));
+            return null;
         }
 
         return await _contexts.RunAsync(
@@ -206,13 +231,21 @@ public sealed class EntityFrameworkInboxStore : IInboxDispatchStore
                 ct),
             ct);
 
+    private static void Stage(DbContext hostContext, InboxRow row)
+    {
+        if (!hostContext.ChangeTracker.Entries<InboxRow>().Any(entry => entry.Entity.TenantId == row.TenantId && entry.Entity.Id == row.Id))
+        {
+            hostContext.Add(row);
+        }
+    }
+
     private static ReceivedMessageSummary SummaryOf(InboxRow row) =>
         new(MessageQueries.DeliveryOf(row), MessageQueries.TenantOf(row.TenantId), new MessageType(row.ContentType), row.ContentVersion,
             Enum.Parse<MessageFlags>(row.Flags));
 
-    private sealed class TenantStore(EntityFrameworkInboxStore store, TenantKey key) : IInboxStore
+    private sealed class TenantStore(EntityFrameworkInboxStore store, TenantKey key, DbContext? hostContext) : IInboxStore
     {
-        public ValueTask<Error?> AddAsync(ReceivedMessage message, CancellationToken ct) => store.AddAsync(key, message, ct);
+        public ValueTask<Error?> AddAsync(ReceivedMessage message, CancellationToken ct) => store.AddAsync(key, message, hostContext, ct);
 
         public ValueTask<ErrorOr<MessagePage<ReceivedMessageSummary>>> QueryAsync(InboxQuery query, CancellationToken ct) =>
             store.QueryAsync(key, query, ct);

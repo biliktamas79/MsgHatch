@@ -71,6 +71,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)tests/Shared/ReadmeCheck.cs" Link="Shared/ReadmeCheck.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)tests/Shared/EntityFrameworkTestHost.cs" Link="Shared/EntityFrameworkTestHost.cs"
       Condition="$(MSBuildProjectName.Contains('.Data.EFCore.'))" />
+    <Compile Include="$(MSBuildThisFileDirectory)tests/Shared/EntityFrameworkHostContext.cs" Link="Shared/EntityFrameworkHostContext.cs"
+      Condition="$(MSBuildProjectName.StartsWith('MsgHatch.Data.EFCore'))" />
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>MsgHatch.TestProjectDirectory</_Parameter1>
       <_Parameter2>$(MSBuildProjectDirectory)</_Parameter2>

@@ -220,8 +220,18 @@ public sealed class EntityFrameworkMigrationExtensionsUnitTests : IDisposable
     {
         var services = EntityFrameworkTestHost.CreateServices();
         services.AddMsgHatch(static o => (o.EnableLogging, o.Roles) = (false, MsgHatchRoles.Consumer))
-            .UseEntityFrameworkStores(configure, o => o.RequireCurrentSchema = requireCurrentSchema)
+            .UseEntityFrameworkStores(o => IgnoringManyServiceProviders(o, configure), o => o.RequireCurrentSchema = requireCurrentSchema)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => NSubstitute.Substitute.For<MsgHatch.Domain.Routing.IMessageRouter<TestEvent>>()));
         return services.Build();
+    }
+
+    /// <summary>
+    /// The migrator makes its context with its own options, which the test configuration of the services does not reach, so
+    /// the provider setup ignores the warning of many EF Core service providers.
+    /// </summary>
+    private static void IgnoringManyServiceProviders(DbContextOptionsBuilder options, Action<DbContextOptionsBuilder> configure)
+    {
+        configure(options);
+        options.IgnoreManyServiceProvidersWarning();
     }
 }

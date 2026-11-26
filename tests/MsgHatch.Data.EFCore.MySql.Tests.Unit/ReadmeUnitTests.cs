@@ -1,13 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microting.EntityFrameworkCore.MySql.Infrastructure;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Data.EFCore.MySql.Tests.Unit.TestTypes;
+using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
+using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.MySql.Tests.Unit;
 
@@ -84,5 +89,30 @@ public sealed class ReadmeUnitTests
         // Assert
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
         Assert.Equal("json", context.Model.GetEntityTypes().Single(static type => type.GetTableName() == "MsgHatchInbox").FindProperty("Content")!.GetColumnType());
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkMySqlStores_ContextOfTheHostOfTheReadme_StagesTheInboxRowInTheContextOfTheHost()
+    {
+        // Arrange
+        var services = EntityFrameworkTestHost.CreateServices();
+        var connectionString = _connectionString;
+        #region readme:host
+        services.AddDbContext<TestHostContext>(o => o.UseMySql(connectionString, ServerVersion.Create(8, 4, 0, ServerType.MySql)));
+        services.AddMsgHatch()
+            .UseEntityFrameworkMySqlStores<TestHostContext>(connectionString);
+        #endregion
+        services.AddMsgHatch().AddMessage(
+            "TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => Substitute.For<IMessageRouter<TestEvent>>()));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+        var message = TestMessages.AReceivedMessage(new TestEvent("text"));
+
+        // Act
+        var error = await scope.ServiceProvider.GetRequiredService<IInboxStore>().AddAsync(message, Ct);
+
+        // Assert
+        Assert.Null(error);
+        Assert.Equal([EntityState.Added], scope.ServiceProvider.GetRequiredService<TestHostContext>().ChangeTracker.Entries().Select(static entry => entry.State));
     }
 }

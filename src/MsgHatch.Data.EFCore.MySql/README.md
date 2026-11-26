@@ -44,6 +44,19 @@ services.AddMsgHatch()
         o => o.JsonColumnType = "json");
 ```
 
+## Inbox in the transaction of the host
+
+An app with its own `DbContext` can add an event to the inbox in the transaction of that context (D331). The app maps the inbox with `modelBuilder.MapMsgHatchInbox(this)` in `OnModelCreating` of its context, registers the context as a scoped service on the same database, and selects the stores with the type of the context. Here `TestHostContext` is the context of the app:
+
+[//]: # (snippet: host)
+```csharp
+services.AddDbContext<TestHostContext>(o => o.UseMySql(connectionString, ServerVersion.Create(8, 4, 0, ServerType.MySql)));
+services.AddMsgHatch()
+    .UseEntityFrameworkMySqlStores<TestHostContext>(connectionString);
+```
+
+The context of the app gets the dialect of MySQL and the MsgHatch options of the store contexts. `AcceptAsync` adds the inbox row to the context, and does not save, so the `SaveChangesAsync` of the app writes it with the rows of the app. The migrations of the app never contain the inbox table, so `MigrateMsgHatchAsync` still creates it. The README of `MsgHatch.Data.EFCore` describes the mode and its startup checks.
+
 ## Character set
 
 Each table has the character set `utf8mb4`, and a column with no character set of its own takes the one of its table. The migrations do not change the default character set of the database of the host. An id with a fixed length, for example the id of a message, is `varchar(36)`, not `char(36)`, because MySqlConnector reads a `CHAR(36)` column as a `Guid`.
@@ -115,6 +128,7 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ### 0.9.0 (2026-11-26)
 
+- `UseEntityFrameworkMySqlStores<TContext>` selects the stores with the inbox in the transaction of the context `TContext` of the host (D331, D332). The context gets the dialect of MySQL and the MsgHatch options of the store contexts.
 - `MySqlStoreDialect.CustomizeEntity` makes each text of a fixed length `varchar` on the inbox table in a context of the host (D331). The tables of `MsgHatchDbContext` do not change.
 
 ### 0.7.1 (2026-11-26)

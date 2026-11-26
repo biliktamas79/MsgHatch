@@ -30,6 +30,30 @@ public static class EntityFrameworkSqlServerStoreExtensions
     }
 
     /// <summary>
+    /// Selects the EF Core stores on SQL Server as <see cref="UseEntityFrameworkSqlServerStores(MsgHatchBuilder, string, Action{EntityFrameworkStoreOptions}?, Action{SqlServerDbContextOptionsBuilder}?)"/>
+    /// does, with the inbox in the transaction of the context <typeparamref name="TContext"/> of the host (D331, D332). The
+    /// host registers the context on the same database, for example with <c>AddDbContext</c>, and maps the inbox in its
+    /// model with <c>modelBuilder.MapMsgHatchInbox(this)</c>. The context gets the dialect and the MsgHatch options of the
+    /// store contexts. The migrations of the host never contain the inbox table, so <c>MigrateMsgHatchAsync</c> still
+    /// creates it (D320).
+    /// </summary>
+    /// <typeparam name="TContext">The context of the host.</typeparam>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="connectionString">The connection string of the SQL Server database of the context of the host.</param>
+    /// <param name="configureOptions">An optional change of the options of the stores in code.</param>
+    /// <param name="configureSqlServer">An optional change of the SQL Server options of the store contexts.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseEntityFrameworkSqlServerStores<TContext>(
+        this MsgHatchBuilder builder, string connectionString, Action<EntityFrameworkStoreOptions>? configureOptions = null,
+        Action<SqlServerDbContextOptionsBuilder>? configureSqlServer = null)
+        where TContext : DbContext
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        return builder.UseEntityFrameworkStores<TContext>(o => UseSqlServer(o, connectionString, configureSqlServer), configureOptions);
+    }
+
+    /// <summary>
     /// The SQL Server options of a MsgHatch context of a SQL Server package: the connection, the migrations in the
     /// assembly of the package, and the dialect.
     /// </summary>

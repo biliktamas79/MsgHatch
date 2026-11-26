@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microting.EntityFrameworkCore.MySql.Infrastructure;
 using MsgHatch.Data.EFCore.MySql.DependencyInjection;
+using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
@@ -24,6 +26,18 @@ public static class MigratedStores
     {
         var services = Services(connectionString, configureOptions);
         services.ConfigureDbContext<MsgHatchDbContext>(doubles, ServiceLifetime.Singleton);
+        return services.Build();
+    }
+
+    /// <summary>
+    /// New services of <c>UseEntityFrameworkMySqlStores&lt;TestHostContext&gt;</c> with the role Consumer, and the context of the
+    /// host with <c>AddDbContext</c> on its own connection string.
+    /// </summary>
+    public static ServiceProvider BuildWithHostContext(string connectionString, string hostConnectionString)
+    {
+        var services = EntityFrameworkTestHost.CreateServices();
+        services.AddDbContext<TestHostContext>(o => o.UseMySql(hostConnectionString, ServerVersion.Create(8, 4, 0, ServerType.MySql)));
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkMySqlStores<TestHostContext>(connectionString);
         return services.Build();
     }
 

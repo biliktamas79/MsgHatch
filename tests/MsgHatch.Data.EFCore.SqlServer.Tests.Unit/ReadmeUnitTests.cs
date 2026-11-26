@@ -4,10 +4,14 @@ using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.Tests.Unit.TestTypes;
+using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
+using MsgHatch.Domain.Inbox;
+using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
+using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.SqlServer.Tests.Unit;
 
@@ -86,5 +90,30 @@ public sealed class ReadmeUnitTests
         // Assert
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
         Assert.Equal(("messaging", true), (context.Model.GetDefaultSchema(), context.Database.CreateExecutionStrategy().RetriesOnFailure));
+    }
+
+    [Fact]
+    public async Task UseEntityFrameworkSqlServerStores_ContextOfTheHostOfTheReadme_StagesTheInboxRowInTheContextOfTheHost()
+    {
+        // Arrange
+        var services = EntityFrameworkTestHost.CreateServices();
+        var connectionString = _connectionString;
+        #region readme:host
+        services.AddDbContext<TestHostContext>(o => o.UseSqlServer(connectionString));
+        services.AddMsgHatch()
+            .UseEntityFrameworkSqlServerStores<TestHostContext>(connectionString);
+        #endregion
+        services.AddMsgHatch().AddMessage(
+            "TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => Substitute.For<IMessageRouter<TestEvent>>()));
+        await using var provider = services.Build();
+        await using var scope = provider.CreateAsyncScope();
+        var message = TestMessages.AReceivedMessage(new TestEvent("text"));
+
+        // Act
+        var error = await scope.ServiceProvider.GetRequiredService<IInboxStore>().AddAsync(message, Ct);
+
+        // Assert
+        Assert.Null(error);
+        Assert.Equal([EntityState.Added], scope.ServiceProvider.GetRequiredService<TestHostContext>().ChangeTracker.Entries().Select(static entry => entry.State));
     }
 }

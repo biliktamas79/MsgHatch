@@ -17,7 +17,7 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Unit.DependencyInjection;
 /// history of the migrations, and the error of a missing table with a doubled connection. No test opens a connection, so
 /// the connection string names a closed port.
 /// </summary>
-public sealed class EntityFrameworkPostgreSqlStoreExtensionsUnitTests
+public sealed partial class EntityFrameworkPostgreSqlStoreExtensionsUnitTests
 {
     private const string _connectionString = "Host=127.0.0.1;Port=1;Database=setup";
 

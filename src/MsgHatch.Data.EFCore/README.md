@@ -71,6 +71,35 @@ services.AddMsgHatch()
     .UseEntityFrameworkMySqlStores(connectionString);
 ```
 
+## Inbox in the transaction of the host
+
+An app with its own `DbContext` can add an event to the inbox in the transaction of that context, which is the transactional outbox pattern (D331). The app maps the inbox table in `OnModelCreating` of its context:
+
+[//]: # (snippet: host-model)
+```csharp
+modelBuilder.MapMsgHatchInbox(this);
+```
+
+Then it registers its context as a scoped service, and selects the stores with the type of the context, on the same database. Here `TestHostContext` is the context of the app:
+
+[//]: # (snippet: host-setup)
+```csharp
+services.AddDbContext<TestHostContext>(o => o.UseSqlite(connectionString));
+services.AddMsgHatch()
+    .UseEntityFrameworkStores<TestHostContext>(o => o.UseSqlite(connectionString));
+```
+
+`AcceptAsync` then adds the inbox row to the scoped context of the app, and does not save. The `SaveChangesAsync` of the app writes the inbox row with the rows of the app in one transaction (D332):
+
+[//]: # (snippet: host-accept)
+```csharp
+db.Orders.Add(order);
+await notifications.AcceptAsync(new TestEvent("order 1001"), new MessageContext(eventId), ct);
+await db.SaveChangesAsync(ct);
+```
+
+With no save, nothing is stored. An event id that is stored fails the save with the `DbUpdateException` of EF Core, so the rows of the app are not stored a second time. A second `AcceptAsync` of the same id in one scope adds nothing more. The inbox loop and each other store use the store contexts. The context of the app gets the schema, the collation, the JSON type, and the dialect of the store contexts. The migrations of the app never contain the inbox table, so `MigrateMsgHatchAsync` still creates it. The startup validation fails when the context is not a scoped service, when its provider is not relational, when its model has no inbox, and when it uses another database than the store contexts. An app with no `DbContext` of its own keeps `UseEntityFrameworkStores` with no type parameter. Each provider package has the same generic setup method, for example `UseEntityFrameworkPostgreSqlStores<TContext>`.
+
 ## Claim
 
 A claim takes the due messages in the order of their due time, and then in the order of their add. The store reads the due candidates with a LINQ query, and claims those that are still pending and due with one `ExecuteUpdate` and a new claim token. When another dispatcher took a candidate first, the store reads the next candidates, until it has the maximum count or no due message is left.
@@ -159,6 +188,7 @@ A database with no schemas inside it, for example MySQL, where a schema is a dat
 
 ### 0.9.0 (2026-11-26)
 
+- `UseEntityFrameworkStores<TContext>` selects the stores with the inbox in the transaction of the context `TContext` of the host (D331, D332). `AcceptAsync` adds the inbox row to the scoped context, and the save of the host writes it. The startup validation checks the context. `EntityFrameworkInboxStore.For(TenantKey, DbContext)` gives the tenant store of this mode.
 - `MapMsgHatchInbox`, an extension method of `ModelBuilder`, maps the inbox table of the stores in a context of the host, with the table, the columns, the key, and the indexes of `MsgHatchDbContext` (D331). The migrations of the host never contain the table, and the other tables and the conventions of the host do not change.
 - `IEntityFrameworkStoreDialect` has the default method `CustomizeEntity`, which changes the inbox table in a context of the host for one provider. The default does nothing, so a dialect of a host still compiles.
 

@@ -65,6 +65,13 @@ internal sealed class StoreOptionsExtension(string schema, string? textCollation
             options.Schema, options.TextCollation ?? dialect?.TextCollation, options.JsonColumnType ?? dialect?.JsonColumnType, dialect));
     }
 
+    /// <summary>
+    /// Puts the MsgHatch options of the store contexts into the options of a context of the host (D331): the schema, the
+    /// collation, the JSON type, and the dialect. So <c>MapMsgHatchInbox</c> maps the inbox of the host as the store
+    /// contexts map it.
+    /// </summary>
+    public static void CopyTo(DbContextOptionsBuilder builder, IDbContextOptions storeContextOptions) => Add(builder, Of(storeContextOptions));
+
     public void ApplyServices(IServiceCollection services)
     {
     }

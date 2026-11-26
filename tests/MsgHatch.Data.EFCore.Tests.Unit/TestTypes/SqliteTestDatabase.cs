@@ -36,6 +36,14 @@ public sealed class SqliteTestDatabase
         return new PooledDbContextFactory<TContext>(options.Options);
     }
 
+    /// <summary>A new context of a host on the file, with the inbox of <c>MapMsgHatchInbox</c> and no MsgHatch options.</summary>
+    internal TestHostContext NewHostContext()
+    {
+        var options = new DbContextOptionsBuilder<TestHostContext>().UseSqlite(ConnectionString);
+        options.IgnoreManyServiceProvidersWarning();
+        return new TestHostContext(options.Options);
+    }
+
     /// <summary>The SQL of a time column as ISO 8601 text with <c>Z</c>, which <c>MsgHatchJson</c> reads.</summary>
     public static string IsoTime(string column) => $"replace({column}, ' ', 'T') || 'Z'";
 

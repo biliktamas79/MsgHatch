@@ -34,6 +34,19 @@ services.AddMsgHatch()
         npgsql => npgsql.EnableRetryOnFailure());
 ```
 
+## Inbox in the transaction of the host
+
+An app with its own `DbContext` can add an event to the inbox in the transaction of that context (D331). The app maps the inbox with `modelBuilder.MapMsgHatchInbox(this)` in `OnModelCreating` of its context, registers the context as a scoped service on the same database, and selects the stores with the type of the context. Here `TestHostContext` is the context of the app:
+
+[//]: # (snippet: host)
+```csharp
+services.AddDbContext<TestHostContext>(o => o.UseNpgsql(connectionString));
+services.AddMsgHatch()
+    .UseEntityFrameworkPostgreSqlStores<TestHostContext>(connectionString);
+```
+
+The context of the app gets the dialect of PostgreSQL and the MsgHatch options of the store contexts. `AcceptAsync` adds the inbox row to the context, and does not save, so the `SaveChangesAsync` of the app writes it with the rows of the app. The migrations of the app never contain the inbox table, so `MigrateMsgHatchAsync` still creates it. The README of `MsgHatch.Data.EFCore` describes the mode and its startup checks.
+
 ## JSON columns
 
 The dialect gives each JSON column the type `json`, which checks each write and keeps the text unchanged. The dialect does not give `jsonb`, because `jsonb` changes the order of the keys and drops duplicate keys, so an event type of a host that needs `$type` as the first key can fail to read. A host selects `jsonb` with the option `JsonColumnType`, for example `o => o.JsonColumnType = "jsonb"`. The stores write a document one time and read it whole, so `text` is faster: `json` parses each write, and `jsonb` also converts each read.
@@ -95,6 +108,10 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 ```
 
 ## Version history
+
+### 0.9.0 (2026-11-26)
+
+- `UseEntityFrameworkPostgreSqlStores<TContext>` selects the stores with the inbox in the transaction of the context `TContext` of the host (D331, D332). The context gets the dialect of PostgreSQL and the MsgHatch options of the store contexts.
 
 ### 0.7.1 (2026-11-26)
 

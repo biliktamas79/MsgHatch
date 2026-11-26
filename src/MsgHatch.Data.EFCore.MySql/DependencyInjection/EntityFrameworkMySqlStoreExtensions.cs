@@ -39,6 +39,28 @@ public static class EntityFrameworkMySqlStoreExtensions
     }
 
     /// <summary>
+    /// Selects the EF Core stores on MySQL as <see cref="UseEntityFrameworkMySqlStores(MsgHatchBuilder, string, Action{EntityFrameworkStoreOptions}?)"/>
+    /// does, with the inbox in the transaction of the context <typeparamref name="TContext"/> of the host (D331, D332). The
+    /// host registers the context on the same database, for example with <c>AddDbContext</c>, and maps the inbox in its
+    /// model with <c>modelBuilder.MapMsgHatchInbox(this)</c>. The context gets the dialect and the MsgHatch options of the
+    /// store contexts, and the inbox table has the prefix <c>MsgHatch</c>. The migrations of the host never contain the
+    /// inbox table, so <c>MigrateMsgHatchAsync</c> still creates it (D320).
+    /// </summary>
+    /// <typeparam name="TContext">The context of the host.</typeparam>
+    /// <param name="builder">The builder of the setup.</param>
+    /// <param name="connectionString">The connection string of the MySQL database of the context of the host.</param>
+    /// <param name="configureOptions">An optional change of the options of the stores in code.</param>
+    /// <returns>The builder.</returns>
+    public static MsgHatchBuilder UseEntityFrameworkMySqlStores<TContext>(
+        this MsgHatchBuilder builder, string connectionString, Action<EntityFrameworkStoreOptions>? configureOptions = null)
+        where TContext : DbContext
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        return builder.UseEntityFrameworkStores<TContext>(o => UseMySql(o, connectionString, typeof(MySqlStoreDialect).Assembly), configureOptions);
+    }
+
+    /// <summary>
     /// The MySQL options of a MsgHatch context of a MySQL package: the connection, the server version, the migrations in the
     /// assembly of the package, the dialect, and the character set of <see cref="MySqlStoreModelCustomizer"/>.
     /// </summary>

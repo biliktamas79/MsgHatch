@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MsgHatch.Data.EFCore.DependencyInjection;
@@ -7,11 +9,15 @@ using MsgHatch.Data.EFCore.MySql.DependencyInjection;
 using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
+using MsgHatch.Domain.Delivery;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Outbox;
+using MsgHatch.Domain.Pipeline;
+using MsgHatch.Domain.Routing;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
+using NSubstitute;
 
 namespace MsgHatch.Data.EFCore.Tests.Unit;
 
@@ -159,5 +165,64 @@ public sealed class ReadmeUnitTests
         Assert.Equal(
             ("Microting.EntityFrameworkCore.MySql", "MsgHatchOutbox"),
             (context.Database.ProviderName, context.Model.GetEntityTypes().Single(static type => type.ClrType.Name == "OutboxRow").GetTableName()));
+    }
+
+    [Fact]
+    public async Task AcceptAsync_ExampleOfTheReadme_StoresTheOrderAndTheInboxRowInOneSave()
+    {
+        // Arrange
+        var database = new SqliteTestDatabase();
+        var services = EntityFrameworkTestHost.CreateServices();
+        var connectionString = database.ConnectionString;
+        #region readme:host-setup
+        services.AddDbContext<TestHostContext>(o => o.UseSqlite(connectionString));
+        services.AddMsgHatch()
+            .UseEntityFrameworkStores<TestHostContext>(o => o.UseSqlite(connectionString));
+        #endregion
+        services.AddMsgHatch().AddMessage(
+            "TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => Substitute.For<IMessageRouter<TestEvent>>()));
+        await using var provider = services.Build();
+        await database.ResetAsync(provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>(), Ct);
+        await using var scope = provider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TestHostContext>();
+        await db.GetService<IRelationalDatabaseCreator>().CreateTablesAsync(Ct);
+        var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        var order = new TestOrder { Text = "order 1001", CreatedAtUtc = TestHost.Start.UtcDateTime };
+        var eventId = Guid.NewGuid();
+        var ct = Ct;
+
+        // Act
+        #region readme:host-accept
+        db.Orders.Add(order);
+        await notifications.AcceptAsync(new TestEvent("order 1001"), new MessageContext(eventId), ct);
+        await db.SaveChangesAsync(ct);
+        #endregion
+
+        // Assert
+        Assert.Equal([[order.Text, $"{eventId:D}"]], database.Rows("SELECT o.text, i.Id FROM Orders o CROSS JOIN Inbox i"));
+    }
+
+    [Fact]
+    public async Task MapMsgHatchInbox_ContextOfTheReadme_MapsTheInboxWithNoMigration()
+    {
+        // Arrange
+        var options = new DbContextOptionsBuilder<ReadmeAppContext>().UseSqlite(_testConnectionString);
+        options.IgnoreManyServiceProvidersWarning();
+
+        // Act
+        await using var context = new ReadmeAppContext(options.Options);
+
+        // Assert
+        Assert.True(TableDescriptions.TableOf(context, "Inbox").IsExcludedFromMigrations);
+    }
+
+    private sealed class ReadmeAppContext(DbContextOptions<ReadmeAppContext> options) : DbContext(options)
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            #region readme:host-model
+            modelBuilder.MapMsgHatchInbox(this);
+            #endregion
+        }
     }
 }

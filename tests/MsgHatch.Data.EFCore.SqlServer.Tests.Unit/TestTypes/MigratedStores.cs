@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MsgHatch.Data.EFCore.SqlServer.DependencyInjection;
+using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
 using MsgHatch.Tests.Shared;
@@ -24,6 +25,18 @@ public static class MigratedStores
     {
         var services = Services(connectionString, configureOptions);
         services.ConfigureDbContext<MsgHatchDbContext>(doubles, ServiceLifetime.Singleton);
+        return services.Build();
+    }
+
+    /// <summary>
+    /// New services of <c>UseEntityFrameworkSqlServerStores&lt;TestHostContext&gt;</c> with the role Consumer, and the context of the
+    /// host with <c>AddDbContext</c> on its own connection string.
+    /// </summary>
+    public static ServiceProvider BuildWithHostContext(string connectionString, string hostConnectionString)
+    {
+        var services = EntityFrameworkTestHost.CreateServices();
+        services.AddDbContext<TestHostContext>(o => o.UseSqlServer(hostConnectionString));
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer).UseEntityFrameworkSqlServerStores<TestHostContext>(connectionString);
         return services.Build();
     }
 
