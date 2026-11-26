@@ -129,7 +129,7 @@ public async Task UseResend_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
 6. Assert a collection whole, with `Assert.Equal` on the expected collection. Give the collection under test at least two items.
 7. Assert several related values in one `Assert.Equal` on a tuple. The failure then shows all of them.
 8. Write no `if`, no loop, and no `try`/`catch` in a test body. Make another test or another data row.
-9. Await each asynchronous call, and never block on a result. Pass `TestContext.Current.CancellationToken` to each call that takes a token. A test class gets it from `private static CancellationToken Ct => TestContext.Current.CancellationToken;`.
+9. Await each asynchronous call, and never block on a result. Pass `TestContext.Current.CancellationToken` to each call that takes a token. A test class gets it from `private static CancellationToken Ct => TestContext.Current.CancellationToken;`. A test of the cancellation behavior is the one case that uses a token of its own, and a guard against a hang is another. Make such a token from `CancellationTokenSource.CreateLinkedTokenSource(Ct)`, and then cancel it, or set its time with `CancelAfter`. So a stop of the test runner also stops the test.
 10. Assert an exception with `Assert.Throws<T>` or `Assert.ThrowsAsync<T>`, or with `Record.Exception` and `Assert.IsType<T>`.
 11. Several Arrange, Act, Assert blocks in one test are allowed only for a workflow whose steps share an expensive setup. Label each block with the step, assert after each Act, and stop at a few steps.
 
@@ -139,7 +139,8 @@ public async Task UseResend_ConfigSectionPath_BindsTheOptionsUnderTheRoot()
 2. For an options error, assert the options type, the options name, or the name of the failed property, for example with `OptionsFailures.FailedProperties`.
 3. For a setup error that has no code, assert the start of the message that names the setup methods, as the startup validation tests do. Do not assert the rest of the text.
 4. Never assert a translated text, a display name, or a formatted date or number.
-5. In an input validation test, put a comment at the end of the Arrange line that makes the input not valid.
+5. A test of a web UI asserts a label or another text only when its source defines no id or key for the text, or when the UI supports only one language. When the text comes from a text resource or has a text id, assert the id or the key, never the text that a translation or a culture changes.
+6. In an input validation test, put a comment at the end of the Arrange line that makes the input not valid.
 
 ## 5. Build the test data with factories
 
