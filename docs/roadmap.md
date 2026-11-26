@@ -4248,6 +4248,38 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.7.0, and the EF Core integration projects pass on SQL Server, PostgreSQL, and MySQL.
 
+### Phase 53: Package icon
+
+Goal: each package has the MsgHatch icon, so nuget.org and the package managers show it (section 5.6). The owner gave the number 53, so that the phases "keep the real order but call the icon a real phase". The phase needs no other open phase.
+
+Starting point: the commits of phase 52, at version 0.7.0. No package has an icon. nuget.org takes a PNG or a JPEG of at most 1 MB as the icon in a package, and recommends 128 × 128.
+
+1. `assets/icon.svg`: the icon that the owner selected. A glass egg stands on a floor in a dark tile. A white envelope comes in from the back, and beams go out to a red envelope, a yellow chat bubble, a green bell, and a blue envelope. The size of each symbol and the width of its beam show its distance from the viewer.
+2. `assets/icon.png`: a 128 × 128 PNG of the SVG, transparent outside the rounded tile.
+3. `Directory.Build.props`: `PackageIcon` `icon.png`, and the file in the root of each package.
+4. `pack.ps1` fails when a package has no icon `icon.png`, or when its icon is not a 128 × 128 PNG of at most 1 MB.
+5. The root README shows the icon under the title.
+6. `VersionPrefix` becomes `0.7.1`, the patch, because only the content of the packages changes. The README of each of the 42 packages gets the entry 0.7.1.
+7. Describe the phase in section 5.6 of the design.
+
+Checks before the code:
+- A way to make the PNG with no new download.
+- The icon at 64 px and at 32 px: each symbol stays visible.
+
+Tests:
+- `pwsh ./pack.ps1` passes with the icon in each package.
+- `pwsh ./pack.ps1` fails for each package with no icon (break it one time).
+- The icon check fails for a PNG of 64 px, for an SVG, and for a file of more than 1 MB.
+
+Commits:
+1. "Add the package icon"
+2. "Record the commits and the checked facts of phase 53 in the plan"
+3. "Record phase 53 as done in README and AGENTS.md"
+
+The plan of this phase is in its own commit before commit 1.
+
+Done when: the build has no errors and no warnings, and `pwsh ./pack.ps1` passes with 42 packages of 0.7.1, each with the icon. The phase changes no code, so it adds no unit test.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
