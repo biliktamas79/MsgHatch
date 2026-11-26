@@ -195,7 +195,7 @@ dotnet test tests/SchemaMigrator.Tests.Unit
 
 ## Testing
 
-Read the test guide `.claude/skills/writing-tests/SKILL.md` before you write, move, or review a test. Section 5.5 of the design lists the test projects. The short form:
+Load the skill `writing-tests` (the test guide `.claude/skills/writing-tests/SKILL.md`) before you write, move, or review a test, also in a subagent. An agent with no skill tool reads the file in full. Section 5.5 of the design lists the test projects. The short form:
 
 - Level (D330): a unit test tests one method or one decision branch, and doubles each collaborator with behavior. It runs on a basic build agent in the cloud with no service, so the local file system and local networking are allowed. SQLite tests are unit tests, because SQLite runs in process on a file in a temporary folder (D71). A test whose result depends on the response and behavior of one given service, for example a database server, a broker, or an API, is an integration test. A test that tries to open a connection to a service is an integration test, also with an address that is not valid on purpose. A test of an error case or of an input validation that can use a doubled connection is a unit test.
 - Framework: xUnit v3 (`xunit.v3`). A test project is an executable.
