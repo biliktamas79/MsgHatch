@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The coverlet settings of the data collector "XPlat Code Coverage". Directory.Build.props gives this file to each unit and integration test project. -->
+<!-- The coverlet settings of the data collector "XPlat Code Coverage". Directory.Build.props gives this file to each unit and integration test project. The coverage leaves out the generated code and the EF Core migrations of the tools: the files {timestamp}_{name}.cs and {name}.Designer.cs, and the model snapshots of a DbContext (D70). -->
 <RunSettings>
   <DataCollectionRunSettings>
     <DataCollectors>
@@ -9,7 +9,7 @@
           <Include>[MsgHatch.*]*</Include>
           <Exclude>[*.Tests.*]*</Exclude>
           <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
-          <ExcludeByFile>**/*.g.cs</ExcludeByFile>
+          <ExcludeByFile>**/*.g.cs,**/Migrations/*_*.cs,**/Migrations/*DbContextModelSnapshot.cs</ExcludeByFile>
           <SkipAutoProps>true</SkipAutoProps>
         </Configuration>
       </DataCollector>
