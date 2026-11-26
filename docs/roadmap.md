@@ -4397,6 +4397,138 @@ The implementation changed the plan in these points:
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, and `pwsh ./pack.ps1` passes with 42 packages of 0.8.0. No integration test is necessary, because the binding needs no server.
 
+### Phase 55: Inbox in the transaction of the host
+
+Goal: an app with its own `DbContext` adds an event to the inbox in the transaction of that context, which is the transactional outbox pattern (D331). The host maps the inbox table in its context with `modelBuilder.MapMsgHatchInbox(this)`, and selects the mode with the generic overload of the setup method of its provider package, for example `UseEntityFrameworkPostgreSqlStores<AppDbContext>(connectionString)`. `AcceptAsync` then stages the inbox row in the scoped context of the host, and the `SaveChangesAsync` of the host writes it with the rows of the host (D332). The inbox loop wakes after the commit of the host (D333). An app with no `DbContext` of its own keeps the setup method with no type parameter, which does not change.
+
+Starting point: the commits of phase 54, at version 0.8.0:
+- The EF Core stores have their own contexts, `MsgHatchDbContext` and `MsgHatchSubscriptionDbContext`, each with a pooled factory and the migrations of the provider packages (D320).
+- The tenant stores are keyed singletons (D130), and each add commits in its own transaction. D11 needs no shared transaction.
+- `AcceptAsync` is the only caller of `IInboxStore.AddAsync`. `DeliveryManager` only counts, queries, gets, retries, and cancels the rows of the inbox. `EntityFrameworkInboxStore` uses only the inbox table.
+- `ProcessAsync` and the inbox loop add the outgoing messages through one method, `StoreAsync` of the pipeline. So an outbox in the transaction of the host must tell the two callers apart. The owner chose the inbox only (D331).
+- The tables are in a schema of the database of the host (D321), so one transaction can change the tables of the host and the inbox.
+- Each EF Core provider package has a unit test project, and `coverage.ps1` counts the provider assemblies (D330).
+
+1. The core (D332): `MsgHatchBuilder.UseInboxStore` gets an overload with a `ServiceLifetime`, so a storage package can select a scoped inbox tenant store with its logging wrapper. The other stores stay singletons.
+2. The model (D331):
+   - `MapMsgHatchInbox(this ModelBuilder modelBuilder, DbContext context)` maps the inbox entity type with the table name, the key, the indexes, and the column rules of `MsgHatchDbContext`. It marks the table with `ExcludeFromMigrations`.
+   - `MsgHatchDbContext` maps its inbox with the same code, so both contexts have the same inbox table.
+   - The schema or the prefix (D321, D326), the UTC converter, the collation, and the JSON type go on the inbox entity type only. So the tables and the conventions of the host do not change.
+   - `IEntityFrameworkStoreDialect` gets the default method `void CustomizeEntity(IMutableEntityType entity)`, which does nothing. The MySQL dialect puts the character set and `varchar` on the entity type. `MySqlStoreModelCustomizer` calls the same method for each MsgHatch entity type.
+3. The setup (D331):
+   - `UseEntityFrameworkSqlServerStores<TContext>`, `UseEntityFrameworkPostgreSqlStores<TContext>`, and `UseEntityFrameworkMySqlStores<TContext>` have the parameters of the method with no type parameter.
+   - Each one registers the stores and their own contexts as that method does. It adds the dialect, the MsgHatch options, and the interceptor of item 5 to the options of `TContext` with `ConfigureDbContext`. It selects the scoped inbox tenant store of item 4.
+   - The options bind as in the method with no type parameter: `EntityFrameworkStoreOptions` at `builder.SectionPathOf(EntityFrameworkStoreOptions.SectionKey)`, through the one bind helper of phase 54.
+   - The startup validation fails when no scoped `TContext` is registered, and when the model of `TContext` has no inbox entity type, with the hint `modelBuilder.MapMsgHatchInbox(this)`. It also fails when `TContext` and the store contexts use different databases.
+   - A second selection of the stores gives the setup error of D62.
+4. The staged add (D332): the scoped inbox tenant store adds the row to the scoped `TContext`, and does not save. Each other member uses a context of the factory, as before. An existing inbox id fails the save of the host with the `DbUpdateException` of EF Core. With no save of the host, nothing is stored.
+5. The wake after the commit (D333): the interceptor notifies `DispatchTopic.Inbox` after a save that wrote an inbox row. With no transaction of the host, it notifies after `SavedChangesAsync`. Else it notifies after `TransactionCommittedAsync`. A notify error only logs a Warning, as in the pipeline. The notify of the pipeline after the add stays, and costs at most one empty claim.
+6. The migrations (D320 stays): the migrations of the host never contain the inbox table. `MigrateMsgHatchAsync`, `ScriptMsgHatchMigrationsAsync`, and `RequireCurrentSchema` work as in the mode with only the contexts of MsgHatch.
+7. The decisions:
+   - D11 gets this text: "Deterministic outgoing message ids (UUID version 5 from SHA-1) and stores that ignore an insert of an existing id, so the inbox and the outbox need no shared transaction. With the inbox in the transaction of the host (D331), `AcceptAsync` stages the inbox row in the context of the host, and the save of the host writes it with the rows of the host (D332). An existing inbox id then fails that save."
+   - D130 names the scoped inbox tenant store of item 1 as its one exception.
+   - D320 says that the context of the host maps the inbox with no migration, so the migrations of the provider packages still own the table.
+8. `VersionPrefix` becomes 0.9.0, because the phase adds a feature with no breaking change:
+   - `MsgHatch.Domain`, `MsgHatch.Data.EFCore`, `MsgHatch.Data.EFCore.SqlServer`, `MsgHatch.Data.EFCore.PostgreSql`, and `MsgHatch.Data.EFCore.MySql` get the README entry 0.9.0.
+   - The README of `MsgHatch.Data.EFCore` shows the two modes. The README of each provider package shows its generic setup method and `MapMsgHatchInbox`.
+9. Describe the phase: the design (sections 4.5, 4.7, 4.8, and 4.9), the EF Core section of `docs/stores.md`, and `AGENTS.md`.
+
+Checks before the code:
+- `AddDbContext` and `AddDbContextFactory` of EF Core 10 both register a scoped `TContext`, and `ConfigureDbContext` adds an interceptor and an options extension in both cases.
+- A keyed scoped registration with `KeyedService.AnyKey` resolves one instance for each scope and key.
+- `SavedChangesAsync` and `TransactionCommittedAsync` on each provider: their order, and the value of `CurrentTransaction` in `SavedChangesAsync`.
+- `ExcludeFromMigrations` on each provider: a migration of a test host has no inbox table.
+- How the startup validation compares the databases of two contexts with no open connection, for example with `DbConnection.DataSource` and `DbConnection.Database` of each provider.
+
+Tests, by the level rule of D330 and the test guide `writing-tests`. Each test project below exists after phase 54.
+
+Unit tests, in `MsgHatch.Domain.Tests.Unit`, `MsgHatch.Data.EFCore.Tests.Unit`, and the unit test project of each provider package:
+- `UseInboxStore` with `ServiceLifetime.Scoped` resolves one inbox tenant store for each scope and tenant, with its logging wrapper.
+- The contract base of the inbox passes on SQLite with the staged add, in a subclass that saves the context of the host after each add.
+- On SQLite: after `AcceptAsync`, the inbox row is tracked as added, and is not in the table before the save of the host. `SaveChangesAsync` stores the row of the host and the inbox row. With no save, or with a rollback, neither row is stored. An existing inbox id fails the save with `DbUpdateException`, and the row of the host is not stored.
+- The interceptor, with a substitute of `IDispatchSignal` that replaces the registration after the setup call: it calls `NotifyAsync(DispatchTopic.Inbox)` one time after the commit of a save with an inbox row, with and without a transaction of the host. It makes no call before the commit, after a rollback, or for a save with no inbox row.
+- The inbox table of the host model equals the inbox table of `MsgHatchDbContext`: the name, the schema, the columns, their types, and the key. Each provider unit test project checks its provider, and the model needs no connection.
+- A host context with its own entities: the host tables keep their schema, their collation, and their conventions. The migration operations that the test builds from the host model have no MsgHatch table.
+- `ProcessAsync` with the generic setup stores the outgoing messages through the contexts of MsgHatch, as the setup method with no type parameter does.
+- The setup errors of item 3, in the unit test project of each provider package, with a connection string that names a closed port.
+- The README snippets.
+
+Integration tests, in the integration test project of each provider package, on its server:
+- The contract base of the inbox with the staged add.
+- In a transaction of the host, the commit stores the row of the host and the inbox row, and the rollback stores neither. An existing inbox id fails the save on the unique key of the server.
+- The interceptor notifies after the commit of a transaction of the provider, and not before it.
+
+On each level:
+- The tests of the setup methods with no type parameter pass with no change.
+- Each new test fails first.
+
+Commits:
+1. "Let a storage package select a scoped inbox tenant store"
+2. "Map the inbox of the EF Core stores in a context of the host"
+3. "Add an event to the inbox in the transaction of the host"
+4. "Wake the inbox loop after the commit of the host"
+5. "Describe the inbox in the transaction of the host in the design and the store guide"
+6. "Record the commits and the checked facts of phase 55 in the plan"
+7. "Record phase 55 as done in README and AGENTS.md"
+
+The plans of phases 55 and 56 and D331 to D334 are in their own commit before commit 1.
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.9.0, and the EF Core integration projects pass on SQL Server, PostgreSQL, and MySQL.
+
+### Phase 56: PostgreSQL dispatch signal
+
+Goal: the dispatch loops of hosts on different machines wake through `LISTEN` and `NOTIFY` of the PostgreSQL database of the EF Core stores (D102, D334). The signal needs no infrastructure other than that database.
+
+Starting point: the commits of phase 55, at version 0.9.0:
+- The PostgreSQL package runs the stores with only the contexts of MsgHatch, or with the inbox in the transaction of the host (D331).
+- Phases 39 and 40 show a signal that notifies its own process at once, writes in the background, skips its own messages, and requires the poll (D190, D303, D305).
+- The interceptor of phase 55 calls `NotifyAsync` after the commit of the host (D333).
+
+1. `PostgreSqlDispatchSignal : IDispatchSignal` in `MsgHatch.Data.EFCore.PostgreSql` (D334):
+   - At its first `WaitAsync`, one connection of its own runs `LISTEN msghatch_dispatch`, and waits with `WaitAsync` of Npgsql. Each notification goes to a local `InProcessDispatchSignal`.
+   - The payload is `{sender}:{topic}`. The signal skips its own sender id. It wakes no loop for a payload with a topic that is not `inbox` or `outbox:{Channel}` with a valid channel name.
+   - `NotifyAsync` notifies the local loops at once, and returns at once. A writer in the background runs `SELECT pg_notify('msghatch_dispatch', @payload)` on a pooled connection, one time for each topic of a wake. While the last write failed, `NotifyAsync` returns `Errors.Unavailable`.
+   - A broken connection makes each `WaitAsync` return `Errors.Unavailable`, and the signal connects again after a pause of 5 seconds. It logs a Warning one time for each outage, and an Information at the next connect, with event ids in the new range 3300 to 3399.
+2. `UsePostgreSqlDispatchSignal()` (D334):
+   - It uses the connection string of the PostgreSQL store contexts, with or without the inbox in the transaction of the host. It has no options class.
+   - The startup validation fails when the stores are not on PostgreSQL, and when `EnablePolling` is false for the inbox or the outbox (D190).
+3. `VersionPrefix` becomes 0.10.0, because the phase adds a feature with no breaking change. The README of `MsgHatch.Data.EFCore.PostgreSql` gets the entry 0.10.0 and the setup of the signal.
+4. Describe the phase: the design (D102, sections 4.7, 4.9, and 4.16, and the row of `MsgHatch.Data.EFCore.PostgreSql.Tests.Unit` in section 5.5 with its TCP listener), `docs/stores.md`, and `AGENTS.md`.
+
+Checks before the code:
+- `WaitAsync` of Npgsql 10 on a connection that the server ends: the exception type, and the state of the connection.
+- Whether multiplexing of Npgsql allows `LISTEN` and `WaitAsync`, and what a pooler in transaction mode, for example PgBouncer, does with them.
+- Whether `Keepalive` keeps an idle listening connection open through a firewall that drops idle connections.
+- The exception of Npgsql against a TCP listener in the test process that closes each connection, so that the unit tests cover the outage with no server.
+- Whether a unit test can reach the payload rules through the public API with no server. If it can, the payload rows move to the unit tests. If not, the checked facts give the reason.
+- `coverage.ps1` counts `MsgHatch.Data.EFCore.PostgreSql` since phase 54, so the unit tests cover each branch that runs with no server.
+
+Tests, by the level rule of D330 and the test guide `writing-tests`. The classes are `PostgreSqlDispatchSignalUnitTests` and `PostgreSqlDispatchSignalIntegTests`.
+
+Unit tests, in `tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Unit`:
+- A TCP listener in the test process closes each connection, as in the unit tests of the RabbitMQ signal. `WaitAsync` returns `Errors.Unavailable`, and the signal logs one Warning for the outage. It connects again after the pause of 5 seconds, which `FakeTimeProvider` ends.
+- `NotifyAsync` wakes a local wait at once. After a failed write, it returns `Errors.Unavailable`.
+- The setup errors of item 2, with a connection string that names a closed port.
+- The README snippets.
+
+Integration tests, in `tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration`, on `PostgreSqlIntegration:ConnectionString`:
+- The contract tests of the dispatch signal.
+- Two signals on one database: a notify of the first wakes a wait of the second, for the inbox and for a channel. A signal does not wake itself a second time.
+- A `pg_notify` from a test connection wakes no loop for a payload that is not valid, in one `[Theory]` with one row for each case: the sender of the signal, an empty payload, a payload with no separator, an unknown topic, and `outbox:` with a channel name that is not valid. These rules are integration tests only when the check before the code finds no unit path.
+- `pg_terminate_backend` of the listening connection makes `WaitAsync` return `Errors.Unavailable`, and the signal connects again.
+- With the inbox in the transaction of the host, the commit of the host wakes the inbox loop of another signal.
+
+Each new test fails first, or fails with a break of the code that it covers.
+
+Commits:
+1. "Add the PostgreSQL dispatch signal"
+2. "Add the setup method of the PostgreSQL dispatch signal"
+3. "Describe the PostgreSQL dispatch signal in the design"
+4. "Record the commits and the checked facts of phase 56 in the plan"
+5. "Record phase 56 as done in README and AGENTS.md"
+
+Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.10.0, and the PostgreSQL integration tests pass.
+
 ### Later phases
 
 These items are on the roadmap with no detailed plan yet. Each one becomes its own phase with the same rules:
