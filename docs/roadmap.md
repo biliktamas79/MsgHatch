@@ -4278,6 +4278,24 @@ Commits:
 
 The plan of this phase is in its own commit before commit 1.
 
+Checked facts (2026-11-26), on Windows 11 build 26300 with the .NET SDK 10.0.404:
+
+| Fact | Source |
+|---|---|
+| Microsoft Edge in headless mode draws the SVG on a canvas, and the canvas gives an RGBA PNG of 8 bits for each channel. So the PNG needs no new download. `assets/icon.png` has 12,357 bytes. | The render script of the session |
+| At 128 px, 0 of the 532 pixels outside the rounded tile are visible. The same check finds each pixel outside the tile of a test icon with square corners: 1,748 of 1,748 at 220 px. | A check of the alpha value of each pixel |
+| At 64 px and at 32 px, the egg, the beams, and the five symbols stay visible. | The renders at 64 px and at 32 px |
+| `pwsh ./pack.ps1` passes with 42 packages of version 0.7.1. The nuspec of each package has `<icon>icon.png</icon>`, and the `icon.png` of `MsgHatch.Domain` has the bytes of `assets/icon.png`. The pack warning "packaging has been disabled" names only the 4 web examples, as in phase 52. | `pwsh ./pack.ps1`, `unzip`, and `cmp` |
+| With no `PackageIcon` and no packed file, `pwsh ./pack.ps1` fails with 42 failures "has no icon icon.png." and no other failure. | `pwsh ./pack.ps1` on a temporary change of `Directory.Build.props`, then reverted |
+| The icon check of `pack.ps1` gives "is not a 128 x 128 PNG" for a PNG of 64 px and for an SVG, and "of more than 1 MB" for a file of 1 MB and 1 byte. | The function `Get-IconFailures` on each file |
+
+Checks that the phase did not do:
+- A run of the unit tests, because the phase changes no code and no code block of a README.
+- A run on Linux before the push.
+- A view of the icon on nuget.org, because no package is published.
+
+Commit 1 is `e86e89e`. The plan of this phase is in `420687f`.
+
 Done when: the build has no errors and no warnings, and `pwsh ./pack.ps1` passes with 42 packages of 0.7.1, each with the icon. The phase changes no code, so it adds no unit test.
 
 ### Later phases
