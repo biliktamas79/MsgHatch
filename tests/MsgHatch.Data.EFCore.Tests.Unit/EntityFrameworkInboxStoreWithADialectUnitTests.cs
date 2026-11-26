@@ -47,6 +47,22 @@ public sealed class EntityFrameworkInboxStoreWithADialectUnitTests : InboxStoreT
     }
 
     [Fact]
+    public async Task AddAsync_InsertThatFailsWithADialectThatKeepsTheDefaultMapping_GivesUnavailable()
+    {
+        // Arrange
+        var store = new EntityFrameworkInboxStore(
+            _database.ContextsOf<MsgHatchDbContext>(o => o.UseEntityFrameworkStoreDialect(new DialectWithTheDefaultMembers())),
+            new MsgHatchJson(TestContentTypes.ARegistry()));
+        _database.RefuseInserts("Inbox");
+
+        // Act
+        var error = await store.For(T1).AddAsync(AMessage(T1), Ct);
+
+        // Assert
+        Assert.Equal(Errors.Unavailable, error?.Type);
+    }
+
+    [Fact]
     public async Task ClaimDueAsync_DueMessage_ClaimsItWithTheStatementOfTheDialect()
     {
         // Arrange
@@ -57,5 +73,15 @@ public sealed class EntityFrameworkInboxStoreWithADialectUnitTests : InboxStoreT
 
         // Assert
         Assert.Equal((message.Delivery.Id, 1), (Assert.Single(result.Value.Messages).Delivery.Id, _dialect.ClaimStatements));
+    }
+
+    /// <summary>A dialect of a host that implements only the members with no default, as an older dialect does.</summary>
+    private sealed class DialectWithTheDefaultMembers : IEntityFrameworkStoreDialect
+    {
+        public string ProviderName => SqliteTestDialect.SqliteProvider;
+
+        public string? TextCollation => null;
+
+        public string? ClaimStatement(ClaimStatementNames names) => null;
     }
 }
