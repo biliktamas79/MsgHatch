@@ -37,7 +37,7 @@ A store writes and reads whole messages with `MsgHatchJson` (D143):
 - `MsgHatchJson` writes a whole `ReceivedMessage` or `OutgoingMessage` as one JSON document. It uses camelCase names and enum values as strings (D23), and it writes null values.
 - It reads the document back as the closed type of the content type and version, for example `OutgoingMessage<EmailMessage>`. The registry `IContentTypeRegistry` gives that type.
 - It writes a route trace with the discriminator property `$type`, for example `"$type": "Trace:Subscription@1"`.
-- A store serializes one time, with the serializer of its storage. The pipeline does not serialize (section 4.11).
+- A store serializes one time, with the serializer of its storage. The pipeline does not serialize (section 4.11 of the design).
 
 ### 1.4 The publish tries
 
@@ -460,7 +460,7 @@ The outbox claim first reads the latest state row of its channel. With a down ro
 
 ### 4.5 Two parts and the tenant field
 
-- `EntityFrameworkInboxStore` and `EntityFrameworkOutboxStore` are the dispatch stores. `For(key)` gives the tenant store of a key.
+- `EntityFrameworkInboxStore` and `EntityFrameworkOutboxStore` are the dispatch stores. `For(key)` gives the tenant store of a key. `EntityFrameworkInboxStore.For(key, context)` gives the tenant store of the inbox in the transaction of the host (section 4.11).
 - `AddAsync` of the inbox is an EF Core insert on the unique key `(TenantId, Id)`. When the insert fails and the key is stored, for example from a parallel caller, the store treats the add as done. Each other failed insert gives `Errors.Unavailable`.
 - `AddAsync` of the outbox adds a batch in one transaction, inside the execution strategy of the provider, one row after the other, so `Sequence` keeps the order of the batch. The batch first drops a second message with the same id. When a row has a stored id, the store rolls back, reads the stored ids, and adds the other rows in a new transaction, because some databases, for example PostgreSQL, end a transaction after an error.
 - The other operations are LINQ: a query page with `OrderByDescending` and `Take`, a count with `GroupBy`, a retry and the cancel of a received message with `ExecuteUpdateAsync`, and a purge with `ExecuteDeleteAsync`. An `ExecuteUpdate` sets a column only after each assignment that reads it, because MySQL applies the assignments from left to right: a retry first sets the new try limit from the old status, and then the status (checked fact of phase 52). A query reads only the columns of a summary.
@@ -556,6 +556,18 @@ For a provider with no MsgHatch package, the host generates the migrations of th
 - The name of a MySQL test database starts with the prefix of D180 with no `_data_efcore`, for example `msghatch_subscriptions_mysql__`, because the migration lock allows at most 45 characters in the name of a database (section 4.9).
 - A reset of a MySQL test database empties each table that has a row with `TRUNCATE TABLE`. After a `DELETE`, InnoDB keeps a deleted key as a delete-marked record, and two parallel inserts of that key took shared gap locks and deadlocked with the error 1213 (checked fact of phase 52). A store never deletes a channel state row. In a host, the deadlock can come only from two parallel inserts of a key that a delete removed, and it gives the transient `Errors.Unavailable`.
 - The schema and the collation are a part of the options of each context. So two hosts with two schemas in one process get two models.
+
+### 4.11 The inbox in the transaction of the host
+
+An app with its own `DbContext` adds an event to the inbox in the transaction of that context, which is the transactional outbox pattern (D331 to D333).
+
+- The app maps the inbox in `OnModelCreating` of its context with `modelBuilder.MapMsgHatchInbox(this)`. The entity type has the table, the columns, the key, and the indexes of the inbox of `MsgHatchDbContext`, because both contexts map it with the same code. The table is excluded from the migrations of the app, so the migrations of the provider packages own it, and `MigrateMsgHatchAsync` creates it (D320).
+- The schema or the prefix, the UTC kind of the times, the collation, and the JSON type go on the inbox entity type only, so the other tables and the conventions of the app do not change. Each column of the inbox has an explicit name, so a naming convention of the app does not rename it. `CustomizeEntity` of the dialect changes the inbox for its provider: on MySQL, a text of a fixed length is `varchar`. The character set of MySQL stays out of the inbox of the app, because only a migration uses it.
+- The generic setup method, for example `UseEntityFrameworkPostgreSqlStores<AppDbContext>(connectionString)`, registers the stores and their own contexts as the method with no type parameter does. With `ConfigureDbContext`, it gives the context of the app the MsgHatch options and the dialect of the store contexts, and the interceptor of the wake.
+- The inbox tenant store is scoped (D332). Its `AddAsync` adds the row to the scoped context of the app, and does not save. The `SaveChangesAsync` of the app writes the inbox row with the rows of the app, in the transaction of the app or in the transaction of the save. With no save, nothing is stored. An id that is stored fails the save with the `DbUpdateException` of EF Core, on the unique key `(TenantId, Id)`, so the rows of the app are not stored a second time either. A second add of an id that the context tracks adds nothing more. Each other member of the tenant store, and the inbox loop, use the store contexts.
+- The interceptor wakes the inbox loop (D333). After a save that wrote an inbox row, it notifies `DispatchTopic.Inbox`: after the save with no transaction of the app, or else after the commit of that transaction. A failed save, a rollback, or a save with no inbox row notifies nothing. It reads the added inbox rows with no detection of changes. A notify error logs the Warning 2700. A commit of the `DbTransaction` outside EF Core, or an ambient transaction, gets no wake after the commit, so the loop finds the row at its next poll. The notify of the pipeline after the add stays, and costs at most one empty claim.
+- The startup validation fails when the context of the app is not a scoped service, when its provider is not relational, when its model has no inbox, and when it uses another server or database than the store contexts. The check compares `DataSource` and `Database` of the two connections, and opens no connection.
+- The base package has the same generic method, `UseEntityFrameworkStores<TContext>(configure)`, for a provider with no provider package. The context of the app gets the dialect of `configure`.
 
 ## 5. MongoDB stores
 
