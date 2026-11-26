@@ -169,6 +169,76 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     }
 
     [Fact]
+    public async Task SaveChangesAsync_SaveWithNoInboxRowAfterAFailedSaveWithAnInboxRow_NotifiesNothing()
+    {
+        // Arrange
+        await using var provider = await BuildWithHostContextAsync(signal: _signal);
+        var message = TestMessages.AReceivedMessage(new TestEvent("text"));
+        await provider.GetRequiredService<EntityFrameworkInboxStore>().For(TenantKey.None).AddAsync(message, Ct);
+        await using var scope = provider.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IInboxStore>().AddAsync(message, Ct);
+        await Record.ExceptionAsync(() => HostOf(scope).SaveChangesAsync(Ct));
+        HostOf(scope).ChangeTracker.Clear();
+        HostOf(scope).Orders.Add(new TestOrder { Text = "order", CreatedAtUtc = Now });
+
+        // Act
+        await HostOf(scope).SaveChangesAsync(Ct);
+
+        // Assert
+        _ = _signal.DidNotReceive().NotifyAsync(Arg.Any<DispatchTopic>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CommitAsync_TransactionAfterARollbackWithAnInboxRow_NotifiesNothing()
+    {
+        // Arrange
+        await using var provider = await BuildWithHostContextAsync(signal: _signal);
+        await using var scope = provider.CreateAsyncScope();
+        await using (var rolledBack = await HostOf(scope).Database.BeginTransactionAsync(Ct))
+        {
+            await StageAsync(scope);
+            await HostOf(scope).SaveChangesAsync(Ct);
+            await rolledBack.RollbackAsync(Ct);
+        }
+
+        HostOf(scope).ChangeTracker.Clear();
+        await using var transaction = await HostOf(scope).Database.BeginTransactionAsync(Ct);
+        HostOf(scope).Orders.Add(new TestOrder { Text = "order", CreatedAtUtc = Now });
+        await HostOf(scope).SaveChangesAsync(Ct);
+
+        // Act
+        await transaction.CommitAsync(Ct);
+
+        // Assert
+        _ = _signal.DidNotReceive().NotifyAsync(Arg.Any<DispatchTopic>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Commit_TransactionAfterARollbackWithAnInboxRow_NotifiesNothing()
+    {
+        // Arrange
+        await using var provider = await BuildWithHostContextAsync(signal: _signal);
+        await using var scope = provider.CreateAsyncScope();
+        using (var rolledBack = HostOf(scope).Database.BeginTransaction())
+        {
+            await StageAsync(scope);
+            HostOf(scope).SaveChanges();
+            rolledBack.Rollback();
+        }
+
+        HostOf(scope).ChangeTracker.Clear();
+        using var transaction = HostOf(scope).Database.BeginTransaction();
+        HostOf(scope).Orders.Add(new TestOrder { Text = "order", CreatedAtUtc = Now });
+        HostOf(scope).SaveChanges();
+
+        // Act
+        transaction.Commit();
+
+        // Assert
+        _ = _signal.DidNotReceive().NotifyAsync(Arg.Any<DispatchTopic>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task SaveChangesAsync_NotifyError_SavesTheRowAndLogsAWarningWithItsEventId()
     {
         // Arrange

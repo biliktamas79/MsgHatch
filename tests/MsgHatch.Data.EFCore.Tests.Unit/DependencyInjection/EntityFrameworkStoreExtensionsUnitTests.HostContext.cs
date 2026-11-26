@@ -244,6 +244,23 @@ public sealed partial class EntityFrameworkStoreExtensionsUnitTests
     }
 
     [Fact]
+    public async Task UseEntityFrameworkStoresOfTheHost_StoreProviderThatIsNotRelational_FailsOnlyTheCheckOfTheStores()
+    {
+        // Arrange
+        var services = EntityFrameworkTestHost.CreateServices();
+        services.AddDbContext<TestHostContext>(o => o.UseSqlite(_database.ConnectionString));
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
+            .UseEntityFrameworkStores<TestHostContext>(static o => o.UseInMemoryDatabase("stores"));
+        await using var provider = services.Build();
+
+        // Act
+        var exception = Record.Exception(provider.GetRequiredService<IStartupValidator>().Validate);
+
+        // Assert
+        Assert.StartsWith($"{_hostSetup}a relational EF Core provider, and {_inMemoryProvider}", HostFailureOf(exception), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UseEntityFrameworkStoresOfTheHost_AfterUseEntityFrameworkStores_NamesBothSetupMethods()
     {
         // Arrange

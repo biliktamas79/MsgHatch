@@ -54,14 +54,6 @@ internal sealed class InboxWakeInterceptor(IDispatchSignal signal, ILogger<Inbox
         return result;
     }
 
-    public override void SaveChangesFailed(DbContextErrorEventData eventData) => EndSave(eventData.Context);
-
-    public override Task SaveChangesFailedAsync(DbContextErrorEventData eventData, CancellationToken cancellationToken = default)
-    {
-        EndSave(eventData.Context);
-        return Task.CompletedTask;
-    }
-
     public void TransactionCommitted(DbTransaction transaction, TransactionEndEventData eventData)
     {
         if (WakesAfterCommit(eventData.Context))
@@ -87,16 +79,20 @@ internal sealed class InboxWakeInterceptor(IDispatchSignal signal, ILogger<Inbox
     }
 
     /// <summary>
-    /// Reads the added inbox rows with no detection of changes, because a staged row is added explicitly, and the save
-    /// detects the changes of the host anyway.
+    /// Reads at the start of each save whether it writes an inbox row, so a failed save needs no handler of its own. It
+    /// reads with no detection of changes, because a staged row is added explicitly, and the save detects the changes of
+    /// the host anyway.
     /// </summary>
     private void RememberInboxRows(DbContextEventData eventData)
     {
-        if (eventData.Context is not { } context)
+        if (eventData.Context is { } context)
         {
-            return;
+            RememberInboxRows(context);
         }
+    }
 
+    private void RememberInboxRows(DbContext context)
+    {
         var tracker = context.ChangeTracker;
         var detects = tracker.AutoDetectChangesEnabled;
         tracker.AutoDetectChangesEnabled = false;
@@ -142,9 +138,9 @@ internal sealed class InboxWakeInterceptor(IDispatchSignal signal, ILogger<Inbox
     }
 
     /// <summary>Ends the current save with no wake. A wait for the commit of an earlier save stays.</summary>
-    private void EndSave(DbContext? context)
+    private void EndSave(DbContext context)
     {
-        if (context is not null && _states.TryGetValue(context, out var state))
+        if (_states.TryGetValue(context, out var state))
         {
             state.Saving = false;
         }
