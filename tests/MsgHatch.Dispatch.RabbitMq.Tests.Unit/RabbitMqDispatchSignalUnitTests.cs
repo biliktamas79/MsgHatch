@@ -3,11 +3,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using MsgHatch.Dispatch.RabbitMq.DependencyInjection;
-using MsgHatch.Dispatch.RabbitMq.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Dispatch.RabbitMq.Tests.Unit;
 
@@ -33,7 +33,7 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
     private readonly FakeTimeProvider _time = TestHost.NewFakeTime();
     private readonly ServiceProvider _host;
 
-    public RabbitMqDispatchSignalUnitTests() => _host = HostOn(_broker.Uri, _time);
+    public RabbitMqDispatchSignalUnitTests() => _host = HostOn(_broker.Port, _time);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -105,7 +105,7 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
     {
         // Arrange
         using var broker = new SilentListener();
-        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        await using var host = HostOn(broker.Port, TestHost.NewFakeTime());
         var signal = host.GetRequiredService<IDispatchSignal>();
 
         // Act
@@ -120,7 +120,7 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
     {
         // Arrange
         using var broker = new SilentListener();
-        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        await using var host = HostOn(broker.Port, TestHost.NewFakeTime());
         var signal = host.GetRequiredService<IDispatchSignal>();
         var wait = signal.WaitAsync(_topic, Ct);
 
@@ -136,7 +136,7 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
     {
         // Arrange
         using var broker = new SilentListener();
-        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        await using var host = HostOn(broker.Port, TestHost.NewFakeTime());
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         var wait = host.GetRequiredService<IDispatchSignal>().WaitAsync(_topic, cancel.Token);
 
@@ -167,7 +167,7 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
     {
         // Arrange
         using var broker = new SilentListener();
-        await using var host = HostOn(broker.Uri, TestHost.NewFakeTime());
+        await using var host = HostOn(broker.Port, TestHost.NewFakeTime());
         var logs = host.GetFakeLogCollector();
         var wait = host.GetRequiredService<IDispatchSignal>().WaitAsync(_topic, Ct);
 
@@ -180,10 +180,10 @@ public sealed class RabbitMqDispatchSignalUnitTests : IAsyncDisposable
         Assert.Equal((Errors.Unavailable, 0), (error?.Type, logs.GetSnapshot().Count(static record => record.Id.Id == _noConnection)));
     }
 
-    private static ServiceProvider HostOn(Uri broker, FakeTimeProvider time)
+    private static ServiceProvider HostOn(int brokerPort, FakeTimeProvider time)
     {
         var services = TestHost.CreateServices(time);
-        services.AddMsgHatch().UseInMemoryStores().UseRabbitMqDispatchSignal(o => o.Uri = broker);
+        services.AddMsgHatch().UseInMemoryStores().UseRabbitMqDispatchSignal(o => o.Uri = new Uri($"amqp://127.0.0.1:{brokerPort}"));
         return services.Build();
     }
 
