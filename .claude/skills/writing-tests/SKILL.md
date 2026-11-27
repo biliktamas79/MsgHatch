@@ -225,10 +225,11 @@ A domain interface with more than one implementation gets its use cases once, in
 
 1. Run one test project at a time: `dotnet test tests/{Project}.Tests.Unit`. Use `--filter "FullyQualifiedName~{Class}"` for one class.
 2. Read the test count. A run that reports 0 tests is a failure.
-3. Break the line of production code that the new test covers. Run the test, and see it fail for the right reason. Restore the code, and run the test again.
-4. A bug fix starts with a test that reproduces the defect and fails. Fix the code after that.
-5. Never change a test only to make it pass. First decide whether the contract changed or the code broke. A changed contract gets its own commit, which says why.
-6. Fix or delete a flaky test. Never add a retry.
+3. A test that waits on purpose for more than 20 seconds of real time gets `[Trait("Category", "Slow")]` (D336), so a pipeline can leave it out with `--filter "Category!=Slow"`. Only an integration test waits that long.
+4. Break the line of production code that the new test covers. Run the test, and see it fail for the right reason. Restore the code, and run the test again.
+5. A bug fix starts with a test that reproduces the defect and fails. Fix the code after that.
+6. Never change a test only to make it pass. First decide whether the contract changed or the code broke. A changed contract gets its own commit, which says why.
+7. Fix or delete a flaky test. Never add a retry.
 
 ## 13. Coverage
 

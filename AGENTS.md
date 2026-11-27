@@ -8,7 +8,7 @@ MsgHatch is a .NET 10 library for message routing, message templates, and delive
 
 The plan has two documents:
 
-- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D335), architecture, and conventions.
+- `docs/design.md` is the single source for the requirements, terms, decisions (D1 to D336), architecture, and conventions.
 - `docs/roadmap.md` is the single source for the order of the phases, and for the items, tests, and commits of each phase.
 
 Read the current phase in the roadmap, and the design sections that it refers to, before you write code.
@@ -215,6 +215,7 @@ Load the skill `writing-tests` (the test guide `.claude/skills/writing-tests/SKI
 - Projects: `tests/{Project}.Tests.Unit`, `tests/{Project}.Tests.Integration`, or `tests/{Project}.Tests.Performance`, one for each production project and each level. A new test project goes into `MsgHatch.slnx` in the same commit.
 - Classes: `{Sut}UnitTests`, `{Sut}IntegTests`, or `{Sut}PerfTests`. Methods: `Method_Condition_ExpectedResult`.
 - Run: `dotnet test MsgHatch.slnx`, or `dotnet test` with one test project. A run that reports 0 tests is a failure.
+- A test that waits on purpose for more than 20 seconds of real time gets `[Trait("Category", "Slow")]` (D336). `dotnet test --filter "Category!=Slow"` leaves it out.
 - Coverage: `pwsh ./coverage.ps1` keeps the unit test line coverage of the production code at 90 % or more, with no generated code and no EF Core migrations of the tools (D70). With `-IncludeIntegration`, the report also has the integration projects with a server set. Read an uncovered line as a behavior with no test, not as a number to raise.
 - The use-case tests of each domain interface are in an abstract base class `{Interface}TestsBase<T>`. An implementation gets them with one subclass that only builds it.
 - The README check reads the regions and the `Readme` files of the unit and the integration test project of a package together, and runs in the unit test project.

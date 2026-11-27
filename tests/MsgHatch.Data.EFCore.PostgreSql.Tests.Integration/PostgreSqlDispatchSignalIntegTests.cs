@@ -112,6 +112,7 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public async Task WaitAsync_ConnectionStringWithNoKeepalive_SendsAKeepaliveAfter30SecondsWithNoTraffic()
     {
         // Arrange
