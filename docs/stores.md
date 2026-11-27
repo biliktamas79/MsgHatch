@@ -569,6 +569,15 @@ An app with its own `DbContext` adds an event to the inbox in the transaction of
 - The startup validation fails when the context of the app is not a scoped service, when its provider is not relational, when its model has no inbox, and when it uses another server or database than the store contexts. The check compares `DataSource` and `Database` of the two connections, and opens no connection.
 - The base package has the same generic method, `UseEntityFrameworkStores<TContext>(configure)`, for a provider with no provider package. The context of the app gets the dialect of `configure`.
 
+### 4.12 Dispatch signal on PostgreSQL
+
+`UsePostgreSqlDispatchSignal()` of the PostgreSQL package selects `PostgreSqlDispatchSignal`, which wakes the dispatch loops of each host that uses the same database, also on another machine (D334). Section 4.9 of the design describes it.
+
+- One connection of the signal runs `LISTEN msghatch_dispatch`. `NotifyAsync` runs `pg_notify` on the same channel in the background, with the payload `{sender}:{topic}`. The channel name is fixed, as the collection `msghatch_signals` of MongoDB is. So two MsgHatch systems in one database wake each other, which costs one empty claim.
+- The signal needs no table, no trigger, and no migration. With the inbox in the transaction of the app, the interceptor of section 4.11 notifies after the commit of the app.
+- The signal has no options. It uses the connection string of the PostgreSQL store contexts, so the startup validation fails when the EF Core stores are not on PostgreSQL.
+- The listening connection needs a session of its own on the server. A pooler in transaction mode, for example PgBouncer, does not support `LISTEN`. The connection has no multiplexing, and `Keepalive` in the connection string keeps it active through a firewall that drops idle connections.
+
 ## 5. MongoDB stores
 
 `MsgHatch.Data.MongoDb` keeps the inbox, the outbox, the state rows of the channels, and the registry settings in one MongoDB database through the official driver `MongoDB.Driver` (D121). `UseMongoDbStores(o => o.ConnectionString = "mongodb://127.0.0.1:27017")` selects them. `MsgHatch.Subscriptions.Data.MongoDb` adds the subscription store with `UseMongoDbSubscriptionStore()`.

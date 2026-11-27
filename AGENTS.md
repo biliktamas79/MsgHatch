@@ -169,6 +169,8 @@ dotnet test tests/SchemaMigrator.Tests.Unit
 
 From phase 55 on, the integration projects of the 3 EF Core store providers also create the test database `host`: the migrations of the package create the MsgHatch tables, and `TestHostContext` of `tests/Shared/EntityFrameworkHostContext.cs` creates its table `Orders`. Its tests run the inbox in the transaction of the host (D331), on the same servers and with no new setting.
 
+From phase 56 on, `tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` also tests the PostgreSQL dispatch signal (D334) on the same server, with no new setting. Each test of the signal creates its own empty database, because PostgreSQL gives a notification to each listener of the same database. The unit tests of the signal use a TCP listener in the test process, from `tests/Shared/TestListeners.cs`, as the unit tests of the RabbitMQ signal do.
+
 ## Rules for each phase
 
 - Build only what the current phase lists. Do not add code that a later phase removes or renames.
