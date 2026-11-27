@@ -234,7 +234,8 @@ A domain interface with more than one implementation gets its use cases once, in
 
 1. `pwsh ./coverage.ps1` runs each unit test project with coverage, and fails when the line coverage of the production code is less than 90 %.
 2. The coverage leaves out generated code and the EF Core migrations of the tools (D70). Hand-written code always counts.
-3. Read an uncovered line as a behavior with no test. Never write a test only to raise the number, and delete a test that asserts nothing.
+3. `pwsh ./coverage.ps1 -IncludeIntegration` also runs each integration test project with a server set, and merges its coverage. It shows the coverage of code that only a server reaches, for example a dispatch signal. Run it only when the owner asks, because the SES and Resend projects send real emails.
+4. Read an uncovered line as a behavior with no test. Never write a test only to raise the number, and delete a test that asserts nothing.
 
 ## 14. Report
 

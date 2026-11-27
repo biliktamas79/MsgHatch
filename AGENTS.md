@@ -51,6 +51,12 @@ The coverage report of the unit tests (PowerShell 7). It writes `artifacts/cover
 pwsh ./coverage.ps1
 ```
 
+With the switch `-IncludeIntegration`, the script also runs each integration test project with a server set: its folder, or the folder of an integration test project that it references, has `appsettings.Local.json` (D70). It prints the names of these projects first, and merges their coverage into the same report and the same limit. Such a project runs as `dotnet test` runs it, so the SES and Resend projects send real emails. A missing key of a settings file starts a Testcontainers server. The workflow uses no switch. Run the switch only when the owner asks:
+
+```bash
+pwsh ./coverage.ps1 -IncludeIntegration
+```
+
 From phase 41 on, the pack check (PowerShell 7). It packs the 42 packages in Release into `artifacts/packages`, and fails when a package has a wrong version, wrong metadata, or missing content (section 5.6 of the design). The GitHub workflow `.github/workflows/build.yml` runs `coverage.ps1` and `pack.ps1 -VersionSuffix ci.<run number>` on `ubuntu-latest` on each push of a branch and each pull request, and publishes to nuget.org only on a tag `v<version>`. Never push a tag `v*` unless the owner asks:
 
 ```bash
@@ -207,7 +213,7 @@ Load the skill `writing-tests` (the test guide `.claude/skills/writing-tests/SKI
 - Projects: `tests/{Project}.Tests.Unit`, `tests/{Project}.Tests.Integration`, or `tests/{Project}.Tests.Performance`, one for each production project and each level. A new test project goes into `MsgHatch.slnx` in the same commit.
 - Classes: `{Sut}UnitTests`, `{Sut}IntegTests`, or `{Sut}PerfTests`. Methods: `Method_Condition_ExpectedResult`.
 - Run: `dotnet test MsgHatch.slnx`, or `dotnet test` with one test project. A run that reports 0 tests is a failure.
-- Coverage: `pwsh ./coverage.ps1` keeps the unit test line coverage of the production code at 90 % or more, with no generated code and no EF Core migrations of the tools (D70). Read an uncovered line as a behavior with no test, not as a number to raise.
+- Coverage: `pwsh ./coverage.ps1` keeps the unit test line coverage of the production code at 90 % or more, with no generated code and no EF Core migrations of the tools (D70). With `-IncludeIntegration`, the report also has the integration projects with a server set. Read an uncovered line as a behavior with no test, not as a number to raise.
 - The use-case tests of each domain interface are in an abstract base class `{Interface}TestsBase<T>`. An implementation gets them with one subclass that only builds it.
 - The README check reads the regions and the `Readme` files of the unit and the integration test project of a package together, and runs in the unit test project.
 - Tests use only the public API and the DI setup methods. Do not add `InternalsVisibleTo`.
