@@ -9,6 +9,7 @@ using MsgHatch.Domain.Management;
 using MsgHatch.Domain.Persistence;
 using MsgHatch.Domain.Tests.Unit.Contracts;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Data.MongoDb.Tests.Integration;
 
