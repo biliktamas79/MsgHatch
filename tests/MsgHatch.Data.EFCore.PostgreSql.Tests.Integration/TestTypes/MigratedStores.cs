@@ -36,11 +36,11 @@ public static class MigratedStores
         server.Database(name, (database, ct) => ServicesOf(database, configureOptions).MigrateMsgHatchAsync(ct: ct));
 
     /// <summary>
-    /// The database <c>host</c> of the inbox in the transaction of the host (D331): the migrations of the package create the
-    /// MsgHatch tables, and the context of the host creates only its own table <c>Orders</c>.
+    /// A database of the inbox in the transaction of the host (D331), by default <c>host</c>: the migrations of the package
+    /// create the MsgHatch tables, and the context of the host creates only its own table <c>Orders</c>.
     /// </summary>
-    public static PostgreSqlTestDatabase OfHost(PostgreSqlFixture server) =>
-        server.Database("host", static async (database, ct) =>
+    public static PostgreSqlTestDatabase OfHost(PostgreSqlFixture server, string name = "host") =>
+        server.Database(name, static async (database, ct) =>
         {
             await ServicesOf(database).MigrateMsgHatchAsync(ct: ct);
             await using var host = HostContextOf(database);
@@ -59,6 +59,21 @@ public static class MigratedStores
             .UseEntityFrameworkPostgreSqlStores<TestHostContext>(database.ConnectionString)
             .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => Substitute.For<IMessageRouter<TestEvent>>()));
         services.Replace(ServiceDescriptor.Singleton(signal));
+        return services.Build();
+    }
+
+    /// <summary>
+    /// New services of <c>UseEntityFrameworkPostgreSqlStores&lt;TestHostContext&gt;</c> and <c>UsePostgreSqlDispatchSignal</c> on
+    /// the database, with the role Consumer and the context of the host on the same database.
+    /// </summary>
+    internal static ServiceProvider BuildWithHostContextAndTheSignal(PostgreSqlTestDatabase database)
+    {
+        var services = EntityFrameworkTestHost.CreateServices();
+        services.AddDbContext<TestHostContext>(o => o.UseNpgsql(database.ConnectionString));
+        services.AddMsgHatch(static o => o.Roles = MsgHatchRoles.Consumer)
+            .UseEntityFrameworkPostgreSqlStores<TestHostContext>(database.ConnectionString)
+            .UsePostgreSqlDispatchSignal()
+            .AddMessage("TestEvent", 2, TestJsonContext.Default.TestEvent, static m => m.WithRouter(static (_, _) => Substitute.For<IMessageRouter<TestEvent>>()));
         return services.Build();
     }
 

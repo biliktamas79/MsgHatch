@@ -6,6 +6,7 @@ using MsgHatch.Data.EFCore.PostgreSql.DependencyInjection;
 using MsgHatch.Data.EFCore.PostgreSql.Tests.Unit.TestTypes;
 using MsgHatch.Data.EFCore.Tests.Unit.TestTypes;
 using MsgHatch.Domain.DependencyInjection;
+using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Routing;
@@ -94,6 +95,25 @@ public sealed class ReadmeUnitTests
         // Assert
         await using var context = await provider.GetRequiredService<IDbContextFactory<MsgHatchDbContext>>().CreateDbContextAsync(Ct);
         Assert.Equal(("messaging", true), (context.Model.GetDefaultSchema(), context.Database.CreateExecutionStrategy().RetriesOnFailure));
+    }
+
+    [Fact]
+    public async Task UsePostgreSqlDispatchSignal_SetupOfTheReadme_SelectsThePostgreSqlDispatchSignal()
+    {
+        // Arrange
+        var services = EntityFrameworkTestHost.CreateServices();
+        var connectionString = _connectionString;
+
+        // Act
+        #region readme:signal
+        services.AddMsgHatch()
+            .UseEntityFrameworkPostgreSqlStores(connectionString)
+            .UsePostgreSqlDispatchSignal();
+        #endregion
+        await using var provider = services.Build();
+
+        // Assert
+        Assert.IsType<PostgreSqlDispatchSignal>(provider.GetRequiredService<IDispatchSignal>());
     }
 
     [Fact]

@@ -1,21 +1,26 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
+using MsgHatch.Data.EFCore.PostgreSql.Tests.Integration.TestTypes;
 using MsgHatch.Data.EFCore.Tests.Integration.TestTypes;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Identity;
+using MsgHatch.Domain.Inbox;
 using MsgHatch.Domain.Tests.Unit.Contracts;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 using Npgsql;
 
 namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration;
 
 /// <summary>
 /// The PostgreSQL dispatch signal (D334): the use cases of each signal, the notifications between signals on one
-/// database, the payloads that wake no loop, and a listening connection that the server ends. PostgreSQL gives a
-/// notification to each listener of the same database, so each test has its own empty database.
+/// database, the payloads that wake no loop, a listening connection that the server ends, and the wake after the commit of
+/// the host. PostgreSQL gives a notification to each listener of the same database, so each test has its own empty
+/// database, and the test of the host has its own database of the migrations.
 /// </summary>
 public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase<PostgreSqlDispatchSignal>, IAsyncLifetime
 {
@@ -30,19 +35,21 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
     private static readonly TimeSpan _pauseBeforeTheNextListen = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan _oneTry = TimeSpan.FromMilliseconds(50);
 
+    private readonly PostgreSqlFixture _server;
     private readonly PostgreSqlTestDatabase _database;
     private readonly FakeTimeProvider _time;
     private readonly FakeLogger<PostgreSqlDispatchSignal> _logger;
     private readonly List<PostgreSqlDispatchSignal> _otherSignals = [];
 
     public PostgreSqlDispatchSignalIntegTests(PostgreSqlFixture server)
-        : this(server.Database($"signal{Guid.NewGuid():N}"[..22]), TestHost.NewFakeTime(), new FakeLogger<PostgreSqlDispatchSignal>())
+        : this(server, server.Database($"signal{Guid.NewGuid():N}"[..22]), TestHost.NewFakeTime(), new FakeLogger<PostgreSqlDispatchSignal>())
     {
     }
 
-    private PostgreSqlDispatchSignalIntegTests(PostgreSqlTestDatabase database, FakeTimeProvider time, FakeLogger<PostgreSqlDispatchSignal> logger)
+    private PostgreSqlDispatchSignalIntegTests(
+        PostgreSqlFixture server, PostgreSqlTestDatabase database, FakeTimeProvider time, FakeLogger<PostgreSqlDispatchSignal> logger)
         : base(new PostgreSqlDispatchSignal(database.ConnectionString, time, logger)) =>
-        (_database, _time, _logger) = (database, time, logger);
+        (_server, _database, _time, _logger) = (server, database, time, logger);
 
     /// <summary>A payload that wakes no loop, and the topic that the payload names, which a wait of each row waits for.</summary>
     public static TheoryData<string, string, string> PayloadThatIsNotValidRows => new()
@@ -128,7 +135,7 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
         await Signal.NotifyAsync(_senderProbe, Ct);
         var sender = (await observer.PayloadAsync($":{_senderProbe.Name}")).Split(':')[0];
         var wait = Signal.WaitAsync(new DispatchTopic(topicName), Ct).AsTask();
-        await NotifyFromATestConnectionAsync(payload.Replace("{sender}", sender, StringComparison.Ordinal), Ct);
+        await NotifyFromATestConnectionAsync(_database.ConnectionString, payload.Replace("{sender}", sender, StringComparison.Ordinal), Ct);
 
         // Act
         await HandledAsync();
@@ -158,6 +165,29 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
             [.. _logger.Collector.GetSnapshot().Select(static record => (record.Id.Id, record.Level, (record.Exception as PostgresException)?.SqlState))]);
     }
 
+    [Fact]
+    public async Task CommitAsync_TransactionOfTheHostWithAnInboxRow_WakesTheInboxWaitOfAnotherSignal()
+    {
+        // Arrange
+        var database = MigratedStores.OfHost(_server, "signal_host");
+        await database.ResetAsync(Ct);
+        await using var provider = MigratedStores.BuildWithHostContextAndTheSignal(database);
+        var other = NewSignal(database.ConnectionString);
+        await ListensAsync(other, database.ConnectionString);
+        await using var scope = provider.CreateAsyncScope();
+        var host = scope.ServiceProvider.GetRequiredService<TestHostContext>();
+        await using var transaction = await host.Database.BeginTransactionAsync(Ct);
+        await scope.ServiceProvider.GetRequiredService<IInboxStore>().AddAsync(TestMessages.AReceivedMessage(new TestEvent("text")), Ct);
+        await host.SaveChangesAsync(Ct);
+        var wait = other.WaitAsync(DispatchTopic.Inbox, Ct);
+
+        // Act
+        await transaction.CommitAsync(Ct);
+
+        // Assert
+        Assert.Null(await CompletedAsync(wait));
+    }
+
     private PostgreSqlDispatchSignal NewSignal() => NewSignal(_database.ConnectionString);
 
     private PostgreSqlDispatchSignal NewSignal(string connectionString)
@@ -174,14 +204,16 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
     /// Waits until the signal listens: the signal listens from its first wait, and a notification of a test connection
     /// completes a wait of the warm-up channel. A wait that returns an error, for example in the pause, gets a new wait.
     /// </summary>
-    private async Task ListensAsync(PostgreSqlDispatchSignal signal)
+    private Task ListensAsync(PostgreSqlDispatchSignal signal) => ListensAsync(signal, _database.ConnectionString);
+
+    private static async Task ListensAsync(PostgreSqlDispatchSignal signal, string connectionString)
     {
         using var hang = new CancellationTokenSource(TestHost.HangGuard, TimeProvider.System);
         using var guard = CancellationTokenSource.CreateLinkedTokenSource(Ct, hang.Token);
         var wait = signal.WaitAsync(_warmUp, guard.Token).AsTask();
         while (true)
         {
-            await NotifyFromATestConnectionAsync($"test:{_warmUp.Name}", guard.Token);
+            await NotifyFromATestConnectionAsync(connectionString, $"test:{_warmUp.Name}", guard.Token);
             await Task.WhenAny(wait, Task.Delay(_oneTry, TimeProvider.System, guard.Token));
             if (wait.IsCompleted)
             {
@@ -202,13 +234,13 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
     private async Task HandledAsync()
     {
         var wait = Signal.WaitAsync(_handled, Ct);
-        await NotifyFromATestConnectionAsync($"test:{_handled.Name}", Ct);
+        await NotifyFromATestConnectionAsync(_database.ConnectionString, $"test:{_handled.Name}", Ct);
         Assert.Null(await CompletedAsync(wait));
     }
 
-    private async Task NotifyFromATestConnectionAsync(string payload, CancellationToken ct)
+    private static async Task NotifyFromATestConnectionAsync(string connectionString, string payload, CancellationToken ct)
     {
-        await using var connection = new NpgsqlConnection(_database.ConnectionString);
+        await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(ct);
         await using var command = new NpgsqlCommand(_notify, connection);
         command.Parameters.AddWithValue("payload", payload);

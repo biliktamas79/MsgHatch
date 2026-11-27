@@ -48,6 +48,32 @@ services.AddMsgHatch()
 
 The context of the app gets the dialect of PostgreSQL and the MsgHatch options of the store contexts. `AcceptAsync` adds the inbox row to the context, and does not save, so the `SaveChangesAsync` of the app writes it with the rows of the app. The migrations of the app never contain the inbox table, so `MigrateMsgHatchAsync` still creates it. The README of `MsgHatch.Data.EFCore` describes the mode and its startup checks.
 
+## Dispatch signal
+
+`PostgreSqlDispatchSignal` wakes the dispatch loops of the hosts that use one database of the stores, also on different machines, through `LISTEN` and `NOTIFY` of PostgreSQL (D334). Each host of the system selects it after the stores:
+
+[//]: # (snippet: signal)
+```csharp
+services.AddMsgHatch()
+    .UseEntityFrameworkPostgreSqlStores(connectionString)
+    .UsePostgreSqlDispatchSignal();
+```
+
+The signal uses the connection string of the store contexts, also with the inbox in the transaction of the host. It needs no other server and no table:
+
+- `NotifyAsync` wakes the loops of the own process at once. In the background, it runs `SELECT pg_notify('msghatch_dispatch', @payload)` on a pooled connection, with the payload `{sender}:{topic}`. Many notifications before one write become one notification for each topic. While the last write failed, `NotifyAsync` returns `Errors.Unavailable`.
+- At the first `WaitAsync`, one connection of the signal runs `LISTEN msghatch_dispatch`. Each notification of another signal instance wakes the loops of its topic: `inbox`, or `outbox:{Channel}` with a valid channel name. The signal skips its own notifications and each other payload.
+- When the listening connection fails or ends, `WaitAsync` returns `Errors.Unavailable`, so the loops wait for their due times and their poll. The signal listens again after a pause of 5 seconds. It logs the Warning 3300 one time for each outage, and the Information 3301 when it listens again.
+- PostgreSQL gives a notification only to the listeners of the same database. Two systems in one database wake each other, which costs one empty claim.
+
+The startup validation fails when the EF Core stores are not on PostgreSQL, and when `EnablePolling` is false in the dispatch options of the inbox or the outbox, because a notification while the signal does not listen reaches a loop only through its poll.
+
+The listening connection needs a session of its own on the server:
+
+- A pooler in transaction mode, for example PgBouncer, does not support `LISTEN`. The connection string must reach the server, or a pooler in session mode.
+- The listening connection has no multiplexing, also when the connection string sets `Multiplexing=true`, because Npgsql does not wait for notifications in that mode.
+- A firewall that drops idle connections can end a listening connection with no error. With `Keepalive` in the connection string, for example `Keepalive=30`, Npgsql sends a message on the listening connection after each 30 seconds with no traffic.
+
 ## JSON columns
 
 The dialect gives each JSON column the type `json`, which checks each write and keeps the text unchanged. The dialect does not give `jsonb`, because `jsonb` changes the order of the keys and drops duplicate keys, so an event type of a host that needs `$type` as the first key can fail to read. A host selects `jsonb` with the option `JsonColumnType`, for example `o => o.JsonColumnType = "jsonb"`. The stores write a document one time and read it whole, so `text` is faster: `json` parses each write, and `jsonb` also converts each read.
@@ -112,7 +138,7 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ### 0.10.0 (2026-11-27)
 
-- `PostgreSqlDispatchSignal` wakes the dispatch loops of the hosts on one database through `LISTEN` and `NOTIFY` (D334).
+- `PostgreSqlDispatchSignal` and `UsePostgreSqlDispatchSignal` wake the dispatch loops of the hosts on one database through `LISTEN` and `NOTIFY` (D334). The setup uses the connection string of the store contexts, and requires `EnablePolling` true.
 
 ### 0.9.0 (2026-11-26)
 
