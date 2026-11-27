@@ -4471,6 +4471,9 @@ Commits:
 6. "Test the wake after a rollback and a failed save, and the store check of the host": the tests of 3 behaviors that the coverage report showed with no test.
 7. "Record the commits and the checked facts of phase 55 in the plan"
 8. "Record phase 55 as done in README and AGENTS.md"
+9. "Compile only the half of ErrorProblems that each package calls": the 6 packages that compile `src/Shared/ErrorProblems.cs` get only the half that they call, with the 0.9.0 entry of their READMEs.
+10. "Test the MongoDB stores on a database of test doubles": the unit tests of the MongoDB stores with an `IMongoDatabase` of NSubstitute doubles.
+11. "Record the coverage work of phase 55 in the plan"
 
 The plans of phases 55 and 56 and D331 to D334 are in their own commit before commit 1.
 
@@ -4490,13 +4493,22 @@ Checked facts (2026-11-27), on Windows 11 build 26300 with the .NET SDK 10.0.404
 | Each new unit test failed first or failed with a break of the code it covers: the lifetime and the logging wrapper of `UseInboxStore`, the explicit column names, the column rules, `ExcludeFromMigrations`, a schema on the whole host model, `CustomizeEntity` on MySQL, the staged add, the check of a tracked id, the copy of the store options, the scoped check, the inbox check, the database check on SQLite and on the 3 providers, the interceptor, the wait for the commit, the check of the added rows, the log of a notify error, the reset at the start of a save, the end of the wait at a rollback, the guard of the store provider, and a changed README snippet. | The runs with each break |
 | The build has no errors and no warnings. The 49 unit test projects pass 6,931 tests and skip 1, the path limit test of the named pipe signal. The line coverage is 92.2 %. | `dotnet build`, `pwsh ./coverage.ps1` |
 | `pwsh ./pack.ps1` passes with 42 packages of version 0.9.0. | `pwsh ./pack.ps1` |
+| The owner ran the integration projects of the 3 EF Core store providers on SQL Server, PostgreSQL, and MySQL after commit 8, and they passed. | The run of the owner |
+| Before commits 9 and 10, the line coverage was 92.2 % and the branch coverage 88.7 %, 6,329 of 7,129 branches. Each risk hotspot of the report had the CRAP score c² + c for its cyclomatic complexity c, so each one had 0 % coverage in the assembly of its row. Each one is a flat mapping: one condition for each optional field of a query, one case for each BSON type, or one pattern for each family of exceptions. With full coverage, the score is the complexity. | `artifacts/coverage/Summary.json` and the risk hotspots of `index.html` |
+| The 6 packages that compiled `src/Shared/ErrorProblems.cs` each call only one half of it: the `.AspNetCore` packages call `StatusCodeOf`, and the generated code of the client packages calls `ErrorOf`. The other half gave 51 lines and 96 branches with no caller. | A search of the callers, and the coverage report |
+| The 2 MongoDB packages had 1,235 lines and 305 branches with no unit test. The constructors of the stores take an `IMongoDatabase`, so a database of NSubstitute doubles runs them with no server and no server monitor. `WriteError` and `BulkWriteError` of MongoDB.Driver 3.14.1 have no public constructor, so the true path of `IsDuplicateKey` stays with the integration tests. | The coverage report, and the constructors of the driver |
+| `PipePathValidator` and `UnixFiles` run only on Linux and macOS, so a coverage run on Windows does not reach them. The workflow runs `coverage.ps1` on `ubuntu-latest`. | `OperatingSystem.IsWindows()` in `PipePathValidator`, and `.github/workflows/build.yml` |
+| In `BsonDocuments.IsTime`, a document with a BSON date `d` and a `t` that is no 64-bit integer gives `SerializationFailed` on both paths, because JSON has no BSON date. So its test row covers the branch, and no break of the check makes it fail. Each other new unit test of the MongoDB stores failed with a break of the code that it covers, in 56 breaks. | The runs with each break |
+| After commits 9 and 10, the line coverage is 96 % and the branch coverage 93.1 %. The 49 unit test projects pass 7,027 tests and skip 1. | `pwsh ./coverage.ps1` |
+| `pwsh ./pack.ps1` passes with 42 packages of version 0.9.0 after commit 9. | `pwsh ./pack.ps1` |
 
 Checks that the phase did not do:
-- A run of the integration projects. The phase adds `EntityFrameworkInboxStoreInTheHostTransactionIntegTests` to the 3 integration projects of the EF Core store providers, for the owner to run: the inbox contract with the staged add, the commit and the rollback of a transaction of the host, the unique key of the server, and the wake after the commit. So these tests have no proof that they fail first.
+- A break of the code under `EntityFrameworkInboxStoreInTheHostTransactionIntegTests`, the new class of the 3 integration projects of the EF Core store providers. The owner ran these projects, and they passed, but no run showed that their new tests fail first.
+- A run of the MongoDB integration projects after commit 10, which moves `NumbersEvent` to `tests/Shared`. `MsgHatch.Data.MongoDb.Tests.Integration` builds with no warnings.
 - A host with a pooled context, `AddDbContextPool`. The startup check accepts it, because the context is scoped, and the interceptor keeps its state for each context instance.
 - A run on Linux before the push.
 
-Commit 1 is `6ef4905`, commit 2 `77db59c`, commit 3 `973f9c6`, commit 4 `e75598c`, commit 5 `2fbf3d2`, and commit 6 `42ea2d8`. The plans of phases 55 and 56 are in `04295e3`.
+Commit 1 is `6ef4905`, commit 2 `77db59c`, commit 3 `973f9c6`, commit 4 `e75598c`, commit 5 `2fbf3d2`, commit 6 `42ea2d8`, commit 7 `f5ccbb8`, commit 8 `13de0aa`, commit 9 `eb80822`, and commit 10 `5f45bf7`. The plans of phases 55 and 56 are in `04295e3`.
 
 The implementation changed the plan in these points:
 - Item 1 planned an overload of `UseInboxStore` with a `ServiceLifetime`. The owner asked why it was not an optional parameter of the existing method, and then: "There are no consumers yet, MsgHatch is not yet published to NuGet, so we can make breaking changes now." So `UseInboxStore` with a factory gets the optional parameter `lifetime`, and the README of `MsgHatch.Domain` starts its entry with "Breaking:", because a caller compiled against 0.8.0 must compile again.
@@ -4510,6 +4522,7 @@ The implementation changed the plan in these points:
 - The interceptor reads the added inbox rows with no detection of changes, logs a notify error as the event 2700, and keeps the wait for the commit through a later save in the same transaction. D333 records it.
 - The migration tests of the base package ignore the warning of many EF Core service providers in the provider setup of the stores (checked facts).
 - Commit 6 is new. The coverage report showed 3 behaviors with no test, and the plan had no commit for them, so the recording commits become 7 and 8.
+- Commits 9 to 11 are new. After the integration run, the owner asked: "Can we increase the test coverage to get back above 90%", and named `PipePathValidator`, the MongoDB stores, `ErrorProblems`, and the risk hotspots of the report. The owner chose the split of `ErrorProblems` with the unit tests of the MongoDB stores, before the tag `phase-55`. The line coverage passed the gate of 90 % already, and the branch coverage was 88.7 %.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.9.0, and the EF Core integration projects pass on SQL Server, PostgreSQL, and MySQL.
 
