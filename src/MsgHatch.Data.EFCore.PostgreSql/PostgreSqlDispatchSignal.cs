@@ -14,8 +14,10 @@ namespace MsgHatch.Data.EFCore.PostgreSql;
 /// gives the topic of each notification of another signal instance to a local <see cref="InProcessDispatchSignal"/>.
 /// While it does not listen, <see cref="WaitAsync"/> returns <see cref="Errors.Unavailable"/>, so the loop uses its
 /// fallback wait (section 4.9), and the signal connects again after a pause of 5 seconds. The listening connection has no
-/// multiplexing, because Npgsql does not wait for notifications in that mode. A pooler in transaction mode, for example
-/// PgBouncer, does not support <c>LISTEN</c>, so the connection string must reach the server or a pooler in session mode.
+/// multiplexing, because Npgsql does not wait for notifications in that mode. It has the <c>Keepalive</c> of the connection
+/// string, or else 30 seconds, so Npgsql sends a message after each 30 seconds with no traffic, and a firewall that drops
+/// idle connections keeps it open. A pooler in transaction mode, for example PgBouncer, does not support <c>LISTEN</c>, so
+/// the connection string must reach the server or a pooler in session mode.
 /// <para>
 /// <see cref="NotifyAsync"/> notifies the loops of the own process at once, and a writer in the background runs
 /// <c>SELECT pg_notify('msghatch_dispatch', @payload)</c> on a pooled connection, one time for each topic. The payload is
@@ -27,6 +29,8 @@ public sealed class PostgreSqlDispatchSignal : IDispatchSignal, IDisposable
 {
     private const string _listen = "LISTEN msghatch_dispatch";
     private const string _notify = "SELECT pg_notify('msghatch_dispatch', @payload)";
+
+    private const int _defaultKeepaliveSeconds = 30;
 
     private static readonly TimeSpan _pauseBeforeTheNextListen = TimeSpan.FromSeconds(5);
 
@@ -55,7 +59,7 @@ public sealed class PostgreSqlDispatchSignal : IDispatchSignal, IDisposable
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
         (_connectionString, _time, _logger) = (connectionString, time, logger);
-        _listenConnectionString = new NpgsqlConnectionStringBuilder(connectionString) { Multiplexing = false }.ConnectionString;
+        _listenConnectionString = ListenConnectionStringOf(connectionString);
         _ = WriteTheTopicsUntilDisposedAsync();
     }
 
@@ -84,6 +88,17 @@ public sealed class PostgreSqlDispatchSignal : IDispatchSignal, IDisposable
 
     /// <summary>Stops the listening connection and the writer.</summary>
     public void Dispose() => _stop.Cancel();
+
+    private static string ListenConnectionStringOf(string connectionString)
+    {
+        var listen = new NpgsqlConnectionStringBuilder(connectionString) { Multiplexing = false };
+        if (listen.KeepAlive == 0)
+        {
+            listen.KeepAlive = _defaultKeepaliveSeconds;
+        }
+
+        return listen.ConnectionString;
+    }
 
     private async Task WriteTheTopicsUntilDisposedAsync()
     {

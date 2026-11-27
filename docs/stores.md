@@ -576,7 +576,7 @@ An app with its own `DbContext` adds an event to the inbox in the transaction of
 - One connection of the signal runs `LISTEN msghatch_dispatch`. `NotifyAsync` runs `pg_notify` on the same channel in the background, with the payload `{sender}:{topic}`. The channel name is fixed, as the collection `msghatch_signals` of MongoDB is. So two MsgHatch systems in one database wake each other, which costs one empty claim.
 - The signal needs no table, no trigger, and no migration. With the inbox in the transaction of the app, the interceptor of section 4.11 notifies after the commit of the app.
 - The signal has no options. It uses the connection string of the PostgreSQL store contexts, so the startup validation fails when the EF Core stores are not on PostgreSQL.
-- The listening connection needs a session of its own on the server. A pooler in transaction mode, for example PgBouncer, does not support `LISTEN`. The connection has no multiplexing, and `Keepalive` in the connection string keeps it active through a firewall that drops idle connections.
+- The listening connection needs a session of its own on the server. A pooler in transaction mode, for example PgBouncer, does not support `LISTEN`. The connection has no multiplexing. It has the `Keepalive` of the connection string, or else 30 seconds, so a firewall that drops idle connections keeps it open.
 
 ## 5. MongoDB stores
 

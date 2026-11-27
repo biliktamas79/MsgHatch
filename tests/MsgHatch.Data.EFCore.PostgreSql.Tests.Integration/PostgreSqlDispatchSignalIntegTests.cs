@@ -18,8 +18,8 @@ namespace MsgHatch.Data.EFCore.PostgreSql.Tests.Integration;
 
 /// <summary>
 /// The PostgreSQL dispatch signal (D334): the use cases of each signal, the notifications between signals on one
-/// database, the payloads that wake no loop, a listening connection that the server ends, and the wake after the commit of
-/// the host. PostgreSQL gives a notification to each listener of the same database, so each test has its own empty
+/// database, the payloads that wake no loop, a listening connection that the server ends, the keepalive of the listening
+/// connection through a TCP forwarder in the test process, and the wake after the commit of the host. PostgreSQL gives a notification to each listener of the same database, so each test has its own empty
 /// database, and the test of the host has its own database of the migrations.
 /// </summary>
 public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase<PostgreSqlDispatchSignal>, IAsyncLifetime
@@ -34,6 +34,10 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
     private static readonly DispatchTopic _senderProbe = DispatchTopic.ForChannel(new ChannelId("Sender"));
     private static readonly TimeSpan _pauseBeforeTheNextListen = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan _oneTry = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan _defaultKeepalive = TimeSpan.FromSeconds(30);
+
+    /// <summary>A real time in which the default keepalive of 30 seconds shows, with a margin for the scheduler.</summary>
+    private static readonly TimeSpan _timeForTheDefaultKeepalive = TimeSpan.FromSeconds(40);
 
     private readonly PostgreSqlFixture _server;
     private readonly PostgreSqlTestDatabase _database;
@@ -105,6 +109,36 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
 
         // Assert
         await listens;
+    }
+
+    [Fact]
+    public async Task WaitAsync_ConnectionStringWithNoKeepalive_SendsAKeepaliveAfter30SecondsWithNoTraffic()
+    {
+        // Arrange
+        using var network = NetworkTo(_database);
+        var signal = NewSignal(ThroughThe(network, _database.ConnectionString));
+        await ListensAsync(signal);
+
+        // Act
+        var silence = await SilenceOfTheClientsAsync(network);
+
+        // Assert
+        Assert.InRange(silence, _defaultKeepalive - TimeSpan.FromSeconds(5), _timeForTheDefaultKeepalive);
+    }
+
+    [Fact]
+    public async Task WaitAsync_ConnectionStringWithAKeepalive_SendsTheKeepaliveOfTheConnectionString()
+    {
+        // Arrange
+        using var network = NetworkTo(_database);
+        var signal = NewSignal($"{ThroughThe(network, _database.ConnectionString)};Keepalive=1");
+        await ListensAsync(signal);
+
+        // Act
+        var silence = await SilenceOfTheClientsAsync(network);
+
+        // Assert
+        Assert.InRange(silence, TimeSpan.Zero, TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -195,6 +229,30 @@ public sealed class PostgreSqlDispatchSignalIntegTests : DispatchSignalTestsBase
         var signal = new PostgreSqlDispatchSignal(connectionString, _time, new FakeLogger<PostgreSqlDispatchSignal>());
         _otherSignals.Add(signal);
         return signal;
+    }
+
+    private static TcpForwarder NetworkTo(PostgreSqlTestDatabase database)
+    {
+        var server = new NpgsqlConnectionStringBuilder(database.ConnectionString);
+        return new TcpForwarder(server.Host!, server.Port);
+    }
+
+    private static string ThroughThe(TcpForwarder network, string connectionString) =>
+        new NpgsqlConnectionStringBuilder(connectionString) { Host = "127.0.0.1", Port = network.Port }.ConnectionString;
+
+    /// <summary>The time from the call until a client of the forwarder sends a byte, at most <see cref="_timeForTheDefaultKeepalive"/>.</summary>
+    private static async Task<TimeSpan> SilenceOfTheClientsAsync(TcpForwarder network)
+    {
+        var bytes = network.BytesFromTheClients;
+        var start = TimeProvider.System.GetTimestamp();
+        using var limit = new CancellationTokenSource(_timeForTheDefaultKeepalive, TimeProvider.System);
+        using var guard = CancellationTokenSource.CreateLinkedTokenSource(Ct, limit.Token);
+        while (network.BytesFromTheClients == bytes)
+        {
+            await Task.Delay(_oneTry, TimeProvider.System, guard.Token);
+        }
+
+        return TimeProvider.System.GetElapsedTime(start);
     }
 
     private static Task<Error?> CompletedAsync(ValueTask<Error?> wait) =>

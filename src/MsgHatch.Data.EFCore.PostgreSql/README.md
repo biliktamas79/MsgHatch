@@ -72,7 +72,7 @@ The listening connection needs a session of its own on the server:
 
 - A pooler in transaction mode, for example PgBouncer, does not support `LISTEN`. The connection string must reach the server, or a pooler in session mode.
 - The listening connection has no multiplexing, also when the connection string sets `Multiplexing=true`, because Npgsql does not wait for notifications in that mode.
-- A firewall that drops idle connections can end a listening connection with no error. With `Keepalive` in the connection string, for example `Keepalive=30`, Npgsql sends a message on the listening connection after each 30 seconds with no traffic.
+- A firewall that drops idle connections can end a listening connection with no error. So the listening connection has a keepalive of 30 seconds: Npgsql sends a message on it after each 30 seconds with no traffic. A `Keepalive` in the connection string, for example `Keepalive=60`, replaces the 30 seconds.
 
 ## JSON columns
 
@@ -138,7 +138,7 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 
 ### 0.10.0 (2026-11-27)
 
-- `PostgreSqlDispatchSignal` and `UsePostgreSqlDispatchSignal` wake the dispatch loops of the hosts on one database through `LISTEN` and `NOTIFY` (D334). The setup uses the connection string of the store contexts, and requires `EnablePolling` true.
+- `PostgreSqlDispatchSignal` and `UsePostgreSqlDispatchSignal` wake the dispatch loops of the hosts on one database through `LISTEN` and `NOTIFY` (D334). The setup uses the connection string of the store contexts, and requires `EnablePolling` true. The listening connection has a keepalive of 30 seconds, unless the connection string sets one.
 
 ### 0.9.0 (2026-11-26)
 
