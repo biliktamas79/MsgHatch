@@ -4578,11 +4578,45 @@ Integration tests, in `tests/MsgHatch.Data.EFCore.PostgreSql.Tests.Integration`,
 Each new test fails first, or fails with a break of the code that it covers.
 
 Commits:
-1. "Add the PostgreSQL dispatch signal"
-2. "Add the setup method of the PostgreSQL dispatch signal"
-3. "Describe the PostgreSQL dispatch signal in the design"
-4. "Record the commits and the checked facts of phase 56 in the plan"
-5. "Record phase 56 as done in README and AGENTS.md"
+1. "Share the TCP listeners of the dispatch signal unit tests": the closing and the silent TCP listener move from the RabbitMQ unit tests to `tests/Shared/TestListeners.cs`.
+2. "Add the PostgreSQL dispatch signal": item 1, with the version 0.10.0, the README entry, and the unit and integration tests of the signal.
+3. "Add the setup method of the PostgreSQL dispatch signal": item 2, with the setup in the README, the setup tests, and the integration test of the commit of the host.
+4. "Describe the PostgreSQL dispatch signal in the design": item 4.
+5. "Record the commits and the checked facts of phase 56 in the plan"
+6. "Record phase 56 as done in README and AGENTS.md"
+
+Checked facts (2026-11-27), on Windows 11 build 26300 with the .NET SDK 10.0.404 and Npgsql 10.0.4. The probe is a console app in a scratch folder, outside the repository. It references the Npgsql assemblies of the build output, so it needs no package restore, and it uses TCP listeners in its own process:
+
+| Fact | Source |
+|---|---|
+| A server that ends the listening connection with the error of `pg_terminate_backend`, the state `57P01`, makes `WaitAsync` of Npgsql throw a `PostgresException` with that `SqlState` and `IsTransient` true. The connection then has the state `Closed` and the full state `Broken`, and the next `WaitAsync` throws `InvalidOperationException`. A server that closes the socket with no message gives an `NpgsqlException` with an inner `EndOfStreamException`, and the same states. So the signal makes a new connection after each failure. On the PostgreSQL container of the owner, the Warning 3300 of the test of `pg_terminate_backend` has a `PostgresException` with `57P01`. | The probe, and `WaitAsync_ServerEndsTheListeningConnection_ReturnsUnavailableAndListensAgainAfterThePause` |
+| With `Multiplexing=true`, the open and the `LISTEN` run, but `WaitAsync` throws `NotSupportedException`. Multiplexing also needs pooling. So the listening connection sets `Multiplexing=false`, and the writer keeps the connection string of the stores. | The probe, and `WaitAsync_ConnectionStringWithMultiplexing_ListensWithAConnectionWithNoMultiplexing` |
+| PgBouncer lists `LISTEN` as "Never" in transaction pooling and "Yes" in session pooling, and `NOTIFY` as "Yes" in both. It documents no error for a `LISTEN` in transaction pooling. So the listening connection must reach the server or a pooler in session mode, and the README of the package says so. | The PgBouncer documentation "Features", read on 2026-11-27 |
+| With `Keepalive=1`, Npgsql sends one `Sync` message each second on a connection in `WaitAsync`, and the wait continues. A cancel of `WaitAsync` throws `OperationCanceledException`, and the connection stays open. So `Keepalive` gives a listening connection traffic, which keeps it open through a firewall that drops idle connections. The probe has no firewall. The XML documentation of Npgsql prefers `Keepalive` to `TcpKeepAliveTime`. The signal sets no `Keepalive`, and the README of the package tells the host to set it in the connection string. | The probe, and `Npgsql.xml` of the package |
+| Against a TCP listener that closes each connection, `OpenAsync` throws an `NpgsqlException` with `IsTransient` true, with an inner `IOException` and `SocketException`, and the state is `Closed`. With the default SSL mode and GSS encryption mode, one open makes 3 TCP connections: 2 with an SSL request, then 1 with no SSL. With both modes `Disable`, it makes 1. So the unit tests compare the count of connections with the count after the first listen. | The probe, and the first run of the unit tests |
+| A notification reaches the signal only through its listening connection, so a unit test can reach the payload rules only through a fake of the PostgreSQL wire protocol in the test process. The probe showed that such a fake works with Npgsql 10.0.4 and `Server Compatibility Mode=NoTypeLoading`. The owner: "Do not write fake wire protocols, if it requires a real connection, then it's an integration test." So the 5 payload rows stay in the integration project. | The probe, and the answer of the owner |
+| `GetConnectionString()` of a context of `UseNpgsql(connectionString)` gives the input string with its password, so the signal connects with the credentials of the stores. `pg_notify` with a parameter runs through the extended protocol of Npgsql. | The probe |
+| `coverage.ps1` counts `MsgHatch.Data.EFCore.PostgreSql`. The unit tests give the package 77.8 % of its lines, and `PostgreSqlDispatchSignal` 64.1 %. The lines with no unit test are the path after a connect: the `LISTEN`, the wait, the handler of a notification, and a write that succeeds. With the integration tests, the package has 98.6 % of its lines and 97.6 % of its branches, and the signal 97.7 % of its lines. | `pwsh ./coverage.ps1`, a run of the integration project with `--collect 'XPlat Code Coverage'`, and ReportGenerator |
+| The new tests failed with a break of the code that they cover. Unit tests: 9 breaks of the signal (the guard and the parse of the connection string, the pause, the listen after the pause, one Warning for each outage, the error of a wait, the error of a cancel, the local notify, and the error of a failed write), 7 breaks of the setup method (the check with no EF Core stores, the check of the provider, the 2 poll rules, the name of the setup method, the connection string, and the signal type), and a changed README snippet. Integration tests: 11 breaks (the skip of the own sender, a payload with no separator, the topic rule, the channel name rule, the sender in the payload, multiplexing, the end of the waits at a break, the new token after a listen, the Information at a listen, the notify after the commit of the host, and the database of the signal). A README break with a trailing space did not fail, because the README check ignores it. | The break runs |
+| The build of the solution with `--no-incremental` has no errors and no warnings. The 49 unit test projects pass 7,047 tests and skip 1, the path limit test of the named pipe signal. `MsgHatch.Data.EFCore.PostgreSql.Tests.Unit` passes 47 tests, 20 more than before. The line coverage is 95.8 %, and the branch coverage 92.9 %. | `dotnet build MsgHatch.slnx --no-incremental`, and `pwsh ./coverage.ps1` |
+| `pwsh ./pack.ps1` passes with 42 packages of version 0.10.0. | `pwsh ./pack.ps1` |
+| The owner wrote during the phase: "You can run both unit and integration test projects for validating changes. We just separated them for the CICD pipeline use-cases." So the phase ran `MsgHatch.Data.EFCore.PostgreSql.Tests.Integration` on the PostgreSQL container of the owner, and read no settings file: 718 tests pass, 17 of them of the signal. | The run of the integration project |
+
+Checks that the phase did not do:
+- A listening connection through PgBouncer, and through a firewall that drops idle connections. The checked facts come from the documentation and from the traffic of the probe.
+- The integration projects other than the PostgreSQL project, and `coverage.ps1 -IncludeIntegration`, because the SES and Resend projects send real emails. The phase changes no other package. Commit 1 changes only the unit tests of the RabbitMQ signal.
+- A run on Linux before the push.
+
+Commit 1 is `cc1dfba`, commit 2 `43bafb7`, commit 3 `ea112a9`, and commit 4 `d36ea3b`. The plans of phases 55 and 56 are in `04295e3`.
+
+The implementation changed the plan in these points:
+- Commit 1 is new. The unit tests of the PostgreSQL signal use the same TCP listeners as the unit tests of the RabbitMQ signal, and the test guide does not allow a copy. So the listeners move to `tests/Shared`, with a port in place of an AMQP address, and the commits of the plan become 2 to 6.
+- `PostgreSqlDispatchSignal` is public, with a public constructor, as `MongoDbDispatchSignal` is (D303). So the tests of commit 2 build the signal before the setup method of commit 3 exists. The constructor opens no connection, and throws `ArgumentException` for a connection string that Npgsql does not read.
+- The listening connection has no multiplexing, because Npgsql does not wait for notifications in that mode (checked facts).
+- The 5 payload rows stay in the integration project (checked facts). Each row waits for the topic that its payload names, so a missing rule wakes the wait of its row.
+- The unit tests also cover the guard of the constructor and a cancel while the signal connects. The setup tests also cover a second signal setup (D62), and the connection string of the signal with a TCP listener in the test process, with and without the inbox in the transaction of the host.
+- The integration tests also cover a connection string with `Multiplexing=true`. Each test of the signal has its own empty database, because PostgreSQL gives a notification to each listener of the same database. The test of the commit of the host uses its own database `signal_host` of the migrations, so its inbox row does not reach the inbox contract tests of the database `host`. `MigratedStores.OfHost` gets the parameter `name` for it.
+- The owner allowed the runs of the integration projects (checked facts), so the phase ran the PostgreSQL integration project itself.
 
 Done when: the build has no errors and no warnings, all unit tests pass, `pwsh ./coverage.ps1` passes, `pwsh ./pack.ps1` passes with 42 packages of 0.10.0, and the PostgreSQL integration tests pass.
 
