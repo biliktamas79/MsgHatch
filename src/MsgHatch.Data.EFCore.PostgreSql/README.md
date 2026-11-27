@@ -6,6 +6,7 @@ The PostgreSQL package of the EF Core stores of [MsgHatch](https://github.com/bi
 - The collation `C` of the ids and the names, so an id is case-sensitive and sorts in ordinal order.
 - The schema migrations of `MsgHatchDbContext` for PostgreSQL.
 - A setup with one call.
+- A dispatch signal through `LISTEN` and `NOTIFY`, which wakes the dispatch loops of the hosts on one database.
 
 Each time is a `timestamptz`, which keeps microseconds. A time comes back cut down to the microsecond.
 
@@ -108,6 +109,10 @@ With `RequireCurrentSchema`, the start of the service fails when a migration is 
 ```
 
 ## Version history
+
+### 0.10.0 (2026-11-27)
+
+- `PostgreSqlDispatchSignal` wakes the dispatch loops of the hosts on one database through `LISTEN` and `NOTIFY` (D334).
 
 ### 0.9.0 (2026-11-26)
 
