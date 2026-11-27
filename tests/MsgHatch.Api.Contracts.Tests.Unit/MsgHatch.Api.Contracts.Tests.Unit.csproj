@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" />
+    <Compile Include="..\..\src\Shared\ErrorProblems.Responses.cs" Link="Shared\ErrorProblems.Responses.cs" />
     <Compile Include="..\..\src\Shared\DeliveryApiRoutes.cs" Link="Shared\DeliveryApiRoutes.cs" />
   </ItemGroup>
 

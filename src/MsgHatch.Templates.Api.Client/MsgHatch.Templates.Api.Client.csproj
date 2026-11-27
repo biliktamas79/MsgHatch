@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" />
+    <Compile Include="..\Shared\ErrorProblems.Responses.cs" Link="Shared\ErrorProblems.Responses.cs" />
     <Compile Include="..\Shared\TemplateApiRoutes.cs" Link="Shared\TemplateApiRoutes.cs" />
     <Compile Include="..\Shared\ApiResults.cs" Link="Shared\ApiResults.cs" />
   </ItemGroup>

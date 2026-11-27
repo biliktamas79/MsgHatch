@@ -21,7 +21,7 @@ public sealed record GeneratorRun(
             .Select(static path => MetadataReference.CreateFromFile(path)),
     ];
 
-    private static readonly string _errorProblems = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Shared", "ErrorProblems.cs"));
+    private static readonly string _errorProblems = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Shared", "ErrorProblems.Responses.cs"));
 
     public static GeneratorRun Of(string source, CancellationToken ct) => Of(source, new PlaceholderPayloadGenerator(), ct);
 

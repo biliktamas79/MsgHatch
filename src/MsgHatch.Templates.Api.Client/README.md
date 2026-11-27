@@ -42,6 +42,10 @@ services.AddMsgHatch(o => o.Roles = MsgHatchRoles.None)
 
 ## Version history
 
+### 0.9.0 (2026-11-26)
+
+- The package compiles only the half of the internal error mapping that its generated HTTP calls use, so it has no code that it does not call. The API and the behavior do not change.
+
 ### 0.8.0 (2026-11-26)
 
 - Breaking: the constant `TemplateApiClientOptions.SectionName` is removed. `TemplateApiClientOptions.SectionKey` is `TemplateApiClient`, the key of the section under the root of `AddMsgHatch`, by default `MsgHatch:TemplateApiClient`. The section follows the root of `AddMsgHatch`, which the parameter `configSectionPath` of `MsgHatch.Domain` 0.8.0 sets. A host with the default root changes no setting.

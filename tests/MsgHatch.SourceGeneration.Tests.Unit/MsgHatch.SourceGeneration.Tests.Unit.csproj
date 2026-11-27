@@ -11,8 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" />
-    <None Include="..\..\src\Shared\ErrorProblems.cs" Link="Shared\ErrorProblems.cs" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="..\..\src\Shared\ErrorProblems.Responses.cs" Link="Shared\ErrorProblems.Responses.cs" />
+    <None Include="..\..\src\Shared\ErrorProblems.Responses.cs" Link="Shared\ErrorProblems.Responses.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

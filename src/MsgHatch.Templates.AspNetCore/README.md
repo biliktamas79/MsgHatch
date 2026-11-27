@@ -24,6 +24,10 @@ The default prefix is `/templates`, and `MapMsgHatchTemplates("/admin/templates"
 
 ## Version history
 
+### 0.9.0 (2026-11-26)
+
+- The package compiles only the half of the internal error mapping that gives the HTTP status of an error type, so it has no code that it does not call. The API and the behavior do not change.
+
 ### 0.7.1 (2026-11-26)
 
 - The package has the MsgHatch icon. The code and the API do not change.
