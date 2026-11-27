@@ -2,6 +2,7 @@ using MsgHatch.Dispatch.RabbitMq.Tests.Integration.TestTypes;
 using MsgHatch.Domain.Dispatch;
 using MsgHatch.Domain.Failures;
 using MsgHatch.Domain.Tests.Unit.TestTypes;
+using MsgHatch.Tests.Shared;
 
 namespace MsgHatch.Dispatch.RabbitMq.Tests.Integration;
 
@@ -12,6 +13,8 @@ namespace MsgHatch.Dispatch.RabbitMq.Tests.Integration;
 /// </summary>
 public sealed class RabbitMqDispatchSignalIntegTests : IAsyncDisposable
 {
+    private const int _defaultAmqpPort = 5672;
+
     private static readonly DispatchTopic _topic = DispatchTopic.ForChannel(TestChannel.Id);
     private static readonly TimeSpan _reconnectPause = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan _gapBetweenNotifications = TimeSpan.FromMilliseconds(100);
@@ -58,7 +61,7 @@ public sealed class RabbitMqDispatchSignalIntegTests : IAsyncDisposable
     {
         // Arrange
         using var network = NetworkToTheBroker();
-        var signal = await ConnectedSignalAsync(network.Uri, _hosts.NewSignal());
+        var signal = await ConnectedSignalAsync(ThroughThe(network), _hosts.NewSignal());
         var wait = signal.WaitAsync(_topic, Ct);
 
         // Act
@@ -74,7 +77,7 @@ public sealed class RabbitMqDispatchSignalIntegTests : IAsyncDisposable
         // Arrange
         using var network = NetworkToTheBroker();
         var notifier = _hosts.NewSignal();
-        var signal = await ConnectedSignalAsync(network.Uri, notifier);
+        var signal = await ConnectedSignalAsync(ThroughThe(network), notifier);
         var lost = signal.WaitAsync(_topic, Ct);
         network.DropConnections();
         await CompletedAsync(lost);
@@ -92,8 +95,13 @@ public sealed class RabbitMqDispatchSignalIntegTests : IAsyncDisposable
     private static TcpForwarder NetworkToTheBroker()
     {
         Assert.SkipWhen(RabbitMqBroker.Uri.Scheme == "amqps", "The forwarder of the test gives the broker another host name, which breaks TLS.");
-        return new TcpForwarder(RabbitMqBroker.Uri);
+        var broker = RabbitMqBroker.Uri;
+        return new TcpForwarder(broker.Host, broker.Port > 0 ? broker.Port : _defaultAmqpPort);
     }
+
+    /// <summary>The URI of the broker with the address of the forwarder.</summary>
+    private static Uri ThroughThe(TcpForwarder network) =>
+        new UriBuilder(RabbitMqBroker.Uri) { Host = "127.0.0.1", Port = network.Port }.Uri;
 
     /// <summary>
     /// Gives a signal of a new container that is connected to the broker: an inbox notification of another signal reached
